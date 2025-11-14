@@ -1,50 +1,121 @@
-# Welcome to your Expo app 👋
+# Auditapp - Hệ thống Quản lý Audit
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Hệ thống quản lý audit gồm 3 phần chính:
+1. **Mobile App** - React Native + Expo Router
+2. **Admin Web** - React + Vite + TypeScript
+3. **Backend API** - Node.js + Express + SQL Server
 
-## Get started
+## 🏗️ Kiến trúc hệ thống
 
-1. Install dependencies
-
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+Auditapp/
+├── Auditapp-mobile/     # Mobile App (Expo)
+├── AdminAuditapp/       # Admin Web (Vite + React + TS)
+└── backend/             # Backend API (Node + Express + SQL Server)
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+## 🚀 Bắt đầu nhanh
 
-## Learn more
+### 1. Backend Setup
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+cd backend
+npm install
+cp .env.example .env
+# Cấu hình .env với thông tin database và Cloudinary
+# Chạy schema.sql trên SQL Server
+npm run dev
+```
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+### 2. Admin Web Setup
 
-## Join the community
+```bash
+cd AdminAuditapp
+npm install
+cp .env.example .env
+# Cấu hình VITE_API_BASE_URL trong .env
+npm run dev
+```
 
-Join our community of developers creating universal apps.
+### 3. Mobile App Setup
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+```bash
+npm install
+npx expo start
+```
+
+## 📋 Yêu cầu hệ thống
+
+- Node.js >= 18
+- SQL Server (Aurora/RDS hoặc local)
+- Cloudinary account (cho upload ảnh)
+- Expo CLI (cho mobile app)
+
+## 🎨 Global Styling
+
+- **Primary Color**: `#0138C3` (Xanh đậm)
+- **Secondary Color**: `#fefefe` (Trắng be/Off-White)
+
+## 📚 Tài liệu chi tiết
+
+- [Backend README](./backend/README.md)
+- [Admin Web README](./AdminAuditapp/README.md)
+
+## 🔐 Database Schema
+
+Database gồm 4 bảng chính:
+- **Users**: Quản lý người dùng (auto UserCode: U000001, U000002, ...)
+- **Stores**: Quản lý cửa hàng (auto StoreCode: CH000001, CH000002, ...)
+- **Audits**: Lưu kết quả audit (pass/fail) của user cho store
+- **Images**: Lưu URL ảnh từ Cloudinary với watermark lat/lon/time
+
+Xem chi tiết trong `backend/database/schema.sql`
+
+## 🔑 API Endpoints
+
+### Authentication
+- `POST /api/auth/login`
+- `POST /api/auth/register`
+- `POST /api/auth/refresh`
+
+### Resources
+- `/api/users` - Quản lý users
+- `/api/stores` - Quản lý stores
+- `/api/audits` - Quản lý audits
+- `/api/images` - Upload và quản lý ảnh
+
+Xem chi tiết trong [Backend README](./backend/README.md)
+
+## 📝 Tính năng chính
+
+- ✅ Authentication với JWT
+- ✅ Auto-generate codes (UserCode, StoreCode)
+- ✅ Upload ảnh lên Cloudinary với watermark (lat/lon/time)
+- ✅ Admin Dashboard với thống kê
+- ✅ CRUD đầy đủ cho Users, Stores, Audits
+- ✅ Responsive design
+
+## 🛠️ Công nghệ sử dụng
+
+### Backend
+- Node.js + Express
+- SQL Server (mssql)
+- Cloudinary
+- JWT
+- bcryptjs
+
+### Admin Web
+- React 19
+- TypeScript
+- Vite
+- React Router
+- Axios
+
+### Mobile App
+- React Native
+- Expo Router
+- TypeScript
+
+## 📄 License
+
+ISC

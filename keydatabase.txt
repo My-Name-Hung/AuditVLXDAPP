@@ -1,0 +1,3 @@
+auditappvlxd.cve8ukeuqxap.ap-southeast-2.rds.amazonaws.com
+adminXMTD
+adminVLXD

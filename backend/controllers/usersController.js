@@ -1,0 +1,141 @@
+const bcrypt = require('bcryptjs');
+const User = require('../models/User');
+
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.findAll();
+    res.json(users);
+  } catch (error) {
+    console.error('Get all users error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await User.findById(id);
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    // Remove password from response
+    const { Password, ...userWithoutPassword } = user;
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Get user by id error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const createUser = async (req, res) => {
+  try {
+    const { username, password, fullName, email, phone, role } = req.body;
+
+    if (!username || !password || !fullName) {
+      return res.status(400).json({ error: 'Username, password, and fullName are required' });
+    }
+
+    const existingUser = await User.findByUsername(username);
+    if (existingUser) {
+      return res.status(400).json({ error: 'Username already exists' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.create({
+      Username: username,
+      Password: hashedPassword,
+      FullName: fullName,
+      Email: email,
+      Phone: phone,
+      Role: role || 'user',
+    });
+
+    const { Password, ...userWithoutPassword } = user;
+    res.status(201).json(userWithoutPassword);
+  } catch (error) {
+    console.error('Create user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fullName, email, phone, role, password } = req.body;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { getPool, sql } = require('../config/database');
+    const pool = await getPool();
+    const request = pool.request();
+
+    request.input('Id', sql.Int, id);
+    request.input('FullName', sql.NVarChar(200), fullName || user.FullName);
+    request.input('Email', sql.NVarChar(200), email || user.Email);
+    request.input('Phone', sql.VarChar(20), phone || user.Phone);
+    request.input('Role', sql.VarChar(50), role || user.Role);
+
+    let updateQuery = `
+      UPDATE Users 
+      SET FullName = @FullName, 
+          Email = @Email, 
+          Phone = @Phone, 
+          Role = @Role,
+          UpdatedAt = GETDATE()
+    `;
+
+    if (password) {
+      const hashedPassword = await bcrypt.hash(password, 10);
+      request.input('Password', sql.NVarChar(255), hashedPassword);
+      updateQuery += ', Password = @Password';
+    }
+
+    updateQuery += ' OUTPUT INSERTED.* WHERE Id = @Id';
+
+    const result = await request.query(updateQuery);
+    const { Password, ...userWithoutPassword } = result.recordset[0];
+
+    res.json(userWithoutPassword);
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const deleteUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const user = await User.findById(id);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { getPool, sql } = require('../config/database');
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('Id', sql.Int, id);
+
+    await request.query('DELETE FROM Users WHERE Id = @Id');
+
+    res.json({ message: 'User deleted successfully' });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+module.exports = {
+  getAllUsers,
+  getUserById,
+  createUser,
+  updateUser,
+  deleteUser,
+};
+

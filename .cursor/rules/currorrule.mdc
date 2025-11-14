@@ -1,0 +1,246 @@
+---
+alwaysApply: true
+---
+
+{
+
+"version": "1.0",
+"meta": {
+"name": "Auditapp Global Safety & Architecture Enforcement",
+"description": "Luật bảo vệ project Auditapp (Expo + Vite Admin + Backend Node + SQL Server) – Cursor phải hỏi trước mọi hành động.",
+"createdBy": "you",
+"createdAt": "2025-11-14"
+},
+
+"rules": [
+// ---------------------------------------------------------------------
+// RULE 1 – GLOBAL SAFETY CONFIRMATION
+// Mọi hành động Cursor chuẩn bị thực hiện -> phải hỏi lại user trước.
+// ---------------------------------------------------------------------
+{
+"id": "global-confirmation",
+"name": "Always Ask for Confirmation Before Any Action",
+"enabled": true,
+"priority": 9999,
+"scope": ["*"],
+"trigger": {
+"on": [
+"onSave",
+"onType",
+"onCommand",
+"manual",
+"onFileCreate",
+"onFileDelete",
+"onFileModify",
+"onRefactor"
+],
+"match": {
+"regex": ".\*"
+}
+},
+"action": {
+"type": "prompt",
+"title": "Xác nhận hành động",
+"message": "Cursor chuẩn bị thực hiện một thay đổi trong hệ thống Auditapp. Bạn có muốn tiếp tục không?",
+"confirmLabel": "Có — Tiếp tục",
+"cancelLabel": "Không — Hủy",
+"typeOfResponse": "boolean",
+"onConfirm": { "type": "allow" },
+"onCancel": { "type": "deny" }
+}
+},
+
+// ---------------------------------------------------------------------
+    // RULE 2 – SYSTEM KNOWLEDGE BASE FOR AUDITAPP (Cập nhật Mobile App Structure)
+    // Cursor phải hiểu cấu trúc dự án, không được tự ý thay đổi.
+    // ---------------------------------------------------------------------
+    {
+      "id": "auditapp-system-context",
+      "name": "Auditapp Architecture Awareness",
+      "enabled": true,
+      "priority": 9000,
+      "scope": ["*"],
+      "trigger": { "on": ["onOpen", "manual"] },
+      "action": {
+        "type": "inject-context",
+        "content": [
+          "Bạn đang làm việc trong hệ thống Auditapp gồm 3 phần:",
+          "1. Mobile App: React-Native + Expo Router (Màn hình chính nằm trong /src/screens)",
+          "2. Admin Web: React + Vite + Typescript",
+          "3. Backend NodeJS + Express kết nối SQL Server Aurora/RDS",
+          "",
+          "Kiến trúc folder tiêu chuẩn:",
+          "Auditapp/",
+          " ├─ Auditapp-mobile/ (expo - Logic trong /src, Screens trong /src/screens)",
+          " ├─ AdminAuditapp/ (vite react-ts)",
+          " ├─ backend/ (node-express + mssql + cloudinary)",
+          "",
+          "Backend REQUIREMENTS:",
+          "- sử dụng express",
+          "- có routes: auth, users, stores, audits, images",
+          "- có service upload ảnh lên Cloudinary với watermark lat/lon/time",
+          "- kết nối database qua mssql",
+          "- sử dụng ENV biến DB_SERVER, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME",
+          "",
+          "Database REQUIREMENTS:",
+          "- bảng Users, Stores, Audits, Images",
+          "- Users: auto UserCode U000001",
+          "- Stores: auto StoreCode CH000001",
+          "- Audit lưu kết quả pass/fail của user cho store",
+          "- Images lưu URL từ Cloudinary và reference images từ admin",
+          "",
+          "Cursor phải tuân thủ đúng kiến trúc này, không tự đổi layout file."
+        ]
+      }
+    },
+
+// ---------------------------------------------------------------------
+    // RULE 3 – PROTECT BACKEND / DO NOT MODIFY WITHOUT ASKING
+    // ---------------------------------------------------------------------
+    {
+      "id": "backend-protection",
+      "name": "Protect Backend Code From Unapproved Modifications",
+      "enabled": true,
+      "priority": 9500,
+      "scope": ["backend/**/*"],
+      "trigger": { "on": ["onFileModify", "onFileDelete", "onRefactor"] },
+      "action": {
+        "type": "prompt",
+        "title": "Bạn có chắc muốn thay đổi backend?",
+        "message": "Bạn đang thay đổi mã nguồn backend NodeJS. Đây là phần quan trọng. Có chắc muốn tiếp tục không?",
+        "confirmLabel": "Tiếp tục",
+        "cancelLabel": "Hủy",
+        "typeOfResponse": "boolean",
+        "onCancel": { "type": "deny" },
+        "onConfirm": { "type": "allow" }
+      }
+    },
+
+// ---------------------------------------------------------------------
+    // RULE 4 – PROTECT MOBILE STRUCTURE
+    // ---------------------------------------------------------------------
+    {
+      "id": "expo-mobile-protection",
+      "name": "Protect Expo Mobile Architecture",
+      "enabled": true,
+      "priority": 9400,
+      "scope": ["Auditapp-mobile/**/*"],
+      "trigger": { "on": ["onFileModify", "onFileDelete", "onRefactor"] },
+      "action": {
+        "type": "prompt",
+        "title": "Xác nhận thay đổi Mobile App (Expo)",
+        "message": "Thay đổi này ảnh hưởng đến cấu trúc Mobile App sử dụng Expo Router. Bạn có muốn thực hiện không?",
+        "confirmLabel": "Đồng ý",
+        "cancelLabel": "Hủy",
+        "typeOfResponse": "boolean",
+        "onCancel": { "type": "deny" },
+        "onConfirm": { "type": "allow" }
+      }
+    },
+
+// ---------------------------------------------------------------------
+    // RULE 5 – PROTECT ADMIN WEB STRUCTURE
+    // ---------------------------------------------------------------------
+    {
+      "id": "admin-web-respect",
+      "name": "Protect Admin Auditapp Vite Structure",
+      "enabled": true,
+      "priority": 9300,
+      "scope": ["AdminAuditapp/**/*"],
+      "trigger": { "on": ["onFileModify", "onFileDelete", "onRefactor"] },
+      "action": {
+        "type": "prompt",
+        "title": "Xác nhận thay đổi Admin Web",
+        "message": "Bạn đang sửa AdminAuditapp (React + Vite). Bạn có tiếp tục không?",
+        "confirmLabel": "Có",
+        "cancelLabel": "Không",
+        "typeOfResponse": "boolean"
+      }
+    },
+
+// ---------------------------------------------------------------------
+    // RULE 6 – ENV & SECURITY PROTECTION
+    // ---------------------------------------------------------------------
+    {
+      "id": "env-security",
+      "name": "Protect .env and Secrets",
+      "enabled": true,
+      "priority": 9800,
+      "scope": [".env", ".env-example", ".enc-example"],
+      "trigger": { "on": ["onFileModify", "onFileDelete"] },
+      "action": {
+        "type": "prompt",
+        "title": "Cảnh báo bảo mật ENV",
+        "message": "Bạn đang thay đổi file ENV chứa config database/sql/cloudinary. Xác nhận trước khi tiếp tục.",
+        "confirmLabel": "Tiếp tục",
+        "cancelLabel": "Dừng",
+        "typeOfResponse": "boolean",
+        "onCancel": { "type": "deny" }
+      }
+    },
+
+// ---------------------------------------------------------------------
+    // RULE 7 – REFACTOR RULE
+    // ---------------------------------------------------------------------
+    {
+      "id": "refactor-confirmation",
+      "name": "Confirm Before Large Refactors",
+      "enabled": true,
+      "priority": 9600,
+      "scope": ["*"],
+      "trigger": { "on": ["onRefactor"] },
+      "action": {
+        "type": "prompt",
+        "title": "Refactor lớn detected",
+        "message": "Refactor này có thể ảnh hưởng toàn bộ hệ thống. Bạn có muốn tiếp tục không?",
+        "confirmLabel": "Có, tôi hiểu và đồng ý",
+        "cancelLabel": "Không",
+        "typeOfResponse": "boolean",
+        "onCancel": { "type": "deny" }
+      }
+    },
+
+// ---------------------------------------------------------------------
+    // RULE 8 – BACKEND RULESET: FORCE CLEAN CODE + DB INTEGRITY
+    // ---------------------------------------------------------------------
+    {
+      "id": "backend-guidelines",
+      "name": "Backend Coding Standards (Auditapp)",
+      "enabled": true,
+      "priority": 8500,
+      "scope": ["backend/**/*.js"],
+      "trigger": { "on": ["onType", "manual"] },
+      "action": {
+        "type": "inject-context",
+        "content": [
+          "Backend REQUIREMENTS bạn *bắt buộc* phải tuân thủ:",
+          "- DB dùng SQL Server qua mssql.",
+          "- Không thay đổi DB schema nếu user chưa xác nhận.",
+          "- Ảnh upload -> phải xử lý watermark lat/lon/time -> upload lên Cloudinary -> lưu URL.",
+          "- Route chuẩn: /api/auth, /api/users, /api/stores, /api/audits, /api/images.",
+          "- Không được tự tạo thư mục mới ngoài: routes/, controllers/, services/, middlewares/, models/."
+        ]
+      }
+    },
+    // ---------------------------------------------------------------------
+    // RULE 9 – GLOBAL STYLING REQUIREMENTS
+    // ---------------------------------------------------------------------
+    {
+      "id": "global-styling-auditapp",
+      "name": "Auditapp Global Color Palette",
+      "enabled": true,
+      "priority": 9000,
+      "scope": ["*"],
+      "trigger": { "on": ["onOpen", "manual", "onType"] },
+      "action": {
+          "type": "inject-context",
+          "content": [
+          "Hướng dẫn Màu Chủ Đạo (Global Styling) cho App và Web:",
+          "- Màu chính (Primary Color): #0138C3 (Xanh đậm)",
+          "- Màu nền/phụ (Secondary Color): #fefefe (Trắng be/Off-White)"
+        ]
+      }
+    }
+
+]
+}

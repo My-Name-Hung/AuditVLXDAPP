@@ -1,0 +1,28 @@
+.audits-page {
+  width: 100%;
+}
+
+.filters {
+  background: white;
+  padding: 1rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.filters .form-group {
+  margin: 0;
+}
+
+.badge-pass {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.badge-fail {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
