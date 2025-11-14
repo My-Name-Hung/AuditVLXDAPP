@@ -137,16 +137,16 @@ export default function Dashboard() {
     const headerStyle = {
       font: { bold: true, color: { argb: "FFFFFFFF" } },
       fill: {
-        type: "pattern",
-        pattern: "solid",
+        type: "pattern" as const,
+        pattern: "solid" as const,
         fgColor: { argb: "FF0138C3" },
       },
-      alignment: { horizontal: "center", vertical: "middle" },
+      alignment: { horizontal: "center" as const, vertical: "middle" as const },
       border: {
-        top: { style: "thin" },
-        bottom: { style: "thin" },
-        left: { style: "thin" },
-        right: { style: "thin" },
+        top: { style: "thin" as const },
+        bottom: { style: "thin" as const },
+        left: { style: "thin" as const },
+        right: { style: "thin" as const },
       },
     };
 

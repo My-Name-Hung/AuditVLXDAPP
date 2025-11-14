@@ -1,4 +1,6 @@
 const bcrypt = require("bcryptjs");
+const fs = require("fs");
+const path = require("path");
 const { getPool, sql } = require("../config/database");
 const User = require("../models/User");
 const Store = require("../models/Store");
@@ -8,53 +10,59 @@ const Territory = require("../models/Territory");
 const {
   uploadImageWithWatermarkBase64,
 } = require("../services/cloudinaryService");
-const sharp = require("sharp");
 
 /**
- * Create a simple placeholder image as base64
- * Returns a valid 800x600 white JPEG image in base64
- * Uses sharp to create a valid JPEG image
+ * Read example image from assets folder and convert to base64
+ * Returns base64 string of the example.jpg image
  */
-async function createPlaceholderImageBase64() {
+function readExampleImageAsBase64() {
   try {
-    // Create a valid 800x600 white JPEG image using sharp
-    const imageBuffer = await sharp({
-      create: {
-        width: 800,
-        height: 600,
-        channels: 3,
-        background: { r: 255, g: 255, b: 255 }, // White background
-      },
-    })
-      .jpeg({ quality: 90 })
-      .toBuffer();
+    // Try multiple possible paths
+    const possiblePaths = [
+      path.join(process.cwd(), "backend", "assets", "example", "example.jpg"),
+      path.join(process.cwd(), "assets", "example", "example.jpg"),
+    ];
+
+    // Find the first existing path
+    let finalPath = null;
+    for (const imagePath of possiblePaths) {
+      if (fs.existsSync(imagePath)) {
+        finalPath = imagePath;
+        break;
+      }
+    }
+
+    // Check if file exists
+    if (!finalPath) {
+      throw new Error(
+        `Example image not found. Tried paths: ${possiblePaths.join(", ")}`
+      );
+    }
+
+    // Read image file as buffer
+    const imageBuffer = fs.readFileSync(finalPath);
 
     // Convert to base64
     const base64String = imageBuffer.toString("base64");
+    console.log(`✅ Loaded example image from: ${finalPath}`);
     return base64String;
   } catch (error) {
-    console.error("Error creating placeholder image:", error);
-    // Fallback to a minimal valid JPEG base64 if sharp fails
-    // This is a valid 1x1 white JPEG
-    return "/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAAEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/2wBDAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQH/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwA/wA";
+    console.error("Error reading example image:", error);
+    throw error;
   }
 }
 
 /**
  * Upload sample image with watermark
+ * Uses the example.jpg from backend/assets/example/example.jpg
  */
 async function uploadSampleImageWithWatermark(latitude, longitude, capturedAt) {
   try {
-    // Create a valid JPEG image using sharp
-    const placeholderBase64 = await createPlaceholderImageBase64();
+    // Read example image from assets folder
+    const imageBase64 = readExampleImageAsBase64();
+    const base64Image = `data:image/jpeg;base64,${imageBase64}`;
 
-    // Ensure the base64 string doesn't include data URI prefix
-    const cleanBase64 = placeholderBase64.replace(
-      /^data:image\/jpeg;base64,/,
-      ""
-    );
-    const base64Image = `data:image/jpeg;base64,${cleanBase64}`;
-
+    // Upload to Cloudinary with watermark
     const uploadResult = await uploadImageWithWatermarkBase64(base64Image, {
       latitude,
       longitude,
@@ -110,21 +118,126 @@ const sampleUsers = [
 ];
 
 const sampleStores = [
-  { name: "VLXD Bình Nguyên", address: "123 Đường ABC, Quận 1, TPHCM" },
-  { name: "VLXD Huỳnh Đức", address: "456 Đường XYZ, Quận 2, TPHCM" },
-  { name: "VLXD Minh Nhựt", address: "789 Đường DEF, Quận 3, TPHCM" },
-  { name: "CH Hai Bé", address: "321 Đường GHI, Quận 4, TPHCM" },
-  { name: "CH Trí Cường", address: "654 Đường JKL, Quận 5, TPHCM" },
-  { name: "CH Quách Ngân", address: "987 Đường MNO, Quận 6, TPHCM" },
-  { name: "CH Kỳ An", address: "147 Đường PQR, Quận 7, TPHCM" },
-  { name: "CH Minh Phát", address: "258 Đường STU, Quận 8, TPHCM" },
-  { name: "CH Nhựt Vy", address: "369 Đường VWX, Quận 9, TPHCM" },
-  { name: "VLXD Phúc Thịnh", address: "741 Đường YZA, Quận 10, TPHCM" },
-  { name: "VLXD Xuân Thùy", address: "852 Đường BCD, Quận 11, TPHCM" },
-  { name: "VLXD Đông Phương", address: "963 Đường EFG, Quận 12, TPHCM" },
-  { name: "CH Thành Công", address: "159 Đường HIJ, Quận Bình Thạnh, TPHCM" },
-  { name: "CH Vạn Lợi", address: "357 Đường KLM, Quận Tân Bình, TPHCM" },
-  { name: "VLXD Hưng Thịnh", address: "468 Đường NOP, Quận Phú Nhuận, TPHCM" },
+  {
+    name: "VLXD Bình Nguyên",
+    address: "123 Đường Nguyễn Huệ, Quận 1, TPHCM",
+    lat: 10.7769,
+    lon: 106.7009,
+  },
+  {
+    name: "VLXD Huỳnh Đức",
+    address: "456 Đường Võ Văn Tần, Quận 3, TPHCM",
+    lat: 10.7831,
+    lon: 106.6907,
+  },
+  {
+    name: "VLXD Minh Nhựt",
+    address: "789 Đường Lê Lợi, Quận 1, TPHCM",
+    lat: 10.7756,
+    lon: 106.7019,
+  },
+  {
+    name: "CH Hai Bé",
+    address: "321 Đường Nguyễn Thị Minh Khai, Quận 3, TPHCM",
+    lat: 10.787,
+    lon: 106.6914,
+  },
+  {
+    name: "CH Trí Cường",
+    address: "654 Đường Cách Mạng Tháng 8, Quận 10, TPHCM",
+    lat: 10.772,
+    lon: 106.6683,
+  },
+  {
+    name: "CH Quách Ngân",
+    address: "987 Đường Lý Thường Kiệt, Quận 10, TPHCM",
+    lat: 10.7736,
+    lon: 106.6678,
+  },
+  {
+    name: "CH Kỳ An",
+    address: "147 Đường Nguyễn Văn Cừ, Quận 5, TPHCM",
+    lat: 10.7559,
+    lon: 106.667,
+  },
+  {
+    name: "CH Minh Phát",
+    address: "258 Đường Trần Hưng Đạo, Quận 5, TPHCM",
+    lat: 10.7526,
+    lon: 106.6674,
+  },
+  {
+    name: "CH Nhựt Vy",
+    address: "369 Đường Nguyễn Trãi, Quận 1, TPHCM",
+    lat: 10.7694,
+    lon: 106.6942,
+  },
+  {
+    name: "VLXD Phúc Thịnh",
+    address: "741 Đường Pasteur, Quận 3, TPHCM",
+    lat: 10.7889,
+    lon: 106.6911,
+  },
+  {
+    name: "VLXD Xuân Thùy",
+    address: "852 Đường Điện Biên Phủ, Quận Bình Thạnh, TPHCM",
+    lat: 10.8019,
+    lon: 106.7148,
+  },
+  {
+    name: "VLXD Đông Phương",
+    address: "963 Đường Xô Viết Nghệ Tĩnh, Quận Bình Thạnh, TPHCM",
+    lat: 10.8105,
+    lon: 106.7141,
+  },
+  {
+    name: "CH Thành Công",
+    address: "159 Đường Hoàng Văn Thụ, Quận Tân Bình, TPHCM",
+    lat: 10.8014,
+    lon: 106.6525,
+  },
+  {
+    name: "CH Vạn Lợi",
+    address: "357 Đường Cộng Hòa, Quận Tân Bình, TPHCM",
+    lat: 10.8011,
+    lon: 106.6446,
+  },
+  {
+    name: "VLXD Hưng Thịnh",
+    address: "468 Đường Phạm Văn Đồng, Quận Bình Thạnh, TPHCM",
+    lat: 10.8429,
+    lon: 106.742,
+  },
+  {
+    name: "CH An Phát",
+    address: "159 Đường Lê Đức Thọ, Quận Gò Vấp, TPHCM",
+    lat: 10.85,
+    lon: 106.67,
+  },
+  {
+    name: "VLXD Thành Đạt",
+    address: "357 Đường Quang Trung, Quận Gò Vấp, TPHCM",
+    lat: 10.84,
+    lon: 106.68,
+  },
+  {
+    name: "CH Phú Thịnh",
+    address: "468 Đường Nguyễn Oanh, Quận Gò Vấp, TPHCM",
+    lat: 10.83,
+    lon: 106.69,
+  },
+  {
+    name: "VLXD Đức Thành",
+    address: "789 Đường Lê Văn Thọ, Quận 12, TPHCM",
+    lat: 10.86,
+    lon: 106.64,
+  },
+  {
+    name: "CH Minh Khang",
+    address: "321 Đường Tân Hương, Quận Tân Phú, TPHCM",
+    lat: 10.76,
+    lon: 106.63,
+  },
 ];
 
 async function seedSampleData() {
@@ -198,7 +311,6 @@ async function seedSampleData() {
 
     // Create stores and assign to users
     const createdStores = [];
-    let storeIndex = 0;
     for (const storeData of sampleStores) {
       // Check if store already exists
       const existingStore = await pool
@@ -218,8 +330,9 @@ async function seedSampleData() {
           .input("Address", sql.NVarChar(500), storeData.address)
           .input("Phone", sql.VarChar(20), "0123456789")
           .input("Email", sql.NVarChar(200), `${storeCode}@example.com`)
-          .input("Latitude", sql.Decimal(10, 8), 10.762622)
-          .input("Longitude", sql.Decimal(11, 8), 106.660172).query(`
+          .input("Latitude", sql.Decimal(10, 8), storeData.lat || 10.762622)
+          .input("Longitude", sql.Decimal(11, 8), storeData.lon || 106.660172)
+          .query(`
             INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Latitude, Longitude, CreatedAt, UpdatedAt)
             OUTPUT INSERTED.*
             VALUES (@StoreCode, @StoreName, @Address, @Phone, @Email, @Latitude, @Longitude, GETDATE(), GETDATE())
@@ -228,16 +341,27 @@ async function seedSampleData() {
         console.log(`✅ Created store: ${storeData.name}`);
       }
 
-      // Assign store to user (round-robin)
-      const userId = createdUsers[storeIndex % createdUsers.length].Id;
+      createdStores.push(store);
+    }
+
+    // Assign stores to users - User 1 gets first 12 stores, User 2 gets next 8 stores
+    const user1StoresToAssign = createdStores.slice(0, 12);
+    const user2StoresToAssign = createdStores.slice(12, 20);
+
+    for (const store of user1StoresToAssign) {
       await pool
         .request()
         .input("StoreId", sql.Int, store.Id)
-        .input("UserId", sql.Int, userId)
+        .input("UserId", sql.Int, createdUsers[0].Id)
         .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
+    }
 
-      createdStores.push({ ...store, UserId: userId });
-      storeIndex++;
+    for (const store of user2StoresToAssign) {
+      await pool
+        .request()
+        .input("StoreId", sql.Int, store.Id)
+        .input("UserId", sql.Int, createdUsers[1].Id)
+        .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
     }
 
     // Create audits with images for first 2 users (LÂM TẤT TOẠI and NGUYỄN PHƯƠNG SƠN)
@@ -248,32 +372,63 @@ async function seedSampleData() {
       new Date("2025-11-03"),
       new Date("2025-11-04"),
       new Date("2025-11-05"),
+      new Date("2025-11-06"),
+      new Date("2025-11-07"),
     ];
 
-    // User 1: LÂM TẤT TOẠI - 5 days, 11 stores
-    const user1Stores = createdStores
-      .filter((s) => s.UserId === activeUsers[0].Id)
-      .slice(0, 11);
-    for (let dayIndex = 0; dayIndex < 5; dayIndex++) {
-      const auditDate = dates[dayIndex];
-      const storesForDay = user1Stores
-        .slice(dayIndex * 2, (dayIndex + 1) * 2 + 1)
-        .filter(Boolean);
+    // Notes variations
+    const notesVariations = [
+      "Checkin thành công",
+      "Cửa hàng hoạt động bình thường",
+      "Đã kiểm tra hàng hóa",
+      "Cửa hàng đầy đủ sản phẩm",
+      "Đã chụp ảnh minh chứng",
+      "Kiểm tra định kỳ",
+      "Cửa hàng sạch sẽ, gọn gàng",
+    ];
 
-      for (const store of storesForDay) {
+    // User 1: LÂM TẤT TOẠI - 7 days, multiple stores per day
+    const user1StoreList = createdStores.filter(
+      (s) => s.UserId === createdUsers[0].Id
+    );
+
+    let storeIndex1 = 0;
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const auditDate = dates[dayIndex];
+      // Each day, visit 2-3 different stores
+      const storesPerDay = dayIndex % 2 === 0 ? 2 : 3;
+
+      for (
+        let i = 0;
+        i < storesPerDay && storeIndex1 < user1StoreList.length;
+        i++
+      ) {
+        const store = user1StoreList[storeIndex1 % user1StoreList.length];
+        const storeData =
+          sampleStores.find((s) => s.name === store.StoreName) ||
+          sampleStores[0];
+
+        // Different checkin times: 8 AM to 5 PM
+        const hourOffset = 8 + i * 3 + (dayIndex % 3);
+        const minuteOffset = (dayIndex * 10) % 60;
+        const capturedAt = new Date(
+          auditDate.getTime() +
+            hourOffset * 60 * 60 * 1000 +
+            minuteOffset * 60 * 1000
+        );
+
         const audit = await Audit.create({
           UserId: activeUsers[0].Id,
           StoreId: store.Id,
           Result: "pass",
-          Notes: "Checkin thành công",
+          Notes: notesVariations[dayIndex % notesVariations.length],
           AuditDate: auditDate,
         });
 
-        // Create image for audit with watermark
-        const capturedAt = new Date(auditDate.getTime() + 9 * 60 * 60 * 1000); // 9 AM
+        // Create image for audit with watermark using store's coordinates
         const imageUrl = await uploadSampleImageWithWatermark(
-          10.762622,
-          106.660172,
+          storeData.lat || store.Latitude || 10.762622,
+          storeData.lon || store.Longitude || 106.660172,
           capturedAt
         );
 
@@ -281,96 +436,70 @@ async function seedSampleData() {
           AuditId: audit.Id,
           ImageUrl: imageUrl,
           ReferenceImageUrl: null,
-          Latitude: 10.762622,
-          Longitude: 106.660172,
+          Latitude: storeData.lat || store.Latitude || 10.762622,
+          Longitude: storeData.lon || store.Longitude || 106.660172,
           CapturedAt: capturedAt,
         });
+
+        storeIndex1++;
       }
     }
 
-    // User 2: NGUYỄN PHƯƠNG SƠN - 5 days, 13 stores
-    const user2Stores = createdStores.filter(
-      (s) => s.UserId === activeUsers[1].Id
+    // User 2: NGUYỄN PHƯƠNG SƠN - 7 days, multiple stores per day
+    const user2StoreList = createdStores.filter(
+      (s) => s.UserId === createdUsers[1].Id
     );
-    for (let dayIndex = 0; dayIndex < 5; dayIndex++) {
-      const auditDate = dates[dayIndex];
-      const storesForDay = user2Stores
-        .slice(dayIndex * 2, (dayIndex + 1) * 2 + 1)
-        .filter(Boolean);
 
-      for (const store of storesForDay) {
+    let storeIndex2 = 0;
+    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+      const auditDate = dates[dayIndex];
+      // Each day, visit 2-3 different stores
+      const storesPerDay = dayIndex % 3 === 0 ? 3 : 2;
+
+      for (
+        let i = 0;
+        i < storesPerDay && storeIndex2 < user2StoreList.length;
+        i++
+      ) {
+        const store = user2StoreList[storeIndex2 % user2StoreList.length];
+        const storeData =
+          sampleStores.find((s) => s.name === store.StoreName) ||
+          sampleStores[12];
+
+        // Different checkin times: 7 AM to 6 PM
+        const hourOffset = 7 + i * 4 + (dayIndex % 2);
+        const minuteOffset = (dayIndex * 15 + i * 5) % 60;
+        const capturedAt = new Date(
+          auditDate.getTime() +
+            hourOffset * 60 * 60 * 1000 +
+            minuteOffset * 60 * 1000
+        );
+
         const audit = await Audit.create({
           UserId: activeUsers[1].Id,
           StoreId: store.Id,
           Result: "pass",
-          Notes: "Checkin thành công",
+          Notes: notesVariations[(dayIndex + i) % notesVariations.length],
           AuditDate: auditDate,
         });
 
-        // Create image for audit with watermark
-        const capturedAt2 = new Date(auditDate.getTime() + 10 * 60 * 60 * 1000); // 10 AM
-        const imageUrl2 = await uploadSampleImageWithWatermark(
-          10.762622,
-          106.660172,
-          capturedAt2
+        // Create image for audit with watermark using store's coordinates
+        const imageUrl = await uploadSampleImageWithWatermark(
+          storeData.lat || store.Latitude || 10.762622,
+          storeData.lon || store.Longitude || 106.660172,
+          capturedAt
         );
 
         await Image.create({
           AuditId: audit.Id,
-          ImageUrl: imageUrl2,
+          ImageUrl: imageUrl,
           ReferenceImageUrl: null,
-          Latitude: 10.762622,
-          Longitude: 106.660172,
-          CapturedAt: capturedAt2,
-        });
-      }
-    }
-
-    // Add more stores to user 2 to reach 13
-    const additionalStores = createdStores
-      .filter(
-        (s) => s.UserId !== activeUsers[0].Id && s.UserId !== activeUsers[1].Id
-      )
-      .slice(0, 2);
-    for (const store of additionalStores) {
-      await pool
-        .request()
-        .input("StoreId", sql.Int, store.Id)
-        .input("UserId", sql.Int, activeUsers[1].Id)
-        .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
-    }
-
-    // Create more audits for user 2 to reach 13 stores
-    const user2AllStores = createdStores.filter(
-      (s) => s.UserId === activeUsers[1].Id
-    );
-    for (let i = 0; i < 2; i++) {
-      const store = user2AllStores[user2Stores.length + i];
-      if (store) {
-        const audit = await Audit.create({
-          UserId: activeUsers[1].Id,
-          StoreId: store.Id,
-          Result: "pass",
-          Notes: "Checkin thành công",
-          AuditDate: dates[0],
+          Latitude: storeData.lat || store.Latitude || 10.762622,
+          Longitude: storeData.lon || store.Longitude || 106.660172,
+          CapturedAt: capturedAt,
         });
 
-        // Create image for audit with watermark
-        const capturedAt3 = new Date(dates[0].getTime() + 11 * 60 * 60 * 1000);
-        const imageUrl3 = await uploadSampleImageWithWatermark(
-          10.762622,
-          106.660172,
-          capturedAt3
-        );
-
-        await Image.create({
-          AuditId: audit.Id,
-          ImageUrl: imageUrl3,
-          ReferenceImageUrl: null,
-          Latitude: 10.762622,
-          Longitude: 106.660172,
-          CapturedAt: capturedAt3,
-        });
+        storeIndex2++;
       }
     }
 
