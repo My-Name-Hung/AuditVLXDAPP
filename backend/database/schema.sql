@@ -10,6 +10,7 @@ CREATE TABLE Users (
     Email NVARCHAR(200),
     Phone VARCHAR(20),
     Role VARCHAR(50) DEFAULT 'user',
+    IsChangePassword BIT DEFAULT 1,
     CreatedAt DATETIME DEFAULT GETDATE(),
     UpdatedAt DATETIME DEFAULT GETDATE()
 );

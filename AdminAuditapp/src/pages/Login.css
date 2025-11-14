@@ -127,8 +127,34 @@
   transform: translateY(-50%);
   border: none;
   background: transparent;
-  font-size: 1.1rem;
+  font-size: 1.25rem;
   cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  opacity: 1;
+  visibility: visible;
+  z-index: 10;
+}
+
+.eye-button:hover {
+  background-color: transparent;
+  transform: translateY(-50%);
+  color: #666;
+}
+
+.eye-button:focus {
+  outline: none;
+  background-color: transparent;
+}
+
+.eye-button svg {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: inherit;
 }
 
 .error-message {
@@ -137,6 +163,32 @@
   padding: 0.75rem 1rem;
   border-radius: 12px;
   font-size: 0.9rem;
+}
+
+.remember-password {
+  margin-top: -0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.remember-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  font-weight: 400;
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.remember-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary-color);
+}
+
+.remember-checkbox span {
+  user-select: none;
 }
 
 .btn-full {
@@ -160,4 +212,3 @@
     padding: 2rem;
   }
 }
-

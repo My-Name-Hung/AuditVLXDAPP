@@ -9,19 +9,20 @@ const cloudinary = require('../config/cloudinary');
 async function uploadImageWithWatermark(imageBuffer, metadata) {
   const { latitude, longitude, timestamp } = metadata;
 
-  // Format timestamp
+  // Format timestamp: dd/mm/yyyy hh:mm:ss
   const date = new Date(timestamp);
-  const timeString = date.toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const timeString = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 
-  // Create watermark text
-  const watermarkText = `Lat: ${latitude || 'N/A'} | Lon: ${longitude || 'N/A'} | ${timeString}`;
+  // Create watermark text: "Lat: xxxx,Long: xxxx dd/mm/yyyy hh:mm:ss"
+  const latValue = latitude !== null && latitude !== undefined ? latitude.toFixed(6) : 'N/A';
+  const lonValue = longitude !== null && longitude !== undefined ? longitude.toFixed(6) : 'N/A';
+  const watermarkText = `Lat: ${latValue},Long: ${lonValue} ${timeString}`;
 
   try {
     // Convert buffer to base64
@@ -38,8 +39,8 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
             font_weight: 'bold',
             text: watermarkText,
           },
-          color: '#FFFFFF',
-          background: '#00000080',
+          color: '#0138C3',
+          background: '#FFFFFF80',
           gravity: 'south',
           y: 20,
         },
@@ -59,17 +60,20 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
 async function uploadImageWithWatermarkBase64(base64Image, metadata) {
   const { latitude, longitude, timestamp } = metadata;
 
+  // Format timestamp: dd/mm/yyyy hh:mm:ss
   const date = new Date(timestamp);
-  const timeString = date.toLocaleString('vi-VN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  const hours = String(date.getHours()).padStart(2, '0');
+  const minutes = String(date.getMinutes()).padStart(2, '0');
+  const seconds = String(date.getSeconds()).padStart(2, '0');
+  const timeString = `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
 
-  const watermarkText = `Lat: ${latitude || 'N/A'} | Lon: ${longitude || 'N/A'} | ${timeString}`;
+  // Create watermark text: "Lat: xxxx,Long: xxxx dd/mm/yyyy hh:mm:ss"
+  const latValue = latitude !== null && latitude !== undefined ? latitude.toFixed(6) : 'N/A';
+  const lonValue = longitude !== null && longitude !== undefined ? longitude.toFixed(6) : 'N/A';
+  const watermarkText = `Lat: ${latValue},Long: ${lonValue} ${timeString}`;
 
   try {
     const result = await cloudinary.uploader.upload(base64Image, {
@@ -82,8 +86,8 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
             font_weight: 'bold',
             text: watermarkText,
           },
-          color: '#FFFFFF',
-          background: '#00000080',
+          color: '#0138C3',
+          background: '#FFFFFF80',
           gravity: 'south',
           y: 20,
         },

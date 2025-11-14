@@ -1,16 +1,35 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { PiEyeSlashThin, PiEyeThin } from "react-icons/pi";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "./Login.css";
+
+const REMEMBER_PASSWORD_KEY = "rememberPassword";
+const SAVED_USERNAME_KEY = "savedUsername";
+const SAVED_PASSWORD_KEY = "savedPassword";
 
 export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberPassword, setRememberPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedRemember =
+      localStorage.getItem(REMEMBER_PASSWORD_KEY) === "true";
+    if (savedRemember) {
+      const savedUsername = localStorage.getItem(SAVED_USERNAME_KEY);
+      const savedPassword = localStorage.getItem(SAVED_PASSWORD_KEY);
+      if (savedUsername) setUsername(savedUsername);
+      if (savedPassword) setPassword(savedPassword);
+      setRememberPassword(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,6 +38,19 @@ export default function Login() {
 
     try {
       await login(username, password);
+
+      // Save credentials if remember password is checked
+      if (rememberPassword) {
+        localStorage.setItem(REMEMBER_PASSWORD_KEY, "true");
+        localStorage.setItem(SAVED_USERNAME_KEY, username);
+        localStorage.setItem(SAVED_PASSWORD_KEY, password);
+      } else {
+        // Clear saved credentials if unchecked
+        localStorage.removeItem(REMEMBER_PASSWORD_KEY);
+        localStorage.removeItem(SAVED_USERNAME_KEY);
+        localStorage.removeItem(SAVED_PASSWORD_KEY);
+      }
+
       navigate("/");
     } catch (err: unknown) {
       const apiError = err as { response?: { data?: { error?: string } } };
@@ -89,9 +121,19 @@ export default function Login() {
                     showPassword ? "Ẩn mật khẩu" : "Hiển thị mật khẩu"
                   }
                 >
-                  {showPassword ? "🙈" : "👁️"}
+                  {showPassword ? <PiEyeSlashThin /> : <PiEyeThin />}
                 </button>
               </div>
+            </div>
+            <div className="form-group remember-password">
+              <label className="remember-checkbox">
+                <input
+                  type="checkbox"
+                  checked={rememberPassword}
+                  onChange={(e) => setRememberPassword(e.target.checked)}
+                />
+                <span>Ghi nhớ mật khẩu</span>
+              </label>
             </div>
             <button
               type="submit"

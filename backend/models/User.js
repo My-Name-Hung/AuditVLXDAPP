@@ -3,7 +3,7 @@ const { getPool, sql } = require('../config/database');
 class User {
   static async create(userData) {
     const pool = await getPool();
-    const { Username, Password, FullName, Email, Phone, Role = 'user' } = userData;
+    const { Username, Password, FullName, Email, Phone, Role = 'user', IsChangePassword = 0 } = userData;
 
     // Generate UserCode
     const userCode = await this.generateUserCode();
@@ -16,11 +16,12 @@ class User {
     request.input('Email', sql.NVarChar(200), Email);
     request.input('Phone', sql.VarChar(20), Phone);
     request.input('Role', sql.VarChar(50), Role);
+    request.input('IsChangePassword', sql.Bit, IsChangePassword);
 
     const result = await request.query(`
-      INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, CreatedAt, UpdatedAt)
+      INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt)
       OUTPUT INSERTED.*
-      VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, GETDATE(), GETDATE())
+      VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @IsChangePassword, GETDATE(), GETDATE())
     `);
 
     return result.recordset[0];
@@ -53,12 +54,28 @@ class User {
   static async findAll() {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT Id, UserCode, Username, FullName, Email, Phone, Role, CreatedAt, UpdatedAt
+      SELECT Id, UserCode, Username, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt
       FROM Users
       ORDER BY CreatedAt DESC
     `);
 
     return result.recordset;
+  }
+
+  static async updatePassword(userId, newPassword) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('Id', sql.Int, userId);
+    request.input('Password', sql.NVarChar(255), newPassword);
+
+    const result = await request.query(`
+      UPDATE Users 
+      SET Password = @Password, IsChangePassword = 0, UpdatedAt = GETDATE()
+      WHERE Id = @Id
+      OUTPUT INSERTED.*
+    `);
+
+    return result.recordset[0];
   }
 
   static async generateUserCode() {

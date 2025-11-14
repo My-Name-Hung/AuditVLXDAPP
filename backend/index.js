@@ -9,6 +9,7 @@ const PORT = process.env.PORT || 3000;
 const { getPool } = require("./config/database");
 require("./config/cloudinary");
 const { seedAdminUser } = require("./utils/seedAdmin");
+const seedSampleData = require("./utils/seedSampleData");
 
 // Middleware
 const corsOptions = {
@@ -25,6 +26,8 @@ app.use("/api/users", require("./routes/users"));
 app.use("/api/stores", require("./routes/stores"));
 app.use("/api/audits", require("./routes/audits"));
 app.use("/api/images", require("./routes/images"));
+app.use("/api/dashboard", require("./routes/dashboard"));
+app.use("/api/territories", require("./routes/territories"));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -91,6 +94,14 @@ async function initializeServices() {
 
     // Seed default admin user (after DB ready)
     await seedAdminUser();
+
+    // Seed sample data if in development
+    if (
+      process.env.NODE_ENV === "development" &&
+      process.env.SEED_SAMPLE_DATA === "true"
+    ) {
+      await seedSampleData();
+    }
   } catch (error) {
     console.error(
       "❌ Failed to initialize database connection:",

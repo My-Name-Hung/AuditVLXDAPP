@@ -1,6 +1,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Dashboard from "./pages/Dashboard";
+import UserDetail from "./pages/UserDetail";
 import Users from "./pages/Users";
 import Stores from "./pages/Stores";
 import Audits from "./pages/Audits";
@@ -33,6 +34,7 @@ function AppRoutes() {
         }
       >
         <Route index element={<Dashboard />} />
+        <Route path="dashboard/user/:userId" element={<UserDetail />} />
         <Route path="users" element={<Users />} />
         <Route path="stores" element={<Stores />} />
         <Route path="audits" element={<Audits />} />

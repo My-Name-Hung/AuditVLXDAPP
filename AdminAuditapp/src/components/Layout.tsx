@@ -1,30 +1,14 @@
-import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
+import { HiHome, HiOfficeBuilding, HiUsers } from "react-icons/hi";
+import { HiArrowUpOnSquare } from "react-icons/hi2";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "./Layout.css";
 
-const navSections = [
-  {
-    title: "Chương trình và cửa hàng",
-    items: [
-      { path: "/audits", label: "Danh sách chương trình", icon: "📅" },
-      { path: "/stores", label: "Danh sách cửa hàng", icon: "🏬" },
-    ],
-  },
-  {
-    title: "Người dùng & NPP",
-    items: [
-      { path: "/users", label: "Danh sách người dùng", icon: "👥" },
-      { path: "/distributors", label: "Danh sách nhà phân phối", icon: "🚚" },
-    ],
-  },
-  {
-    title: "Thống kê",
-    items: [{ path: "/", label: "Dashboard", icon: "📊" }],
-  },
-  {
-    title: "Dữ liệu",
-    items: [{ path: "/import-export", label: "Upload/Download", icon: "⤴️" }],
-  },
+const navItems = [
+  { path: "/", label: "Dashboard", icon: HiHome },
+  { path: "/stores", label: "Danh sách cửa hàng", icon: HiOfficeBuilding },
+  { path: "/users", label: "Danh sách nhân viên", icon: HiUsers },
+  { path: "/import-export", label: "Import/Export", icon: HiArrowUpOnSquare },
 ];
 
 export default function Layout() {
@@ -48,24 +32,21 @@ export default function Layout() {
       <aside className="sidebar">
         <div className="sidebar-header">
           <img src="/icon.jpg" alt="Logo" className="sidebar-logo" />
-          <h2>Quản lý thương vụ XMTĐ</h2>
         </div>
         <nav className="sidebar-nav">
-          {navSections.map((section) => (
-            <div key={section.title} className="sidebar-section">
-              <p className="sidebar-section__title">{section.title}</p>
-              {section.items.map((item) => (
-                <Link
-                  key={item.path}
-                  to={item.path}
-                  className={`nav-item ${isActive(item.path) ? "active" : ""}`}
-                >
-                  <span className="nav-icon">{item.icon}</span>
-                  <span className="nav-label">{item.label}</span>
-                </Link>
-              ))}
-            </div>
-          ))}
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.path}
+                to={item.path}
+                className={`nav-item ${isActive(item.path) ? "active" : ""}`}
+              >
+                <Icon className="nav-icon" />
+                <span className="nav-label">{item.label}</span>
+              </Link>
+            );
+          })}
         </nav>
       </aside>
       <main className="main-content">
@@ -87,4 +68,3 @@ export default function Layout() {
     </div>
   );
 }
-
