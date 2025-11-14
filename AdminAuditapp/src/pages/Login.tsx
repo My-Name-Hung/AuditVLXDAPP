@@ -1,26 +1,29 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import './Login.css';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import "./Login.css";
 
 export default function Login() {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setLoading(true);
 
     try {
       await login(username, password);
-      navigate('/');
-    } catch (err: any) {
-      setError(err.response?.data?.error || 'Login failed. Please try again.');
+      navigate("/");
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      setError(
+        error.response?.data?.error || "Login failed. Please try again."
+      );
     } finally {
       setLoading(false);
     }
@@ -30,7 +33,8 @@ export default function Login() {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h1>Auditapp</h1>
+          <img src="/icon.jpg" alt="Logo" className="login-logo" />
+          <h1>Quản lý thương vụ XMTĐ</h1>
           <p>Admin Dashboard</p>
         </div>
         <form onSubmit={handleSubmit} className="login-form">
@@ -56,12 +60,15 @@ export default function Login() {
               required
             />
           </div>
-          <button type="submit" disabled={loading} className="btn-primary btn-full">
-            {loading ? 'Logging in...' : 'Login'}
+          <button
+            type="submit"
+            disabled={loading}
+            className="btn-primary btn-full"
+          >
+            {loading ? "Logging in..." : "Login"}
           </button>
         </form>
       </div>
     </div>
   );
 }
-

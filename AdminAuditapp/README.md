@@ -1,6 +1,6 @@
 # AdminAuditapp
 
-Admin Web Dashboard cho hệ thống Auditapp sử dụng React + Vite + TypeScript.
+Admin Web Dashboard cho hệ thống Quản lý thương vụ XMTĐ sử dụng React + Vite + TypeScript.
 
 ## Cài đặt
 

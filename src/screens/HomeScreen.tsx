@@ -13,13 +13,18 @@ export default function HomeScreen() {
       headerBackgroundColor={{ light: "#A1CEDC", dark: "#1D3D47" }}
       headerImage={
         <Image
-          source={require("@/assets/images/partial-react-logo.png")}
-          style={styles.reactLogo}
+          source={require("@/assets/images/icon.jpg")}
+          style={styles.headerLogo}
         />
       }
     >
       <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
+        <Image
+          source={require("@/assets/images/icon.jpg")}
+          style={styles.logo}
+          contentFit="contain"
+        />
+        <ThemedText type="title">Quản lý thương vụ XMTĐ</ThemedText>
         <HelloWave />
       </ThemedView>
       <ThemedView style={styles.stepContainer}>
@@ -63,7 +68,7 @@ export default function HomeScreen() {
                 onPress={() => alert("Delete pressed")}
               />
             </Link.Menu>
-          </Link>
+          </Link.Menu>
         </Link>
 
         <ThemedText>
@@ -89,20 +94,27 @@ export default function HomeScreen() {
 
 const styles = StyleSheet.create({
   titleContainer: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    marginBottom: 16,
+  },
+  logo: {
+    width: 100,
+    height: 100,
+    borderRadius: 12,
+    marginBottom: 8,
   },
   stepContainer: {
     gap: 8,
     marginBottom: 8,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
+  headerLogo: {
+    height: 200,
+    width: 200,
     bottom: 0,
     left: 0,
     position: "absolute",
+    borderRadius: 16,
   },
 });
-

@@ -23,7 +23,8 @@ export default function Layout() {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h2>Auditapp</h2>
+          <img src="/icon.jpg" alt="Logo" className="sidebar-logo" />
+          <h2>Quản lý thương vụ XMTĐ</h2>
         </div>
         <nav className="sidebar-nav">
           {navItems.map((item) => (

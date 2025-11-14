@@ -1,6 +1,6 @@
-# Auditapp Backend API
+# Quản lý thương vụ XMTĐ - Backend API
 
-Backend API cho hệ thống Auditapp sử dụng Node.js, Express, và SQL Server.
+Backend API cho hệ thống Quản lý thương vụ XMTĐ sử dụng Node.js, Express, và SQL Server.
 
 ## Cài đặt
 

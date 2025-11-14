@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Auditapp",
-    "slug": "Auditapp",
+    "name": "Quản lý thương vụ XMTĐ",
+    "slug": "quan-ly-thuong-vu-xmtd",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.jpg",

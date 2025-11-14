@@ -6,8 +6,8 @@ alwaysApply: true
 
 "version": "1.0",
 "meta": {
-"name": "Auditapp Global Safety & Architecture Enforcement",
-"description": "Luật bảo vệ project Auditapp (Expo + Vite Admin + Backend Node + SQL Server) – Cursor phải hỏi trước mọi hành động.",
+"name": "Quản lý thương vụ XMTĐ - Global Safety & Architecture Enforcement",
+"description": "Luật bảo vệ project Quản lý thương vụ XMTĐ (Expo + Vite Admin + Backend Node + SQL Server) – Cursor phải hỏi trước mọi hành động.",
 "createdBy": "you",
 "createdAt": "2025-11-14"
 },
@@ -41,7 +41,7 @@ alwaysApply: true
 "action": {
 "type": "prompt",
 "title": "Xác nhận hành động",
-"message": "Cursor chuẩn bị thực hiện một thay đổi trong hệ thống Auditapp. Bạn có muốn tiếp tục không?",
+"message": "Cursor chuẩn bị thực hiện một thay đổi trong hệ thống Quản lý thương vụ XMTĐ. Bạn có muốn tiếp tục không?",
 "confirmLabel": "Có — Tiếp tục",
 "cancelLabel": "Không — Hủy",
 "typeOfResponse": "boolean",
@@ -64,7 +64,7 @@ alwaysApply: true
       "action": {
         "type": "inject-context",
         "content": [
-          "Bạn đang làm việc trong hệ thống Auditapp gồm 3 phần:",
+"Bạn đang làm việc trong hệ thống Quản lý thương vụ XMTĐ gồm 3 phần:",
           "1. Mobile App: React-Native + Expo Router (Màn hình chính nằm trong /src/screens)",
           "2. Admin Web: React + Vite + Typescript",
           "3. Backend NodeJS + Express kết nối SQL Server Aurora/RDS",

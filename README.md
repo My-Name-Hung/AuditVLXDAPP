@@ -1,6 +1,6 @@
-# Auditapp - Hệ thống Quản lý Audit
+# Quản lý thương vụ XMTĐ - Hệ thống Quản lý Audit
 
-Hệ thống quản lý audit gồm 3 phần chính:
+Hệ thống quản lý thương vụ XMTĐ gồm 3 phần chính:
 1. **Mobile App** - React Native + Expo Router
 2. **Admin Web** - React + Vite + TypeScript
 3. **Backend API** - Node.js + Express + SQL Server
