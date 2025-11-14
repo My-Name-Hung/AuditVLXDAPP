@@ -2,7 +2,12 @@ const cloudinary = require("../config/cloudinary");
 
 /**
  * Upload image to Cloudinary with watermark containing lat/lon/time
- * @param {Buffer} imageBuffer - Image file buffer
+ * 
+ * NOTE: This function is used by the mobile app frontend to upload images.
+ * The mobile app will send image buffer and metadata (lat/lon/timestamp) to the backend API,
+ * which will then call this function to upload to Cloudinary with watermark.
+ * 
+ * @param {Buffer} imageBuffer - Image file buffer from mobile app
  * @param {Object} metadata - Metadata containing latitude, longitude, timestamp
  * @returns {Promise<Object>} Cloudinary upload result
  */

@@ -55,6 +55,10 @@ function readExampleImageAsBase64() {
 /**
  * Upload sample image with watermark
  * Uses the example.jpg from backend/assets/example/example.jpg
+ *
+ * NOTE: This function is ONLY for test data seeding.
+ * Real image uploads will come from the mobile app frontend,
+ * which will use the uploadImageWithWatermark function from cloudinaryService.
  */
 async function uploadSampleImageWithWatermark(latitude, longitude, capturedAt) {
   try {
@@ -245,6 +249,34 @@ async function seedSampleData() {
     const pool = await getPool();
     console.log("🌱 Starting to seed sample data...");
 
+    // Clean up old audit data for first 2 users (LÂM TẤT TOẠI and NGUYỄN PHƯƠNG SƠN)
+    // This ensures fresh data with updated watermark is created
+    console.log("🧹 Cleaning up old audit data for test users...");
+    const cleanupUsers = await pool.request().query(`
+        SELECT Id, FullName FROM Users 
+        WHERE FullName IN ('LÂM TẤT TOẠI', 'NGUYỄN PHƯƠNG SƠN')
+      `);
+
+    if (cleanupUsers.recordset.length > 0) {
+      for (const user of cleanupUsers.recordset) {
+        // Delete images first (foreign key constraint)
+        await pool.request().input("UserId", sql.Int, user.Id).query(`
+            DELETE FROM Images 
+            WHERE AuditId IN (
+              SELECT Id FROM Audits WHERE UserId = @UserId
+            )
+          `);
+
+        // Delete audits
+        await pool
+          .request()
+          .input("UserId", sql.Int, user.Id)
+          .query("DELETE FROM Audits WHERE UserId = @UserId");
+
+        console.log(`   ✅ Cleaned up data for user: ${user.FullName}`);
+      }
+    }
+
     // Get territories
     const territories = await Territory.findAll();
     const territoryMap = {};
@@ -387,120 +419,121 @@ async function seedSampleData() {
       "Cửa hàng sạch sẽ, gọn gàng",
     ];
 
-    // User 1: LÂM TẤT TOẠI - 7 days, multiple stores per day
+    // User 1: LÂM TẤT TOẠI - Visit each store only once, spread across 7 days
     const user1StoreList = createdStores.filter(
       (s) => s.UserId === createdUsers[0].Id
     );
 
-    let storeIndex1 = 0;
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    // Shuffle stores to randomize order
+    const shuffledUser1Stores = [...user1StoreList].sort(
+      () => Math.random() - 0.5
+    );
+
+    for (
+      let storeIndex = 0;
+      storeIndex < shuffledUser1Stores.length;
+      storeIndex++
+    ) {
+      const store = shuffledUser1Stores[storeIndex];
+      const storeData =
+        sampleStores.find((s) => s.name === store.StoreName) || sampleStores[0];
+
+      // Distribute stores across 7 days
+      const dayIndex = storeIndex % 7;
       const auditDate = dates[dayIndex];
-      // Each day, visit 2-3 different stores
-      const storesPerDay = dayIndex % 2 === 0 ? 2 : 3;
 
-      for (
-        let i = 0;
-        i < storesPerDay && storeIndex1 < user1StoreList.length;
-        i++
-      ) {
-        const store = user1StoreList[storeIndex1 % user1StoreList.length];
-        const storeData =
-          sampleStores.find((s) => s.name === store.StoreName) ||
-          sampleStores[0];
+      // Different checkin times: 8 AM to 5 PM
+      const hourOffset = 8 + (storeIndex % 8);
+      const minuteOffset = (storeIndex * 7) % 60;
+      const capturedAt = new Date(
+        auditDate.getTime() +
+          hourOffset * 60 * 60 * 1000 +
+          minuteOffset * 60 * 1000
+      );
 
-        // Different checkin times: 8 AM to 5 PM
-        const hourOffset = 8 + i * 3 + (dayIndex % 3);
-        const minuteOffset = (dayIndex * 10) % 60;
-        const capturedAt = new Date(
-          auditDate.getTime() +
-            hourOffset * 60 * 60 * 1000 +
-            minuteOffset * 60 * 1000
-        );
+      const audit = await Audit.create({
+        UserId: activeUsers[0].Id,
+        StoreId: store.Id,
+        Result: "pass",
+        Notes: notesVariations[storeIndex % notesVariations.length],
+        AuditDate: auditDate,
+      });
 
-        const audit = await Audit.create({
-          UserId: activeUsers[0].Id,
-          StoreId: store.Id,
-          Result: "pass",
-          Notes: notesVariations[dayIndex % notesVariations.length],
-          AuditDate: auditDate,
-        });
+      // Create image for audit with watermark using store's coordinates
+      // NOTE: This is only for test data. Real uploads will come from mobile app frontend
+      const imageUrl = await uploadSampleImageWithWatermark(
+        storeData.lat || store.Latitude || 10.762622,
+        storeData.lon || store.Longitude || 106.660172,
+        capturedAt
+      );
 
-        // Create image for audit with watermark using store's coordinates
-        const imageUrl = await uploadSampleImageWithWatermark(
-          storeData.lat || store.Latitude || 10.762622,
-          storeData.lon || store.Longitude || 106.660172,
-          capturedAt
-        );
-
-        await Image.create({
-          AuditId: audit.Id,
-          ImageUrl: imageUrl,
-          ReferenceImageUrl: null,
-          Latitude: storeData.lat || store.Latitude || 10.762622,
-          Longitude: storeData.lon || store.Longitude || 106.660172,
-          CapturedAt: capturedAt,
-        });
-
-        storeIndex1++;
-      }
+      await Image.create({
+        AuditId: audit.Id,
+        ImageUrl: imageUrl,
+        ReferenceImageUrl: null,
+        Latitude: storeData.lat || store.Latitude || 10.762622,
+        Longitude: storeData.lon || store.Longitude || 106.660172,
+        CapturedAt: capturedAt,
+      });
     }
 
-    // User 2: NGUYỄN PHƯƠNG SƠN - 7 days, multiple stores per day
+    // User 2: NGUYỄN PHƯƠNG SƠN - Visit each store only once, spread across 7 days
     const user2StoreList = createdStores.filter(
       (s) => s.UserId === createdUsers[1].Id
     );
 
-    let storeIndex2 = 0;
-    for (let dayIndex = 0; dayIndex < 7; dayIndex++) {
+    // Shuffle stores to randomize order
+    const shuffledUser2Stores = [...user2StoreList].sort(
+      () => Math.random() - 0.5
+    );
+
+    for (
+      let storeIndex = 0;
+      storeIndex < shuffledUser2Stores.length;
+      storeIndex++
+    ) {
+      const store = shuffledUser2Stores[storeIndex];
+      const storeData =
+        sampleStores.find((s) => s.name === store.StoreName) ||
+        sampleStores[12];
+
+      // Distribute stores across 7 days
+      const dayIndex = storeIndex % 7;
       const auditDate = dates[dayIndex];
-      // Each day, visit 2-3 different stores
-      const storesPerDay = dayIndex % 3 === 0 ? 3 : 2;
 
-      for (
-        let i = 0;
-        i < storesPerDay && storeIndex2 < user2StoreList.length;
-        i++
-      ) {
-        const store = user2StoreList[storeIndex2 % user2StoreList.length];
-        const storeData =
-          sampleStores.find((s) => s.name === store.StoreName) ||
-          sampleStores[12];
+      // Different checkin times: 7 AM to 6 PM
+      const hourOffset = 7 + (storeIndex % 11);
+      const minuteOffset = (storeIndex * 5) % 60;
+      const capturedAt = new Date(
+        auditDate.getTime() +
+          hourOffset * 60 * 60 * 1000 +
+          minuteOffset * 60 * 1000
+      );
 
-        // Different checkin times: 7 AM to 6 PM
-        const hourOffset = 7 + i * 4 + (dayIndex % 2);
-        const minuteOffset = (dayIndex * 15 + i * 5) % 60;
-        const capturedAt = new Date(
-          auditDate.getTime() +
-            hourOffset * 60 * 60 * 1000 +
-            minuteOffset * 60 * 1000
-        );
+      const audit = await Audit.create({
+        UserId: activeUsers[1].Id,
+        StoreId: store.Id,
+        Result: "pass",
+        Notes: notesVariations[storeIndex % notesVariations.length],
+        AuditDate: auditDate,
+      });
 
-        const audit = await Audit.create({
-          UserId: activeUsers[1].Id,
-          StoreId: store.Id,
-          Result: "pass",
-          Notes: notesVariations[(dayIndex + i) % notesVariations.length],
-          AuditDate: auditDate,
-        });
+      // Create image for audit with watermark using store's coordinates
+      // NOTE: This is only for test data. Real uploads will come from mobile app frontend
+      const imageUrl = await uploadSampleImageWithWatermark(
+        storeData.lat || store.Latitude || 10.762622,
+        storeData.lon || store.Longitude || 106.660172,
+        capturedAt
+      );
 
-        // Create image for audit with watermark using store's coordinates
-        const imageUrl = await uploadSampleImageWithWatermark(
-          storeData.lat || store.Latitude || 10.762622,
-          storeData.lon || store.Longitude || 106.660172,
-          capturedAt
-        );
-
-        await Image.create({
-          AuditId: audit.Id,
-          ImageUrl: imageUrl,
-          ReferenceImageUrl: null,
-          Latitude: storeData.lat || store.Latitude || 10.762622,
-          Longitude: storeData.lon || store.Longitude || 106.660172,
-          CapturedAt: capturedAt,
-        });
-
-        storeIndex2++;
-      }
+      await Image.create({
+        AuditId: audit.Id,
+        ImageUrl: imageUrl,
+        ReferenceImageUrl: null,
+        Latitude: storeData.lat || store.Latitude || 10.762622,
+        Longitude: storeData.lon || store.Longitude || 106.660172,
+        CapturedAt: capturedAt,
+      });
     }
 
     console.log("✅ Sample data seeded successfully!");
