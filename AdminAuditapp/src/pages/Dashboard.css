@@ -2,6 +2,14 @@
   width: 100%;
 }
 
+.dashboard .page-kicker {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--primary-color);
+  margin-bottom: 0.35rem;
+}
+
 .dashboard h2 {
   margin-bottom: 2rem;
   color: var(--text-primary);

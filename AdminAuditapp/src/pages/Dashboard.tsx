@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
-import api from '../services/api';
-import './Dashboard.css';
+import { useEffect, useState } from "react";
+import api from "../services/api";
+import "./Dashboard.css";
+
+interface AuditRecord {
+  auditDate: string;
+}
 
 export default function Dashboard() {
   const [stats, setStats] = useState({
@@ -18,14 +22,14 @@ export default function Dashboard() {
   const fetchStats = async () => {
     try {
       const [usersRes, storesRes, auditsRes] = await Promise.all([
-        api.get('/users'),
-        api.get('/stores'),
-        api.get('/audits'),
+        api.get("/users"),
+        api.get("/stores"),
+        api.get("/audits"),
       ]);
 
-      const today = new Date().toISOString().split('T')[0];
-      const auditsToday = auditsRes.data.filter((audit: any) => {
-        const auditDate = new Date(audit.auditDate).toISOString().split('T')[0];
+      const today = new Date().toISOString().split("T")[0];
+      const auditsToday = (auditsRes.data as AuditRecord[]).filter((audit) => {
+        const auditDate = new Date(audit.auditDate).toISOString().split("T")[0];
         return auditDate === today;
       }).length;
 
@@ -36,50 +40,50 @@ export default function Dashboard() {
         auditsToday,
       });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error("Error fetching stats:", error);
     } finally {
       setLoading(false);
     }
   };
 
   if (loading) {
-    return <div className="loading">Loading dashboard...</div>;
+    return <div className="loading">Đang tải dữ liệu...</div>;
   }
 
   return (
     <div className="dashboard">
-      <h2>Dashboard</h2>
+      <p className="page-kicker">Thống kê</p>
+      <h2>Tổng quan hoạt động</h2>
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-icon">👥</div>
           <div className="stat-content">
             <h3>{stats.users}</h3>
-            <p>Total Users</p>
+            <p>Người dùng</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">🏪</div>
           <div className="stat-content">
             <h3>{stats.stores}</h3>
-            <p>Total Stores</p>
+            <p>Cửa hàng</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">✅</div>
           <div className="stat-content">
             <h3>{stats.audits}</h3>
-            <p>Total Audits</p>
+            <p>Chương trình</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon">📅</div>
           <div className="stat-content">
             <h3>{stats.auditsToday}</h3>
-            <p>Audits Today</p>
+            <p>Trong ngày</p>
           </div>
         </div>
       </div>
     </div>
   );
 }
-

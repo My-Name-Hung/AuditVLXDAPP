@@ -7,13 +7,12 @@ const PORT = process.env.PORT || 3000;
 
 // Initialize database and cloudinary connections
 const { getPool } = require("./config/database");
-const cloudinary = require("./config/cloudinary");
+require("./config/cloudinary");
+const { seedAdminUser } = require("./utils/seedAdmin");
 
 // Middleware
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN
-    ? process.env.CORS_ORIGIN.split(",")
-    : "*",
+  origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(",") : "*",
   credentials: true,
 };
 app.use(cors(corsOptions));
@@ -44,7 +43,9 @@ app.get("/health", async (req, res) => {
     process.env.CLOUDINARY_CLOUD_NAME &&
     process.env.CLOUDINARY_API_KEY &&
     process.env.CLOUDINARY_API_SECRET;
-  healthStatus.services.cloudinary = cloudinaryConfigured ? "configured" : "not configured";
+  healthStatus.services.cloudinary = cloudinaryConfigured
+    ? "configured"
+    : "not configured";
 
   // Check database connection
   try {
@@ -55,11 +56,12 @@ app.get("/health", async (req, res) => {
     healthStatus.status = "ERROR";
     healthStatus.message = "Service unavailable - Database connection failed";
     healthStatus.services.database = "disconnected";
-    
+
     if (process.env.NODE_ENV === "development") {
       healthStatus.error = error.message;
       if (error.message && error.message.includes("certificate")) {
-        healthStatus.suggestion = "Set DB_TRUST_SERVER_CERTIFICATE=true in .env file";
+        healthStatus.suggestion =
+          "Set DB_TRUST_SERVER_CERTIFICATE=true in .env file";
       }
     }
 
@@ -86,8 +88,14 @@ async function initializeServices() {
   try {
     await getPool();
     console.log("✅ Database connection initialized successfully");
+
+    // Seed default admin user (after DB ready)
+    await seedAdminUser();
   } catch (error) {
-    console.error("❌ Failed to initialize database connection:", error.message);
+    console.error(
+      "❌ Failed to initialize database connection:",
+      error.message
+    );
     console.error("   Please check your database configuration in .env file");
   }
 
@@ -101,13 +109,19 @@ async function initializeServices() {
     console.log("✅ Cloudinary configuration loaded successfully");
   } else {
     console.warn("⚠️  Cloudinary not configured. Image upload will not work.");
-    console.warn("   Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env");
+    console.warn(
+      "   Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env"
+    );
   }
 
   // Check JWT secret
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-    console.warn("⚠️  JWT_SECRET is not set or too short (minimum 32 characters)");
-    console.warn("   This is a security risk! Please set a strong JWT_SECRET in .env");
+    console.warn(
+      "⚠️  JWT_SECRET is not set or too short (minimum 32 characters)"
+    );
+    console.warn(
+      "   This is a security risk! Please set a strong JWT_SECRET in .env"
+    );
   } else {
     console.log("✅ JWT configuration loaded");
   }

@@ -50,6 +50,18 @@
   overflow-y: auto;
 }
 
+.sidebar-section {
+  padding: 0 1.5rem 1rem 1.5rem;
+}
+
+.sidebar-section__title {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #d1d5db;
+  margin: 1.5rem 0 0.75rem 0;
+}
+
 .nav-item {
   display: flex;
   align-items: center;
@@ -102,6 +114,14 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.topbar-kicker {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  margin: 0;
+  font-size: 0.75rem;
 }
 
 .topbar h1 {
