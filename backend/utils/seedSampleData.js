@@ -244,37 +244,73 @@ const sampleStores = [
   },
 ];
 
-async function seedSampleData() {
+async function seedSampleData(skipCleanup = false) {
   try {
     const pool = await getPool();
     console.log("🌱 Starting to seed sample data...");
 
     // Clean up old audit data for first 2 users (LÂM TẤT TOẠI and NGUYỄN PHƯƠNG SƠN)
     // This ensures fresh data with updated watermark is created
-    console.log("🧹 Cleaning up old audit data for test users...");
-    const cleanupUsers = await pool.request().query(`
+    if (!skipCleanup) {
+      console.log("🧹 Cleaning up old audit data for test users...");
+      const cleanupUsers = await pool.request().query(`
         SELECT Id, FullName FROM Users 
         WHERE FullName IN ('LÂM TẤT TOẠI', 'NGUYỄN PHƯƠNG SƠN')
       `);
 
-    if (cleanupUsers.recordset.length > 0) {
-      for (const user of cleanupUsers.recordset) {
-        // Delete images first (foreign key constraint)
-        await pool.request().input("UserId", sql.Int, user.Id).query(`
-            DELETE FROM Images 
-            WHERE AuditId IN (
-              SELECT Id FROM Audits WHERE UserId = @UserId
-            )
-          `);
+      if (cleanupUsers.recordset.length > 0) {
+        for (const user of cleanupUsers.recordset) {
+          // Count existing data before deletion
+          const auditCount = await pool
+            .request()
+            .input("UserId", sql.Int, user.Id)
+            .query(
+              "SELECT COUNT(*) as Count FROM Audits WHERE UserId = @UserId"
+            );
 
-        // Delete audits
-        await pool
-          .request()
-          .input("UserId", sql.Int, user.Id)
-          .query("DELETE FROM Audits WHERE UserId = @UserId");
+          const imageCount = await pool
+            .request()
+            .input("UserId", sql.Int, user.Id).query(`
+              SELECT COUNT(*) as Count FROM Images 
+              WHERE AuditId IN (SELECT Id FROM Audits WHERE UserId = @UserId)
+            `);
 
-        console.log(`   ✅ Cleaned up data for user: ${user.FullName}`);
+          const auditCountNum = auditCount.recordset[0]?.Count || 0;
+          const imageCountNum = imageCount.recordset[0]?.Count || 0;
+
+          if (auditCountNum > 0 || imageCountNum > 0) {
+            console.log(
+              `   📊 Found ${auditCountNum} audits and ${imageCountNum} images for ${user.FullName}`
+            );
+
+            // Delete images first (foreign key constraint)
+            await pool.request().input("UserId", sql.Int, user.Id).query(`
+                DELETE FROM Images 
+                WHERE AuditId IN (
+                  SELECT Id FROM Audits WHERE UserId = @UserId
+                )
+              `);
+
+            // Delete audits
+            await pool
+              .request()
+              .input("UserId", sql.Int, user.Id)
+              .query("DELETE FROM Audits WHERE UserId = @UserId");
+
+            console.log(
+              `   ✅ Cleaned up ${auditCountNum} audits and ${imageCountNum} images for user: ${user.FullName}`
+            );
+          } else {
+            console.log(
+              `   ℹ️  No existing data to clean for user: ${user.FullName}`
+            );
+          }
+        }
+      } else {
+        console.log("   ⚠️  Test users not found, skipping cleanup");
       }
+    } else {
+      console.log("   ⏭️  Skipping cleanup (already done externally)");
     }
 
     // Get territories
@@ -310,7 +346,14 @@ async function seedSampleData() {
           .input("Id", sql.Int, existingUser.recordset[0].Id)
           .input("TerritoryId", sql.Int, territoryId)
           .query("UPDATE Users SET TerritoryId = @TerritoryId WHERE Id = @Id");
-        createdUsers.push(existingUser.recordset[0]);
+
+        // Get full user data including FullName
+        const fullUserData = await pool
+          .request()
+          .input("Id", sql.Int, existingUser.recordset[0].Id)
+          .query("SELECT * FROM Users WHERE Id = @Id");
+
+        createdUsers.push(fullUserData.recordset[0]);
         continue;
       }
 
@@ -386,6 +429,8 @@ async function seedSampleData() {
         .input("StoreId", sql.Int, store.Id)
         .input("UserId", sql.Int, createdUsers[0].Id)
         .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
+      // Update UserId in the array
+      store.UserId = createdUsers[0].Id;
     }
 
     for (const store of user2StoresToAssign) {
@@ -394,7 +439,17 @@ async function seedSampleData() {
         .input("StoreId", sql.Int, store.Id)
         .input("UserId", sql.Int, createdUsers[1].Id)
         .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
+      // Update UserId in the array
+      store.UserId = createdUsers[1].Id;
     }
+
+    console.log(`\n📸 Creating audits and images for test users...`);
+    console.log(
+      `   👤 Active users: ${createdUsers[0].FullName}, ${createdUsers[1].FullName}`
+    );
+    console.log(
+      `   🏪 User 1 stores: ${user1StoresToAssign.length}, User 2 stores: ${user2StoresToAssign.length}`
+    );
 
     // Create audits with images for first 2 users (LÂM TẤT TOẠI and NGUYỄN PHƯƠNG SƠN)
     const activeUsers = createdUsers.slice(0, 2);
@@ -420,15 +475,17 @@ async function seedSampleData() {
     ];
 
     // User 1: LÂM TẤT TOẠI - Visit each store only once, spread across 7 days
-    const user1StoreList = createdStores.filter(
-      (s) => s.UserId === createdUsers[0].Id
-    );
+    const user1StoreList = user1StoresToAssign; // Use the stores we just assigned
 
     // Shuffle stores to randomize order
     const shuffledUser1Stores = [...user1StoreList].sort(
       () => Math.random() - 0.5
     );
 
+    console.log(
+      `   📝 Creating ${shuffledUser1Stores.length} audits for ${activeUsers[0].FullName}...`
+    );
+    let auditCount1 = 0;
     for (
       let storeIndex = 0;
       storeIndex < shuffledUser1Stores.length;
@@ -451,42 +508,56 @@ async function seedSampleData() {
           minuteOffset * 60 * 1000
       );
 
-      const audit = await Audit.create({
-        UserId: activeUsers[0].Id,
-        StoreId: store.Id,
-        Result: "pass",
-        Notes: notesVariations[storeIndex % notesVariations.length],
-        AuditDate: auditDate,
-      });
+      try {
+        const audit = await Audit.create({
+          UserId: activeUsers[0].Id,
+          StoreId: store.Id,
+          Result: "pass",
+          Notes: notesVariations[storeIndex % notesVariations.length],
+          AuditDate: auditDate,
+        });
 
-      // Create image for audit with watermark using store's coordinates
-      // NOTE: This is only for test data. Real uploads will come from mobile app frontend
-      const imageUrl = await uploadSampleImageWithWatermark(
-        storeData.lat || store.Latitude || 10.762622,
-        storeData.lon || store.Longitude || 106.660172,
-        capturedAt
-      );
+        // Create image for audit with watermark using store's coordinates
+        // NOTE: This is only for test data. Real uploads will come from mobile app frontend
+        const imageUrl = await uploadSampleImageWithWatermark(
+          storeData.lat || store.Latitude || 10.762622,
+          storeData.lon || store.Longitude || 106.660172,
+          capturedAt
+        );
 
-      await Image.create({
-        AuditId: audit.Id,
-        ImageUrl: imageUrl,
-        ReferenceImageUrl: null,
-        Latitude: storeData.lat || store.Latitude || 10.762622,
-        Longitude: storeData.lon || store.Longitude || 106.660172,
-        CapturedAt: capturedAt,
-      });
+        await Image.create({
+          AuditId: audit.Id,
+          ImageUrl: imageUrl,
+          ReferenceImageUrl: null,
+          Latitude: storeData.lat || store.Latitude || 10.762622,
+          Longitude: storeData.lon || store.Longitude || 106.660172,
+          CapturedAt: capturedAt,
+        });
+
+        auditCount1++;
+      } catch (error) {
+        console.error(
+          `   ❌ Error creating audit for store ${store.StoreName}:`,
+          error.message
+        );
+      }
     }
+    console.log(
+      `   ✅ Created ${auditCount1} audits with images for ${activeUsers[0].FullName}`
+    );
 
     // User 2: NGUYỄN PHƯƠNG SƠN - Visit each store only once, spread across 7 days
-    const user2StoreList = createdStores.filter(
-      (s) => s.UserId === createdUsers[1].Id
-    );
+    const user2StoreList = user2StoresToAssign; // Use the stores we just assigned
 
     // Shuffle stores to randomize order
     const shuffledUser2Stores = [...user2StoreList].sort(
       () => Math.random() - 0.5
     );
 
+    console.log(
+      `   📝 Creating ${shuffledUser2Stores.length} audits for ${activeUsers[1].FullName}...`
+    );
+    let auditCount2 = 0;
     for (
       let storeIndex = 0;
       storeIndex < shuffledUser2Stores.length;
@@ -510,31 +581,43 @@ async function seedSampleData() {
           minuteOffset * 60 * 1000
       );
 
-      const audit = await Audit.create({
-        UserId: activeUsers[1].Id,
-        StoreId: store.Id,
-        Result: "pass",
-        Notes: notesVariations[storeIndex % notesVariations.length],
-        AuditDate: auditDate,
-      });
+      try {
+        const audit = await Audit.create({
+          UserId: activeUsers[1].Id,
+          StoreId: store.Id,
+          Result: "pass",
+          Notes: notesVariations[storeIndex % notesVariations.length],
+          AuditDate: auditDate,
+        });
 
-      // Create image for audit with watermark using store's coordinates
-      // NOTE: This is only for test data. Real uploads will come from mobile app frontend
-      const imageUrl = await uploadSampleImageWithWatermark(
-        storeData.lat || store.Latitude || 10.762622,
-        storeData.lon || store.Longitude || 106.660172,
-        capturedAt
-      );
+        // Create image for audit with watermark using store's coordinates
+        // NOTE: This is only for test data. Real uploads will come from mobile app frontend
+        const imageUrl = await uploadSampleImageWithWatermark(
+          storeData.lat || store.Latitude || 10.762622,
+          storeData.lon || store.Longitude || 106.660172,
+          capturedAt
+        );
 
-      await Image.create({
-        AuditId: audit.Id,
-        ImageUrl: imageUrl,
-        ReferenceImageUrl: null,
-        Latitude: storeData.lat || store.Latitude || 10.762622,
-        Longitude: storeData.lon || store.Longitude || 106.660172,
-        CapturedAt: capturedAt,
-      });
+        await Image.create({
+          AuditId: audit.Id,
+          ImageUrl: imageUrl,
+          ReferenceImageUrl: null,
+          Latitude: storeData.lat || store.Latitude || 10.762622,
+          Longitude: storeData.lon || store.Longitude || 106.660172,
+          CapturedAt: capturedAt,
+        });
+
+        auditCount2++;
+      } catch (error) {
+        console.error(
+          `   ❌ Error creating audit for store ${store.StoreName}:`,
+          error.message
+        );
+      }
     }
+    console.log(
+      `   ✅ Created ${auditCount2} audits with images for ${activeUsers[1].FullName}`
+    );
 
     console.log("✅ Sample data seeded successfully!");
     console.log(`   - Created ${createdUsers.length} users`);
