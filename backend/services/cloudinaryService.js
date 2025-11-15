@@ -49,6 +49,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
 
     // Apply watermark transformation using URL transformation (not eager)
     // This ensures watermark is applied only once
+    // No shadow effect - just plain text
     const transformedUrl = cloudinary.url(uploadResult.public_id, {
       transformation: [
         {
@@ -62,7 +63,6 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
           gravity: "north_east",
           x: 20,
           y: 20,
-          effect: "shadow:8",
         },
       ],
     });
@@ -115,6 +115,7 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
 
     // Apply watermark transformation using URL transformation (not eager)
     // This ensures watermark is applied only once
+    // No shadow effect - just plain text
     const transformedUrl = cloudinary.url(uploadResult.public_id, {
       transformation: [
         {
@@ -128,7 +129,6 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
           gravity: "north_east",
           x: 20,
           y: 20,
-          effect: "shadow:8",
         },
       ],
     });
