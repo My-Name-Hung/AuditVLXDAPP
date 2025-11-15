@@ -23,7 +23,6 @@ export default function UserAdd() {
 
   const [formData, setFormData] = useState({
     username: "",
-    password: "",
     fullName: "",
     email: "",
     phone: "",
@@ -33,7 +32,6 @@ export default function UserAdd() {
   const hasFormData = () => {
     return (
       formData.username.trim() !== "" ||
-      formData.password.trim() !== "" ||
       formData.fullName.trim() !== "" ||
       formData.email.trim() !== "" ||
       formData.phone.trim() !== ""
@@ -49,15 +47,6 @@ export default function UserAdd() {
         isOpen: true,
         type: "error",
         message: "Vui lòng nhập tên đăng nhập.",
-      });
-      return;
-    }
-
-    if (!formData.password.trim()) {
-      setNotification({
-        isOpen: true,
-        type: "error",
-        message: "Vui lòng nhập mật khẩu.",
       });
       return;
     }
@@ -94,7 +83,7 @@ export default function UserAdd() {
 
       const payload = {
         username: formData.username.trim(),
-        password: formData.password,
+        password: "123456", // Default password
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
@@ -166,18 +155,16 @@ export default function UserAdd() {
         </div>
 
         <div className="form-group">
-          <label>
-            Mật khẩu <span className="required">*</span>
-          </label>
+          <label>Mật khẩu mặc định</label>
           <input
-            type="password"
-            value={formData.password}
-            onChange={(e) =>
-              setFormData({ ...formData, password: e.target.value })
-            }
-            placeholder="Nhập mật khẩu"
-            required
+            type="text"
+            value="123456"
+            disabled
+            className="form-input disabled"
           />
+          <small style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+            Mật khẩu mặc định cho nhân viên mới là "123456"
+          </small>
         </div>
 
         <div className="form-group">

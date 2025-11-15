@@ -39,6 +39,18 @@ class User {
     return result.recordset[0];
   }
 
+  static async findByUsernameOrUserCode(identifier) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('Identifier', sql.NVarChar(100), identifier);
+
+    const result = await request.query(`
+      SELECT * FROM Users WHERE Username = @Identifier OR UserCode = @Identifier
+    `);
+
+    return result.recordset[0];
+  }
+
   static async findById(id) {
     const pool = await getPool();
     const request = pool.request();

@@ -15,7 +15,8 @@ export default function Login() {
   const [rememberPassword, setRememberPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const [salesModalOpen, setSalesModalOpen] = useState(false);
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
 
   // Load saved credentials on mount
@@ -37,7 +38,16 @@ export default function Login() {
     setLoading(true);
 
     try {
-      await login(username, password);
+      const response = await login(username, password);
+      
+      // Check if user role is sales
+      if (response?.user?.role === 'sales') {
+        // Logout sales user immediately
+        logout();
+        setSalesModalOpen(true);
+        setLoading(false);
+        return;
+      }
 
       // Save credentials if remember password is checked
       if (rememberPassword) {

@@ -33,8 +33,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const storedUser = localStorage.getItem('user');
 
     if (storedToken && storedUser) {
-      setToken(storedToken);
-      setUser(JSON.parse(storedUser));
+      const user = JSON.parse(storedUser);
+      // Only allow admin users to access admin panel
+      if (user.role === 'admin') {
+        setToken(storedToken);
+        setUser(user);
+      } else {
+        // Clear invalid session for sales users
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+      }
     }
     setLoading(false);
   }, []);
@@ -46,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(response.user);
       localStorage.setItem('token', response.token);
       localStorage.setItem('user', JSON.stringify(response.user));
+      return response; // Return response to check role
     } catch (error) {
       throw error;
     }

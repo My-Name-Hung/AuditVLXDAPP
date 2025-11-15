@@ -77,6 +77,7 @@ const createUser = async (req, res) => {
       Email: email,
       Phone: phone,
       Role: role || 'user',
+      IsChangePassword: true, // Default to true - user must change password on first login
     });
 
     const { Password, ...userWithoutPassword } = user;

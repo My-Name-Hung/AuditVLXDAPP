@@ -196,14 +196,17 @@ export default function Users() {
         type: "success",
         message: `Đã xóa nhân viên "${userToDelete.FullName}" thành công.`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error deleting user:", error);
       setDeleteLoading(false);
       setDeleteModalOpen(false);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi xóa nhân viên.";
       setNotification({
         isOpen: true,
         type: "error",
-        message: error.response?.data?.error || "Lỗi khi xóa nhân viên.",
+        message: errorMessage,
       });
     }
   };
@@ -225,14 +228,17 @@ export default function Users() {
         type: "success",
         message: `Đã xóa nhân viên "${userToDelete.FullName}" thành công.`,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error force deleting user:", error);
       setDeleteLoading(false);
       setDeleteWarning({ isOpen: false, message: "", auditCount: 0 });
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi xóa nhân viên.";
       setNotification({
         isOpen: true,
         type: "error",
-        message: error.response?.data?.error || "Lỗi khi xóa nhân viên.",
+        message: errorMessage,
       });
     }
   };
@@ -392,7 +398,9 @@ export default function Users() {
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `DanhSachNhanVien_${new Date().toISOString().split("T")[0]}.xlsx`;
+    link.download = `DanhSachNhanVien_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
@@ -405,7 +413,7 @@ export default function Users() {
 
   if (loading && users.length === 0) {
     return (
-      <div className="stores-container">
+      <div className="users-container">
         <div className="loading">Đang tải...</div>
       </div>
     );
@@ -607,7 +615,11 @@ export default function Users() {
               <button
                 className="btn-cancel"
                 onClick={() => {
-                  setDeleteWarning({ isOpen: false, message: "", auditCount: 0 });
+                  setDeleteWarning({
+                    isOpen: false,
+                    message: "",
+                    auditCount: 0,
+                  });
                   setUserToDelete(null);
                 }}
               >

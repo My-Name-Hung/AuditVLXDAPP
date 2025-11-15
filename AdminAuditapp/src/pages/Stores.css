@@ -215,7 +215,8 @@
 }
 
 .stores-table thead {
-  background: #f8f9fa;
+  background: #0138C3;
+  color: #fefefe;
 }
 
 .stores-table th {
@@ -223,7 +224,7 @@
   text-align: left;
   font-weight: 600;
   font-size: 0.875rem;
-  color: var(--text-primary);
+  color: #fefefe;
   border-bottom: 2px solid #e0e0e0;
 }
 

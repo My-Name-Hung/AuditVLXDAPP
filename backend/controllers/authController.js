@@ -10,7 +10,8 @@ const login = async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    const user = await User.findByUsername(username);
+    // Allow login by Username or UserCode
+    const user = await User.findByUsernameOrUserCode(username);
     if (!user) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }

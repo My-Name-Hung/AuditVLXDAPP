@@ -159,9 +159,12 @@ export default function Stores() {
   const fetchUsers = async () => {
     try {
       const res = await api.get("/users");
-      setUsers(res.data || []);
+      // Handle both response formats: { data: [...] } or [...]
+      const usersData = res.data.data || res.data || [];
+      setUsers(Array.isArray(usersData) ? usersData : []);
     } catch (error) {
       console.error("Error fetching users:", error);
+      setUsers([]);
     }
   };
 
@@ -510,10 +513,12 @@ export default function Stores() {
 
   const userOptions = [
     { id: null, name: "Tất cả" },
-    ...users.map((u) => ({
-      id: u.Id,
-      name: u.FullName,
-    })),
+    ...(Array.isArray(users)
+      ? users.map((u) => ({
+          id: u.Id,
+          name: u.FullName,
+        }))
+      : []),
   ];
 
   if (loading && stores.length === 0) {
