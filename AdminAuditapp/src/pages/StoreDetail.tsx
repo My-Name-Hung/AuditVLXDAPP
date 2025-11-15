@@ -346,10 +346,6 @@ export default function StoreDetail() {
         <button className="btn-back" onClick={() => navigate("/stores")}>
           <HiArrowLeft /> Quay lại
         </button>
-        <div>
-          <p className="page-kicker">Chi tiết cửa hàng</p>
-          <h2>{store.StoreName}</h2>
-        </div>
       </div>
 
       <div className="store-detail-content">

@@ -246,7 +246,7 @@ async function exportReport(req, res) {
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
         INNER JOIN Images img ON a.Id = img.AuditId
-        WHERE a.UserId = @UserId
+        WHERE s.UserId = @UserId
           AND s.TerritoryId = @TerritoryId
           AND img.ImageUrl IS NOT NULL
           AND img.ImageUrl != ''

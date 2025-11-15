@@ -299,6 +299,7 @@ export default function Dashboard() {
       });
 
       // Data
+      console.log(`Sheet: ${sheetName}, DetailKey: ${detailKey}, Details count: ${userDetails.length}`);
       userDetails.forEach((detail, index) => {
         const checkinDate = new Date(detail.CheckinDate);
         const checkinTime = detail.CheckinTime ? new Date(detail.CheckinTime) : null;

@@ -1,5 +1,7 @@
 .stores-page {
   width: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 /* Status Filter Header - Contains tabs and action buttons */
@@ -10,6 +12,10 @@
   margin-bottom: 1.5rem;
   border-bottom: 2px solid #e0e0e0;
   padding-bottom: 0.5rem;
+  position: relative;
+  z-index: 10;
+  background: white;
+  padding-top: 0.5rem;
 }
 
 /* Status Filter Tabs */
@@ -19,6 +25,9 @@
   flex: 1;
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow-y: visible;
+  position: relative;
+  z-index: 11;
 }
 
 .status-filter-tabs::-webkit-scrollbar {
@@ -45,6 +54,7 @@
   border-radius: 8px 8px 0 0;
   transition: all 0.2s;
   position: relative;
+  z-index: 12;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -63,14 +73,14 @@
 }
 
 .status-tab.active {
-  color: #0138C3;
+  color: #0138c3;
   background: #f0f4ff;
-  border-bottom: 3px solid #0138C3;
+  border-bottom: 3px solid #0138c3;
   font-weight: 600;
 }
 
 .status-tab.active::before {
-  background: #0138C3;
+  background: #0138c3;
 }
 
 .status-tab:hover:not(.active) {
@@ -155,7 +165,7 @@
 }
 
 .stores-filters .filter-input:focus {
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .stores-filters .select {
@@ -263,7 +273,7 @@
 
 .btn-view {
   background: #e8f0fe;
-  color: #0138C3;
+  color: #0138c3;
 }
 
 .btn-view:hover {
@@ -272,7 +282,7 @@
 }
 
 .btn-view svg {
-  color: #0138C3;
+  color: #0138c3;
 }
 
 .btn-edit {
@@ -433,7 +443,7 @@
 }
 
 .page-size-select:focus {
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .pagination-controls {
@@ -466,8 +476,8 @@
 
 .pagination-btn:hover:not(:disabled) {
   background: #f5f5f5;
-  border-color: #0138C3;
-  color: #0138C3;
+  border-color: #0138c3;
+  color: #0138c3;
 }
 
 .pagination-btn:disabled {
@@ -476,9 +486,9 @@
 }
 
 .pagination-btn.active {
-  background: #0138C3;
+  background: #0138c3;
   color: white;
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .pagination-btn.active:hover {

@@ -6,8 +6,7 @@
 .store-detail-header {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
 .btn-back {
@@ -26,8 +25,8 @@
 
 .btn-back:hover {
   background: #f5f5f5;
-  border-color: #0138C3;
-  color: #0138C3;
+  border-color: #0138c3;
+  color: #0138c3;
 }
 
 .page-kicker {
@@ -52,7 +51,7 @@
 /* Main Section: Store Info (left) + Google Maps (right) */
 .main-section {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr 0.75fr;
   gap: 0;
   min-height: 450px;
   max-height: 500px;
@@ -186,7 +185,6 @@
   background: #fecaca;
 }
 
-
 .status-badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;
@@ -221,7 +219,7 @@
   border-radius: 8px;
   padding: 1.5rem;
   margin-bottom: 1.5rem;
-  border-left: 4px solid #0138C3;
+  border-left: 4px solid #0138c3;
 }
 
 .audit-header {
@@ -319,7 +317,7 @@
 
 .btn-view-map {
   padding: 0.25rem 0.75rem;
-  background: #0138C3;
+  background: #0138c3;
   color: white;
   border: none;
   border-radius: 4px;
@@ -572,7 +570,7 @@
 
 .btn-primary {
   padding: 0.75rem 1.5rem;
-  background: #0138C3;
+  background: #0138c3;
   color: white;
   border: none;
   border-radius: 6px;
@@ -648,4 +646,3 @@
     flex: 1;
   }
 }
-
