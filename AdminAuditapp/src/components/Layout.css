@@ -5,7 +5,7 @@
 }
 
 .sidebar {
-  width: 200px;
+  width: 230px;
   background-color: white;
   border-right: 1px solid var(--border-color);
   display: flex;
@@ -54,6 +54,8 @@
   transition: all 0.15s ease;
   border-radius: 8px;
   font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .nav-item:hover {
@@ -78,11 +80,15 @@
 
 .nav-label {
   font-size: 0.875rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
 }
 
 .main-content {
   flex: 1;
-  margin-left: 200px;
+  margin-left: 230px;
   display: flex;
   flex-direction: column;
   min-height: 100vh;
@@ -125,6 +131,7 @@
   background-color: var(--error-color);
   color: white;
   padding: 0.5rem 1rem;
+
   font-size: 0.85rem;
   border-radius: 6px;
   font-weight: 500;
@@ -143,11 +150,11 @@
 
 @media (max-width: 768px) {
   .sidebar {
-    width: 180px;
+    width: 200px;
   }
 
   .main-content {
-    margin-left: 180px;
+    margin-left: 200px;
   }
 
   .content-area {

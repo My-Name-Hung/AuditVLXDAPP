@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { HiArrowLeft } from "react-icons/hi2";
 import api from "../services/api";
@@ -19,28 +19,84 @@ export default function UserDetail() {
   const [userInfo, setUserInfo] = useState<any>(null);
   const [detailData, setDetailData] = useState<UserDetailItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [storeNameInput, setStoreNameInput] = useState<string>("");
+  const [storeNameFilter, setStoreNameFilter] = useState<string>("");
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (userId) {
+      fetchUserInfo();
+    }
+  }, [userId]);
 
   useEffect(() => {
     if (userId) {
       fetchUserDetail();
     }
-  }, [userId]);
+  }, [userId, startDate, endDate, storeNameFilter]);
+
+  // Debounce storeNameInput to storeNameFilter
+  useEffect(() => {
+    // Clear previous timer
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Set new timer to update filter after 500ms of no typing
+    debounceTimerRef.current = setTimeout(() => {
+      setStoreNameFilter(storeNameInput);
+    }, 500);
+
+    // Cleanup on unmount or when storeNameInput changes
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [storeNameInput]);
+
+  const fetchUserInfo = async () => {
+    try {
+      const userRes = await api.get(`/users/${userId}`);
+      setUserInfo(userRes.data);
+    } catch (error) {
+      console.error("Error fetching user info:", error);
+    }
+  };
 
   const fetchUserDetail = async () => {
     try {
       setLoading(true);
-      const [userRes, detailRes] = await Promise.all([
-        api.get(`/users/${userId}`),
-        api.get(`/dashboard/user/${userId}`),
-      ]);
+      const params: any = {};
+      
+      if (startDate) {
+        params.startDate = startDate;
+      }
+      if (endDate) {
+        params.endDate = endDate;
+      }
+      if (storeNameFilter && storeNameFilter.trim()) {
+        params.storeName = storeNameFilter.trim();
+      }
 
-      setUserInfo(userRes.data);
+      console.log("Fetching user detail with params:", params);
+      const detailRes = await api.get(`/dashboard/user/${userId}`, { params });
+      console.log("User detail response:", detailRes.data);
       setDetailData(detailRes.data.data || []);
     } catch (error) {
       console.error("Error fetching user detail:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleClearFilters = () => {
+    setStartDate("");
+    setEndDate("");
+    setStoreNameInput("");
+    setStoreNameFilter("");
   };
 
   if (loading) {
@@ -57,6 +113,64 @@ export default function UserDetail() {
           <p className="page-kicker">Chi tiết</p>
           <h2>{userInfo?.FullName || "Chi tiết checkin"}</h2>
         </div>
+      </div>
+
+      <div className="user-detail-filters">
+        <div className="filter-group">
+          <label>Từ ngày</label>
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="filter-input"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Đến ngày</label>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="filter-input"
+          />
+        </div>
+        <div className="filter-group">
+          <label>Tên NPP/Cửa hàng</label>
+          <div style={{ display: "flex", gap: "0.5rem" }}>
+            <input
+              type="text"
+              value={storeNameInput}
+              onChange={(e) => setStoreNameInput(e.target.value)}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  setStoreNameFilter(storeNameInput);
+                  if (debounceTimerRef.current) {
+                    clearTimeout(debounceTimerRef.current);
+                  }
+                }
+              }}
+              placeholder="Nhập tên cửa hàng..."
+              className="filter-input"
+              style={{ flex: 1 }}
+            />
+            <button
+              className="btn-search"
+              onClick={() => {
+                setStoreNameFilter(storeNameInput);
+                if (debounceTimerRef.current) {
+                  clearTimeout(debounceTimerRef.current);
+                }
+              }}
+            >
+              Tìm
+            </button>
+          </div>
+        </div>
+        {(startDate || endDate || storeNameFilter) && (
+          <button className="btn-clear-filters" onClick={handleClearFilters}>
+            Xóa bộ lọc
+          </button>
+        )}
       </div>
 
       <div className="table-container">

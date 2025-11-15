@@ -25,8 +25,12 @@ CREATE TABLE Stores (
     Email NVARCHAR(200),
     Latitude DECIMAL(10, 8),
     Longitude DECIMAL(11, 8),
+    TerritoryId INT,
+    UserId INT,
     CreatedAt DATETIME DEFAULT GETDATE(),
-    UpdatedAt DATETIME DEFAULT GETDATE()
+    UpdatedAt DATETIME DEFAULT GETDATE(),
+    FOREIGN KEY (TerritoryId) REFERENCES Territories(Id),
+    FOREIGN KEY (UserId) REFERENCES Users(Id)
 );
 
 -- Audits Table

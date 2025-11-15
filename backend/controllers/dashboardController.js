@@ -11,27 +11,28 @@ async function getSummary(req, res) {
       SELECT 
         u.Id as UserId,
         u.FullName,
-        u.TerritoryId,
+        s.TerritoryId,
         t.TerritoryName,
         COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM Users u
-      LEFT JOIN Territories t ON u.TerritoryId = t.Id
       LEFT JOIN Audits a ON u.Id = a.UserId
+      LEFT JOIN Stores s ON a.StoreId = s.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       LEFT JOIN Images img ON a.Id = img.AuditId
       WHERE u.Role = 'user'
         AND img.ImageUrl IS NOT NULL
         AND img.ImageUrl != ''
     `;
 
-    // Filter by territories
+    // Filter by territories (now from Stores)
     if (territoryIds) {
       const territoryArray = Array.isArray(territoryIds) 
         ? territoryIds 
         : territoryIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
       
       if (territoryArray.length > 0) {
-        query += ' AND u.TerritoryId IN (';
+        query += ' AND s.TerritoryId IN (';
         territoryArray.forEach((id, index) => {
           const paramName = `territory${index}`;
           request.input(paramName, sql.Int, id);
@@ -54,7 +55,7 @@ async function getSummary(req, res) {
     }
 
     query += `
-      GROUP BY u.Id, u.FullName, u.TerritoryId, t.TerritoryName
+      GROUP BY u.Id, u.FullName, s.TerritoryId, t.TerritoryName
       HAVING COUNT(DISTINCT CAST(a.AuditDate AS DATE)) > 0
       ORDER BY u.FullName ASC
     `;
@@ -79,7 +80,10 @@ async function getSummary(req, res) {
 async function getUserDetail(req, res) {
   try {
     const { userId } = req.params;
-    const { startDate, endDate } = req.query;
+    const { startDate, endDate, storeName } = req.query;
+    
+    console.log('getUserDetail called with params:', { userId, startDate, endDate, storeName });
+    
     const pool = await getPool();
     const request = pool.request();
 
@@ -104,11 +108,21 @@ async function getUserDetail(req, res) {
     if (startDate) {
       query += ' AND CAST(a.AuditDate AS DATE) >= @startDate';
       request.input('startDate', sql.Date, startDate);
+      console.log('Added startDate filter:', startDate);
     }
 
     if (endDate) {
       query += ' AND CAST(a.AuditDate AS DATE) <= @endDate';
       request.input('endDate', sql.Date, endDate);
+      console.log('Added endDate filter:', endDate);
+    }
+
+    // Filter by store name
+    if (storeName && storeName.trim() !== '') {
+      const storeNamePattern = `%${storeName.trim()}%`;
+      query += ' AND s.StoreName LIKE @storeName';
+      request.input('storeName', sql.NVarChar(200), storeNamePattern);
+      console.log('Added storeName filter:', storeNamePattern);
     }
 
     query += `
@@ -144,13 +158,14 @@ async function exportReport(req, res) {
       SELECT 
         u.Id as UserId,
         u.FullName,
-        u.TerritoryId,
+        s.TerritoryId,
         t.TerritoryName,
         COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM Users u
-      LEFT JOIN Territories t ON u.TerritoryId = t.Id
       LEFT JOIN Audits a ON u.Id = a.UserId
+      LEFT JOIN Stores s ON a.StoreId = s.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       LEFT JOIN Images img ON a.Id = img.AuditId
       WHERE u.Role = 'user'
         AND img.ImageUrl IS NOT NULL
@@ -163,7 +178,7 @@ async function exportReport(req, res) {
         : territoryIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
       
       if (territoryArray.length > 0) {
-        summaryQuery += ' AND u.TerritoryId IN (';
+        summaryQuery += ' AND s.TerritoryId IN (';
         territoryArray.forEach((id, index) => {
           const paramName = `territory${index}`;
           request.input(paramName, sql.Int, id);
@@ -185,7 +200,7 @@ async function exportReport(req, res) {
     }
 
     summaryQuery += `
-      GROUP BY u.Id, u.FullName, u.TerritoryId, t.TerritoryName
+      GROUP BY u.Id, u.FullName, s.TerritoryId, t.TerritoryName
       HAVING COUNT(DISTINCT CAST(a.AuditDate AS DATE)) > 0
       ORDER BY u.FullName ASC
     `;

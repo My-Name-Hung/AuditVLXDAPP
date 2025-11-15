@@ -34,7 +34,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
       : "N/A";
   // Format: Compact single line with shorter labels
   // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
-  const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;
+  const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}`;
 
   try {
     // Convert buffer to base64

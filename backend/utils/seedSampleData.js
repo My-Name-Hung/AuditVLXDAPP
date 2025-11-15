@@ -320,8 +320,10 @@ async function seedSampleData(skipCleanup = false) {
       territoryMap[t.TerritoryName] = t.Id;
     });
 
-    // Create users
+    // Create users (no longer need TerritoryId)
     const createdUsers = [];
+    const userTerritoryMap = {}; // Map user to territory for later use with stores
+    
     for (const userData of sampleUsers) {
       const territoryId = territoryMap[userData.territory];
       if (!territoryId) {
@@ -339,13 +341,8 @@ async function seedSampleData(skipCleanup = false) {
 
       if (existingUser.recordset.length > 0) {
         console.log(
-          `ℹ️  User "${userData.fullName}" already exists, updating territory...`
+          `ℹ️  User "${userData.fullName}" already exists`
         );
-        await pool
-          .request()
-          .input("Id", sql.Int, existingUser.recordset[0].Id)
-          .input("TerritoryId", sql.Int, territoryId)
-          .query("UPDATE Users SET TerritoryId = @TerritoryId WHERE Id = @Id");
 
         // Get full user data including FullName
         const fullUserData = await pool
@@ -354,6 +351,7 @@ async function seedSampleData(skipCleanup = false) {
           .query("SELECT * FROM Users WHERE Id = @Id");
 
         createdUsers.push(fullUserData.recordset[0]);
+        userTerritoryMap[fullUserData.recordset[0].Id] = territoryId;
         continue;
       }
 
@@ -364,27 +362,22 @@ async function seedSampleData(skipCleanup = false) {
       const hashedPassword = await bcrypt.hash("123456", 10);
       const userCode = await User.generateUserCode();
 
-      const user = await pool
-        .request()
-        .input("UserCode", sql.VarChar(50), userCode)
-        .input("Username", sql.NVarChar(100), username)
-        .input("Password", sql.NVarChar(255), hashedPassword)
-        .input("FullName", sql.NVarChar(200), userData.fullName)
-        .input("Email", sql.NVarChar(200), `${username}@example.com`)
-        .input("Phone", sql.VarChar(20), "0123456789")
-        .input("Role", sql.VarChar(50), "user")
-        .input("TerritoryId", sql.Int, territoryId)
-        .input("IsChangePassword", sql.Bit, 1).query(`
-           INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, TerritoryId, IsChangePassword, CreatedAt, UpdatedAt)
-           OUTPUT INSERTED.*
-           VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @TerritoryId, @IsChangePassword, GETDATE(), GETDATE())
-         `);
+      const user = await User.create({
+        Username: username,
+        Password: hashedPassword,
+        FullName: userData.fullName,
+        Email: `${username}@example.com`,
+        Phone: "0123456789",
+        Role: "user",
+        IsChangePassword: 1
+      });
 
-      createdUsers.push(user.recordset[0]);
+      createdUsers.push(user);
+      userTerritoryMap[user.Id] = territoryId;
       console.log(`✅ Created user: ${userData.fullName}`);
     }
 
-    // Create stores and assign to users
+    // Create stores and assign to users (with TerritoryId from assigned user)
     const createdStores = [];
     for (const storeData of sampleStores) {
       // Check if store already exists
@@ -397,6 +390,7 @@ async function seedSampleData(skipCleanup = false) {
       if (existingStore.recordset.length > 0) {
         store = existingStore.recordset[0];
       } else {
+        // Store will be created without TerritoryId first, then updated when assigned to user
         const storeCode = await Store.generateStoreCode();
         const result = await pool
           .request()
@@ -420,17 +414,22 @@ async function seedSampleData(skipCleanup = false) {
     }
 
     // Assign stores to users - User 1 gets first 12 stores, User 2 gets next 8 stores
+    // Also assign TerritoryId to stores based on the assigned user's territory
     const user1StoresToAssign = createdStores.slice(0, 12);
     const user2StoresToAssign = createdStores.slice(12, 20);
+    const user1TerritoryId = userTerritoryMap[createdUsers[0].Id];
+    const user2TerritoryId = userTerritoryMap[createdUsers[1].Id];
 
     for (const store of user1StoresToAssign) {
       await pool
         .request()
         .input("StoreId", sql.Int, store.Id)
         .input("UserId", sql.Int, createdUsers[0].Id)
-        .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
-      // Update UserId in the array
+        .input("TerritoryId", sql.Int, user1TerritoryId)
+        .query("UPDATE Stores SET UserId = @UserId, TerritoryId = @TerritoryId WHERE Id = @StoreId");
+      // Update UserId and TerritoryId in the array
       store.UserId = createdUsers[0].Id;
+      store.TerritoryId = user1TerritoryId;
     }
 
     for (const store of user2StoresToAssign) {
@@ -438,9 +437,11 @@ async function seedSampleData(skipCleanup = false) {
         .request()
         .input("StoreId", sql.Int, store.Id)
         .input("UserId", sql.Int, createdUsers[1].Id)
-        .query("UPDATE Stores SET UserId = @UserId WHERE Id = @StoreId");
-      // Update UserId in the array
+        .input("TerritoryId", sql.Int, user2TerritoryId)
+        .query("UPDATE Stores SET UserId = @UserId, TerritoryId = @TerritoryId WHERE Id = @StoreId");
+      // Update UserId and TerritoryId in the array
       store.UserId = createdUsers[1].Id;
+      store.TerritoryId = user2TerritoryId;
     }
 
     console.log(`\n📸 Creating audits and images for test users...`);
