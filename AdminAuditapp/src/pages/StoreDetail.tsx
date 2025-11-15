@@ -1,9 +1,10 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { HiArrowLeft, HiDownload, HiZoomIn, HiZoomOut } from "react-icons/hi2";
-import api from "../services/api";
+import { useEffect, useRef, useState } from "react";
+import { HiDownload } from "react-icons/hi";
+import { HiArrowLeft, HiArrowPath } from "react-icons/hi2";
+import { useNavigate, useParams } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
+import api from "../services/api";
 import "./StoreDetail.css";
 
 interface Store {
@@ -60,6 +61,10 @@ export default function StoreDetail() {
     lon: number | null;
   } | null>(null);
   const [imageZoom, setImageZoom] = useState(100);
+  const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const imageContainerRef = useRef<HTMLDivElement>(null);
   const [statusUpdateModal, setStatusUpdateModal] = useState<{
     isOpen: boolean;
     newStatus: "passed" | "failed" | null;
@@ -93,6 +98,7 @@ export default function StoreDetail() {
         fetchStoreDetail(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
   const fetchStoreDetail = async (showLoading = false) => {
@@ -102,10 +108,10 @@ export default function StoreDetail() {
       } else {
         setLoading(true);
       }
-      
+
       // Add timestamp to prevent caching
       const res = await api.get(`/stores/${id}`, {
-        params: { _t: Date.now() }
+        params: { _t: Date.now() },
       });
       const data = res.data;
       setStore({
@@ -155,27 +161,10 @@ export default function StoreDetail() {
     return "-";
   };
 
-  const getResultLabel = (result: string) => {
-    return result === "pass" ? "Đạt" : "Không đạt";
-  };
-
-  // Parse watermark to extract latitude and longitude
-  // Format: "Lat:10.762622 Long:106.660172 01.11.2025 15:49:00" or "L:10.762622 Lo:106.660172 01.11.2025 15:49:00"
-  const parseWatermarkCoordinates = (imageUrl: string): { lat: number | null; lon: number | null } => {
-    try {
-      // Try to get coordinates from image metadata first (if available)
-      // Otherwise, we need to extract from watermark text in the image
-      // For now, we'll use the image's stored coordinates if available
-      // This would require OCR or storing coordinates separately
-      // For MVP, we'll use the store's coordinates as fallback
-      return { lat: null, lon: null };
-    } catch (error) {
-      return { lat: null, lon: null };
-    }
-  };
-
   // Extract coordinates from image URL or use store coordinates
-  const getImageCoordinates = (image: Image): { lat: number | null; lon: number | null } => {
+  const getImageCoordinates = (
+    image: Image
+  ): { lat: number | null; lon: number | null } => {
     // Use stored coordinates if available
     if (image.Latitude && image.Longitude) {
       return { lat: image.Latitude, lon: image.Longitude };
@@ -195,14 +184,71 @@ export default function StoreDetail() {
       lon: coords.lon,
     });
     setImageZoom(100);
+    setImagePosition({ x: 0, y: 0 });
   };
 
   const handleZoomIn = () => {
-    setImageZoom((prev) => Math.min(prev + 25, 300));
+    setImageZoom((prev) => {
+      const newZoom = Math.min(prev + 25, 300);
+      // Center image when zooming
+      if (newZoom > 100) {
+        setImagePosition({ x: 0, y: 0 });
+      }
+      return newZoom;
+    });
   };
 
   const handleZoomOut = () => {
-    setImageZoom((prev) => Math.max(prev - 25, 50));
+    setImageZoom((prev) => {
+      const newZoom = Math.max(prev - 25, 50);
+      // Reset position when zooming out to 100% or less
+      if (newZoom <= 100) {
+        setImagePosition({ x: 0, y: 0 });
+      }
+      return newZoom;
+    });
+  };
+
+  const handleResetZoom = () => {
+    setImageZoom(100);
+    setImagePosition({ x: 0, y: 0 });
+  };
+
+  // Handle mouse wheel zoom
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const delta = e.deltaY > 0 ? -10 : 10;
+    const newZoom = Math.max(50, Math.min(300, imageZoom + delta));
+    setImageZoom(newZoom);
+
+    // Reset position if zoomed out to 100% or less
+    if (newZoom <= 100) {
+      setImagePosition({ x: 0, y: 0 });
+    }
+  };
+
+  // Handle mouse drag to pan image when zoomed
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (imageZoom > 100) {
+      setIsDragging(true);
+      setDragStart({
+        x: e.clientX - imagePosition.x,
+        y: e.clientY - imagePosition.y,
+      });
+    }
+  };
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isDragging && imageZoom > 100) {
+      setImagePosition({
+        x: e.clientX - dragStart.x,
+        y: e.clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
   };
 
   const handleDownloadImage = () => {
@@ -246,7 +292,9 @@ export default function StoreDetail() {
       setNotification({
         isOpen: true,
         type: "success",
-        message: `Đã cập nhật trạng thái cửa hàng thành "${getStatusLabel(statusUpdateModal.newStatus)}" thành công.`,
+        message: `Đã cập nhật trạng thái cửa hàng thành "${getStatusLabel(
+          statusUpdateModal.newStatus
+        )}" thành công.`,
       });
     } catch (error: unknown) {
       console.error("Error updating store status:", error);
@@ -263,7 +311,9 @@ export default function StoreDetail() {
   };
 
   // Collect all images from all audits for grid display
-  const allImages: Array<Image & { auditDate: string; auditUser: string; auditResult: string }> = [];
+  const allImages: Array<
+    Image & { auditDate: string; auditUser: string; auditResult: string }
+  > = [];
   audits.forEach((audit) => {
     if (audit.Images && audit.Images.length > 0) {
       audit.Images.forEach((image) => {
@@ -303,37 +353,38 @@ export default function StoreDetail() {
       </div>
 
       <div className="store-detail-content">
-        {/* Top Section: Google Maps (left) + Store Info (right) */}
-        <div className="top-section">
-          {/* Google Maps */}
-          {store.Latitude && store.Longitude && (
-            <div className="map-section">
-              <iframe
-                title="Bản đồ"
-                width="100%"
-                height={400}
-                scrolling="no"
-                src={`https://maps.google.com/maps?q=${store.Latitude},${store.Longitude}&output=embed`}
-                style={{ border: 0 }}
-              ></iframe>
-            </div>
-          )}
-
-          {/* Store Information */}
+        {/* Main Section: Store Info (left) + Google Maps (right) */}
+        <div className="main-section">
+          {/* Store Information - Left Panel */}
           <div className="info-section">
-            <h3>Thông tin cửa hàng</h3>
-            <div className="info-grid">
+            <h3 className="info-section-title">{store.StoreName}</h3>
+            <div className="info-list">
               <div className="info-item">
                 <label>Mã cửa hàng:</label>
                 <span>{store.StoreCode}</span>
               </div>
               <div className="info-item">
-                <label>Tên cửa hàng:</label>
-                <span>{store.StoreName}</span>
+                <label>Địa bàn phụ trách:</label>
+                <span>{store.TerritoryName || "-"}</span>
               </div>
               <div className="info-item">
                 <label>Loại đối tượng:</label>
                 <span>{getRankLabel(store.Rank)}</span>
+              </div>
+              <div className="info-item">
+                <label>Thông tin liên hệ:</label>
+                <span>
+                  {store.Phone || "-"}
+                  {store.Phone && store.UserFullName ? " - " : ""}
+                  {store.UserFullName || ""}
+                </span>
+              </div>
+              <div className="info-item">
+                <label>User phụ trách:</label>
+                <span>
+                  {store.UserFullName || "-"}{" "}
+                  {store.UserCode ? `(${store.UserCode})` : ""}
+                </span>
               </div>
               <div className="info-item">
                 <label>Địa chỉ:</label>
@@ -348,10 +399,6 @@ export default function StoreDetail() {
                 <span>{store.PartnerName || "-"}</span>
               </div>
               <div className="info-item">
-                <label>Số điện thoại:</label>
-                <span>{store.Phone || "-"}</span>
-              </div>
-              <div className="info-item">
                 <label>Email:</label>
                 <span>{store.Email || "-"}</span>
               </div>
@@ -361,19 +408,23 @@ export default function StoreDetail() {
                   {getStatusLabel(store.Status)}
                 </span>
               </div>
-              <div className="info-item">
-                <label>Địa bàn phụ trách:</label>
-                <span>{store.TerritoryName || "-"}</span>
-              </div>
-              <div className="info-item">
-                <label>User phụ trách:</label>
-                <span>
-                  {store.UserFullName || "-"}{" "}
-                  {store.UserCode ? `(${store.UserCode})` : ""}
-                </span>
-              </div>
             </div>
           </div>
+
+          {/* Google Maps - Right Panel */}
+          {store.Latitude && store.Longitude && (
+            <div className="map-section">
+              <iframe
+                title="Bản đồ"
+                width="100%"
+                height="100%"
+                scrolling="no"
+                src={`https://maps.google.com/maps?q=${store.Latitude},${store.Longitude}&output=embed`}
+                style={{ border: 0 }}
+                allowFullScreen
+              ></iframe>
+            </div>
+          )}
         </div>
 
         {/* Images Section */}
@@ -446,48 +497,105 @@ export default function StoreDetail() {
           onClick={() => {
             setSelectedImage(null);
             setImageZoom(100);
+            setImagePosition({ x: 0, y: 0 });
           }}
+          onMouseUp={handleMouseUp}
         >
           <div
             className="image-modal-content"
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              className="image-modal-close"
-              onClick={() => {
-                setSelectedImage(null);
-                setImageZoom(100);
+            {/* Top Bar */}
+            <div className="image-modal-topbar">
+              <button
+                className="image-modal-close"
+                onClick={() => {
+                  setSelectedImage(null);
+                  setImageZoom(100);
+                  setImagePosition({ x: 0, y: 0 });
+                }}
+              >
+                ×
+              </button>
+              <div className="image-modal-controls">
+                <button
+                  className="image-modal-control-btn"
+                  onClick={handleZoomIn}
+                  disabled={imageZoom >= 300}
+                  title="Phóng to"
+                >
+                  +
+                </button>
+                <button
+                  className="image-modal-control-btn"
+                  onClick={handleZoomOut}
+                  disabled={imageZoom <= 50}
+                  title="Thu nhỏ"
+                >
+                  −
+                </button>
+                <button
+                  className="image-modal-control-btn"
+                  onClick={handleResetZoom}
+                  title="Làm mới / Reset"
+                >
+                  <HiArrowPath />
+                </button>
+              </div>
+            </div>
+
+            {/* Image Container with Wheel Zoom and Drag */}
+            <div
+              className="image-modal-image-container"
+              ref={imageContainerRef}
+              onWheel={handleWheel}
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+              style={{
+                cursor:
+                  imageZoom > 100
+                    ? isDragging
+                      ? "grabbing"
+                      : "grab"
+                    : "default",
               }}
             >
-              ×
-            </button>
-            <div className="image-modal-toolbar">
-              <button
-                className="image-modal-btn"
-                onClick={handleZoomOut}
-                disabled={imageZoom <= 50}
+              <div
+                className="image-modal-image-wrapper"
+                style={{
+                  transform: `translate(${imagePosition.x}px, ${
+                    imagePosition.y
+                  }px) scale(${imageZoom / 100})`,
+                  transformOrigin: "center center",
+                }}
               >
-                <HiZoomOut /> Thu nhỏ
-              </button>
+                <img
+                  src={selectedImage.url}
+                  alt="Full size"
+                  className="image-modal-image"
+                  draggable={false}
+                />
+              </div>
+            </div>
+
+            {/* Bottom Toolbar */}
+            <div className="image-modal-bottombar">
               <span className="zoom-level">{imageZoom}%</span>
-              <button
-                className="image-modal-btn"
-                onClick={handleZoomIn}
-                disabled={imageZoom >= 300}
-              >
-                <HiZoomIn /> Phóng to
-              </button>
               <button className="image-modal-btn" onClick={handleDownloadImage}>
                 <HiDownload /> Tải về
               </button>
-            </div>
-            <div className="image-modal-image-container">
-              <img
-                src={selectedImage.url}
-                alt="Full size"
-                className="image-modal-image"
-                style={{ transform: `scale(${imageZoom / 100})` }}
-              />
+              {selectedImage.lat && selectedImage.lon && (
+                <button
+                  className="image-modal-btn"
+                  onClick={() =>
+                    handleViewOnGoogleMaps(selectedImage.lat, selectedImage.lon)
+                  }
+                >
+                  Xem trên Google Maps
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -501,10 +609,7 @@ export default function StoreDetail() {
             setStatusUpdateModal({ isOpen: false, newStatus: null })
           }
         >
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Xác nhận cập nhật trạng thái</h3>
             <p>
               Bạn có chắc chắn muốn đánh dấu cửa hàng{" "}
@@ -552,4 +657,3 @@ export default function StoreDetail() {
     </div>
   );
 }
-

@@ -165,7 +165,7 @@ export default function Dashboard() {
   };
 
   const generateExcel = async (
-    data: { summary: DashboardSummaryItem[]; details: Record<number, any[]> },
+    data: { summary: DashboardSummaryItem[]; details: Record<string, any[]> },
     progressCallback?: (progress: number) => void
   ) => {
     const ExcelJS = (await import("exceljs")).default;
@@ -258,10 +258,22 @@ export default function Dashboard() {
 
     // Detail sheets
     const totalUsers = data.summary.length;
+    const usedSheetNames = new Set<string>();
     for (let i = 0; i < data.summary.length; i++) {
       const user = data.summary[i];
-      const detailSheet = workbook.addWorksheet(`Chi tiết ${user.FullName}`);
-      const userDetails = data.details[user.UserId] || [];
+      // Create unique sheet name to avoid duplicates
+      let sheetName = `Chi tiết ${user.FullName}`;
+      let counter = 1;
+      while (usedSheetNames.has(sheetName)) {
+        sheetName = `Chi tiết ${user.FullName} (${counter})`;
+        counter++;
+      }
+      usedSheetNames.add(sheetName);
+      
+      const detailSheet = workbook.addWorksheet(sheetName);
+      // Use combination key: UserId-TerritoryId to get correct data
+      const detailKey = `${user.UserId}-${user.TerritoryId}`;
+      const userDetails = data.details[detailKey] || [];
       
       // Update progress for each user sheet
       if (progressCallback) {
@@ -324,7 +336,7 @@ export default function Dashboard() {
   };
 
   const chartData = {
-    labels: summaryData.map((item) => item.FullName),
+    labels: summaryData.map((item) => item.TerritoryName),
     datasets: [
       {
         label: "Số ngày checkin",
@@ -438,7 +450,7 @@ export default function Dashboard() {
               </thead>
               <tbody>
                 {summaryData.map((item, index) => (
-                  <tr key={item.UserId}>
+                  <tr key={`${item.UserId}-${item.TerritoryId}-${index}`}>
                     <td>{index + 1}</td>
                     <td>
                       <button

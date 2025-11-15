@@ -1,4 +1,4 @@
-const { getPool, sql } = require('../config/database');
+const { getPool, sql } = require("../config/database");
 
 // Get dashboard summary with filters
 async function getSummary(req, res) {
@@ -28,31 +28,34 @@ async function getSummary(req, res) {
 
     // Filter by territories (now from Stores)
     if (territoryIds) {
-      const territoryArray = Array.isArray(territoryIds) 
-        ? territoryIds 
-        : territoryIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-      
+      const territoryArray = Array.isArray(territoryIds)
+        ? territoryIds
+        : territoryIds
+            .split(",")
+            .map((id) => parseInt(id.trim()))
+            .filter((id) => !isNaN(id));
+
       if (territoryArray.length > 0) {
-        query += ' AND s.TerritoryId IN (';
+        query += " AND s.TerritoryId IN (";
         territoryArray.forEach((id, index) => {
           const paramName = `territory${index}`;
           request.input(paramName, sql.Int, id);
           query += `@${paramName}`;
-          if (index < territoryArray.length - 1) query += ',';
+          if (index < territoryArray.length - 1) query += ",";
         });
-        query += ')';
+        query += ")";
       }
     }
 
     // Filter by date range
     if (startDate) {
-      query += ' AND CAST(a.AuditDate AS DATE) >= @startDate';
-      request.input('startDate', sql.Date, startDate);
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
     }
 
     if (endDate) {
-      query += ' AND CAST(a.AuditDate AS DATE) <= @endDate';
-      request.input('endDate', sql.Date, endDate);
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
     }
 
     query += `
@@ -62,17 +65,17 @@ async function getSummary(req, res) {
     `;
 
     const result = await request.query(query);
-    
+
     res.json({
       success: true,
-      data: result.recordset
+      data: result.recordset,
     });
   } catch (error) {
-    console.error('Error fetching dashboard summary:', error);
+    console.error("Error fetching dashboard summary:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching dashboard summary',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Error fetching dashboard summary",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 }
@@ -82,13 +85,18 @@ async function getUserDetail(req, res) {
   try {
     const { userId } = req.params;
     const { startDate, endDate, storeName } = req.query;
-    
-    console.log('getUserDetail called with params:', { userId, startDate, endDate, storeName });
-    
+
+    console.log("getUserDetail called with params:", {
+      userId,
+      startDate,
+      endDate,
+      storeName,
+    });
+
     const pool = await getPool();
     const request = pool.request();
 
-    request.input('UserId', sql.Int, userId);
+    request.input("UserId", sql.Int, userId);
 
     let query = `
       SELECT 
@@ -107,23 +115,23 @@ async function getUserDetail(req, res) {
     `;
 
     if (startDate) {
-      query += ' AND CAST(a.AuditDate AS DATE) >= @startDate';
-      request.input('startDate', sql.Date, startDate);
-      console.log('Added startDate filter:', startDate);
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+      console.log("Added startDate filter:", startDate);
     }
 
     if (endDate) {
-      query += ' AND CAST(a.AuditDate AS DATE) <= @endDate';
-      request.input('endDate', sql.Date, endDate);
-      console.log('Added endDate filter:', endDate);
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+      console.log("Added endDate filter:", endDate);
     }
 
     // Filter by store name
-    if (storeName && storeName.trim() !== '') {
+    if (storeName && storeName.trim() !== "") {
       const storeNamePattern = `%${storeName.trim()}%`;
-      query += ' AND s.StoreName LIKE @storeName';
-      request.input('storeName', sql.NVarChar(200), storeNamePattern);
-      console.log('Added storeName filter:', storeNamePattern);
+      query += " AND s.StoreName LIKE @storeName";
+      request.input("storeName", sql.NVarChar(200), storeNamePattern);
+      console.log("Added storeName filter:", storeNamePattern);
     }
 
     query += `
@@ -135,14 +143,14 @@ async function getUserDetail(req, res) {
 
     res.json({
       success: true,
-      data: result.recordset
+      data: result.recordset,
     });
   } catch (error) {
-    console.error('Error fetching user detail:', error);
+    console.error("Error fetching user detail:", error);
     res.status(500).json({
       success: false,
-      message: 'Error fetching user detail',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Error fetching user detail",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 }
@@ -175,30 +183,33 @@ async function exportReport(req, res) {
     `;
 
     if (territoryIds) {
-      const territoryArray = Array.isArray(territoryIds) 
-        ? territoryIds 
-        : territoryIds.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-      
+      const territoryArray = Array.isArray(territoryIds)
+        ? territoryIds
+        : territoryIds
+            .split(",")
+            .map((id) => parseInt(id.trim()))
+            .filter((id) => !isNaN(id));
+
       if (territoryArray.length > 0) {
-        summaryQuery += ' AND s.TerritoryId IN (';
+        summaryQuery += " AND s.TerritoryId IN (";
         territoryArray.forEach((id, index) => {
           const paramName = `territory${index}`;
           request.input(paramName, sql.Int, id);
           summaryQuery += `@${paramName}`;
-          if (index < territoryArray.length - 1) summaryQuery += ',';
+          if (index < territoryArray.length - 1) summaryQuery += ",";
         });
-        summaryQuery += ')';
+        summaryQuery += ")";
       }
     }
 
     if (startDate) {
-      summaryQuery += ' AND CAST(a.AuditDate AS DATE) >= @startDate';
-      request.input('startDate', sql.Date, startDate);
+      summaryQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
     }
 
     if (endDate) {
-      summaryQuery += ' AND CAST(a.AuditDate AS DATE) <= @endDate';
-      request.input('endDate', sql.Date, endDate);
+      summaryQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
     }
 
     summaryQuery += `
@@ -210,17 +221,18 @@ async function exportReport(req, res) {
     const summaryResult = await request.query(summaryQuery);
     const summaryData = summaryResult.recordset;
 
-    // Get detail data for each user
+    // Get detail data for each user-territory combination
     const detailDataMap = {};
     for (const user of summaryData) {
       const detailRequest = pool.request();
-      detailRequest.input('UserId', sql.Int, user.UserId);
-      
+      detailRequest.input("UserId", sql.Int, user.UserId);
+      detailRequest.input("TerritoryId", sql.Int, user.TerritoryId);
+
       if (startDate) {
-        detailRequest.input('startDate', sql.Date, startDate);
+        detailRequest.input("startDate", sql.Date, startDate);
       }
       if (endDate) {
-        detailRequest.input('endDate', sql.Date, endDate);
+        detailRequest.input("endDate", sql.Date, endDate);
       }
 
       let detailQuery = `
@@ -235,15 +247,16 @@ async function exportReport(req, res) {
         INNER JOIN Stores s ON a.StoreId = s.Id
         INNER JOIN Images img ON a.Id = img.AuditId
         WHERE a.UserId = @UserId
+          AND s.TerritoryId = @TerritoryId
           AND img.ImageUrl IS NOT NULL
           AND img.ImageUrl != ''
       `;
 
       if (startDate) {
-        detailQuery += ' AND CAST(a.AuditDate AS DATE) >= @startDate';
+        detailQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
       }
       if (endDate) {
-        detailQuery += ' AND CAST(a.AuditDate AS DATE) <= @endDate';
+        detailQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       }
 
       detailQuery += `
@@ -252,7 +265,9 @@ async function exportReport(req, res) {
       `;
 
       const detailResult = await detailRequest.query(detailQuery);
-      detailDataMap[user.UserId] = detailResult.recordset;
+      // Use combination key to avoid overwriting data for same user in different territories
+      const detailKey = `${user.UserId}-${user.TerritoryId}`;
+      detailDataMap[detailKey] = detailResult.recordset;
     }
 
     // Return data for Excel generation (will be handled by frontend)
@@ -260,15 +275,15 @@ async function exportReport(req, res) {
       success: true,
       data: {
         summary: summaryData,
-        details: detailDataMap
-      }
+        details: detailDataMap,
+      },
     });
   } catch (error) {
-    console.error('Error exporting report:', error);
+    console.error("Error exporting report:", error);
     res.status(500).json({
       success: false,
-      message: 'Error exporting report',
-      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+      message: "Error exporting report",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
 }
@@ -276,6 +291,5 @@ async function exportReport(req, res) {
 module.exports = {
   getSummary,
   getUserDetail,
-  exportReport
+  exportReport,
 };
-
