@@ -53,6 +53,13 @@ const createAudit = async (req, res) => {
       AuditDate: auditDate,
     });
 
+    // Auto-update store status based on audit result
+    // If result is pass/fail, update to passed/failed
+    // Otherwise, if store has images, it will be updated to 'audited' when image is uploaded
+    const Store = require('../models/Store');
+    const newStatus = result.toLowerCase() === 'pass' ? 'passed' : 'failed';
+    await Store.updateStatus(storeId, newStatus);
+
     res.status(201).json(audit);
   } catch (error) {
     console.error('Create audit error:', error);

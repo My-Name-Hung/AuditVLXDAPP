@@ -7,7 +7,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "reseed": "node scripts/reseedData.js"
+    "reseed": "node scripts/reseedData.js",
+    "update-store-status": "node scripts/updateStoreStatus.js"
   },
   "keywords": [],
   "author": "",
