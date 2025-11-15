@@ -7,6 +7,7 @@ router.get('/', authenticateToken, storesController.getAllStores);
 router.get('/:id', authenticateToken, storesController.getStoreById);
 router.post('/', authenticateToken, storesController.createStore);
 router.put('/:id', authenticateToken, storesController.updateStore);
+router.patch('/:id/status', authenticateToken, storesController.updateStoreStatus);
 router.delete('/:id', authenticateToken, storesController.deleteStore);
 
 module.exports = router;

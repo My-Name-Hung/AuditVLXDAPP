@@ -27,6 +27,7 @@ CREATE TABLE Stores (
     Longitude DECIMAL(11, 8),
     TerritoryId INT,
     UserId INT,
+    Status VARCHAR(20) DEFAULT 'not_audited' CHECK (Status IN ('not_audited', 'audited', 'passed', 'failed')),
     CreatedAt DATETIME DEFAULT GETDATE(),
     UpdatedAt DATETIME DEFAULT GETDATE(),
     FOREIGN KEY (TerritoryId) REFERENCES Territories(Id),

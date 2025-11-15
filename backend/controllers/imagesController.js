@@ -32,6 +32,19 @@ const uploadImage = async (req, res) => {
       CapturedAt: new Date(),
     });
 
+    // Auto-update store status to 'audited' when first image is uploaded
+    const Audit = require('../models/Audit');
+    const audit = await Audit.findById(auditId);
+    if (audit && audit.StoreId) {
+      const Store = require('../models/Store');
+      const store = await Store.findById(audit.StoreId);
+      // Only update to 'audited' if store is still 'not_audited'
+      // Don't override 'passed' or 'failed' status
+      if (store && store.Status === 'not_audited') {
+        await Store.updateStatus(audit.StoreId, 'audited');
+      }
+    }
+
     res.status(201).json({
       ...image,
       cloudinaryId: uploadResult.public_id,

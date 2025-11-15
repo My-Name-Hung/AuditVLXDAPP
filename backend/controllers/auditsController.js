@@ -91,6 +91,13 @@ const updateAudit = async (req, res) => {
       WHERE Id = @Id
     `);
 
+    // Auto-update store status based on audit result
+    if (result) {
+      const Store = require('../models/Store');
+      const newStatus = result.toLowerCase() === 'pass' ? 'passed' : 'failed';
+      await Store.updateStatus(audit.StoreId, newStatus);
+    }
+
     res.json(result_query.recordset[0]);
   } catch (error) {
     console.error('Update audit error:', error);

@@ -11,6 +11,7 @@ class Store {
       Latitude,
       Longitude,
       TerritoryId,
+      Status,
     } = storeData;
 
     // Generate StoreCode
@@ -27,10 +28,12 @@ class Store {
     if (TerritoryId !== undefined && TerritoryId !== null) {
       request.input("TerritoryId", sql.Int, TerritoryId);
     }
+    // Default status is 'not_audited' if not provided
+    request.input("Status", sql.VarChar(20), Status || 'not_audited');
 
     let query = `
-      INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Latitude, Longitude`;
-    let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Latitude, @Longitude`;
+      INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Latitude, Longitude, Status`;
+    let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Latitude, @Longitude, @Status`;
 
     if (TerritoryId !== undefined && TerritoryId !== null) {
       query += `, TerritoryId`;
@@ -58,14 +61,49 @@ class Store {
     return result.recordset[0];
   }
 
-  static async findAll() {
+  static async findAll(filters = {}) {
     const pool = await getPool();
-    const result = await pool.request().query(`
+    let query = `
       SELECT * FROM Stores
-      ORDER BY CreatedAt DESC
+      WHERE 1=1
+    `;
+    const request = pool.request();
+
+    if (filters.Status) {
+      query += ' AND Status = @Status';
+      request.input('Status', sql.VarChar(20), filters.Status);
+    }
+
+    if (filters.TerritoryId) {
+      query += ' AND TerritoryId = @TerritoryId';
+      request.input('TerritoryId', sql.Int, filters.TerritoryId);
+    }
+
+    if (filters.UserId) {
+      query += ' AND UserId = @UserId';
+      request.input('UserId', sql.Int, filters.UserId);
+    }
+
+    query += ' ORDER BY CreatedAt DESC';
+
+    const result = await request.query(query);
+    return result.recordset;
+  }
+
+  static async updateStatus(storeId, status) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('Id', sql.Int, storeId);
+    request.input('Status', sql.VarChar(20), status);
+
+    const result = await request.query(`
+      UPDATE Stores 
+      SET Status = @Status, UpdatedAt = GETDATE()
+      OUTPUT INSERTED.*
+      WHERE Id = @Id
     `);
 
-    return result.recordset;
+    return result.recordset[0];
   }
 
   static async generateStoreCode() {

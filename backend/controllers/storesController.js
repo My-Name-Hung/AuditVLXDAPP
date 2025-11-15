@@ -2,7 +2,14 @@ const Store = require('../models/Store');
 
 const getAllStores = async (req, res) => {
   try {
-    const stores = await Store.findAll();
+    const { status, territoryId, userId } = req.query;
+    const filters = {};
+    
+    if (status) filters.Status = status;
+    if (territoryId) filters.TerritoryId = parseInt(territoryId);
+    if (userId) filters.UserId = parseInt(userId);
+
+    const stores = await Store.findAll(filters);
     res.json(stores);
   } catch (error) {
     console.error('Get all stores error:', error);
@@ -53,11 +60,16 @@ const createStore = async (req, res) => {
 const updateStore = async (req, res) => {
   try {
     const { id } = req.params;
-    const { storeName, address, phone, email, latitude, longitude } = req.body;
+    const { storeName, address, phone, email, latitude, longitude, status } = req.body;
 
     const store = await Store.findById(id);
     if (!store) {
       return res.status(404).json({ error: 'Store not found' });
+    }
+
+    // Validate status if provided
+    if (status && !['not_audited', 'audited', 'passed', 'failed'].includes(status)) {
+      return res.status(400).json({ error: 'Invalid status. Must be: not_audited, audited, passed, or failed' });
     }
 
     const { getPool, sql } = require('../config/database');
@@ -71,6 +83,7 @@ const updateStore = async (req, res) => {
     request.input('Email', sql.NVarChar(200), email || store.Email);
     request.input('Latitude', sql.Decimal(10, 8), latitude !== undefined ? latitude : store.Latitude);
     request.input('Longitude', sql.Decimal(11, 8), longitude !== undefined ? longitude : store.Longitude);
+    request.input('Status', sql.VarChar(20), status || store.Status);
 
     const result = await request.query(`
       UPDATE Stores 
@@ -80,6 +93,7 @@ const updateStore = async (req, res) => {
           Email = @Email,
           Latitude = @Latitude,
           Longitude = @Longitude,
+          Status = @Status,
           UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id
@@ -88,6 +102,28 @@ const updateStore = async (req, res) => {
     res.json(result.recordset[0]);
   } catch (error) {
     console.error('Update store error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+};
+
+const updateStoreStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!status || !['not_audited', 'audited', 'passed', 'failed'].includes(status)) {
+      return res.status(400).json({ error: 'Status is required and must be: not_audited, audited, passed, or failed' });
+    }
+
+    const store = await Store.findById(id);
+    if (!store) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    const updatedStore = await Store.updateStatus(id, status);
+    res.json(updatedStore);
+  } catch (error) {
+    console.error('Update store status error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 };
@@ -120,6 +156,7 @@ module.exports = {
   getStoreById,
   createStore,
   updateStore,
+  updateStoreStatus,
   deleteStore,
 };
 
