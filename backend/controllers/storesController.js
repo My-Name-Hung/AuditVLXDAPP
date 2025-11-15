@@ -2,12 +2,17 @@ const Store = require('../models/Store');
 
 const getAllStores = async (req, res) => {
   try {
-    const { status, territoryId, userId } = req.query;
+    const { status, territoryId, userId, rank, storeName, userName } = req.query;
     const filters = {};
     
     if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
     if (userId) filters.UserId = parseInt(userId);
+    if (rank !== undefined && rank !== null && rank !== '') {
+      filters.Rank = parseInt(rank);
+    }
+    if (storeName) filters.storeName = storeName;
+    if (userName) filters.userName = userName;
 
     const stores = await Store.findAll(filters);
     res.json(stores);
@@ -26,7 +31,75 @@ const getStoreById = async (req, res) => {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    res.json(store);
+    // Get store details with related data
+    const { getPool, sql } = require('../config/database');
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('StoreId', sql.Int, id);
+
+    // Get audits with images for this store
+    const auditsResult = await request.query(`
+      SELECT 
+        a.Id as AuditId,
+        a.Result,
+        a.Notes,
+        a.AuditDate,
+        a.CreatedAt as AuditCreatedAt,
+        u.Id as UserId,
+        u.FullName as UserFullName,
+        u.UserCode,
+        (
+          SELECT 
+            i.Id,
+            i.ImageUrl,
+            i.ReferenceImageUrl,
+            i.Latitude,
+            i.Longitude,
+            i.CapturedAt
+          FROM Images i
+          WHERE i.AuditId = a.Id
+          ORDER BY i.CapturedAt DESC
+          FOR JSON PATH
+        ) as Images
+      FROM Audits a
+      INNER JOIN Users u ON a.UserId = u.Id
+      WHERE a.StoreId = @StoreId
+      ORDER BY a.AuditDate DESC, a.CreatedAt DESC
+    `);
+
+    // Parse JSON images for each audit
+    const audits = auditsResult.recordset.map(audit => {
+      let images = [];
+      try {
+        images = audit.Images ? JSON.parse(audit.Images) : [];
+      } catch (e) {
+        images = [];
+      }
+      return {
+        ...audit,
+        Images: images
+      };
+    });
+
+    // Get store with territory and user info
+    const storeDetailsResult = await request.query(`
+      SELECT 
+        s.*,
+        t.TerritoryName,
+        u.FullName as UserFullName,
+        u.UserCode
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      LEFT JOIN Users u ON s.UserId = u.Id
+      WHERE s.Id = @StoreId
+    `);
+
+    const storeDetails = storeDetailsResult.recordset[0];
+
+    res.json({
+      ...storeDetails,
+      audits
+    });
   } catch (error) {
     console.error('Get store by id error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -35,10 +108,26 @@ const getStoreById = async (req, res) => {
 
 const createStore = async (req, res) => {
   try {
-    const { storeName, address, phone, email, latitude, longitude } = req.body;
+    const { 
+      storeName, 
+      address, 
+      phone, 
+      email, 
+      latitude, 
+      longitude,
+      territoryId,
+      userId,
+      rank,
+      taxCode,
+      partnerName
+    } = req.body;
 
     if (!storeName || !address) {
       return res.status(400).json({ error: 'StoreName and address are required' });
+    }
+
+    if (rank && ![1, 2].includes(parseInt(rank))) {
+      return res.status(400).json({ error: 'Rank must be 1 or 2' });
     }
 
     const store = await Store.create({
@@ -48,6 +137,11 @@ const createStore = async (req, res) => {
       Email: email,
       Latitude: latitude,
       Longitude: longitude,
+      TerritoryId: territoryId,
+      UserId: userId,
+      Rank: rank ? parseInt(rank) : null,
+      TaxCode: taxCode,
+      PartnerName: partnerName,
     });
 
     res.status(201).json(store);
@@ -60,7 +154,20 @@ const createStore = async (req, res) => {
 const updateStore = async (req, res) => {
   try {
     const { id } = req.params;
-    const { storeName, address, phone, email, latitude, longitude, status } = req.body;
+    const { 
+      storeName, 
+      address, 
+      phone, 
+      email, 
+      latitude, 
+      longitude, 
+      status,
+      territoryId,
+      userId,
+      rank,
+      taxCode,
+      partnerName
+    } = req.body;
 
     const store = await Store.findById(id);
     if (!store) {
@@ -72,18 +179,28 @@ const updateStore = async (req, res) => {
       return res.status(400).json({ error: 'Invalid status. Must be: not_audited, audited, passed, or failed' });
     }
 
+    // Validate rank if provided
+    if (rank !== undefined && rank !== null && ![1, 2].includes(parseInt(rank))) {
+      return res.status(400).json({ error: 'Rank must be 1 or 2' });
+    }
+
     const { getPool, sql } = require('../config/database');
     const pool = await getPool();
     const request = pool.request();
 
     request.input('Id', sql.Int, id);
-    request.input('StoreName', sql.NVarChar(200), storeName || store.StoreName);
-    request.input('Address', sql.NVarChar(500), address || store.Address);
-    request.input('Phone', sql.VarChar(20), phone || store.Phone);
-    request.input('Email', sql.NVarChar(200), email || store.Email);
+    request.input('StoreName', sql.NVarChar(200), storeName !== undefined ? storeName : store.StoreName);
+    request.input('Address', sql.NVarChar(500), address !== undefined ? address : store.Address);
+    request.input('Phone', sql.VarChar(20), phone !== undefined ? phone : store.Phone);
+    request.input('Email', sql.NVarChar(200), email !== undefined ? email : store.Email);
     request.input('Latitude', sql.Decimal(10, 8), latitude !== undefined ? latitude : store.Latitude);
     request.input('Longitude', sql.Decimal(11, 8), longitude !== undefined ? longitude : store.Longitude);
-    request.input('Status', sql.VarChar(20), status || store.Status);
+    request.input('Status', sql.VarChar(20), status !== undefined ? status : store.Status);
+    request.input('TerritoryId', sql.Int, territoryId !== undefined ? territoryId : store.TerritoryId);
+    request.input('UserId', sql.Int, userId !== undefined ? userId : store.UserId);
+    request.input('Rank', sql.Int, rank !== undefined ? rank : store.Rank);
+    request.input('TaxCode', sql.VarChar(50), taxCode !== undefined ? taxCode : store.TaxCode);
+    request.input('PartnerName', sql.NVarChar(200), partnerName !== undefined ? partnerName : store.PartnerName);
 
     const result = await request.query(`
       UPDATE Stores 
@@ -94,6 +211,11 @@ const updateStore = async (req, res) => {
           Latitude = @Latitude,
           Longitude = @Longitude,
           Status = @Status,
+          TerritoryId = @TerritoryId,
+          UserId = @UserId,
+          Rank = @Rank,
+          TaxCode = @TaxCode,
+          PartnerName = @PartnerName,
           UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id

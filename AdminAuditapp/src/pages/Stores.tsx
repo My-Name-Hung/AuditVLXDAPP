@@ -1,219 +1,386 @@
-import { useEffect, useState } from 'react';
-import api from '../services/api';
-import './Stores.css';
+import { useEffect, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { HiEye, HiPencil, HiTrash } from "react-icons/hi";
+import { HiPlus, HiArrowDownTray } from "react-icons/hi2";
+import api from "../services/api";
+import Select from "../components/Select";
+import MultiSelect from "../components/MultiSelect";
+import "./Stores.css";
 
 interface Store {
-  id: number;
-  storeCode: string;
-  storeName: string;
-  address: string;
-  phone: string;
-  email: string;
-  latitude: number;
-  longitude: number;
+  Id: number;
+  StoreCode: string;
+  StoreName: string;
+  Address: string;
+  Phone: string;
+  Email: string;
+  Status: string;
+  Rank: number | null;
+  TaxCode: string | null;
+  PartnerName: string | null;
+  TerritoryId: number | null;
+  TerritoryName: string | null;
+  UserId: number | null;
+  UserFullName: string | null;
 }
 
+interface Territory {
+  Id: number;
+  TerritoryName: string;
+}
+
+interface User {
+  Id: number;
+  FullName: string;
+}
+
+type StatusFilter = "all" | "not_audited" | "audited" | "passed" | "failed";
+
 export default function Stores() {
+  const navigate = useNavigate();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingStore, setEditingStore] = useState<Store | null>(null);
-  const [formData, setFormData] = useState({
-    storeName: '',
-    address: '',
-    phone: '',
-    email: '',
-    latitude: '',
-    longitude: '',
-  });
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+  const [storeNameFilter, setStoreNameFilter] = useState("");
+  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(null);
+  const [selectedRank, setSelectedRank] = useState<number | string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
+  const storeNameInputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    fetchTerritories();
+    fetchUsers();
     fetchStores();
   }, []);
 
+  useEffect(() => {
+    fetchStores();
+  }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
+
+  // Debounce store name filter
+  useEffect(() => {
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchStores();
+    }, 500);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [storeNameFilter]);
+
+  const fetchTerritories = async () => {
+    try {
+      const res = await api.get("/territories");
+      setTerritories(res.data.data || []);
+    } catch (error) {
+      console.error("Error fetching territories:", error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const res = await api.get("/users");
+      setUsers(res.data || []);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
   const fetchStores = async () => {
     try {
-      const response = await api.get('/stores');
-      setStores(response.data);
+      setLoading(true);
+      const params: any = {};
+
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
+      }
+      if (selectedTerritory) {
+        params.territoryId = selectedTerritory;
+      }
+      if (selectedRank !== null && selectedRank !== "") {
+        params.rank = selectedRank;
+      }
+      if (selectedUser) {
+        params.userId = selectedUser;
+      }
+      if (storeNameFilter.trim()) {
+        params.storeName = storeNameFilter.trim();
+      }
+
+      const res = await api.get("/stores", { params });
+      setStores(res.data || []);
     } catch (error) {
-      console.error('Error fetching stores:', error);
+      console.error("Error fetching stores:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const payload = {
-        ...formData,
-        latitude: formData.latitude ? parseFloat(formData.latitude) : null,
-        longitude: formData.longitude ? parseFloat(formData.longitude) : null,
-      };
-
-      if (editingStore) {
-        await api.put(`/stores/${editingStore.id}`, payload);
-      } else {
-        await api.post('/stores', payload);
-      }
-      setShowModal(false);
-      setEditingStore(null);
-      setFormData({
-        storeName: '',
-        address: '',
-        phone: '',
-        email: '',
-        latitude: '',
-        longitude: '',
-      });
-      fetchStores();
-    } catch (error: any) {
-      alert(error.response?.data?.error || 'Error saving store');
-    }
+  const handleDeleteClick = (store: Store) => {
+    setStoreToDelete(store);
+    setDeleteModalOpen(true);
   };
 
-  const handleEdit = (store: Store) => {
-    setEditingStore(store);
-    setFormData({
-      storeName: store.storeName,
-      address: store.address || '',
-      phone: store.phone || '',
-      email: store.email || '',
-      latitude: store.latitude?.toString() || '',
-      longitude: store.longitude?.toString() || '',
-    });
-    setShowModal(true);
-  };
+  const handleDeleteConfirm = async () => {
+    if (!storeToDelete) return;
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this store?')) return;
     try {
-      await api.delete(`/stores/${id}`);
+      await api.delete(`/stores/${storeToDelete.Id}`);
+      setDeleteModalOpen(false);
+      setStoreToDelete(null);
       fetchStores();
     } catch (error) {
-      alert('Error deleting store');
+      console.error("Error deleting store:", error);
+      alert("Lỗi khi xóa cửa hàng");
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading stores...</div>;
+  const handleViewStore = (storeId: number) => {
+    navigate(`/stores/${storeId}`);
+  };
+
+  const handleEditStore = (storeId: number) => {
+    navigate(`/stores/${storeId}/edit`);
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      not_audited: "Chưa audit",
+      audited: "Đã audit",
+      passed: "Đạt",
+      failed: "Không đạt",
+    };
+    return labels[status] || status;
+  };
+
+  const getRankLabel = (rank: number | null) => {
+    if (rank === 1) return "Đơn vị, tổ chức";
+    if (rank === 2) return "Cá nhân";
+    return "-";
+  };
+
+  const rankOptions = [
+    { id: "", name: "Tất cả" },
+    { id: 1, name: "Cấp 1" },
+    { id: 2, name: "Cấp 2" },
+  ];
+
+  const territoryOptions = territories.map((t) => ({
+    id: t.Id,
+    name: t.TerritoryName,
+  }));
+
+  const userOptions = [
+    { id: null, name: "Tất cả" },
+    ...users.map((u) => ({
+      id: u.Id,
+      name: u.FullName,
+    })),
+  ];
+
+  if (loading && stores.length === 0) {
+    return <div className="loading">Đang tải dữ liệu...</div>;
   }
 
   return (
     <div className="stores-page">
-      <div className="page-header">
-        <h2>Stores Management</h2>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          + Add Store
+      {/* Status Filter Tabs */}
+      <div className="status-filter-tabs">
+        <button
+          className={`status-tab ${statusFilter === "all" ? "active" : ""}`}
+          onClick={() => setStatusFilter("all")}
+        >
+          Tất cả
+        </button>
+        <button
+          className={`status-tab ${statusFilter === "not_audited" ? "active" : ""}`}
+          onClick={() => setStatusFilter("not_audited")}
+        >
+          Chưa audit
+        </button>
+        <button
+          className={`status-tab ${statusFilter === "audited" ? "active" : ""}`}
+          onClick={() => setStatusFilter("audited")}
+        >
+          Đã audit
+        </button>
+        <button
+          className={`status-tab ${statusFilter === "passed" ? "active" : ""}`}
+          onClick={() => setStatusFilter("passed")}
+        >
+          Đạt
+        </button>
+        <button
+          className={`status-tab ${statusFilter === "failed" ? "active" : ""}`}
+          onClick={() => setStatusFilter("failed")}
+        >
+          Không đạt
         </button>
       </div>
 
+      {/* Action Buttons */}
+      <div className="stores-actions">
+        <button className="btn-add" onClick={() => navigate("/stores/new")}>
+          <HiPlus /> Thêm cửa hàng
+        </button>
+        <button className="btn-download" onClick={() => {}}>
+          <HiArrowDownTray /> Xuất Excel
+        </button>
+      </div>
+
+      {/* Filter Section */}
+      <div className="stores-filters">
+        <div className="filter-group">
+          <label>Tên cửa hàng</label>
+          <input
+            ref={storeNameInputRef}
+            type="text"
+            placeholder="Tìm kiếm theo mã hoặc tên"
+            value={storeNameFilter}
+            onChange={(e) => setStoreNameFilter(e.target.value)}
+            className="filter-input"
+          />
+        </div>
+
+        <div className="filter-group">
+          <label>Địa bàn phụ trách</label>
+          <Select
+            options={[
+              { id: null, name: "Tất cả" },
+              ...territoryOptions,
+            ]}
+            value={selectedTerritory}
+            onChange={(value) => setSelectedTerritory(value as number | null)}
+            placeholder="Chọn địa bàn phụ trách"
+            searchable={true}
+          />
+        </div>
+
+        <div className="filter-group">
+          <label>Cấp cửa hàng</label>
+          <Select
+            options={rankOptions}
+            value={selectedRank}
+            onChange={(value) => setSelectedRank(value)}
+            placeholder="Tất cả"
+          />
+        </div>
+
+        <div className="filter-group">
+          <label>Tên user phụ trách</label>
+          <Select
+            options={userOptions}
+            value={selectedUser}
+            onChange={(value) => setSelectedUser(value as number | null)}
+            placeholder="Chọn user phụ trách"
+            searchable={true}
+          />
+        </div>
+      </div>
+
+      {/* Stores Table */}
       <div className="table-container">
-        <table className="data-table">
+        <table className="stores-table">
           <thead>
             <tr>
-              <th>Store Code</th>
-              <th>Store Name</th>
-              <th>Address</th>
-              <th>Phone</th>
-              <th>Email</th>
-              <th>Actions</th>
+              <th>Mã cửa hàng</th>
+              <th>Tên cửa hàng</th>
+              <th>Loại đối tượng</th>
+              <th>Địa chỉ</th>
+              <th>Mã số thuế</th>
+              <th>Tên đối tác</th>
+              <th>Số điện thoại</th>
+              <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {stores.map((store) => (
-              <tr key={store.id}>
-                <td>{store.storeCode}</td>
-                <td>{store.storeName}</td>
-                <td>{store.address || '-'}</td>
-                <td>{store.phone || '-'}</td>
-                <td>{store.email || '-'}</td>
-                <td>
-                  <button onClick={() => handleEdit(store)} className="btn-edit">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(store.id)} className="btn-delete">
-                    Delete
-                  </button>
+            {stores.length === 0 ? (
+              <tr>
+                <td colSpan={8} className="no-data-cell">
+                  Không có dữ liệu
                 </td>
               </tr>
-            ))}
+            ) : (
+              stores.map((store) => (
+                <tr key={store.Id}>
+                  <td>{store.StoreCode}</td>
+                  <td>{store.StoreName}</td>
+                  <td>{getRankLabel(store.Rank)}</td>
+                  <td>{store.Address || "-"}</td>
+                  <td>{store.TaxCode || "-"}</td>
+                  <td>{store.PartnerName || "-"}</td>
+                  <td>{store.Phone || "-"}</td>
+                  <td>
+                    <div className="action-buttons">
+                      {store.Status !== "not_audited" && (
+                        <button
+                          className="btn-action btn-view"
+                          onClick={() => handleViewStore(store.Id)}
+                          title="Xem chi tiết"
+                        >
+                          <HiEye />
+                        </button>
+                      )}
+                      <button
+                        className="btn-action btn-edit"
+                        onClick={() => handleEditStore(store.Id)}
+                        title="Chỉnh sửa"
+                      >
+                        <HiPencil />
+                      </button>
+                      <button
+                        className="btn-action btn-delete"
+                        onClick={() => handleDeleteClick(store)}
+                        title="Xóa"
+                      >
+                        <HiTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && storeToDelete && (
+        <div className="modal-overlay" onClick={() => setDeleteModalOpen(false)}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{editingStore ? 'Edit Store' : 'Add New Store'}</h3>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Store Name *</label>
-                <input
-                  type="text"
-                  value={formData.storeName}
-                  onChange={(e) => setFormData({ ...formData, storeName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Address *</label>
-                <textarea
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  required
-                  rows={3}
-                />
-              </div>
-              <div className="form-group">
-                <label>Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Latitude</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.latitude}
-                    onChange={(e) => setFormData({ ...formData, latitude: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Longitude</label>
-                  <input
-                    type="number"
-                    step="any"
-                    value={formData.longitude}
-                    onChange={(e) => setFormData({ ...formData, longitude: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  {editingStore ? 'Update' : 'Create'}
-                </button>
-              </div>
-            </form>
+            <h3>Xác nhận xóa cửa hàng</h3>
+            <p>
+              Bạn có chắc chắn muốn xóa cửa hàng <strong>{storeToDelete.StoreName}</strong> (Mã: {storeToDelete.StoreCode})?
+            </p>
+            <p className="modal-warning">Hành động này không thể hoàn tác!</p>
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setStoreToDelete(null);
+                }}
+              >
+                Hủy
+              </button>
+              <button className="btn-danger" onClick={handleDeleteConfirm}>
+                Xóa
+              </button>
+            </div>
           </div>
         </div>
       )}
     </div>
   );
 }
-
