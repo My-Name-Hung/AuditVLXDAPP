@@ -379,7 +379,8 @@ async function seedSampleData(skipCleanup = false) {
 
     // Create stores and assign to users (with TerritoryId from assigned user)
     const createdStores = [];
-    for (const storeData of sampleStores) {
+    for (let storeIndex = 0; storeIndex < sampleStores.length; storeIndex++) {
+      const storeData = sampleStores[storeIndex];
       // Check if store already exists
       const existingStore = await pool
         .request()
@@ -389,6 +390,22 @@ async function seedSampleData(skipCleanup = false) {
       let store;
       if (existingStore.recordset.length > 0) {
         store = existingStore.recordset[0];
+        // Update existing store with Rank, TaxCode, PartnerName if they are NULL
+        const updateResult = await pool
+          .request()
+          .input("StoreId", sql.Int, store.Id)
+          .input("Rank", sql.Int, storeData.name.includes("VLXD") ? 1 : 2)
+          .input("TaxCode", sql.VarChar(50), storeData.name.includes("VLXD") 
+            ? `010${String(storeIndex + 1).padStart(7, '0')}${(storeIndex % 10)}`
+            : `020${String(storeIndex + 1).padStart(7, '0')}${(storeIndex % 10)}`)
+          .input("PartnerName", sql.NVarChar(200), storeData.name.includes("VLXD")
+            ? `Công ty TNHH ${storeData.name}`
+            : `Ông/Bà ${storeData.name}`)
+          .query(`
+            UPDATE Stores 
+            SET Rank = @Rank, TaxCode = @TaxCode, PartnerName = @PartnerName, UpdatedAt = GETDATE()
+            WHERE Id = @StoreId AND (Rank IS NULL OR TaxCode IS NULL OR PartnerName IS NULL)
+          `);
       } else {
         // Store will be created without TerritoryId first, then updated when assigned to user
         const storeCode = await Store.generateStoreCode();
@@ -401,10 +418,19 @@ async function seedSampleData(skipCleanup = false) {
           .input("Email", sql.NVarChar(200), `${storeCode}@example.com`)
           .input("Latitude", sql.Decimal(10, 8), storeData.lat || 10.762622)
           .input("Longitude", sql.Decimal(11, 8), storeData.lon || 106.660172)
+          // Add Rank, TaxCode, PartnerName for sample data
+          // Rank: 1 for stores with "VLXD" in name (Đơn vị, tổ chức), 2 for others (Cá nhân)
+          .input("Rank", sql.Int, storeData.name.includes("VLXD") ? 1 : 2)
+          .input("TaxCode", sql.VarChar(50), storeData.name.includes("VLXD") 
+            ? `010${String(storeIndex + 1).padStart(7, '0')}${(storeIndex % 10)}`
+            : `020${String(storeIndex + 1).padStart(7, '0')}${(storeIndex % 10)}`)
+          .input("PartnerName", sql.NVarChar(200), storeData.name.includes("VLXD")
+            ? `Công ty TNHH ${storeData.name}`
+            : `Ông/Bà ${storeData.name}`)
           .query(`
-            INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Latitude, Longitude, CreatedAt, UpdatedAt)
+            INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Latitude, Longitude, Rank, TaxCode, PartnerName, CreatedAt, UpdatedAt)
             OUTPUT INSERTED.*
-            VALUES (@StoreCode, @StoreName, @Address, @Phone, @Email, @Latitude, @Longitude, GETDATE(), GETDATE())
+            VALUES (@StoreCode, @StoreName, @Address, @Phone, @Email, @Latitude, @Longitude, @Rank, @TaxCode, @PartnerName, GETDATE(), GETDATE())
           `);
         store = result.recordset[0];
         console.log(`✅ Created store: ${storeData.name}`);

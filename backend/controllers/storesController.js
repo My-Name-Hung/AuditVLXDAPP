@@ -2,7 +2,7 @@ const Store = require('../models/Store');
 
 const getAllStores = async (req, res) => {
   try {
-    const { status, territoryId, userId, rank, storeName, userName } = req.query;
+    const { status, territoryId, userId, rank, storeName, userName, page, pageSize } = req.query;
     const filters = {};
     
     if (status) filters.Status = status;
@@ -14,8 +14,28 @@ const getAllStores = async (req, res) => {
     if (storeName) filters.storeName = storeName;
     if (userName) filters.userName = userName;
 
-    const stores = await Store.findAll(filters);
-    res.json(stores);
+    // Pagination
+    const currentPage = parseInt(page) || 1;
+    const limit = parseInt(pageSize) || 50;
+    const offset = (currentPage - 1) * limit;
+
+    filters.limit = limit;
+    filters.offset = offset;
+
+    const [stores, total] = await Promise.all([
+      Store.findAll(filters),
+      Store.count(filters)
+    ]);
+
+    res.json({
+      data: stores,
+      pagination: {
+        page: currentPage,
+        pageSize: limit,
+        total: total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Get all stores error:', error);
     res.status(500).json({ error: 'Internal server error' });

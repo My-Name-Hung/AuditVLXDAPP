@@ -140,8 +140,60 @@ class Store {
 
     query += ' ORDER BY s.CreatedAt DESC';
 
+    // Add pagination
+    if (filters.limit !== undefined && filters.offset !== undefined) {
+      query += ` OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
+      request.input('Offset', sql.Int, filters.offset);
+      request.input('Limit', sql.Int, filters.limit);
+    }
+
     const result = await request.query(query);
     return result.recordset;
+  }
+
+  static async count(filters = {}) {
+    const pool = await getPool();
+    let query = `
+      SELECT COUNT(*) as Total
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      LEFT JOIN Users u ON s.UserId = u.Id
+      WHERE 1=1
+    `;
+    const request = pool.request();
+
+    if (filters.Status) {
+      query += ' AND s.Status = @Status';
+      request.input('Status', sql.VarChar(20), filters.Status);
+    }
+
+    if (filters.TerritoryId) {
+      query += ' AND s.TerritoryId = @TerritoryId';
+      request.input('TerritoryId', sql.Int, filters.TerritoryId);
+    }
+
+    if (filters.UserId) {
+      query += ' AND s.UserId = @UserId';
+      request.input('UserId', sql.Int, filters.UserId);
+    }
+
+    if (filters.Rank !== undefined && filters.Rank !== null) {
+      query += ' AND s.Rank = @Rank';
+      request.input('Rank', sql.Int, filters.Rank);
+    }
+
+    if (filters.storeName) {
+      query += ' AND (s.StoreName LIKE @StoreName OR s.StoreCode LIKE @StoreName)';
+      request.input('StoreName', sql.NVarChar(200), `%${filters.storeName}%`);
+    }
+
+    if (filters.userName) {
+      query += ' AND u.FullName LIKE @UserName';
+      request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
+    }
+
+    const result = await request.query(query);
+    return result.recordset[0].Total;
   }
 
   static async updateStatus(storeId, status) {

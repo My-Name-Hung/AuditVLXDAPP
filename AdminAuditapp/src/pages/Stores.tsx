@@ -49,6 +49,10 @@ export default function Stores() {
   const [users, setUsers] = useState<User[]>([]);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [storeToDelete, setStoreToDelete] = useState<Store | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const storeNameInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -59,8 +63,13 @@ export default function Stores() {
   }, []);
 
   useEffect(() => {
+    setPage(1); // Reset to first page when filters change
     fetchStores();
   }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
+
+  useEffect(() => {
+    fetchStores();
+  }, [page, pageSize]);
 
   // Debounce store name filter
   useEffect(() => {
@@ -100,7 +109,10 @@ export default function Stores() {
   const fetchStores = async () => {
     try {
       setLoading(true);
-      const params: any = {};
+      const params: any = {
+        page,
+        pageSize,
+      };
 
       if (statusFilter !== "all") {
         params.status = statusFilter;
@@ -119,12 +131,35 @@ export default function Stores() {
       }
 
       const res = await api.get("/stores", { params });
-      setStores(res.data || []);
+      setStores(res.data.data || []);
+      if (res.data.pagination) {
+        setTotal(res.data.pagination.total);
+        setTotalPages(res.data.pagination.totalPages);
+      }
     } catch (error) {
       console.error("Error fetching stores:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const hasActiveFilters = () => {
+    return (
+      statusFilter !== "all" ||
+      storeNameFilter.trim() !== "" ||
+      selectedTerritory !== null ||
+      selectedRank !== null ||
+      selectedUser !== null
+    );
+  };
+
+  const handleClearFilters = () => {
+    setStatusFilter("all");
+    setStoreNameFilter("");
+    setSelectedTerritory(null);
+    setSelectedRank(null);
+    setSelectedUser(null);
+    setPage(1);
   };
 
   const handleDeleteClick = (store: Store) => {
@@ -195,48 +230,48 @@ export default function Stores() {
 
   return (
     <div className="stores-page">
-      {/* Status Filter Tabs */}
-      <div className="status-filter-tabs">
-        <button
-          className={`status-tab ${statusFilter === "all" ? "active" : ""}`}
-          onClick={() => setStatusFilter("all")}
-        >
-          Tất cả
-        </button>
-        <button
-          className={`status-tab ${statusFilter === "not_audited" ? "active" : ""}`}
-          onClick={() => setStatusFilter("not_audited")}
-        >
-          Chưa audit
-        </button>
-        <button
-          className={`status-tab ${statusFilter === "audited" ? "active" : ""}`}
-          onClick={() => setStatusFilter("audited")}
-        >
-          Đã audit
-        </button>
-        <button
-          className={`status-tab ${statusFilter === "passed" ? "active" : ""}`}
-          onClick={() => setStatusFilter("passed")}
-        >
-          Đạt
-        </button>
-        <button
-          className={`status-tab ${statusFilter === "failed" ? "active" : ""}`}
-          onClick={() => setStatusFilter("failed")}
-        >
-          Không đạt
-        </button>
-      </div>
-
-      {/* Action Buttons */}
-      <div className="stores-actions">
-        <button className="btn-add" onClick={() => navigate("/stores/new")}>
-          <HiPlus /> Thêm cửa hàng
-        </button>
-        <button className="btn-download" onClick={() => {}}>
-          <HiArrowDownTray /> Xuất Excel
-        </button>
+      {/* Status Filter Tabs and Action Buttons */}
+      <div className="status-filter-header">
+        <div className="status-filter-tabs">
+          <button
+            className={`status-tab ${statusFilter === "all" ? "active" : ""}`}
+            onClick={() => setStatusFilter("all")}
+          >
+            Tất cả
+          </button>
+          <button
+            className={`status-tab ${statusFilter === "not_audited" ? "active" : ""}`}
+            onClick={() => setStatusFilter("not_audited")}
+          >
+            Chưa audit
+          </button>
+          <button
+            className={`status-tab ${statusFilter === "audited" ? "active" : ""}`}
+            onClick={() => setStatusFilter("audited")}
+          >
+            Đã audit
+          </button>
+          <button
+            className={`status-tab ${statusFilter === "passed" ? "active" : ""}`}
+            onClick={() => setStatusFilter("passed")}
+          >
+            Đạt
+          </button>
+          <button
+            className={`status-tab ${statusFilter === "failed" ? "active" : ""}`}
+            onClick={() => setStatusFilter("failed")}
+          >
+            Không đạt
+          </button>
+        </div>
+        <div className="stores-actions">
+          <button className="btn-add" onClick={() => navigate("/stores/new")}>
+            <HiPlus /> Thêm cửa hàng
+          </button>
+          <button className="btn-download" onClick={() => {}}>
+            <HiArrowDownTray /> Xuất Excel
+          </button>
+        </div>
       </div>
 
       {/* Filter Section */}
@@ -287,6 +322,15 @@ export default function Stores() {
             searchable={true}
           />
         </div>
+
+        {hasActiveFilters() && (
+          <div className="filter-group filter-clear">
+            <label>&nbsp;</label>
+            <button className="btn-clear-filters" onClick={handleClearFilters}>
+              Xóa lọc
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Stores Table */}

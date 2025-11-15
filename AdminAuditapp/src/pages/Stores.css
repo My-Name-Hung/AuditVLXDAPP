@@ -3,13 +3,21 @@
   padding: 1.5rem;
 }
 
+/* Status Filter Header - Contains tabs and action buttons */
+.status-filter-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 0.5rem;
+}
+
 /* Status Filter Tabs */
 .status-filter-tabs {
   display: flex;
   gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 2px solid #e0e0e0;
-  padding-bottom: 0.5rem;
+  flex: 1;
 }
 
 .status-tab {
@@ -26,6 +34,7 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  border-bottom: 3px solid transparent;
 }
 
 .status-tab::before {
@@ -34,31 +43,34 @@
   height: 8px;
   border-radius: 50%;
   background: #ccc;
+  flex-shrink: 0;
 }
 
 .status-tab.active {
   color: #0138C3;
   background: #f0f4ff;
+  border-bottom: 3px solid #0138C3;
+  font-weight: 600;
 }
 
 .status-tab.active::before {
   background: #0138C3;
 }
 
-.status-tab:hover {
+.status-tab:hover:not(.active) {
   background: #f5f5f5;
+  color: #333;
 }
 
 .status-tab.active:hover {
-  background: #f0f4ff;
+  background: #e8f0fe;
 }
 
 /* Action Buttons */
 .stores-actions {
   display: flex;
   gap: 1rem;
-  justify-content: flex-end;
-  margin-bottom: 1.5rem;
+  align-items: center;
 }
 
 .btn-add,
@@ -75,11 +87,21 @@
   transition: all 0.2s;
   background: #dc2626;
   color: white;
+  white-space: nowrap;
+}
+
+.btn-add svg,
+.btn-download svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .btn-add:hover,
 .btn-download:hover {
   background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
 }
 
 /* Filter Section */
@@ -179,8 +201,8 @@
 }
 
 .btn-action {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -188,7 +210,14 @@
   border-radius: 6px;
   cursor: pointer;
   transition: all 0.2s;
-  font-size: 1rem;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.btn-action svg {
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 
 .btn-view {
@@ -198,6 +227,11 @@
 
 .btn-view:hover {
   background: #d0e4fd;
+  transform: scale(1.1);
+}
+
+.btn-view svg {
+  color: #0138C3;
 }
 
 .btn-edit {
@@ -207,6 +241,11 @@
 
 .btn-edit:hover {
   background: #ffeaa7;
+  transform: scale(1.1);
+}
+
+.btn-edit svg {
+  color: #856404;
 }
 
 .btn-delete {
@@ -216,6 +255,11 @@
 
 .btn-delete:hover {
   background: #fcc;
+  transform: scale(1.1);
+}
+
+.btn-delete svg {
+  color: #dc2626;
 }
 
 /* Modal */
