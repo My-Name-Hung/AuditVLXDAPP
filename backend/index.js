@@ -150,8 +150,24 @@ app.listen(PORT, async () => {
   // Initialize services
   await initializeServices();
 
+  // Setup cleanup job for import history (run every 24 hours)
+  const { cleanupImportHistory } = require('./utils/cleanupImportHistory');
+  
+  // Run cleanup immediately on startup
+  cleanupImportHistory().catch(err => {
+    console.error('Error running initial cleanup:', err);
+  });
+  
+  // Schedule cleanup to run every 24 hours
+  setInterval(() => {
+    cleanupImportHistory().catch(err => {
+      console.error('Error running scheduled cleanup:', err);
+    });
+  }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);
+  console.log(`🧹 Import history cleanup scheduled (runs every 24 hours)`);
   console.log("=".repeat(50));
 });
 

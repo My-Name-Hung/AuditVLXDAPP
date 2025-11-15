@@ -70,6 +70,7 @@ const importStores = async (req, res) => {
         partnerName: row.getCell(7)?.value?.toString()?.trim() || null,
         territoryName: row.getCell(8)?.value?.toString()?.trim() || null,
         userName: row.getCell(9)?.value?.toString()?.trim() || null,
+        notes: row.getCell(10)?.value?.toString()?.trim() || null,
       };
 
       results.total++;
@@ -140,6 +141,7 @@ const importStores = async (req, res) => {
         TerritoryId: territoryId,
         UserId: userId,
         Status: "not_audited",
+        Notes: rowData.notes,
         // Latitude and Longitude will be null - auto updated from mobile app
       })
         .then((store) => {

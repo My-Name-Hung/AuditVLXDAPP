@@ -1,8 +1,12 @@
-import { useState, useEffect, useRef } from "react";
-import { HiArrowDownTray, HiArrowUpTray, HiDocumentText } from "react-icons/hi2";
-import api from "../services/api";
+import { useEffect, useRef, useState } from "react";
+import {
+  HiArrowDownTray,
+  HiArrowUpTray,
+  HiDocumentText,
+} from "react-icons/hi2";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
+import api from "../services/api";
 import "./ImportExport.css";
 
 interface ImportHistory {
@@ -14,6 +18,63 @@ interface ImportHistory {
   UserFullName: string;
   UserCode: string;
   CreatedAt: string;
+}
+
+interface ImportResult {
+  success: Array<{
+    row: number;
+    storeName?: string;
+    storeCode?: string;
+    link?: string;
+    username?: string;
+    userCode?: string;
+    fullName?: string;
+  }>;
+  errors: Array<{
+    row: number;
+    storeName?: string;
+    username?: string;
+    error: string;
+  }>;
+  total: number;
+  successCount: number;
+  errorCount: number;
+}
+
+interface Store {
+  Id: number;
+  StoreCode: string;
+  StoreName: string;
+  Address: string;
+  Phone: string;
+  Email: string;
+  Status: string;
+  Rank: number | null;
+  TaxCode: string | null;
+  PartnerName: string | null;
+  TerritoryName: string | null;
+  UserFullName: string | null;
+  UserCode: string | null;
+  Latitude: number | null;
+  Longitude: number | null;
+}
+
+interface DashboardSummaryItem {
+  UserId: number;
+  FullName: string;
+  TerritoryId: number;
+  TerritoryName: string;
+  TotalCheckinDays: number;
+  TotalStoresChecked: number;
+}
+
+interface DashboardDetailItem {
+  CheckinDate: string;
+  AuditId: number;
+  StoreName: string;
+  Address: string;
+  CheckinTime: string | null;
+  Notes: string | null;
 }
 
 type TabType = "import-stores" | "import-users" | "export-reports";
@@ -28,13 +89,7 @@ export default function ImportExport() {
   const [exportProgress, setExportProgress] = useState(0);
   const [storesHistory, setStoresHistory] = useState<ImportHistory[]>([]);
   const [usersHistory, setUsersHistory] = useState<ImportHistory[]>([]);
-  const [importResults, setImportResults] = useState<{
-    success: any[];
-    errors: any[];
-    total: number;
-    successCount: number;
-    errorCount: number;
-  } | null>(null);
+  const [importResults, setImportResults] = useState<ImportResult | null>(null);
   const [notification, setNotification] = useState<{
     isOpen: boolean;
     type: "success" | "error";
@@ -82,7 +137,8 @@ export default function ImportExport() {
           "Mã số thuế",
           "Tên đối tác",
           "Địa bàn phụ trách",
-          "User phụ trách",
+          "User phụ trách (UserCode/Username/FullName)",
+          "Ghi chú",
         ];
 
         // Add sample data row
@@ -95,7 +151,8 @@ export default function ImportExport() {
           "1234567890",
           "Đối tác ABC",
           "Miền Bắc",
-          "Nguyễn Văn A",
+          "U000001 hoặc username1 hoặc Nguyễn Văn A",
+          "Ghi chú về cửa hàng",
         ];
       } else {
         // Template for users
@@ -140,7 +197,8 @@ export default function ImportExport() {
           { width: 15 },
           { width: 30 },
           { width: 20 },
-          { width: 20 },
+          { width: 30 },
+          { width: 40 },
         ];
       } else {
         sheet.columns = [
@@ -159,7 +217,9 @@ export default function ImportExport() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Template_${type === "stores" ? "CuaHang" : "NhanVien"}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      link.download = `Template_${type === "stores" ? "CuaHang" : "NhanVien"}_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
@@ -304,222 +364,44 @@ export default function ImportExport() {
     }
   };
 
+  // Helper functions for stores export
+  const getRankLabel = (rank: number | null) => {
+    if (rank === 1) return "Đơn vị, tổ chức";
+    if (rank === 2) return "Cá nhân";
+    return "-";
+  };
+
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      not_audited: "Chưa audit",
+      audited: "Đã audit",
+      passed: "Đạt",
+      failed: "Không đạt",
+    };
+    return labels[status] || status;
+  };
+
   const handleExportReport = async (type: "dashboard" | "stores" | "users") => {
     try {
       setExportLoading(true);
       setExportProgress(0);
 
       if (type === "dashboard") {
-        // Export dashboard report
+        // Export dashboard report - use same logic as Dashboard.tsx
         setExportProgress(20);
-        const res = await api.get("/dashboard/summary");
+        const res = await api.get("/dashboard/export");
         setExportProgress(50);
-
-        const ExcelJS = (await import("exceljs")).default;
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet("Báo cáo tổng hợp");
-
-        // Header style
-        const headerStyle = {
-          font: { bold: true, color: { argb: "FFFFFFFF" } },
-          fill: {
-            type: "pattern" as const,
-            pattern: "solid" as const,
-            fgColor: { argb: "FF0138C3" },
-          },
-          alignment: {
-            horizontal: "center" as const,
-            vertical: "middle" as const,
-          },
-        };
-
-        // Title
-        sheet.mergeCells("A1:E1");
-        sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
-        sheet.getCell("A1").font = { bold: true, size: 14 };
-        sheet.getCell("A1").alignment = { horizontal: "center" };
-
-        sheet.mergeCells("A2:E2");
-        sheet.getCell("A2").value = "BÁO CÁO TỔNG HỢP";
-        sheet.getCell("A2").font = { bold: true, size: 12 };
-        sheet.getCell("A2").alignment = { horizontal: "center" };
-
-        // Headers
-        sheet.getRow(4).values = [
-          "Stt",
-          "Họ tên",
-          "Địa bàn phụ trách",
-          "Tổng số ngày checkin",
-          "Tổng số cửa hàng checkin",
-        ];
-        sheet.getRow(4).eachCell((cell) => {
-          cell.style = headerStyle;
-        });
-
-        // Data
-        res.data.data.summary.forEach((item: any, index: number) => {
-          const row = sheet.addRow([
-            index + 1,
-            item.FullName,
-            item.TerritoryName,
-            item.TotalCheckinDays,
-            item.TotalStoresChecked,
-          ]);
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        });
-
-        sheet.columns = [
-          { width: 10 },
-          { width: 30 },
-          { width: 30 },
-          { width: 25 },
-          { width: 25 },
-        ];
-
-        setExportProgress(90);
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `BaoCaoTongHop_${new Date().toISOString().split("T")[0]}.xlsx`;
-        link.click();
-        window.URL.revokeObjectURL(url);
+        await generateDashboardExcel(res.data.data, setExportProgress);
+        setExportProgress(100);
       } else if (type === "stores") {
-        // Export stores list
+        // Export stores list - use same logic as Stores.tsx
         setExportProgress(20);
         const res = await api.get("/stores", {
           params: { page: 1, pageSize: 10000 },
         });
         setExportProgress(50);
-
-        // Use the same export logic from Stores.tsx
-        const ExcelJS = (await import("exceljs")).default;
-        const workbook = new ExcelJS.Workbook();
-        const sheet = workbook.addWorksheet("Danh sách cửa hàng");
-
-        const headerStyle = {
-          font: { bold: true, color: { argb: "FFFFFFFF" } },
-          fill: {
-            type: "pattern" as const,
-            pattern: "solid" as const,
-            fgColor: { argb: "FF0138C3" },
-          },
-          alignment: {
-            horizontal: "center" as const,
-            vertical: "middle" as const,
-          },
-        };
-
-        sheet.mergeCells("A1:P1");
-        sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
-        sheet.getCell("A1").font = { bold: true, size: 14 };
-        sheet.getCell("A1").alignment = { horizontal: "center" };
-
-        sheet.mergeCells("A2:P2");
-        sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
-        sheet.getCell("A2").font = { bold: true, size: 12 };
-        sheet.getCell("A2").alignment = { horizontal: "center" };
-
-        const headers = [
-          "STT",
-          "Mã cửa hàng",
-          "Tên cửa hàng",
-          "Loại đối tượng",
-          "Địa chỉ",
-          "Mã số thuế",
-          "Tên đối tác",
-          "Số điện thoại",
-          "Email",
-          "Trạng thái",
-          "Địa bàn phụ trách",
-          "User phụ trách",
-          "Link chi tiết",
-          "Latitude",
-          "Longitude",
-          "Ngày tạo",
-        ];
-        sheet.getRow(4).values = headers;
-        sheet.getRow(4).eachCell((cell) => {
-          cell.style = headerStyle;
-        });
-
-        res.data.data.forEach((store: any, index: number) => {
-          const row = sheet.addRow([
-            index + 1,
-            store.StoreCode,
-            store.StoreName,
-            store.Rank === 1 ? "Cấp 1" : store.Rank === 2 ? "Cấp 2" : "",
-            store.Address,
-            store.TaxCode || "",
-            store.PartnerName || "",
-            store.Phone || "",
-            store.Email || "",
-            store.Status === "audited"
-              ? "Đã audit"
-              : store.Status === "not_audited"
-              ? "Chưa audit"
-              : store.Status === "failed"
-              ? "Không đạt"
-              : "",
-            store.TerritoryName || "",
-            store.UserFullName || "",
-            store.Link || "",
-            store.Latitude || "",
-            store.Longitude || "",
-            store.CreatedAt
-              ? new Date(store.CreatedAt).toLocaleDateString("vi-VN")
-              : "",
-          ]);
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        });
-
-        sheet.columns = [
-          { width: 10 },
-          { width: 15 },
-          { width: 30 },
-          { width: 15 },
-          { width: 40 },
-          { width: 15 },
-          { width: 30 },
-          { width: 15 },
-          { width: 30 },
-          { width: 15 },
-          { width: 20 },
-          { width: 20 },
-          { width: 40 },
-          { width: 15 },
-          { width: 15 },
-          { width: 15 },
-        ];
-
-        setExportProgress(90);
-        const buffer = await workbook.xlsx.writeBuffer();
-        const blob = new Blob([buffer], {
-          type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        });
-        const url = window.URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = `DanhSachCuaHang_${new Date().toISOString().split("T")[0]}.xlsx`;
-        link.click();
-        window.URL.revokeObjectURL(url);
+        await generateStoresExcel(res.data.data || [], setExportProgress);
+        setExportProgress(100);
       } else {
         // Export users list
         setExportProgress(20);
@@ -568,24 +450,35 @@ export default function ImportExport() {
           cell.style = headerStyle;
         });
 
-        res.data.data.forEach((user: any, index: number) => {
-          const row = sheet.addRow([
-            index + 1,
-            user.UserCode,
-            user.FullName,
-            user.Email || "",
-            user.Phone || "",
-            user.Role === "admin" ? "Admin" : "Sales",
-          ]);
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        });
+        res.data.data.forEach(
+          (
+            user: {
+              UserCode: string;
+              FullName: string;
+              Email: string | null;
+              Phone: string | null;
+              Role: string;
+            },
+            index: number
+          ) => {
+            const row = sheet.addRow([
+              index + 1,
+              user.UserCode,
+              user.FullName,
+              user.Email || "",
+              user.Phone || "",
+              user.Role === "admin" ? "Admin" : "Sales",
+            ]);
+            row.eachCell((cell) => {
+              cell.border = {
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" },
+              };
+            });
+          }
+        );
 
         sheet.columns = [
           { width: 10 },
@@ -604,12 +497,13 @@ export default function ImportExport() {
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.href = url;
-        link.download = `DanhSachNhanVien_${new Date().toISOString().split("T")[0]}.xlsx`;
+        link.download = `DanhSachNhanVien_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
         link.click();
         window.URL.revokeObjectURL(url);
       }
 
-      setExportProgress(100);
       setTimeout(() => {
         setExportLoading(false);
         setExportProgress(0);
@@ -624,6 +518,362 @@ export default function ImportExport() {
         message: "Lỗi khi xuất báo cáo",
       });
     }
+  };
+
+  // Generate Stores Excel - same logic as Stores.tsx
+  const generateStoresExcel = async (
+    storesData: Store[],
+    progressCallback?: (progress: number) => void
+  ) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    if (progressCallback) progressCallback(60);
+
+    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
+
+    // Header style
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern" as const,
+        pattern: "solid" as const,
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center" as const, vertical: "middle" as const },
+      border: {
+        top: { style: "thin" as const },
+        bottom: { style: "thin" as const },
+        left: { style: "thin" as const },
+        right: { style: "thin" as const },
+      },
+    };
+
+    // Title
+    sheet.mergeCells("A1:P1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+
+    sheet.mergeCells("A2:P2");
+    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+
+    // Headers
+    const headers = [
+      "STT",
+      "Mã cửa hàng",
+      "Tên cửa hàng",
+      "Loại đối tượng",
+      "Địa chỉ",
+      "Mã số thuế",
+      "Tên đối tác",
+      "Số điện thoại",
+      "Email",
+      "Trạng thái",
+      "Địa bàn phụ trách",
+      "User phụ trách",
+      "Link chi tiết",
+      "Latitude",
+      "Longitude",
+      "Xem trên Google Maps",
+    ];
+    sheet.getRow(4).values = headers;
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+
+    // Data
+    if (progressCallback) progressCallback(70);
+    storesData.forEach((store, index) => {
+      const row = sheet.addRow([
+        index + 1,
+        store.StoreCode,
+        store.StoreName,
+        getRankLabel(store.Rank),
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
+        getStatusLabel(store.Status),
+        store.TerritoryName || "",
+        store.UserFullName
+          ? `${store.UserFullName} (${store.UserCode || ""})`
+          : "",
+        "", // Link chi tiết - will be set as hyperlink
+        store.Latitude || "",
+        store.Longitude || "",
+        "", // Google Maps link - will be set as hyperlink
+      ]);
+
+      // Set hyperlink for "Link chi tiết"
+      const detailLinkCell = row.getCell(13);
+      detailLinkCell.value = {
+        text: "Link chi tiết",
+        hyperlink: `https://ximang.netlify.app/stores/${store.Id}`,
+      };
+      detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+
+      // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
+      const mapLinkCell = row.getCell(16);
+      if (store.Latitude && store.Longitude) {
+        mapLinkCell.value = {
+          text: "Xem trên Google Maps",
+          hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
+        };
+        mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+      }
+
+      // Add borders to all cells
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
+
+    // Set column widths
+    sheet.columns = [
+      { width: 10 }, // STT
+      { width: 15 }, // Mã cửa hàng
+      { width: 30 }, // Tên cửa hàng
+      { width: 20 }, // Loại đối tượng
+      { width: 40 }, // Địa chỉ
+      { width: 15 }, // Mã số thuế
+      { width: 25 }, // Tên đối tác
+      { width: 15 }, // Số điện thoại
+      { width: 25 }, // Email
+      { width: 15 }, // Trạng thái
+      { width: 25 }, // Địa bàn phụ trách
+      { width: 30 }, // User phụ trách
+      { width: 20 }, // Link chi tiết
+      { width: 15 }, // Latitude
+      { width: 15 }, // Longitude
+      { width: 25 }, // Xem trên Google Maps
+    ];
+
+    if (progressCallback) progressCallback(90);
+
+    // Generate Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `DanhSachCuaHang_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Generate Dashboard Excel - same logic as Dashboard.tsx
+  const generateDashboardExcel = async (
+    data: {
+      summary: DashboardSummaryItem[];
+      details: Record<string, DashboardDetailItem[]>;
+    },
+    progressCallback?: (progress: number) => void
+  ) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    if (progressCallback) progressCallback(60);
+
+    // Sheet Tổng hợp
+    const summarySheet = workbook.addWorksheet("Tổng hợp");
+
+    // Header style
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern" as const,
+        pattern: "solid" as const,
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center" as const, vertical: "middle" as const },
+      border: {
+        top: { style: "thin" as const },
+        bottom: { style: "thin" as const },
+        left: { style: "thin" as const },
+        right: { style: "thin" as const },
+      },
+    };
+
+    // Title
+    summarySheet.mergeCells("A1:E1");
+    summarySheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    summarySheet.getCell("A1").font = { bold: true, size: 14 };
+    summarySheet.getCell("A1").alignment = { horizontal: "center" };
+
+    summarySheet.mergeCells("A2:E2");
+    summarySheet.getCell("A2").value =
+      "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
+    summarySheet.getCell("A2").font = { bold: true, size: 12 };
+    summarySheet.getCell("A2").alignment = { horizontal: "center" };
+
+    // Headers
+    summarySheet.getRow(4).values = [
+      "Stt",
+      "Họ tên",
+      "Địa bàn phụ trách",
+      "Tổng số ngày checkin",
+      "Tổng số cửa hàng checkin",
+    ];
+    summarySheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+
+    // Data
+    data.summary.forEach((item, index) => {
+      const row = summarySheet.addRow([
+        index + 1,
+        item.FullName,
+        item.TerritoryName,
+        item.TotalCheckinDays,
+        item.TotalStoresChecked,
+      ]);
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
+
+    // Total row
+    const totalRow = summarySheet.addRow([
+      "TỔNG CỘNG",
+      "",
+      "",
+      data.summary.reduce((sum, item) => sum + item.TotalCheckinDays, 0),
+      data.summary.reduce((sum, item) => sum + item.TotalStoresChecked, 0),
+    ]);
+    totalRow.getCell(1).font = { bold: true };
+    totalRow.eachCell((cell) => {
+      cell.border = {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      };
+    });
+
+    // Set column widths
+    summarySheet.columns = [
+      { width: 10 },
+      { width: 30 },
+      { width: 30 },
+      { width: 25 },
+      { width: 25 },
+    ];
+
+    // Detail sheets
+    const totalUsers = data.summary.length;
+
+    // Count how many times each FullName appears
+    const nameCountMap = new Map<string, number>();
+    data.summary.forEach((user) => {
+      const count = nameCountMap.get(user.FullName) || 0;
+      nameCountMap.set(user.FullName, count + 1);
+    });
+
+    for (let i = 0; i < data.summary.length; i++) {
+      const user = data.summary[i];
+      // If multiple users have the same FullName, include territory name
+      // Otherwise, just use FullName
+      const nameCount = nameCountMap.get(user.FullName) || 0;
+      const sheetName =
+        nameCount > 1
+          ? `Chi tiết ${user.FullName} - ${user.TerritoryName}`
+          : `Chi tiết ${user.FullName}`;
+
+      const detailSheet = workbook.addWorksheet(sheetName);
+      // Use combination key: UserId-TerritoryId to get correct data
+      const detailKey = `${user.UserId}-${user.TerritoryId}`;
+      const userDetails = data.details[detailKey] || [];
+
+      // Update progress for each user sheet
+      if (progressCallback) {
+        const progress = 60 + Math.floor((i / totalUsers) * 30);
+        progressCallback(progress);
+      }
+
+      // Title
+      detailSheet.mergeCells("A1:F1");
+      detailSheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+      detailSheet.getCell("A1").font = { bold: true, size: 14 };
+      detailSheet.getCell("A1").alignment = { horizontal: "center" };
+
+      detailSheet.mergeCells("A2:F2");
+      detailSheet.getCell("A2").value =
+        "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
+      detailSheet.getCell("A2").font = { bold: true, size: 12 };
+      detailSheet.getCell("A2").alignment = { horizontal: "center" };
+
+      // Headers
+      detailSheet.getRow(4).values = [
+        "Ngày",
+        "STT",
+        "NPP/Cửa hàng",
+        "Địa chỉ cửa hàng",
+        "Thời Gian Checkin",
+        "Ghi chú",
+      ];
+      detailSheet.getRow(4).eachCell((cell) => {
+        cell.style = headerStyle;
+      });
+
+      // Data
+      userDetails.forEach((detail, index) => {
+        const checkinDate = new Date(detail.CheckinDate);
+        const checkinTime = detail.CheckinTime
+          ? new Date(detail.CheckinTime)
+          : null;
+
+        detailSheet.addRow([
+          checkinDate.toLocaleDateString("vi-VN"),
+          index + 1,
+          detail.StoreName,
+          detail.Address || "",
+          checkinTime ? checkinTime.toLocaleTimeString("vi-VN") : "",
+          detail.Notes || "",
+        ]);
+      });
+
+      // Set column widths
+      detailSheet.columns = [
+        { width: 15 },
+        { width: 10 },
+        { width: 25 },
+        { width: 40 },
+        { width: 20 },
+        { width: 30 },
+      ];
+    }
+
+    // Download
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `BaoCaoCheckin_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
   };
 
   const formatDate = (dateString: string) => {
@@ -686,9 +936,7 @@ export default function ImportExport() {
                   ref={storesFileInputRef}
                   type="file"
                   accept=".xlsx,.xls"
-                  onChange={(e) =>
-                    setStoresFile(e.target.files?.[0] || null)
-                  }
+                  onChange={(e) => setStoresFile(e.target.files?.[0] || null)}
                   hidden
                 />
                 <label
@@ -766,9 +1014,7 @@ export default function ImportExport() {
                           history.ErrorCount === 0 ? "success" : "warning"
                         }`}
                       >
-                        {history.ErrorCount === 0
-                          ? "Thành công"
-                          : "Có lỗi"}
+                        {history.ErrorCount === 0 ? "Thành công" : "Có lỗi"}
                       </span>
                     </div>
                   ))
@@ -808,9 +1054,7 @@ export default function ImportExport() {
                   <HiArrowUpTray className="upload-icon" />
                   <div>
                     <strong>
-                      {usersFile
-                        ? usersFile.name
-                        : "Chọn file Excel để import"}
+                      {usersFile ? usersFile.name : "Chọn file Excel để import"}
                     </strong>
                     <p>Chỉ chấp nhận file .xlsx, .xls</p>
                   </div>
@@ -875,9 +1119,7 @@ export default function ImportExport() {
                           history.ErrorCount === 0 ? "success" : "warning"
                         }`}
                       >
-                        {history.ErrorCount === 0
-                          ? "Thành công"
-                          : "Có lỗi"}
+                        {history.ErrorCount === 0 ? "Thành công" : "Có lỗi"}
                       </span>
                     </div>
                   ))
