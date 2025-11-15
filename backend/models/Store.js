@@ -92,8 +92,25 @@ class Store {
       VALUES (${values}, GETDATE(), GETDATE())`;
 
     const result = await request.query(query);
+    const createdStore = result.recordset[0];
 
-    return result.recordset[0];
+    // Auto-generate and update Link after store is created
+    if (createdStore && createdStore.Id) {
+      const link = `https://ximang.netlify.app/stores/${createdStore.Id}`;
+      const updateRequest = pool.request();
+      updateRequest.input('Id', sql.Int, createdStore.Id);
+      updateRequest.input('Link', sql.NVarChar(500), link);
+      
+      await updateRequest.query(`
+        UPDATE Stores 
+        SET Link = @Link 
+        WHERE Id = @Id
+      `);
+      
+      createdStore.Link = link;
+    }
+
+    return createdStore;
   }
 
   static async findById(id) {

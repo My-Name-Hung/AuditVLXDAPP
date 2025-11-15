@@ -1,11 +1,11 @@
-const bcrypt = require('bcryptjs');
-const User = require('../models/User');
+const bcrypt = require("bcryptjs");
+const User = require("../models/User");
 
 const getAllUsers = async (req, res) => {
   try {
     const { search, role, page, pageSize } = req.query;
     const filters = {};
-    
+
     if (search) filters.search = search;
     if (role) filters.Role = role;
 
@@ -19,7 +19,7 @@ const getAllUsers = async (req, res) => {
 
     const [users, total] = await Promise.all([
       User.findAll(filters),
-      User.count(filters)
+      User.count(filters),
     ]);
 
     res.json({
@@ -28,12 +28,12 @@ const getAllUsers = async (req, res) => {
         page: currentPage,
         pageSize: limit,
         total: total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Get all users error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get all users error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -43,15 +43,15 @@ const getUserById = async (req, res) => {
     const user = await User.findById(id);
 
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     // Remove password from response
     const { Password, ...userWithoutPassword } = user;
     res.json(userWithoutPassword);
   } catch (error) {
-    console.error('Get user by id error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get user by id error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -60,12 +60,14 @@ const createUser = async (req, res) => {
     const { username, password, fullName, email, phone, role } = req.body;
 
     if (!username || !password || !fullName) {
-      return res.status(400).json({ error: 'Username, password, and fullName are required' });
+      return res
+        .status(400)
+        .json({ error: "Username, password, and fullName are required" });
     }
 
     const existingUser = await User.findByUsername(username);
     if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: "Username already exists" });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -76,15 +78,15 @@ const createUser = async (req, res) => {
       FullName: fullName,
       Email: email,
       Phone: phone,
-      Role: role || 'user',
+      Role: role || "user",
       IsChangePassword: true, // Default to true - user must change password on first login
     });
 
     const { Password, ...userWithoutPassword } = user;
     res.status(201).json(userWithoutPassword);
   } catch (error) {
-    console.error('Create user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Create user error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -95,18 +97,18 @@ const updateUser = async (req, res) => {
 
     const user = await User.findById(id);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
-    const { getPool, sql } = require('../config/database');
+    const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
 
-    request.input('Id', sql.Int, id);
-    request.input('FullName', sql.NVarChar(200), fullName || user.FullName);
-    request.input('Email', sql.NVarChar(200), email || user.Email);
-    request.input('Phone', sql.VarChar(20), phone || user.Phone);
-    request.input('Role', sql.VarChar(50), role || user.Role);
+    request.input("Id", sql.Int, id);
+    request.input("FullName", sql.NVarChar(200), fullName || user.FullName);
+    request.input("Email", sql.NVarChar(200), email || user.Email);
+    request.input("Phone", sql.VarChar(20), phone || user.Phone);
+    request.input("Role", sql.VarChar(50), role || user.Role);
 
     let updateQuery = `
       UPDATE Users 
@@ -119,19 +121,19 @@ const updateUser = async (req, res) => {
 
     if (password) {
       const hashedPassword = await bcrypt.hash(password, 10);
-      request.input('Password', sql.NVarChar(255), hashedPassword);
-      updateQuery += ', Password = @Password';
+      request.input("Password", sql.NVarChar(255), hashedPassword);
+      updateQuery += ", Password = @Password";
     }
 
-    updateQuery += ' OUTPUT INSERTED.* WHERE Id = @Id';
+    updateQuery += " OUTPUT INSERTED.* WHERE Id = @Id";
 
     const result = await request.query(updateQuery);
     const { Password, ...userWithoutPassword } = result.recordset[0];
 
     res.json(userWithoutPassword);
   } catch (error) {
-    console.error('Update user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Update user error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -142,14 +144,14 @@ const deleteUser = async (req, res) => {
 
     const user = await User.findById(id);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: "User not found" });
     }
 
     // Check if user has audits
-    const { getPool, sql } = require('../config/database');
+    const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
-    request.input('UserId', sql.Int, id);
+    request.input("UserId", sql.Int, id);
 
     const auditResult = await request.query(`
       SELECT COUNT(*) as AuditCount
@@ -160,25 +162,25 @@ const deleteUser = async (req, res) => {
     const auditCount = auditResult.recordset[0].AuditCount;
 
     // If user has audits and force is not true, return warning
-    if (auditCount > 0 && force !== 'true') {
+    if (auditCount > 0 && force !== "true") {
       return res.status(200).json({
         warning: true,
         message: `Nhân viên này đã có ${auditCount} audit. Bạn có chắc muốn xóa không?`,
-        auditCount: auditCount
+        auditCount: auditCount,
       });
     }
 
     // Delete user (and related audits/images will be handled by cascade or separately)
-    request.input('Id', sql.Int, id);
-    await request.query('DELETE FROM Users WHERE Id = @Id');
+    request.input("Id", sql.Int, id);
+    await request.query("DELETE FROM Users WHERE Id = @Id");
 
-    res.json({ 
-      message: 'User deleted successfully',
-      deletedAudits: auditCount
+    res.json({
+      message: "User deleted successfully",
+      deletedAudits: auditCount,
     });
   } catch (error) {
-    console.error('Delete user error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Delete user error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -189,4 +191,3 @@ module.exports = {
   updateUser,
   deleteUser,
 };
-

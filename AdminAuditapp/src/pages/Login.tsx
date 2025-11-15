@@ -155,6 +155,28 @@ export default function Login() {
           </form>
         </div>
       </div>
+
+      {/* Sales Role Modal */}
+      {salesModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Thông báo</h3>
+            <p>Bạn là nhân viên Sales và không thể truy cập trang quản trị này.</p>
+            <div className="modal-actions">
+              <button
+                className="btn-primary"
+                onClick={() => {
+                  setSalesModalOpen(false);
+                  setUsername("");
+                  setPassword("");
+                }}
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

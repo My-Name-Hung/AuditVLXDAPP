@@ -28,6 +28,7 @@ app.use("/api/audits", require("./routes/audits"));
 app.use("/api/images", require("./routes/images"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/territories", require("./routes/territories"));
+app.use("/api/import", require("./routes/import"));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {

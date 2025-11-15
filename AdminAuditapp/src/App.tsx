@@ -17,13 +17,18 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import "./App.css";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  // Only allow admin users
+  if (!isAuthenticated || user?.role !== 'admin') {
+    return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
 }
 
 function AppRoutes() {
