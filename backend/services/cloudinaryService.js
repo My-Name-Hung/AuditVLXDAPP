@@ -14,7 +14,7 @@ const cloudinary = require("../config/cloudinary");
 async function uploadImageWithWatermark(imageBuffer, metadata) {
   const { latitude, longitude, timestamp } = metadata;
 
-  // Format timestamp: dd-mm-yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
+  // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
   const date = new Date(timestamp);
   const day = String(date.getDate()).padStart(2, "0");
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -23,17 +23,18 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
   const seconds = String(date.getSeconds()).padStart(2, "0");
   // Use . for date separator to avoid URL encoding, keep : for time
-  const timeString = `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+  const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 
-  // Create watermark text: "Lat: xxxx Long: xxxx dd-mm-yyyy hh:mm:ss"
+  // Create watermark text: Use compact format to prevent overlap
   const latValue =
     latitude !== null && latitude !== undefined ? latitude.toFixed(6) : "N/A";
   const lonValue =
     longitude !== null && longitude !== undefined
       ? longitude.toFixed(6)
       : "N/A";
-  // Format: "Lat: xxxx Long: xxxx dd-mm-yyyy hh:mm:ss"
-  const watermarkText = `Lat: ${latValue} Long: ${lonValue} ${timeString}`;
+  // Format: Compact single line with shorter labels
+  // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
+  const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;
 
   try {
     // Convert buffer to base64
@@ -41,38 +42,37 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
       "base64"
     )}`;
 
-    // Upload with watermark using eager transformation
-    // This applies the transformation immediately and returns the transformed URL
-    const result = await cloudinary.uploader.upload(base64Image, {
+    // Upload image first without transformation
+    const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-      eager: [
+    });
+
+    // Apply watermark transformation using URL transformation (not eager)
+    // This ensures watermark is applied only once
+    const transformedUrl = cloudinary.url(uploadResult.public_id, {
+      transformation: [
         {
           overlay: {
             font_family: "Arial",
-            font_size: 18,
+            font_size: 13,
             font_weight: "bold",
             text: watermarkText,
           },
           color: "#0138C3",
           gravity: "north_east",
-          x: 15,
-          y: 15,
+          x: 20,
+          y: 20,
           effect: "shadow:8",
         },
       ],
-      eager_async: false,
     });
 
-    // Return the eager transformation URL (the one with watermark)
-    if (result.eager && result.eager.length > 0) {
-      return {
-        ...result,
-        secure_url: result.eager[0].secure_url,
-        url: result.eager[0].url,
-      };
-    }
-
-    return result;
+    // Return the transformed URL with watermark
+    return {
+      ...uploadResult,
+      secure_url: transformedUrl.replace("http://", "https://"),
+      url: transformedUrl,
+    };
   } catch (error) {
     console.error("Cloudinary upload error:", error);
     throw error;
@@ -96,49 +96,49 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
   // Use . for date separator to avoid URL encoding, keep : for time
   const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 
-  // Create watermark text: "Lat: xxxx Long: xxxx dd.mm.yyyy hh:mm:ss"
+  // Create watermark text: Use compact format to prevent overlap
   const latValue =
     latitude !== null && latitude !== undefined ? latitude.toFixed(6) : "N/A";
   const lonValue =
     longitude !== null && longitude !== undefined
       ? longitude.toFixed(6)
       : "N/A";
-  // Format: "Lat: xxxx Long: xxxx dd.mm.yyyy hh:mm:ss"
-  const watermarkText = `Lat: ${latValue} Long: ${lonValue} ${timeString}`;
+  // Format: Compact single line with shorter labels
+  // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
+  const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;
 
   try {
-    // Upload with watermark overlay at top right (text only, no background)
-    // Use eager transformation to apply watermark immediately
-    const result = await cloudinary.uploader.upload(base64Image, {
+    // Upload image first without transformation
+    const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-      eager: [
+    });
+
+    // Apply watermark transformation using URL transformation (not eager)
+    // This ensures watermark is applied only once
+    const transformedUrl = cloudinary.url(uploadResult.public_id, {
+      transformation: [
         {
           overlay: {
             font_family: "Arial",
-            font_size: 18,
+            font_size: 13,
             font_weight: "bold",
             text: watermarkText,
           },
           color: "#0138C3",
           gravity: "north_east",
-          x: 15,
-          y: 15,
+          x: 20,
+          y: 20,
           effect: "shadow:8",
         },
       ],
-      eager_async: false,
     });
 
-    // Return the eager transformation URL (the one with watermark)
-    if (result.eager && result.eager.length > 0) {
-      return {
-        ...result,
-        secure_url: result.eager[0].secure_url,
-        url: result.eager[0].url,
-      };
-    }
-
-    return result;
+    // Return the transformed URL with watermark
+    return {
+      ...uploadResult,
+      secure_url: transformedUrl.replace("http://", "https://"),
+      url: transformedUrl,
+    };
   } catch (error) {
     console.error("Cloudinary upload error:", error);
     throw error;

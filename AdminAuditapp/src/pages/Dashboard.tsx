@@ -12,6 +12,7 @@ import {
 import { Bar } from "react-chartjs-2";
 import api from "../services/api";
 import MultiSelect from "../components/MultiSelect";
+import LoadingModal from "../components/LoadingModal";
 import "./Dashboard.css";
 
 ChartJS.register(
@@ -50,6 +51,8 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string>(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
   );
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
 
   useEffect(() => {
     fetchTerritories();
@@ -100,6 +103,9 @@ export default function Dashboard() {
 
   const handleExport = async () => {
     try {
+      setExportLoading(true);
+      setExportProgress(0);
+
       const params: any = {};
 
       if (selectedTerritories.length > 0) {
@@ -118,17 +124,33 @@ export default function Dashboard() {
         params.endDate = endDate;
       }
 
+      setExportProgress(20);
       const res = await api.get("/dashboard/export", { params });
-      await generateExcel(res.data.data);
+      setExportProgress(50);
+      await generateExcel(res.data.data, setExportProgress);
+      setExportProgress(100);
+      
+      // Delay a bit to show 100% before closing
+      setTimeout(() => {
+        setExportLoading(false);
+        setExportProgress(0);
+      }, 500);
     } catch (error) {
       console.error("Error exporting:", error);
+      setExportLoading(false);
+      setExportProgress(0);
       alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
     }
   };
 
-  const generateExcel = async (data: { summary: DashboardSummaryItem[]; details: Record<number, any[]> }) => {
+  const generateExcel = async (
+    data: { summary: DashboardSummaryItem[]; details: Record<number, any[]> },
+    progressCallback?: (progress: number) => void
+  ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
+    
+    if (progressCallback) progressCallback(60);
 
     // Sheet Tổng hợp
     const summarySheet = workbook.addWorksheet("Tổng hợp");
@@ -214,9 +236,17 @@ export default function Dashboard() {
     ];
 
     // Detail sheets
-    for (const user of data.summary) {
+    const totalUsers = data.summary.length;
+    for (let i = 0; i < data.summary.length; i++) {
+      const user = data.summary[i];
       const detailSheet = workbook.addWorksheet(`Chi tiết ${user.FullName}`);
       const userDetails = data.details[user.UserId] || [];
+      
+      // Update progress for each user sheet
+      if (progressCallback) {
+        const progress = 60 + Math.floor((i / totalUsers) * 30);
+        progressCallback(progress);
+      }
 
       // Title
       detailSheet.mergeCells("A1:F1");
@@ -419,6 +449,12 @@ export default function Dashboard() {
       {!loading && summaryData.length === 0 && (
         <div className="no-data">Không có dữ liệu</div>
       )}
+
+      <LoadingModal
+        isOpen={exportLoading}
+        message="Đang tạo báo cáo Excel..."
+        progress={exportProgress}
+      />
     </div>
   );
 }
