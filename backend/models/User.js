@@ -51,15 +51,63 @@ class User {
     return result.recordset[0];
   }
 
-  static async findAll() {
+  static async findAll(filters = {}) {
     const pool = await getPool();
-    const result = await pool.request().query(`
+    let query = `
       SELECT Id, UserCode, Username, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt
       FROM Users
-      ORDER BY CreatedAt DESC
-    `);
+      WHERE 1=1
+    `;
+    const request = pool.request();
 
+    // Filter by search (UserCode or FullName)
+    if (filters.search) {
+      query += ' AND (UserCode LIKE @Search OR FullName LIKE @Search)';
+      request.input('Search', sql.NVarChar(200), `%${filters.search}%`);
+    }
+
+    // Filter by Role
+    if (filters.Role) {
+      query += ' AND Role = @Role';
+      request.input('Role', sql.VarChar(50), filters.Role);
+    }
+
+    query += ' ORDER BY CreatedAt DESC';
+
+    // Add pagination
+    if (filters.limit !== undefined && filters.offset !== undefined) {
+      query += ` OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
+      request.input('Offset', sql.Int, filters.offset);
+      request.input('Limit', sql.Int, filters.limit);
+    }
+
+    const result = await request.query(query);
     return result.recordset;
+  }
+
+  static async count(filters = {}) {
+    const pool = await getPool();
+    let query = `
+      SELECT COUNT(*) as Total
+      FROM Users
+      WHERE 1=1
+    `;
+    const request = pool.request();
+
+    // Filter by search (UserCode or FullName)
+    if (filters.search) {
+      query += ' AND (UserCode LIKE @Search OR FullName LIKE @Search)';
+      request.input('Search', sql.NVarChar(200), `%${filters.search}%`);
+    }
+
+    // Filter by Role
+    if (filters.Role) {
+      query += ' AND Role = @Role';
+      request.input('Role', sql.VarChar(50), filters.Role);
+    }
+
+    const result = await request.query(query);
+    return result.recordset[0].Total;
   }
 
   static async updatePassword(userId, newPassword) {

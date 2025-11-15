@@ -1,99 +1,274 @@
-.users-page {
+.users-container {
   width: 100%;
+  padding: 1.5rem;
 }
 
-.page-header {
+.users-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
 }
 
-.page-header h2 {
+.users-header h1 {
   margin: 0;
+  font-size: 1.5rem;
+  color: #333;
 }
 
-.table-container {
+.users-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.btn-add,
+.btn-download {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+}
+
+.btn-add {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-add:hover {
+  background: #c82333;
+}
+
+.btn-download {
+  background: #28a745;
+  color: white;
+}
+
+.btn-download:hover {
+  background: #218838;
+}
+
+/* Filter Section */
+.users-filters {
+  display: flex;
+  gap: 1.5rem;
+  margin-bottom: 1.5rem;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 200px;
+}
+
+.filter-group label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #555;
+}
+
+.filter-input {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  height: 40px;
+}
+
+.filter-input:focus {
+  outline: none;
+  border-color: #0138C3;
+}
+
+.btn-clear-filters {
+  padding: 0.5rem 1rem;
+  background: #6c757d;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  height: 40px;
+}
+
+.btn-clear-filters:hover {
+  background: #5a6268;
+}
+
+/* Table */
+.users-table-container {
   background: white;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-bottom: 1.5rem;
 }
 
-.data-table {
+.users-table {
   width: 100%;
   border-collapse: collapse;
 }
 
-.data-table thead {
-  background-color: var(--primary-color);
+.users-table thead {
+  background: #0138C3;
   color: white;
 }
 
-.data-table th,
-.data-table td {
+.users-table th {
   padding: 1rem;
   text-align: left;
-  border-bottom: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
-.data-table tbody tr:hover {
-  background-color: #f5f5f5;
+.users-table tbody tr {
+  border-bottom: 1px solid #e0e0e0;
+  transition: background 0.2s;
 }
 
-.badge {
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
+.users-table tbody tr:hover {
+  background: #f8f9fa;
 }
 
-.badge-user {
-  background-color: #e3f2fd;
-  color: #1976d2;
+.users-table td {
+  padding: 1rem;
+  font-size: 0.9rem;
+  color: #333;
 }
 
-.badge-admin {
-  background-color: #fff3e0;
-  color: #f57c00;
+.users-table td strong {
+  color: #0138C3;
+  font-weight: 600;
+}
+
+.no-data {
+  text-align: center;
+  padding: 2rem;
+  color: #999;
+}
+
+/* Action Buttons */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
 }
 
 .btn-edit,
 .btn-delete {
-  padding: 0.4rem 0.8rem;
-  margin-right: 0.5rem;
-  font-size: 0.85rem;
+  padding: 0.5rem;
   border: none;
   border-radius: 4px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
   transition: all 0.2s;
 }
 
 .btn-edit {
-  background-color: #2196f3;
+  background: #ffc107;
   color: white;
 }
 
 .btn-edit:hover {
-  background-color: #1976d2;
+  background: #e0a800;
 }
 
 .btn-delete {
-  background-color: var(--error-color);
+  background: #dc3545;
   color: white;
 }
 
 .btn-delete:hover {
-  background-color: #c82333;
+  background: #c82333;
 }
 
+/* Pagination */
+.pagination {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pagination-info {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.pagination-controls {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.pagination-btn {
+  padding: 0.5rem 1rem;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #f8f9fa;
+  border-color: #0138C3;
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-page {
+  padding: 0 1rem;
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.pagination-page-size {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.pagination-page-size label {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.pagination-page-size select {
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+/* Modal */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background-color: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -102,31 +277,59 @@
 
 .modal-content {
   background: white;
-  border-radius: 8px;
   padding: 2rem;
-  width: 90%;
+  border-radius: 8px;
   max-width: 500px;
-  max-height: 90vh;
-  overflow-y: auto;
+  width: 90%;
 }
 
 .modal-content h3 {
-  margin-top: 0;
-  margin-bottom: 1.5rem;
+  margin: 0 0 1rem 0;
+  color: #333;
 }
 
-.modal-content .form-group {
-  margin-bottom: 1rem;
+.modal-content p {
+  margin: 0 0 1.5rem 0;
+  color: #666;
 }
 
 .modal-actions {
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
-  margin-top: 1.5rem;
 }
 
-.modal-actions button {
-  min-width: 100px;
+.btn-cancel,
+.btn-confirm {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s;
 }
 
+.btn-cancel {
+  background: #6c757d;
+  color: white;
+}
+
+.btn-cancel:hover {
+  background: #5a6268;
+}
+
+.btn-confirm {
+  background: #dc3545;
+  color: white;
+}
+
+.btn-confirm:hover {
+  background: #c82333;
+}
+
+/* Loading */
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+}

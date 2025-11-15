@@ -1,217 +1,646 @@
-import { useEffect, useState } from 'react';
-import api from '../services/api';
-import './Users.css';
+import { useEffect, useRef, useState } from "react";
+import { HiPencil, HiTrash } from "react-icons/hi";
+import { HiArrowDownTray, HiPlus } from "react-icons/hi2";
+import { useLocation, useNavigate } from "react-router-dom";
+import LoadingModal from "../components/LoadingModal";
+import NotificationModal from "../components/NotificationModal";
+import Select from "../components/Select";
+import api from "../services/api";
+import "./Users.css";
 
 interface User {
-  id: number;
-  userCode: string;
-  username: string;
-  fullName: string;
-  email: string;
-  phone: string;
-  role: string;
+  Id: number;
+  UserCode: string;
+  Username: string;
+  FullName: string;
+  Email: string;
+  Phone: string;
+  Role: string;
+  IsChangePassword: boolean;
+  CreatedAt: string;
+  UpdatedAt: string;
 }
 
+type RoleFilter = "all" | "admin" | "sales";
+
 export default function Users() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    fullName: '',
-    email: '',
-    phone: '',
-    role: 'user',
+  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [searchFilter, setSearchFilter] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(50);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    message: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    message: "",
   });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
+  const [deleteWarning, setDeleteWarning] = useState<{
+    isOpen: boolean;
+    message: string;
+    auditCount: number;
+  }>({
+    isOpen: false,
+    message: "",
+    auditCount: 0,
+  });
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previousSearchFilterRef = useRef<string>("");
+  const isFilterChangingRef = useRef(false);
 
   useEffect(() => {
     fetchUsers();
   }, []);
 
+  // Refresh users when navigating back from add/edit page
+  useEffect(() => {
+    if (location.pathname === "/users") {
+      fetchUsers();
+    }
+  }, [location.pathname]);
+
+  useEffect(() => {
+    setPage(1); // Reset to first page when filters change
+    fetchUsers();
+  }, [roleFilter]);
+
+  useEffect(() => {
+    // Skip fetch if filter is changing to avoid race condition
+    if (isFilterChangingRef.current) {
+      return;
+    }
+    fetchUsers();
+  }, [page, pageSize]);
+
+  // Debounce search filter
+  useEffect(() => {
+    // Skip if filter hasn't actually changed (e.g., on initial mount)
+    if (searchFilter === previousSearchFilterRef.current) {
+      return;
+    }
+
+    // Update previous value
+    previousSearchFilterRef.current = searchFilter;
+
+    isFilterChangingRef.current = true;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    // Reset page to 1 when search filter changes
+    setPage(1);
+
+    // If filter is empty, fetch immediately
+    if (!searchFilter.trim()) {
+      setTimeout(() => {
+        fetchUsers();
+      }, 50);
+      return;
+    }
+
+    // Use debounce for filter input
+    debounceTimerRef.current = setTimeout(() => {
+      fetchUsers();
+    }, 300);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [searchFilter]);
+
   const fetchUsers = async () => {
     try {
-      const response = await api.get('/users');
-      setUsers(response.data);
+      setLoading(true);
+      const params: Record<string, string | number> = {
+        page,
+        pageSize,
+      };
+
+      if (roleFilter !== "all") {
+        params.role = roleFilter;
+      }
+      if (searchFilter.trim()) {
+        params.search = searchFilter.trim();
+      }
+
+      const res = await api.get("/users", { params });
+      setUsers(res.data.data || []);
+      if (res.data.pagination) {
+        setTotal(res.data.pagination.total);
+        setTotalPages(res.data.pagination.totalPages);
+      }
+
+      // Reset isFilterChangingRef after fetch completes
+      setTimeout(() => {
+        if (isFilterChangingRef.current) {
+          isFilterChangingRef.current = false;
+        }
+      }, 100);
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error("Error fetching users:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDeleteUser = (user: User) => {
+    setUserToDelete(user);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!userToDelete) return;
+
     try {
-      if (editingUser) {
-        await api.put(`/users/${editingUser.id}`, formData);
-      } else {
-        await api.post('/users', formData);
+      setDeleteLoading(true);
+      // First check if user has audits
+      const res = await api.delete(`/users/${userToDelete.Id}`);
+
+      // If response has warning, show warning modal
+      if (res.data.warning) {
+        setDeleteWarning({
+          isOpen: true,
+          message: res.data.message,
+          auditCount: res.data.auditCount,
+        });
+        setDeleteModalOpen(false);
+        setDeleteLoading(false);
+        return;
       }
-      setShowModal(false);
-      setEditingUser(null);
-      setFormData({
-        username: '',
-        password: '',
-        fullName: '',
-        email: '',
-        phone: '',
-        role: 'user',
+
+      // If no warning, user was deleted successfully
+      await fetchUsers();
+
+      setDeleteLoading(false);
+      setDeleteModalOpen(false);
+      setUserToDelete(null);
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: `Đã xóa nhân viên "${userToDelete.FullName}" thành công.`,
       });
-      fetchUsers();
     } catch (error: any) {
-      alert(error.response?.data?.error || 'Error saving user');
+      console.error("Error deleting user:", error);
+      setDeleteLoading(false);
+      setDeleteModalOpen(false);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: error.response?.data?.error || "Lỗi khi xóa nhân viên.",
+      });
     }
   };
 
-  const handleEdit = (user: User) => {
-    setEditingUser(user);
-    setFormData({
-      username: user.username,
-      password: '',
-      fullName: user.fullName,
-      email: user.email || '',
-      phone: user.phone || '',
-      role: user.role,
-    });
-    setShowModal(true);
-  };
+  const forceDeleteUser = async () => {
+    if (!userToDelete) return;
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
     try {
-      await api.delete(`/users/${id}`);
-      fetchUsers();
-    } catch (error) {
-      alert('Error deleting user');
+      setDeleteLoading(true);
+      await api.delete(`/users/${userToDelete.Id}?force=true`);
+
+      await fetchUsers();
+
+      setDeleteLoading(false);
+      setDeleteWarning({ isOpen: false, message: "", auditCount: 0 });
+      setUserToDelete(null);
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: `Đã xóa nhân viên "${userToDelete.FullName}" thành công.`,
+      });
+    } catch (error: any) {
+      console.error("Error force deleting user:", error);
+      setDeleteLoading(false);
+      setDeleteWarning({ isOpen: false, message: "", auditCount: 0 });
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: error.response?.data?.error || "Lỗi khi xóa nhân viên.",
+      });
     }
   };
 
-  if (loading) {
-    return <div className="loading">Loading users...</div>;
+  const handleEditUser = (userId: number) => {
+    navigate(`/users/${userId}/edit`);
+  };
+
+  const getRoleLabel = (role: string) => {
+    const labels: Record<string, string> = {
+      admin: "Admin",
+      sales: "Sales",
+    };
+    return labels[role] || role;
+  };
+
+  const hasActiveFilters = () => {
+    return roleFilter !== "all" || searchFilter.trim() !== "";
+  };
+
+  const handleClearFilters = () => {
+    setRoleFilter("all");
+    setSearchFilter("");
+  };
+
+  const handleExportUsers = async () => {
+    try {
+      setExportLoading(true);
+      setExportProgress(0);
+
+      // Fetch all users with current filters
+      setExportProgress(20);
+      const params: Record<string, string | number> = {
+        page: 1,
+        pageSize: 10000, // Get all users
+      };
+
+      if (roleFilter !== "all") {
+        params.role = roleFilter;
+      }
+      if (searchFilter.trim()) {
+        params.search = searchFilter.trim();
+      }
+
+      const res = await api.get("/users", { params });
+      setExportProgress(50);
+
+      await generateUsersExcel(res.data.data || [], setExportProgress);
+      setExportProgress(100);
+
+      // Delay a bit to show 100% before closing
+      setTimeout(() => {
+        setExportLoading(false);
+        setExportProgress(0);
+      }, 500);
+    } catch (error) {
+      console.error("Error exporting users:", error);
+      setExportLoading(false);
+      setExportProgress(0);
+      alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
+    }
+  };
+
+  const generateUsersExcel = async (
+    usersData: User[],
+    progressCallback?: (progress: number) => void
+  ) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    if (progressCallback) progressCallback(60);
+
+    const sheet = workbook.addWorksheet("Danh sách nhân viên");
+
+    // Header style
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern" as const,
+        pattern: "solid" as const,
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center" as const, vertical: "middle" as const },
+      border: {
+        top: { style: "thin" as const },
+        bottom: { style: "thin" as const },
+        left: { style: "thin" as const },
+        right: { style: "thin" as const },
+      },
+    };
+
+    // Title
+    sheet.mergeCells("A1:F1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+
+    sheet.mergeCells("A2:F2");
+    sheet.getCell("A2").value = "DANH SÁCH NHÂN VIÊN";
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+
+    // Headers
+    const headers = [
+      "STT",
+      "Mã nhân viên",
+      "Tên nhân viên",
+      "Email",
+      "Số điện thoại",
+      "Vai trò",
+    ];
+    sheet.getRow(4).values = headers;
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+
+    // Data
+    if (progressCallback) progressCallback(70);
+    usersData.forEach((user, index) => {
+      const row = sheet.addRow([
+        index + 1,
+        user.UserCode,
+        user.FullName,
+        user.Email || "",
+        user.Phone || "",
+        getRoleLabel(user.Role),
+      ]);
+
+      // Add borders to all cells
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
+
+    // Set column widths
+    sheet.columns = [
+      { width: 10 }, // STT
+      { width: 15 }, // Mã nhân viên
+      { width: 30 }, // Tên nhân viên
+      { width: 30 }, // Email
+      { width: 15 }, // Số điện thoại
+      { width: 15 }, // Vai trò
+    ];
+
+    if (progressCallback) progressCallback(90);
+
+    // Generate Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `DanhSachNhanVien_${new Date().toISOString().split("T")[0]}.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const roleOptions = [
+    { id: "all", name: "Tất cả" },
+    { id: "admin", name: "Admin" },
+    { id: "sales", name: "Sales" },
+  ];
+
+  if (loading && users.length === 0) {
+    return (
+      <div className="stores-container">
+        <div className="loading">Đang tải...</div>
+      </div>
+    );
   }
 
   return (
-    <div className="users-page">
-      <div className="page-header">
-        <h2>Users Management</h2>
-        <button onClick={() => setShowModal(true)} className="btn-primary">
-          + Add User
-        </button>
+    <div className="users-container">
+      <div className="users-header">
+        <h1>Danh sách nhân viên</h1>
+        <div className="users-actions">
+          <button className="btn-add" onClick={() => navigate("/users/new")}>
+            <HiPlus /> Thêm nhân viên
+          </button>
+          <button className="btn-download" onClick={handleExportUsers}>
+            <HiArrowDownTray /> Xuất Excel
+          </button>
+        </div>
       </div>
 
-      <div className="table-container">
-        <table className="data-table">
+      {/* Filter Section */}
+      <div className="users-filters">
+        <div className="filter-group">
+          <label>Tìm kiếm (Mã/Tên nhân viên)</label>
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Tìm kiếm theo mã hoặc tên"
+            value={searchFilter}
+            onChange={(e) => setSearchFilter(e.target.value)}
+            className="filter-input"
+          />
+        </div>
+
+        <div className="filter-group">
+          <label>Vai trò</label>
+          <Select
+            options={roleOptions}
+            value={roleFilter}
+            onChange={(value) => setRoleFilter(value as RoleFilter)}
+            placeholder="Chọn vai trò"
+            searchable={false}
+          />
+        </div>
+
+        {hasActiveFilters() && (
+          <div className="filter-group filter-clear">
+            <label>&nbsp;</label>
+            <button className="btn-clear-filters" onClick={handleClearFilters}>
+              Xóa lọc
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Table */}
+      <div className="users-table-container">
+        <table className="users-table">
           <thead>
             <tr>
-              <th>User Code</th>
-              <th>Username</th>
-              <th>Full Name</th>
+              <th>Mã nhân viên</th>
+              <th>Tên nhân viên</th>
               <th>Email</th>
-              <th>Phone</th>
-              <th>Role</th>
-              <th>Actions</th>
+              <th>Số điện thoại</th>
+              <th>Vai trò</th>
+              <th>Thao tác</th>
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td>{user.userCode}</td>
-                <td>{user.username}</td>
-                <td>{user.fullName}</td>
-                <td>{user.email || '-'}</td>
-                <td>{user.phone || '-'}</td>
-                <td>
-                  <span className={`badge badge-${user.role}`}>{user.role}</span>
-                </td>
-                <td>
-                  <button onClick={() => handleEdit(user)} className="btn-edit">
-                    Edit
-                  </button>
-                  <button onClick={() => handleDelete(user.id)} className="btn-delete">
-                    Delete
-                  </button>
+            {users.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="no-data">
+                  Không có dữ liệu
                 </td>
               </tr>
-            ))}
+            ) : (
+              users.map((user) => (
+                <tr key={user.Id}>
+                  <td>
+                    <strong>{user.UserCode}</strong>
+                  </td>
+                  <td>{user.FullName}</td>
+                  <td>{user.Email || "-"}</td>
+                  <td>{user.Phone || "-"}</td>
+                  <td>{getRoleLabel(user.Role)}</td>
+                  <td>
+                    <div className="action-buttons">
+                      <button
+                        className="btn-edit"
+                        onClick={() => handleEditUser(user.Id)}
+                        title="Chỉnh sửa"
+                      >
+                        <HiPencil />
+                      </button>
+                      <button
+                        className="btn-delete"
+                        onClick={() => handleDeleteUser(user)}
+                        title="Xóa"
+                      >
+                        <HiTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>
 
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>{editingUser ? 'Edit User' : 'Add New User'}</h3>
-            <form onSubmit={handleSubmit}>
-              <div className="form-group">
-                <label>Username</label>
-                <input
-                  type="text"
-                  value={formData.username}
-                  onChange={(e) => setFormData({ ...formData, username: e.target.value })}
-                  required
-                />
-              </div>
-              {!editingUser && (
-                <div className="form-group">
-                  <label>Password</label>
-                  <input
-                    type="password"
-                    value={formData.password}
-                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                    required={!editingUser}
-                  />
-                </div>
-              )}
-              <div className="form-group">
-                <label>Full Name</label>
-                <input
-                  type="text"
-                  value={formData.fullName}
-                  onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>Email</label>
-                <input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label>Phone</label>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label>Role</label>
-                <select
-                  value={formData.role}
-                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                >
-                  <option value="user">User</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </div>
-              <div className="modal-actions">
-                <button type="button" onClick={() => setShowModal(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  {editingUser ? 'Update' : 'Create'}
-                </button>
-              </div>
-            </form>
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="pagination">
+          <div className="pagination-info">
+            Hiển thị {((page - 1) * pageSize + 1).toLocaleString()} -{" "}
+            {Math.min(page * pageSize, total).toLocaleString()} trong tổng số{" "}
+            {total.toLocaleString()} nhân viên
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+            >
+              Đầu
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(page - 1)}
+              disabled={page === 1}
+            >
+              Trước
+            </button>
+            <span className="pagination-page">
+              Trang {page} / {totalPages}
+            </span>
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(page + 1)}
+              disabled={page === totalPages}
+            >
+              Sau
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+            >
+              Cuối
+            </button>
+          </div>
+          <div className="pagination-page-size">
+            <label>Hiển thị:</label>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value));
+                setPage(1);
+              }}
+            >
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+              <option value={200}>200</option>
+            </select>
           </div>
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Xác nhận xóa</h3>
+            <p>Bạn có chắc muốn xóa nhân viên "{userToDelete?.FullName}"?</p>
+            <div className="modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setUserToDelete(null);
+                }}
+              >
+                Hủy
+              </button>
+              <button className="btn-confirm" onClick={confirmDeleteUser}>
+                Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Warning Modal */}
+      {deleteWarning.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Cảnh báo</h3>
+            <p>{deleteWarning.message}</p>
+            <div className="modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setDeleteWarning({ isOpen: false, message: "", auditCount: 0 });
+                  setUserToDelete(null);
+                }}
+              >
+                Hủy
+              </button>
+              <button className="btn-confirm" onClick={forceDeleteUser}>
+                Tiếp tục xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Modal for Delete */}
+      <LoadingModal
+        isOpen={deleteLoading}
+        message="Đang xóa nhân viên..."
+        progress={0}
+      />
+
+      <LoadingModal
+        isOpen={exportLoading}
+        message="Đang tạo báo cáo Excel..."
+        progress={exportProgress}
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, isOpen: false })}
+      />
     </div>
   );
 }
-

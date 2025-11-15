@@ -1,4 +1,3 @@
-import React from "react";
 import "./LoadingModal.css";
 
 interface LoadingModalProps {
@@ -7,7 +6,11 @@ interface LoadingModalProps {
   progress?: number; // 0-100
 }
 
-export default function LoadingModal({ isOpen, message = "Đang xử lý...", progress }: LoadingModalProps) {
+export default function LoadingModal({
+  isOpen,
+  message = "Đang xử lý...",
+  progress,
+}: LoadingModalProps) {
   if (!isOpen) return null;
 
   return (
@@ -32,4 +35,3 @@ export default function LoadingModal({ isOpen, message = "Đang xử lý...", pr
     </div>
   );
 }
-

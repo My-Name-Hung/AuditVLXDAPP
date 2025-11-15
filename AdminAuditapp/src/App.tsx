@@ -3,6 +3,8 @@ import Login from './pages/Login';
 import Dashboard from "./pages/Dashboard";
 import UserDetail from "./pages/UserDetail";
 import Users from "./pages/Users";
+import UserAdd from "./pages/UserAdd";
+import UserEdit from "./pages/UserEdit";
 import Stores from "./pages/Stores";
 import StoreDetail from "./pages/StoreDetail";
 import StoreEdit from "./pages/StoreEdit";
@@ -39,6 +41,8 @@ function AppRoutes() {
         <Route index element={<Dashboard />} />
         <Route path="dashboard/user/:userId" element={<UserDetail />} />
         <Route path="users" element={<Users />} />
+        <Route path="users/new" element={<UserAdd />} />
+        <Route path="users/:id/edit" element={<UserEdit />} />
         <Route path="stores" element={<Stores />} />
         <Route path="stores/new" element={<StoreAdd />} />
         <Route path="stores/:id/edit" element={<StoreEdit />} />

@@ -3,8 +3,34 @@ const User = require('../models/User');
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.findAll();
-    res.json(users);
+    const { search, role, page, pageSize } = req.query;
+    const filters = {};
+    
+    if (search) filters.search = search;
+    if (role) filters.Role = role;
+
+    // Pagination
+    const currentPage = parseInt(page) || 1;
+    const limit = parseInt(pageSize) || 50;
+    const offset = (currentPage - 1) * limit;
+
+    filters.limit = limit;
+    filters.offset = offset;
+
+    const [users, total] = await Promise.all([
+      User.findAll(filters),
+      User.count(filters)
+    ]);
+
+    res.json({
+      data: users,
+      pagination: {
+        page: currentPage,
+        pageSize: limit,
+        total: total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
     console.error('Get all users error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -111,20 +137,44 @@ const updateUser = async (req, res) => {
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
+    const { force } = req.query; // force=true to delete even if has audits
 
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
 
+    // Check if user has audits
     const { getPool, sql } = require('../config/database');
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, id);
+    request.input('UserId', sql.Int, id);
 
+    const auditResult = await request.query(`
+      SELECT COUNT(*) as AuditCount
+      FROM Audits
+      WHERE UserId = @UserId
+    `);
+
+    const auditCount = auditResult.recordset[0].AuditCount;
+
+    // If user has audits and force is not true, return warning
+    if (auditCount > 0 && force !== 'true') {
+      return res.status(200).json({
+        warning: true,
+        message: `Nhân viên này đã có ${auditCount} audit. Bạn có chắc muốn xóa không?`,
+        auditCount: auditCount
+      });
+    }
+
+    // Delete user (and related audits/images will be handled by cascade or separately)
+    request.input('Id', sql.Int, id);
     await request.query('DELETE FROM Users WHERE Id = @Id');
 
-    res.json({ message: 'User deleted successfully' });
+    res.json({ 
+      message: 'User deleted successfully',
+      deletedAudits: auditCount
+    });
   } catch (error) {
     console.error('Delete user error:', error);
     res.status(500).json({ error: 'Internal server error' });

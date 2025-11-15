@@ -258,17 +258,22 @@ export default function Dashboard() {
 
     // Detail sheets
     const totalUsers = data.summary.length;
-    const usedSheetNames = new Set<string>();
+    
+    // Count how many times each FullName appears
+    const nameCountMap = new Map<string, number>();
+    data.summary.forEach((user) => {
+      const count = nameCountMap.get(user.FullName) || 0;
+      nameCountMap.set(user.FullName, count + 1);
+    });
+    
     for (let i = 0; i < data.summary.length; i++) {
       const user = data.summary[i];
-      // Create unique sheet name to avoid duplicates
-      let sheetName = `Chi tiết ${user.FullName}`;
-      let counter = 1;
-      while (usedSheetNames.has(sheetName)) {
-        sheetName = `Chi tiết ${user.FullName} (${counter})`;
-        counter++;
-      }
-      usedSheetNames.add(sheetName);
+      // If multiple users have the same FullName, include territory name
+      // Otherwise, just use FullName
+      const nameCount = nameCountMap.get(user.FullName) || 0;
+      const sheetName = nameCount > 1
+        ? `Chi tiết ${user.FullName} - ${user.TerritoryName}`
+        : `Chi tiết ${user.FullName}`;
       
       const detailSheet = workbook.addWorksheet(sheetName);
       // Use combination key: UserId-TerritoryId to get correct data

@@ -74,9 +74,9 @@ export default function Select({
             {filteredOptions.length === 0 ? (
               <div className="select__no-results">Không tìm thấy kết quả</div>
             ) : (
-              filteredOptions.map((option) => (
+              filteredOptions.map((option, index) => (
                 <div
-                  key={option.id}
+                  key={option.id !== null && option.id !== undefined ? option.id : `option-${index}`}
                   className={`select__option ${value === option.id ? 'selected' : ''}`}
                   onClick={() => {
                     onChange(option.id);

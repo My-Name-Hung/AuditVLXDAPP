@@ -22,7 +22,6 @@ export default function StoreAdd() {
   const navigate = useNavigate();
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(false);
   const [createLoading, setCreateLoading] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [notification, setNotification] = useState<{
@@ -64,7 +63,11 @@ export default function StoreAdd() {
   const fetchUsers = async () => {
     try {
       const res = await api.get("/users");
-      setUsers(res.data.data || []);
+      console.log("Users response:", res.data);
+      // Handle both response formats: { data: [...] } or [...]
+      const usersData = res.data.data || res.data || [];
+      setUsers(usersData);
+      console.log("Users loaded:", usersData.length);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -72,6 +75,25 @@ export default function StoreAdd() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Validate required fields
+    if (!formData.territoryId) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng chọn địa bàn phụ trách.",
+      });
+      return;
+    }
+
+    if (!formData.userId) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng chọn user phụ trách.",
+      });
+      return;
+    }
 
     try {
       setCreateLoading(true);
@@ -91,7 +113,7 @@ export default function StoreAdd() {
         longitude: null,
       };
 
-      const res = await api.post("/stores", payload);
+      await api.post("/stores", payload);
       
       setCreateLoading(false);
       setNotification({
@@ -268,7 +290,9 @@ export default function StoreAdd() {
                 />
               </div>
               <div className="form-group">
-                <label>Địa bàn phụ trách</label>
+                <label>
+                  Địa bàn phụ trách <span className="required">*</span>
+                </label>
                 <Select
                   options={territoryOptions}
                   value={formData.territoryId}
@@ -283,7 +307,9 @@ export default function StoreAdd() {
                 />
               </div>
               <div className="form-group">
-                <label>User phụ trách</label>
+                <label>
+                  User phụ trách <span className="required">*</span>
+                </label>
                 <Select
                   options={userOptions}
                   value={formData.userId}

@@ -23,6 +23,9 @@ interface Store {
   TerritoryName: string | null;
   UserId: number | null;
   UserFullName: string | null;
+  UserCode: string | null;
+  Latitude: number | null;
+  Longitude: number | null;
 }
 
 interface Territory {
@@ -69,8 +72,12 @@ export default function Stores() {
     message: "",
   });
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const storeNameInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isFilterChangingRef = useRef(false);
+  const previousStoreNameFilterRef = useRef<string>("");
 
   useEffect(() => {
     fetchTerritories();
@@ -80,7 +87,7 @@ export default function Stores() {
 
   // Refresh stores when navigating back from add/edit page
   useEffect(() => {
-    if (location.pathname === "/stores") {
+    if (location.pathname === "/stores" && !isFilterChangingRef.current) {
       fetchStores();
     }
   }, [location.pathname]);
@@ -91,23 +98,52 @@ export default function Stores() {
   }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
 
   useEffect(() => {
+    // Skip fetch if filter is changing to avoid race condition
+    if (isFilterChangingRef.current) {
+      return;
+    }
     fetchStores();
   }, [page, pageSize]);
 
   // Debounce store name filter
   useEffect(() => {
+    // Skip if filter hasn't actually changed (e.g., on initial mount)
+    if (storeNameFilter === previousStoreNameFilterRef.current) {
+      return;
+    }
+
+    // Update previous value
+    previousStoreNameFilterRef.current = storeNameFilter;
+
+    isFilterChangingRef.current = true;
+
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
+    // Reset page to 1 when store name filter changes
+    // But don't let the page useEffect trigger fetchStores
+    setPage(1);
+
+    // If filter is empty, fetch immediately
+    if (!storeNameFilter.trim()) {
+      // Wait a bit to ensure page state is updated
+      setTimeout(() => {
+        fetchStores();
+      }, 50);
+      return;
+    }
+
+    // Use debounce for filter input
     debounceTimerRef.current = setTimeout(() => {
       fetchStores();
-    }, 500);
+    }, 300);
 
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
+      // Don't reset isFilterChangingRef here to prevent race condition
     };
   }, [storeNameFilter]);
 
@@ -159,8 +195,22 @@ export default function Stores() {
         setTotal(res.data.pagination.total);
         setTotalPages(res.data.pagination.totalPages);
       }
+
+      // Reset isFilterChangingRef after fetch completes successfully
+      // Use setTimeout to ensure this happens after any pending useEffect runs
+      setTimeout(() => {
+        if (isFilterChangingRef.current) {
+          isFilterChangingRef.current = false;
+        }
+      }, 100);
     } catch (error) {
       console.error("Error fetching stores:", error);
+      // Reset isFilterChangingRef even on error
+      setTimeout(() => {
+        if (isFilterChangingRef.current) {
+          isFilterChangingRef.current = false;
+        }
+      }, 100);
     } finally {
       setLoading(false);
     }
@@ -237,6 +287,216 @@ export default function Stores() {
     return "-";
   };
 
+  const getStatusLabel = (status: string) => {
+    const labels: Record<string, string> = {
+      not_audited: "Chưa audit",
+      audited: "Đã audit",
+      passed: "Đạt",
+      failed: "Không đạt",
+    };
+    return labels[status] || status;
+  };
+
+  const handleExportStores = async () => {
+    try {
+      setExportLoading(true);
+      setExportProgress(0);
+
+      // Fetch all stores with current filters
+      setExportProgress(20);
+      const params: Record<string, string | number> = {
+        page: 1,
+        pageSize: 10000, // Get all stores
+      };
+
+      if (statusFilter !== "all") {
+        params.status = statusFilter;
+      }
+      if (selectedTerritory) {
+        params.territoryId = selectedTerritory;
+      }
+      if (selectedRank) {
+        params.rank = selectedRank;
+      }
+      if (selectedUser) {
+        params.userId = selectedUser;
+      }
+      if (storeNameFilter) {
+        params.storeName = storeNameFilter;
+      }
+
+      const res = await api.get("/stores", { params });
+      setExportProgress(50);
+
+      await generateStoresExcel(res.data.data || [], setExportProgress);
+      setExportProgress(100);
+
+      // Delay a bit to show 100% before closing
+      setTimeout(() => {
+        setExportLoading(false);
+        setExportProgress(0);
+      }, 500);
+    } catch (error) {
+      console.error("Error exporting stores:", error);
+      setExportLoading(false);
+      setExportProgress(0);
+      alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
+    }
+  };
+
+  const generateStoresExcel = async (
+    storesData: Store[],
+    progressCallback?: (progress: number) => void
+  ) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    if (progressCallback) progressCallback(60);
+
+    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
+
+    // Header style
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern" as const,
+        pattern: "solid" as const,
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center" as const, vertical: "middle" as const },
+      border: {
+        top: { style: "thin" as const },
+        bottom: { style: "thin" as const },
+        left: { style: "thin" as const },
+        right: { style: "thin" as const },
+      },
+    };
+
+    // Title
+    sheet.mergeCells("A1:P1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+
+    sheet.mergeCells("A2:P2");
+    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+
+    // Headers
+    const headers = [
+      "STT",
+      "Mã cửa hàng",
+      "Tên cửa hàng",
+      "Loại đối tượng",
+      "Địa chỉ",
+      "Mã số thuế",
+      "Tên đối tác",
+      "Số điện thoại",
+      "Email",
+      "Trạng thái",
+      "Địa bàn phụ trách",
+      "User phụ trách",
+      "Link chi tiết",
+      "Latitude",
+      "Longitude",
+      "Xem trên Google Maps",
+    ];
+    sheet.getRow(4).values = headers;
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+
+    // Data
+    if (progressCallback) progressCallback(70);
+    storesData.forEach((store, index) => {
+      const row = sheet.addRow([
+        index + 1,
+        store.StoreCode,
+        store.StoreName,
+        getRankLabel(store.Rank),
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
+        getStatusLabel(store.Status),
+        store.TerritoryName || "",
+        store.UserFullName
+          ? `${store.UserFullName} (${store.UserCode || ""})`
+          : "",
+        "", // Link chi tiết - will be set as hyperlink
+        store.Latitude || "",
+        store.Longitude || "",
+        "", // Google Maps link - will be set as hyperlink
+      ]);
+
+      // Set hyperlink for "Link chi tiết"
+      const detailLinkCell = row.getCell(13);
+      detailLinkCell.value = {
+        text: "Link chi tiết",
+        hyperlink: `https://ximang.netlify.app/stores/${store.Id}`,
+      };
+      detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+
+      // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
+      const mapLinkCell = row.getCell(16);
+      if (store.Latitude && store.Longitude) {
+        mapLinkCell.value = {
+          text: "Xem trên Google Maps",
+          hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
+        };
+        mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+      }
+
+      // Add borders to all cells
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+    });
+
+    // Set column widths
+    sheet.columns = [
+      { width: 10 }, // STT
+      { width: 15 }, // Mã cửa hàng
+      { width: 30 }, // Tên cửa hàng
+      { width: 20 }, // Loại đối tượng
+      { width: 40 }, // Địa chỉ
+      { width: 15 }, // Mã số thuế
+      { width: 25 }, // Tên đối tác
+      { width: 15 }, // Số điện thoại
+      { width: 25 }, // Email
+      { width: 15 }, // Trạng thái
+      { width: 25 }, // Địa bàn phụ trách
+      { width: 30 }, // User phụ trách
+      { width: 20 }, // Link chi tiết
+      { width: 15 }, // Latitude
+      { width: 15 }, // Longitude
+      { width: 25 }, // Xem trên Google Maps
+    ];
+
+    if (progressCallback) progressCallback(90);
+
+    // Generate Excel file
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `DanhSachCuaHang_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   const rankOptions = [
     { id: "", name: "Tất cả" },
     { id: 1, name: "Cấp 1" },
@@ -308,7 +568,7 @@ export default function Stores() {
           <button className="btn-add" onClick={() => navigate("/stores/new")}>
             <HiPlus /> Thêm cửa hàng
           </button>
-          <button className="btn-download" onClick={() => {}}>
+          <button className="btn-download" onClick={handleExportStores}>
             <HiArrowDownTray /> Xuất Excel
           </button>
         </div>
@@ -561,6 +821,12 @@ export default function Stores() {
         isOpen={deleteLoading}
         message="Đang xóa cửa hàng..."
         progress={0}
+      />
+
+      <LoadingModal
+        isOpen={exportLoading}
+        message="Đang tạo báo cáo Excel..."
+        progress={exportProgress}
       />
 
       {/* Notification Modal */}
