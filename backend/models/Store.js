@@ -16,7 +16,6 @@ class Store {
       Rank,
       TaxCode,
       PartnerName,
-      Notes,
     } = storeData;
 
     // Generate StoreCode
@@ -52,9 +51,6 @@ class Store {
     if (PartnerName !== undefined && PartnerName !== null) {
       request.input("PartnerName", sql.NVarChar(200), PartnerName);
     }
-    if (Notes !== undefined && Notes !== null) {
-      request.input("Notes", sql.NVarChar(1000), Notes);
-    }
 
     let query = `
       INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
@@ -89,10 +85,6 @@ class Store {
     if (PartnerName !== undefined && PartnerName !== null) {
       query += `, PartnerName`;
       values += `, @PartnerName`;
-    }
-    if (Notes !== undefined && Notes !== null) {
-      query += `, Notes`;
-      values += `, @Notes`;
     }
 
     query += `, CreatedAt, UpdatedAt)

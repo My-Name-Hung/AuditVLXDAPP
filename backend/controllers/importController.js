@@ -130,6 +130,7 @@ const importStores = async (req, res) => {
       }
 
       // Create store promise
+      // Note: rowData.notes is read from Excel but not saved to database (only for reference in Excel)
       const createPromise = Store.create({
         StoreName: rowData.storeName,
         Address: rowData.address,
@@ -141,8 +142,8 @@ const importStores = async (req, res) => {
         TerritoryId: territoryId,
         UserId: userId,
         Status: "not_audited",
-        Notes: rowData.notes,
         // Latitude and Longitude will be null - auto updated from mobile app
+        // Notes column in Excel is for reference only, not saved to database
       })
         .then((store) => {
           results.success.push({
