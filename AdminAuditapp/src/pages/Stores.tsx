@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HiEye, HiPencil, HiTrash } from "react-icons/hi";
 import { HiArrowDownTray, HiPlus } from "react-icons/hi2";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
@@ -39,6 +39,7 @@ type StatusFilter = "all" | "not_audited" | "audited" | "passed" | "failed";
 
 export default function Stores() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
@@ -76,6 +77,13 @@ export default function Stores() {
     fetchUsers();
     fetchStores();
   }, []);
+
+  // Refresh stores when navigating back from add/edit page
+  useEffect(() => {
+    if (location.pathname === "/stores") {
+      fetchStores();
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     setPage(1); // Reset to first page when filters change
@@ -124,7 +132,7 @@ export default function Stores() {
   const fetchStores = async () => {
     try {
       setLoading(true);
-      const params: any = {
+      const params: Record<string, string | number> = {
         page,
         pageSize,
       };
@@ -221,16 +229,6 @@ export default function Stores() {
 
   const handleEditStore = (storeId: number) => {
     navigate(`/stores/${storeId}/edit`);
-  };
-
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      not_audited: "Chưa audit",
-      audited: "Đã audit",
-      passed: "Đạt",
-      failed: "Không đạt",
-    };
-    return labels[status] || status;
   };
 
   const getRankLabel = (rank: number | null) => {

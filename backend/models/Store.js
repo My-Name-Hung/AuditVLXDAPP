@@ -27,8 +27,13 @@ class Store {
     request.input("Address", sql.NVarChar(500), Address);
     request.input("Phone", sql.VarChar(20), Phone);
     request.input("Email", sql.NVarChar(200), Email);
-    request.input("Latitude", sql.Decimal(10, 8), Latitude);
-    request.input("Longitude", sql.Decimal(11, 8), Longitude);
+    // Latitude and Longitude can be null - will be auto updated when user takes photo
+    if (Latitude !== undefined && Latitude !== null) {
+      request.input("Latitude", sql.Decimal(10, 8), Latitude);
+    }
+    if (Longitude !== undefined && Longitude !== null) {
+      request.input("Longitude", sql.Decimal(11, 8), Longitude);
+    }
     if (TerritoryId !== undefined && TerritoryId !== null) {
       request.input("TerritoryId", sql.Int, TerritoryId);
     }
@@ -48,8 +53,18 @@ class Store {
     }
 
     let query = `
-      INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Latitude, Longitude, Status`;
-    let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Latitude, @Longitude, @Status`;
+      INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
+    let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Status`;
+    
+    // Add Latitude and Longitude only if provided
+    if (Latitude !== undefined && Latitude !== null) {
+      query += `, Latitude`;
+      values += `, @Latitude`;
+    }
+    if (Longitude !== undefined && Longitude !== null) {
+      query += `, Longitude`;
+      values += `, @Longitude`;
+    }
 
     if (TerritoryId !== undefined && TerritoryId !== null) {
       query += `, TerritoryId`;
