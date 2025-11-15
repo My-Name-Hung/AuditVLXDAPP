@@ -52,15 +52,13 @@ const importStores = async (req, res) => {
       }
     });
 
-    // Read rows (skip header row)
-    const promises = [];
-    let rowNumber = 1;
+    // Read all rows first to validate and prepare data
+    const rowsData = [];
     worksheet.eachRow((row, rowIndex) => {
       if (rowIndex === 1) return; // Skip header
 
-      rowNumber = rowIndex;
       const rowData = {
-        rowNumber,
+        rowNumber: rowIndex,
         storeName: row.getCell(1)?.value?.toString()?.trim(),
         address: row.getCell(2)?.value?.toString()?.trim(),
         phone: row.getCell(3)?.value?.toString()?.trim() || null,
@@ -74,27 +72,32 @@ const importStores = async (req, res) => {
       };
 
       results.total++;
+      rowsData.push(rowData);
+    });
 
+    // Validate all rows first
+    const validRows = [];
+    for (const rowData of rowsData) {
       // Validate required fields
       if (!rowData.storeName || !rowData.address) {
         results.errors.push({
-          row: rowNumber,
+          row: rowData.rowNumber,
           storeName: rowData.storeName || "",
           error: "Tên cửa hàng và Địa chỉ là bắt buộc",
         });
         results.errorCount++;
-        return;
+        continue;
       }
 
       // Validate rank
       if (rowData.rank && ![1, 2].includes(rowData.rank)) {
         results.errors.push({
-          row: rowNumber,
+          row: rowData.rowNumber,
           storeName: rowData.storeName,
           error: "Cấp cửa hàng phải là 1 hoặc 2",
         });
         results.errorCount++;
-        return;
+        continue;
       }
 
       // Map territory
@@ -104,12 +107,12 @@ const importStores = async (req, res) => {
         territoryId = territoryMap[territoryKey];
         if (!territoryId) {
           results.errors.push({
-            row: rowNumber,
+            row: rowData.rowNumber,
             storeName: rowData.storeName,
             error: `Không tìm thấy địa bàn phụ trách: "${rowData.territoryName}". Vui lòng kiểm tra lại tên địa bàn trong file Excel.`,
           });
           results.errorCount++;
-          return;
+          continue;
         }
       }
 
@@ -120,54 +123,117 @@ const importStores = async (req, res) => {
         userId = userMap[userKey];
         if (!userId) {
           results.errors.push({
-            row: rowNumber,
+            row: rowData.rowNumber,
             storeName: rowData.storeName,
             error: `Không tìm thấy nhân viên: "${rowData.userName}". Vui lòng kiểm tra lại tên nhân viên, mã nhân viên (UserCode) hoặc tên đăng nhập (Username) trong file Excel.`,
           });
           results.errorCount++;
-          return;
+          continue;
         }
       }
 
-      // Create store promise
-      // Note: rowData.notes is read from Excel but not saved to database (only for reference in Excel)
-      const createPromise = Store.create({
-        StoreName: rowData.storeName,
-        Address: rowData.address,
-        Phone: rowData.phone,
-        Email: rowData.email,
-        Rank: rowData.rank,
-        TaxCode: rowData.taxCode,
-        PartnerName: rowData.partnerName,
-        TerritoryId: territoryId,
-        UserId: userId,
-        Status: "not_audited",
-        // Latitude and Longitude will be null - auto updated from mobile app
-        // Notes column in Excel is for reference only, not saved to database
-      })
-        .then((store) => {
-          results.success.push({
-            row: rowNumber,
-            storeName: store.StoreName,
-            storeCode: store.StoreCode,
-            link: store.Link,
-          });
-          results.successCount++;
-        })
-        .catch((error) => {
-          results.errors.push({
-            row: rowNumber,
-            storeName: rowData.storeName,
-            error: error.message || "Lỗi khi tạo cửa hàng",
-          });
-          results.errorCount++;
+      validRows.push({ ...rowData, territoryId, userId });
+    }
+
+    // Generate all StoreCodes at once to avoid race condition
+    const storeCodes = await Store.generateMultipleStoreCodes(validRows.length);
+
+    // Create stores sequentially to avoid duplicate StoreCode
+    for (let i = 0; i < validRows.length; i++) {
+      const rowData = validRows[i];
+      const storeCode = storeCodes[i];
+
+      try {
+        // Create store with pre-generated StoreCode
+        const pool = await getPool();
+        const request = pool.request();
+        request.input("StoreCode", sql.VarChar(50), storeCode);
+        request.input("StoreName", sql.NVarChar(200), rowData.storeName);
+        request.input("Address", sql.NVarChar(500), rowData.address);
+        request.input("Phone", sql.VarChar(20), rowData.phone);
+        request.input("Email", sql.NVarChar(200), rowData.email);
+        request.input("Status", sql.VarChar(20), "not_audited");
+        
+        if (rowData.rank !== undefined && rowData.rank !== null) {
+          request.input("Rank", sql.Int, rowData.rank);
+        }
+        if (rowData.taxCode) {
+          request.input("TaxCode", sql.VarChar(50), rowData.taxCode);
+        }
+        if (rowData.partnerName) {
+          request.input("PartnerName", sql.NVarChar(200), rowData.partnerName);
+        }
+        if (rowData.territoryId) {
+          request.input("TerritoryId", sql.Int, rowData.territoryId);
+        }
+        if (rowData.userId) {
+          request.input("UserId", sql.Int, rowData.userId);
+        }
+
+        let query = `
+          INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
+        let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Status`;
+        
+        if (rowData.rank !== undefined && rowData.rank !== null) {
+          query += `, Rank`;
+          values += `, @Rank`;
+        }
+        if (rowData.taxCode) {
+          query += `, TaxCode`;
+          values += `, @TaxCode`;
+        }
+        if (rowData.partnerName) {
+          query += `, PartnerName`;
+          values += `, @PartnerName`;
+        }
+        if (rowData.territoryId) {
+          query += `, TerritoryId`;
+          values += `, @TerritoryId`;
+        }
+        if (rowData.userId) {
+          query += `, UserId`;
+          values += `, @UserId`;
+        }
+
+        query += `, CreatedAt, UpdatedAt)
+          OUTPUT INSERTED.*
+          VALUES (${values}, GETDATE(), GETDATE())`;
+
+        const result = await request.query(query);
+        const createdStore = result.recordset[0];
+
+        // Auto-generate and update Link after store is created
+        if (createdStore && createdStore.Id) {
+          const link = `https://ximang.netlify.app/stores/${createdStore.Id}`;
+          const updateRequest = pool.request();
+          updateRequest.input('Id', sql.Int, createdStore.Id);
+          updateRequest.input('Link', sql.NVarChar(500), link);
+          
+          await updateRequest.query(`
+            UPDATE Stores 
+            SET Link = @Link 
+            WHERE Id = @Id
+          `);
+          
+          createdStore.Link = link;
+        }
+
+        results.success.push({
+          row: rowData.rowNumber,
+          storeName: createdStore.StoreName,
+          storeCode: createdStore.StoreCode,
+          link: createdStore.Link,
         });
-
-      promises.push(createPromise);
-    });
-
-    // Wait for all async operations to complete
-    await Promise.all(promises);
+        results.successCount++;
+      } catch (error) {
+        results.errors.push({
+          row: rowData.rowNumber,
+          storeName: rowData.storeName,
+          error: error.message || "Lỗi khi tạo cửa hàng",
+        });
+        results.errorCount++;
+      }
+    }
 
     // Save import history
     const pool = await getPool();
@@ -216,15 +282,13 @@ const importUsers = async (req, res) => {
       errorCount: 0,
     };
 
-    // Read rows (skip header row)
-    const promises = [];
-    let rowNumber = 1;
+    // Read all rows first to validate and prepare data
+    const rowsData = [];
     worksheet.eachRow((row, rowIndex) => {
       if (rowIndex === 1) return; // Skip header
 
-      rowNumber = rowIndex;
       const rowData = {
-        rowNumber,
+        rowNumber: rowIndex,
         username: row.getCell(1)?.value?.toString()?.trim(),
         fullName: row.getCell(2)?.value?.toString()?.trim(),
         email: row.getCell(3)?.value?.toString()?.trim() || null,
@@ -234,66 +298,87 @@ const importUsers = async (req, res) => {
       };
 
       results.total++;
+      rowsData.push(rowData);
+    });
 
+    // Validate all rows first
+    const validRows = [];
+    for (const rowData of rowsData) {
       // Validate required fields
       if (!rowData.username || !rowData.fullName) {
         results.errors.push({
-          row: rowNumber,
+          row: rowData.rowNumber,
           username: rowData.username || "",
           error: "Tên đăng nhập và Tên nhân viên là bắt buộc",
         });
         results.errorCount++;
-        return;
+        continue;
       }
 
       // Validate role
       if (!["admin", "sales"].includes(rowData.role)) {
         results.errors.push({
-          row: rowNumber,
+          row: rowData.rowNumber,
           username: rowData.username,
           error: "Vai trò phải là admin hoặc sales",
         });
         results.errorCount++;
-        return;
+        continue;
       }
 
-      // Create user with default password promise
-      const createPromise = User.create({
-        Username: rowData.username,
-        Password: require("bcryptjs").hashSync("123456", 10), // Default password
-        FullName: rowData.fullName,
-        Email: rowData.email,
-        Phone: rowData.phone,
-        Role: rowData.role,
-        IsChangePassword: true,
-      })
-        .then((user) => {
-          results.success.push({
-            row: rowNumber,
-            username: user.Username,
-            userCode: user.UserCode,
-            fullName: user.FullName,
-          });
-          results.successCount++;
-        })
-        .catch((error) => {
-          let errorMessage = "Lỗi khi tạo nhân viên";
-          if (error.message && error.message.includes("already exists")) {
-            errorMessage = "Tên đăng nhập đã tồn tại";
-          }
-          results.errors.push({
-            row: rowNumber,
-            username: rowData.username,
-            error: errorMessage,
-          });
-          results.errorCount++;
+      validRows.push(rowData);
+    }
+
+    // Generate all UserCodes at once to avoid race condition
+    const userCodes = await User.generateMultipleUserCodes(validRows.length);
+
+    // Create users sequentially to avoid duplicate UserCode
+    for (let i = 0; i < validRows.length; i++) {
+      const rowData = validRows[i];
+      const userCode = userCodes[i];
+
+      try {
+        // Create user with pre-generated UserCode
+        const pool = await getPool();
+        const request = pool.request();
+        request.input('UserCode', sql.VarChar(50), userCode);
+        request.input('Username', sql.NVarChar(100), rowData.username);
+        request.input('Password', sql.NVarChar(255), require("bcryptjs").hashSync("123456", 10));
+        request.input('FullName', sql.NVarChar(200), rowData.fullName);
+        request.input('Email', sql.NVarChar(200), rowData.email);
+        request.input('Phone', sql.VarChar(20), rowData.phone);
+        request.input('Role', sql.VarChar(50), rowData.role);
+        request.input('IsChangePassword', sql.Bit, true);
+
+        const result = await request.query(`
+          INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt)
+          OUTPUT INSERTED.*
+          VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @IsChangePassword, GETDATE(), GETDATE())
+        `);
+
+        const createdUser = result.recordset[0];
+        results.success.push({
+          row: rowData.rowNumber,
+          username: createdUser.Username,
+          userCode: createdUser.UserCode,
+          fullName: createdUser.FullName,
         });
-
-      promises.push(createPromise);
-    });
-
-    // Wait for all async operations to complete
-    await Promise.all(promises);
+        results.successCount++;
+      } catch (error) {
+        let errorMessage = "Lỗi khi tạo nhân viên";
+        if (error.message && (error.message.includes("already exists") || error.message.includes("UNIQUE"))) {
+          errorMessage = "Tên đăng nhập đã tồn tại";
+        } else {
+          errorMessage = error.message || "Lỗi khi tạo nhân viên";
+        }
+        results.errors.push({
+          row: rowData.rowNumber,
+          username: rowData.username,
+          error: errorMessage,
+        });
+        results.errorCount++;
+      }
+    }
 
     // Save import history
     const pool = await getPool();

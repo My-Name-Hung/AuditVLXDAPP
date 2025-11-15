@@ -150,9 +150,9 @@ export default function ImportExport() {
           1,
           "1234567890",
           "Đối tác ABC",
-          "Miền Bắc",
-          "U000001 hoặc username1 hoặc Nguyễn Văn A",
-          "Ghi chú về cửa hàng",
+          "TPHCM",
+          "U000001",
+          "Bắt buộc địa bàn phụ trách phải đúng, và user có thể dùng U000001 hoặc username1 hoặc Nguyễn Văn A",
         ];
       } else {
         // Template for users

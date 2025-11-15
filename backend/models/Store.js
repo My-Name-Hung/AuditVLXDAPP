@@ -246,20 +246,69 @@ class Store {
 
   static async generateStoreCode() {
     const pool = await getPool();
-    const result = await pool.request().query(`
-      SELECT TOP 1 StoreCode 
-      FROM Stores 
-      WHERE StoreCode LIKE 'CH%' 
-      ORDER BY StoreCode DESC
-    `);
+    const transaction = new sql.Transaction(pool);
+    
+    try {
+      await transaction.begin();
+      const request = new sql.Request(transaction);
+      
+      // Use UPDLOCK to prevent concurrent reads
+      const result = await request.query(`
+        SELECT TOP 1 StoreCode 
+        FROM Stores WITH (UPDLOCK, ROWLOCK)
+        WHERE StoreCode LIKE 'CH%' 
+        ORDER BY StoreCode DESC
+      `);
 
-    if (result.recordset.length === 0) {
-      return "CH000001";
+      let nextNumber = 1;
+      if (result.recordset.length > 0) {
+        const lastCode = result.recordset[0].StoreCode;
+        nextNumber = parseInt(lastCode.substring(2)) + 1;
+      }
+
+      const newCode = `CH${nextNumber.toString().padStart(6, "0")}`;
+      await transaction.commit();
+      return newCode;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
     }
+  }
 
-    const lastCode = result.recordset[0].StoreCode;
-    const number = parseInt(lastCode.substring(2)) + 1;
-    return `CH${number.toString().padStart(6, "0")}`;
+  static async generateMultipleStoreCodes(count) {
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+    
+    try {
+      await transaction.begin();
+      const request = new sql.Request(transaction);
+      
+      // Use UPDLOCK to prevent concurrent reads
+      const result = await request.query(`
+        SELECT TOP 1 StoreCode 
+        FROM Stores WITH (UPDLOCK, ROWLOCK)
+        WHERE StoreCode LIKE 'CH%' 
+        ORDER BY StoreCode DESC
+      `);
+
+      let startNumber = 1;
+      if (result.recordset.length > 0) {
+        const lastCode = result.recordset[0].StoreCode;
+        startNumber = parseInt(lastCode.substring(2)) + 1;
+      }
+
+      const codes = [];
+      for (let i = 0; i < count; i++) {
+        const number = startNumber + i;
+        codes.push(`CH${number.toString().padStart(6, "0")}`);
+      }
+
+      await transaction.commit();
+      return codes;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   }
 }
 
