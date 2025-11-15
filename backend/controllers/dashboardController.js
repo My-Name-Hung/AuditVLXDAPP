@@ -9,20 +9,21 @@ async function getSummary(req, res) {
 
     let query = `
       SELECT 
-        u.Id as UserId,
+        s.UserId as UserId,
         u.FullName,
         s.TerritoryId,
         t.TerritoryName,
         COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
-      FROM Users u
-      LEFT JOIN Audits a ON u.Id = a.UserId
-      LEFT JOIN Stores s ON a.StoreId = s.Id
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN Images img ON a.Id = img.AuditId
+      FROM Stores s
+      INNER JOIN Users u ON s.UserId = u.Id
+      INNER JOIN Audits a ON s.Id = a.StoreId
+      INNER JOIN Territories t ON s.TerritoryId = t.Id
+      INNER JOIN Images img ON a.Id = img.AuditId
       WHERE u.Role = 'user'
         AND img.ImageUrl IS NOT NULL
         AND img.ImageUrl != ''
+        AND s.UserId IS NOT NULL
     `;
 
     // Filter by territories (now from Stores)
@@ -55,7 +56,7 @@ async function getSummary(req, res) {
     }
 
     query += `
-      GROUP BY u.Id, u.FullName, s.TerritoryId, t.TerritoryName
+      GROUP BY s.UserId, u.FullName, s.TerritoryId, t.TerritoryName
       HAVING COUNT(DISTINCT CAST(a.AuditDate AS DATE)) > 0
       ORDER BY u.FullName ASC
     `;
@@ -156,20 +157,21 @@ async function exportReport(req, res) {
     // Get summary data (same as getSummary)
     let summaryQuery = `
       SELECT 
-        u.Id as UserId,
+        s.UserId as UserId,
         u.FullName,
         s.TerritoryId,
         t.TerritoryName,
         COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
-      FROM Users u
-      LEFT JOIN Audits a ON u.Id = a.UserId
-      LEFT JOIN Stores s ON a.StoreId = s.Id
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN Images img ON a.Id = img.AuditId
+      FROM Stores s
+      INNER JOIN Users u ON s.UserId = u.Id
+      INNER JOIN Audits a ON s.Id = a.StoreId
+      INNER JOIN Territories t ON s.TerritoryId = t.Id
+      INNER JOIN Images img ON a.Id = img.AuditId
       WHERE u.Role = 'user'
         AND img.ImageUrl IS NOT NULL
         AND img.ImageUrl != ''
+        AND s.UserId IS NOT NULL
     `;
 
     if (territoryIds) {
@@ -200,7 +202,7 @@ async function exportReport(req, res) {
     }
 
     summaryQuery += `
-      GROUP BY u.Id, u.FullName, s.TerritoryId, t.TerritoryName
+      GROUP BY s.UserId, u.FullName, s.TerritoryId, t.TerritoryName
       HAVING COUNT(DISTINCT CAST(a.AuditDate AS DATE)) > 0
       ORDER BY u.FullName ASC
     `;

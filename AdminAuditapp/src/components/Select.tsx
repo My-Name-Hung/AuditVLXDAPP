@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import './Select.css';
 
 interface Option {
-  id: number | string;
+  id: number | string | null;
   name: string;
 }
 

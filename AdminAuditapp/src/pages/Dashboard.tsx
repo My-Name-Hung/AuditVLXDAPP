@@ -106,7 +106,10 @@ export default function Dashboard() {
         params.endDate = endDate;
       }
 
-      const res = await api.get("/dashboard/summary", { params });
+      // Add timestamp to prevent caching
+      const res = await api.get("/dashboard/summary", { 
+        params: { ...params, _t: Date.now() }
+      });
       setSummaryData(res.data.data || []);
     } catch (error) {
       console.error("Error fetching summary:", error);

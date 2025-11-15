@@ -5,6 +5,7 @@ import UserDetail from "./pages/UserDetail";
 import Users from "./pages/Users";
 import Stores from "./pages/Stores";
 import StoreDetail from "./pages/StoreDetail";
+import StoreEdit from "./pages/StoreEdit";
 import Audits from "./pages/Audits";
 import Distributors from "./pages/Distributors";
 import ImportExport from "./pages/ImportExport";
@@ -39,6 +40,7 @@ function AppRoutes() {
         <Route path="users" element={<Users />} />
         <Route path="stores" element={<Stores />} />
         <Route path="stores/:id" element={<StoreDetail />} />
+        <Route path="stores/:id/edit" element={<StoreEdit />} />
         <Route path="audits" element={<Audits />} />
         <Route path="distributors" element={<Distributors />} />
         <Route path="import-export" element={<ImportExport />} />

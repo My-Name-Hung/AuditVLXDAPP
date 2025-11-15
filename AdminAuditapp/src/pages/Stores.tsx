@@ -1,10 +1,11 @@
-import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
 import { HiEye, HiPencil, HiTrash } from "react-icons/hi";
-import { HiPlus, HiArrowDownTray } from "react-icons/hi2";
-import api from "../services/api";
+import { HiArrowDownTray, HiPlus } from "react-icons/hi2";
+import { useNavigate } from "react-router-dom";
+import LoadingModal from "../components/LoadingModal";
+import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
-import MultiSelect from "../components/MultiSelect";
+import api from "../services/api";
 import "./Stores.css";
 
 interface Store {
@@ -42,8 +43,12 @@ export default function Stores() {
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [storeNameFilter, setStoreNameFilter] = useState("");
-  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(null);
-  const [selectedRank, setSelectedRank] = useState<number | string | null>(null);
+  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
+    null
+  );
+  const [selectedRank, setSelectedRank] = useState<number | string | null>(
+    null
+  );
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [users, setUsers] = useState<User[]>([]);
@@ -53,6 +58,16 @@ export default function Stores() {
   const [pageSize, setPageSize] = useState(50);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    type: "success" | "error";
+    message: string;
+  }>({
+    isOpen: false,
+    type: "success",
+    message: "",
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
   const storeNameInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -171,13 +186,32 @@ export default function Stores() {
     if (!storeToDelete) return;
 
     try {
-      await api.delete(`/stores/${storeToDelete.Id}`);
+      setDeleteLoading(true);
       setDeleteModalOpen(false);
+
+      await api.delete(`/stores/${storeToDelete.Id}`);
+      const deletedStoreName = storeToDelete.StoreName;
       setStoreToDelete(null);
-      fetchStores();
-    } catch (error) {
+
+      await fetchStores();
+
+      setDeleteLoading(false);
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: `Đã xóa cửa hàng "${deletedStoreName}" thành công.`,
+      });
+    } catch (error: unknown) {
       console.error("Error deleting store:", error);
-      alert("Lỗi khi xóa cửa hàng");
+      setDeleteLoading(false);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi xóa cửa hàng. Vui lòng thử lại.";
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: errorMessage,
+      });
     }
   };
 
@@ -240,25 +274,33 @@ export default function Stores() {
             Tất cả
           </button>
           <button
-            className={`status-tab ${statusFilter === "not_audited" ? "active" : ""}`}
+            className={`status-tab ${
+              statusFilter === "not_audited" ? "active" : ""
+            }`}
             onClick={() => setStatusFilter("not_audited")}
           >
             Chưa audit
           </button>
           <button
-            className={`status-tab ${statusFilter === "audited" ? "active" : ""}`}
+            className={`status-tab ${
+              statusFilter === "audited" ? "active" : ""
+            }`}
             onClick={() => setStatusFilter("audited")}
           >
             Đã audit
           </button>
           <button
-            className={`status-tab ${statusFilter === "passed" ? "active" : ""}`}
+            className={`status-tab ${
+              statusFilter === "passed" ? "active" : ""
+            }`}
             onClick={() => setStatusFilter("passed")}
           >
             Đạt
           </button>
           <button
-            className={`status-tab ${statusFilter === "failed" ? "active" : ""}`}
+            className={`status-tab ${
+              statusFilter === "failed" ? "active" : ""
+            }`}
             onClick={() => setStatusFilter("failed")}
           >
             Không đạt
@@ -291,10 +333,7 @@ export default function Stores() {
         <div className="filter-group">
           <label>Địa bàn phụ trách</label>
           <Select
-            options={[
-              { id: null, name: "Tất cả" },
-              ...territoryOptions,
-            ]}
+            options={[{ id: null, name: "Tất cả" }, ...territoryOptions]}
             value={selectedTerritory}
             onChange={(value) => setSelectedTerritory(value as number | null)}
             placeholder="Chọn địa bàn phụ trách"
@@ -358,7 +397,9 @@ export default function Stores() {
             ) : (
               stores.map((store) => (
                 <tr key={store.Id}>
-                  <td>{store.StoreCode}</td>
+                  <td>
+                    <strong>{store.StoreCode}</strong>
+                  </td>
                   <td>{store.StoreName}</td>
                   <td>{getRankLabel(store.Rank)}</td>
                   <td>{store.Address || "-"}</td>
@@ -404,7 +445,8 @@ export default function Stores() {
         <div className="pagination-container">
           <div className="pagination-info">
             <span>
-              Hiển thị {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, total)} trong tổng số {total} cửa hàng
+              Hiển thị {(page - 1) * pageSize + 1} -{" "}
+              {Math.min(page * pageSize, total)} trong tổng số {total} cửa hàng
             </span>
             <div className="page-size-selector">
               <label>Hiển thị:</label>
@@ -443,8 +485,11 @@ export default function Stores() {
                 const pages = [];
                 const maxVisible = 5;
                 let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
-                let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-                
+                const endPage = Math.min(
+                  totalPages,
+                  startPage + maxVisible - 1
+                );
+
                 if (endPage - startPage < maxVisible - 1) {
                   startPage = Math.max(1, endPage - maxVisible + 1);
                 }
@@ -483,11 +528,16 @@ export default function Stores() {
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && storeToDelete && (
-        <div className="modal-overlay" onClick={() => setDeleteModalOpen(false)}>
+        <div
+          className="modal-overlay"
+          onClick={() => setDeleteModalOpen(false)}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Xác nhận xóa cửa hàng</h3>
             <p>
-              Bạn có chắc chắn muốn xóa cửa hàng <strong>{storeToDelete.StoreName}</strong> (Mã: {storeToDelete.StoreCode})?
+              Bạn có chắc chắn muốn xóa cửa hàng{" "}
+              <strong>{storeToDelete.StoreName}</strong> (Mã:{" "}
+              {storeToDelete.StoreCode})?
             </p>
             <p className="modal-warning">Hành động này không thể hoàn tác!</p>
             <div className="modal-actions">
@@ -507,6 +557,22 @@ export default function Stores() {
           </div>
         </div>
       )}
+
+      {/* Loading Modal for Delete */}
+      <LoadingModal
+        isOpen={deleteLoading}
+        message="Đang xóa cửa hàng..."
+        progress={0}
+      />
+
+      {/* Notification Modal */}
+      <NotificationModal
+        isOpen={notification.isOpen}
+        type={notification.type}
+        message={notification.message}
+        onClose={() => setNotification({ ...notification, isOpen: false })}
+        duration={3000}
+      />
     </div>
   );
 }
