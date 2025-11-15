@@ -98,21 +98,32 @@ export default function Dashboard() {
         params.startDate = selectedDate;
         params.endDate = selectedDate;
       } else {
+        // Calculate start and end of month
         const [year, month] = selectedMonth.split("-");
-        const startDate = `${year}-${month}-01`;
+        const startOfMonth = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
-        const endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
-        params.startDate = startDate;
-        params.endDate = endDate;
+        params.startDate = startOfMonth;
+        params.endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
       }
 
-      // Add timestamp to prevent caching
       const res = await api.get("/dashboard/summary", { 
-        params: { ...params, _t: Date.now() }
+        params,
+        timeout: 35000, // 35 seconds timeout
       });
-      setSummaryData(res.data.data || []);
-    } catch (error) {
+      
+      if (res.data && res.data.success !== false) {
+        setSummaryData(res.data.data || []);
+      } else {
+        console.error("Error in dashboard response:", res.data);
+        setSummaryData([]);
+      }
+    } catch (error: unknown) {
       console.error("Error fetching summary:", error);
+      setSummaryData([]);
+      const errorMessage = (error as { message?: string })?.message || "Lỗi khi tải dữ liệu dashboard";
+      if (errorMessage.includes("timeout") || errorMessage.includes("ETIMEOUT")) {
+        console.error("Dashboard query timeout - query may be too slow");
+      }
     } finally {
       if (showLoading) {
         setDataLoading(false);

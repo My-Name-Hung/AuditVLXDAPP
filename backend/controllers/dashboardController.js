@@ -7,6 +7,7 @@ async function getSummary(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
+    // Optimized query - use EXISTS instead of INNER JOIN for Images to improve performance
     let query = `
       SELECT 
         s.UserId as UserId,
@@ -19,11 +20,15 @@ async function getSummary(req, res) {
       INNER JOIN Users u ON s.UserId = u.Id
       INNER JOIN Audits a ON s.Id = a.StoreId
       INNER JOIN Territories t ON s.TerritoryId = t.Id
-      INNER JOIN Images img ON a.Id = img.AuditId
-      WHERE u.Role = 'user'
-        AND img.ImageUrl IS NOT NULL
-        AND img.ImageUrl != ''
+      WHERE u.Role = 'sales'
         AND s.UserId IS NOT NULL
+        AND EXISTS (
+          SELECT 1 
+          FROM Images img 
+          WHERE img.AuditId = a.Id 
+            AND img.ImageUrl IS NOT NULL 
+            AND img.ImageUrl != ''
+        )
     `;
 
     // Filter by territories (now from Stores)
@@ -64,6 +69,8 @@ async function getSummary(req, res) {
       ORDER BY u.FullName ASC
     `;
 
+    // Set timeout to 30 seconds for dashboard query
+    request.timeout = 30000;
     const result = await request.query(query);
 
     res.json({
@@ -139,6 +146,8 @@ async function getUserDetail(req, res) {
       ORDER BY CheckinDate DESC, CheckinTime DESC
     `;
 
+    // Set timeout to 30 seconds
+    request.timeout = 30000;
     const result = await request.query(query);
 
     res.json({
@@ -162,7 +171,7 @@ async function exportReport(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
-    // Get summary data (same as getSummary)
+    // Get summary data (same as getSummary) - optimized
     let summaryQuery = `
       SELECT 
         s.UserId as UserId,
@@ -175,11 +184,15 @@ async function exportReport(req, res) {
       INNER JOIN Users u ON s.UserId = u.Id
       INNER JOIN Audits a ON s.Id = a.StoreId
       INNER JOIN Territories t ON s.TerritoryId = t.Id
-      INNER JOIN Images img ON a.Id = img.AuditId
-      WHERE u.Role = 'user'
-        AND img.ImageUrl IS NOT NULL
-        AND img.ImageUrl != ''
+      WHERE u.Role = 'sales'
         AND s.UserId IS NOT NULL
+        AND EXISTS (
+          SELECT 1 
+          FROM Images img 
+          WHERE img.AuditId = a.Id 
+            AND img.ImageUrl IS NOT NULL 
+            AND img.ImageUrl != ''
+        )
     `;
 
     if (territoryIds) {
@@ -218,6 +231,8 @@ async function exportReport(req, res) {
       ORDER BY u.FullName ASC
     `;
 
+    // Set timeout to 30 seconds
+    request.timeout = 30000;
     const summaryResult = await request.query(summaryQuery);
     const summaryData = summaryResult.recordset;
 
@@ -264,6 +279,8 @@ async function exportReport(req, res) {
         ORDER BY CheckinDate DESC, CheckinTime DESC
       `;
 
+      // Set timeout to 30 seconds
+      detailRequest.timeout = 30000;
       const detailResult = await detailRequest.query(detailQuery);
       // Use combination key to avoid overwriting data for same user in different territories
       const detailKey = `${user.UserId}-${user.TerritoryId}`;
