@@ -72,7 +72,7 @@ class User {
       request.input('Role', sql.VarChar(50), filters.Role);
     }
 
-    query += ' ORDER BY CreatedAt DESC';
+    query += ' ORDER BY UserCode ASC';
 
     // Add pagination
     if (filters.limit !== undefined && filters.offset !== undefined) {

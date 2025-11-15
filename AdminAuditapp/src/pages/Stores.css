@@ -234,6 +234,11 @@
   color: var(--text-secondary);
 }
 
+.stores-table td strong {
+  color: #0138C3;
+  font-weight: 600;
+}
+
 .stores-table tbody tr:hover {
   background: #f8f9fa;
 }
