@@ -138,7 +138,7 @@ class Store {
       request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
     }
 
-    query += ' ORDER BY s.CreatedAt DESC';
+    query += ' ORDER BY s.StoreCode ASC';
 
     // Add pagination
     if (filters.limit !== undefined && filters.offset !== undefined) {

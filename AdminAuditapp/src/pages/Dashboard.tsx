@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Chart as ChartJS,
@@ -44,6 +44,7 @@ export default function Dashboard() {
   const [selectedTerritories, setSelectedTerritories] = useState<number[]>([]);
   const [summaryData, setSummaryData] = useState<DashboardSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [dateFilter, setDateFilter] = useState<"day" | "month">("month");
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
@@ -54,12 +55,20 @@ export default function Dashboard() {
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
+  const isInitialMount = useRef(true);
+
   useEffect(() => {
     fetchTerritories();
+    fetchSummary(); // Initial load
   }, []);
 
   useEffect(() => {
-    fetchSummary();
+    if (!isInitialMount.current) {
+      // Filter change - show loading modal (skip initial load)
+      fetchSummary(true);
+    } else {
+      isInitialMount.current = false;
+    }
   }, [selectedTerritories, dateFilter, selectedDate, selectedMonth]);
 
   const fetchTerritories = async () => {
@@ -71,9 +80,14 @@ export default function Dashboard() {
     }
   };
 
-  const fetchSummary = async () => {
+  const fetchSummary = async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setDataLoading(true);
+      } else {
+        setLoading(true);
+      }
+      
       const params: any = {};
 
       if (selectedTerritories.length > 0) {
@@ -97,7 +111,11 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error fetching summary:", error);
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setDataLoading(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -342,6 +360,11 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
+      <LoadingModal
+        isOpen={dataLoading}
+        message="Đang tải dữ liệu..."
+        progress={0}
+      />
       <div className="dashboard-header">
         <div>
           <p className="page-kicker">Thống kê</p>

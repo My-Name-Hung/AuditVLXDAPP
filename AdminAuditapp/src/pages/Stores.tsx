@@ -399,6 +399,88 @@ export default function Stores() {
         </table>
       </div>
 
+      {/* Pagination */}
+      {totalPages > 0 && (
+        <div className="pagination-container">
+          <div className="pagination-info">
+            <span>
+              Hiển thị {((page - 1) * pageSize) + 1} - {Math.min(page * pageSize, total)} trong tổng số {total} cửa hàng
+            </span>
+            <div className="page-size-selector">
+              <label>Hiển thị:</label>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPage(1);
+                }}
+                className="page-size-select"
+              >
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+                <option value={300}>300</option>
+              </select>
+            </div>
+          </div>
+          <div className="pagination-controls">
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(1)}
+              disabled={page === 1}
+            >
+              Đầu
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(page - 1)}
+              disabled={page === 1}
+            >
+              Trước
+            </button>
+            <div className="pagination-pages">
+              {(() => {
+                const pages = [];
+                const maxVisible = 5;
+                let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
+                let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+                
+                if (endPage - startPage < maxVisible - 1) {
+                  startPage = Math.max(1, endPage - maxVisible + 1);
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                  pages.push(
+                    <button
+                      key={i}
+                      className={`pagination-btn ${page === i ? "active" : ""}`}
+                      onClick={() => setPage(i)}
+                    >
+                      {i}
+                    </button>
+                  );
+                }
+                return pages;
+              })()}
+            </div>
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(page + 1)}
+              disabled={page === totalPages}
+            >
+              Sau
+            </button>
+            <button
+              className="pagination-btn"
+              onClick={() => setPage(totalPages)}
+              disabled={page === totalPages}
+            >
+              Cuối
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && storeToDelete && (
         <div className="modal-overlay" onClick={() => setDeleteModalOpen(false)}>

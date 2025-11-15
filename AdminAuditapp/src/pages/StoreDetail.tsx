@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { HiArrowLeft } from "react-icons/hi2";
 import api from "../services/api";
+import LoadingModal from "../components/LoadingModal";
 import "./StoreDetail.css";
 
 interface Store {
@@ -51,17 +52,34 @@ export default function StoreDetail() {
   const [store, setStore] = useState<Store | null>(null);
   const [audits, setAudits] = useState<Audit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const isInitialMount = useRef(true);
+  const previousId = useRef<string | undefined>(id);
 
   useEffect(() => {
     if (id) {
-      fetchStoreDetail();
+      if (isInitialMount.current) {
+        // Initial load
+        isInitialMount.current = false;
+        previousId.current = id;
+        fetchStoreDetail();
+      } else if (previousId.current !== id) {
+        // Navigate to different store - show loading modal
+        previousId.current = id;
+        fetchStoreDetail(true);
+      }
     }
   }, [id]);
 
-  const fetchStoreDetail = async () => {
+  const fetchStoreDetail = async (showLoading = false) => {
     try {
-      setLoading(true);
+      if (showLoading) {
+        setDataLoading(true);
+      } else {
+        setLoading(true);
+      }
+      
       const res = await api.get(`/stores/${id}`);
       const data = res.data;
       setStore({
@@ -87,7 +105,11 @@ export default function StoreDetail() {
     } catch (error) {
       console.error("Error fetching store detail:", error);
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setDataLoading(false);
+      } else {
+        setLoading(false);
+      }
     }
   };
 
@@ -121,6 +143,11 @@ export default function StoreDetail() {
 
   return (
     <div className="store-detail">
+      <LoadingModal
+        isOpen={dataLoading}
+        message="Đang tải dữ liệu cửa hàng..."
+        progress={0}
+      />
       <div className="store-detail-header">
         <button className="btn-back" onClick={() => navigate("/stores")}>
           <HiArrowLeft /> Quay lại
