@@ -35,30 +35,35 @@ const getAuditById = async (req, res) => {
 
 const createAudit = async (req, res) => {
   try {
-    const { userId, storeId, result, notes, auditDate } = req.body;
+    const { userId, storeId, result, notes, auditDate, skipStatusUpdate } = req.body;
 
-    if (!userId || !storeId || !result) {
-      return res.status(400).json({ error: 'UserId, StoreId, and Result are required' });
+    if (!userId || !storeId) {
+      return res.status(400).json({ error: 'UserId and StoreId are required' });
     }
 
-    if (!['pass', 'fail'].includes(result.toLowerCase())) {
+    // If result is provided, validate it
+    if (result && !['pass', 'fail'].includes(result.toLowerCase())) {
       return res.status(400).json({ error: 'Result must be "pass" or "fail"' });
     }
+
+    // If no result provided, use 'pass' as default (for image upload only audits)
+    const auditResult = result ? result.toLowerCase() : 'pass';
 
     const audit = await Audit.create({
       UserId: userId,
       StoreId: storeId,
-      Result: result.toLowerCase(),
+      Result: auditResult,
       Notes: notes,
       AuditDate: auditDate,
     });
 
     // Auto-update store status based on audit result
-    // If result is pass/fail, update to passed/failed
-    // Otherwise, if store has images, it will be updated to 'audited' when image is uploaded
-    const Store = require('../models/Store');
-    const newStatus = result.toLowerCase() === 'pass' ? 'passed' : 'failed';
-    await Store.updateStatus(storeId, newStatus);
+    // Only update if skipStatusUpdate is not true (for image upload audits, status will be updated when images are uploaded)
+    if (!skipStatusUpdate && result) {
+      const Store = require('../models/Store');
+      const newStatus = result.toLowerCase() === 'pass' ? 'passed' : 'failed';
+      await Store.updateStatus(storeId, newStatus);
+    }
 
     res.status(201).json(audit);
   } catch (error) {
