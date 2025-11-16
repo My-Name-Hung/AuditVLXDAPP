@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useColorScheme } from '@/src/hooks/use-color-scheme';
@@ -15,26 +16,28 @@ export default function Header({ title }: HeaderProps) {
   const colors = Colors[colorScheme ?? 'light'];
 
   return (
-    <View style={[styles.header, { backgroundColor: colors.background }]}>
-      <TouchableOpacity
-        style={styles.iconButton}
-        onPress={() => router.push('/profile')}
-      >
-        <Ionicons name="person-circle-outline" size={28} color={colors.primary} />
-      </TouchableOpacity>
+    <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>
+      <View style={[styles.header, { backgroundColor: colors.background }]}>
+        <TouchableOpacity
+          style={styles.iconButton}
+          onPress={() => router.push('/profile')}
+        >
+          <Ionicons name="person-circle-outline" size={28} color={colors.primary} />
+        </TouchableOpacity>
 
-      {title && (
-        <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-      )}
+        {title && (
+          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+        )}
 
-      <View style={styles.logoContainer}>
-        <Image
-          source={require('@/assets/images/icon.jpg')}
-          style={styles.logo}
-          resizeMode="contain"
-        />
+        <View style={styles.logoContainer}>
+          <Image
+            source={require('@/assets/images/icon.jpg')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+        </View>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -11,6 +11,7 @@ router.get('/:id', authenticateToken, usersController.getUserById);
 router.post('/', authenticateToken, usersController.createUser);
 router.put('/:id', authenticateToken, usersController.updateUser);
 router.delete('/:id', authenticateToken, usersController.deleteUser);
+router.post('/:id/reset-password', authenticateToken, usersController.resetPassword);
 router.post('/avatar', authenticateToken, upload.single('avatar'), usersController.uploadAvatar);
 
 module.exports = router;

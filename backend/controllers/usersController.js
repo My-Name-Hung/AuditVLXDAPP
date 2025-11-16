@@ -137,6 +137,43 @@ const updateUser = async (req, res) => {
   }
 };
 
+const resetPassword = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bcrypt = require("bcryptjs");
+    const { getPool, sql } = require("../config/database");
+
+    // Default password is "123456"
+    const defaultPassword = "123456";
+    const hashedPassword = await bcrypt.hash(defaultPassword, 10);
+
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("Id", sql.Int, id);
+    request.input("Password", sql.NVarChar(255), hashedPassword);
+
+    const result = await request.query(`
+      UPDATE Users 
+      SET Password = @Password, IsChangePassword = 1, UpdatedAt = GETDATE()
+      OUTPUT INSERTED.*
+      WHERE Id = @Id
+    `);
+
+    if (result.recordset.length === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    const { Password, ...userWithoutPassword } = result.recordset[0];
+    res.json({
+      message: "Password reset successfully",
+      user: userWithoutPassword,
+    });
+  } catch (error) {
+    console.error("Reset password error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const uploadAvatar = async (req, res) => {
   try {
     if (!req.file) {
@@ -234,5 +271,6 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  resetPassword,
   uploadAvatar,
 };

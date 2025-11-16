@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { HiPencil, HiTrash } from "react-icons/hi";
-import { HiArrowDownTray, HiPlus } from "react-icons/hi2";
+import { HiArrowDownTray, HiPlus, HiArrowPath } from "react-icons/hi2";
 import { useLocation, useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
@@ -57,6 +57,9 @@ export default function Users() {
     message: "",
     auditCount: 0,
   });
+  const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
+  const [userToResetPassword, setUserToResetPassword] = useState<User | null>(null);
+  const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSearchFilterRef = useRef<string>("");
@@ -245,6 +248,40 @@ export default function Users() {
 
   const handleEditUser = (userId: number) => {
     navigate(`/users/${userId}/edit`);
+  };
+
+  const handleResetPassword = (user: User) => {
+    setUserToResetPassword(user);
+    setResetPasswordModalOpen(true);
+  };
+
+  const confirmResetPassword = async () => {
+    if (!userToResetPassword) return;
+
+    try {
+      setResetPasswordLoading(true);
+      await api.post(`/users/${userToResetPassword.Id}/reset-password`);
+
+      setResetPasswordLoading(false);
+      setResetPasswordModalOpen(false);
+      setUserToResetPassword(null);
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: `Đã reset mật khẩu của nhân viên "${userToResetPassword.FullName}" về mặc định (123456).`,
+      });
+    } catch (error: unknown) {
+      console.error("Error resetting password:", error);
+      setResetPasswordLoading(false);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi reset mật khẩu.";
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: errorMessage,
+      });
+    }
   };
 
   const getRoleLabel = (role: string) => {
@@ -508,6 +545,13 @@ export default function Users() {
                         <HiPencil />
                       </button>
                       <button
+                        className="btn-reset"
+                        onClick={() => handleResetPassword(user)}
+                        title="Reset mật khẩu"
+                      >
+                        <HiArrowPath />
+                      </button>
+                      <button
                         className="btn-delete"
                         onClick={() => handleDeleteUser(user)}
                         title="Xóa"
@@ -599,6 +643,40 @@ export default function Users() {
               </button>
               <button className="btn-confirm" onClick={confirmDeleteUser}>
                 Xóa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Confirmation Modal */}
+      {resetPasswordModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Xác nhận reset mật khẩu</h3>
+            <p>
+              Bạn có chắc muốn reset mật khẩu của nhân viên "{userToResetPassword?.FullName}" về mặc định (123456)?
+            </p>
+            <p style={{ color: "#666", fontSize: "14px", marginTop: "8px" }}>
+              Nhân viên sẽ phải đổi mật khẩu khi đăng nhập lần tiếp theo.
+            </p>
+            <div className="modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setResetPasswordModalOpen(false);
+                  setUserToResetPassword(null);
+                }}
+                disabled={resetPasswordLoading}
+              >
+                Hủy
+              </button>
+              <button
+                className="btn-confirm"
+                onClick={confirmResetPassword}
+                disabled={resetPasswordLoading}
+              >
+                {resetPasswordLoading ? "Đang xử lý..." : "Xác nhận"}
               </button>
             </div>
           </div>

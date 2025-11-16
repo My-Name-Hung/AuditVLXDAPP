@@ -161,6 +161,7 @@
 }
 
 .btn-edit,
+.btn-reset,
 .btn-delete {
   padding: 0.5rem;
   border: none;
@@ -180,6 +181,15 @@
 }
 
 .btn-edit:hover {
+  background: #e0a800;
+}
+
+.btn-reset {
+  background: #ffc107;
+  color: #333;
+}
+
+.btn-reset:hover {
   background: #e0a800;
 }
 
