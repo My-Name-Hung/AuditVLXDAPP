@@ -66,7 +66,7 @@ export default function Login() {
       const apiError = err as { response?: { data?: { error?: string } } };
       setError(
         apiError.response?.data?.error ||
-          "Không thể đăng nhập. Vui lòng kiểm tra lại thông tin."
+          "Tài khoản hoặc mật khẩu không đúng hãy thử lại."
       );
     } finally {
       setLoading(false);

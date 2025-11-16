@@ -38,6 +38,18 @@
             "backgroundColor": "#fefefe"
           }
         }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Ứng dụng cần quyền truy cập camera để chụp ảnh audit cửa hàng."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Ứng dụng cần quyền truy cập vị trí để ghi nhận thông tin địa điểm audit."
+        }
       ]
     ],
     "experiments": {

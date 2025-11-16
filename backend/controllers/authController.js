@@ -13,12 +13,12 @@ const login = async (req, res) => {
     // Allow login by Username or UserCode
     const user = await User.findByUsernameOrUserCode(username);
     if (!user) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Tài khoản hoặc mật khẩu không đúng hãy thử lại.' });
     }
 
     const isValidPassword = await bcrypt.compare(password, user.Password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Invalid credentials' });
+      return res.status(401).json({ error: 'Tài khoản hoặc mật khẩu không đúng hãy thử lại.' });
     }
 
     const token = jwt.sign(

@@ -8,8 +8,8 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import * as Camera from 'expo-camera';
-import * as Location from 'expo-location';
+import { useCameraPermissions } from 'expo-camera';
+import { useForegroundPermissions } from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PERMISSIONS_ASKED_KEY = 'permissions_asked';
@@ -20,36 +20,29 @@ interface PermissionModalProps {
 }
 
 export default function PermissionModal({ visible, onComplete }: PermissionModalProps) {
-  const [cameraPermission, setCameraPermission] = useState<boolean | null>(null);
-  const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+  const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+  const [locationPermission, requestLocationPermission] = useForegroundPermissions();
 
   useEffect(() => {
     if (visible) {
       checkPermissions();
     }
-  }, [visible]);
+  }, [visible, cameraPermission, locationPermission]);
 
   const checkPermissions = async () => {
-    const cameraStatus = await Camera.getCameraPermissionsAsync();
-    const locationStatus = await Location.getForegroundPermissionsAsync();
-
-    setCameraPermission(cameraStatus.granted);
-    setLocationPermission(locationStatus.granted);
-
     // If both granted, mark as asked and complete
-    if (cameraStatus.granted && locationStatus.granted) {
+    if (cameraPermission?.granted && locationPermission?.granted) {
       await AsyncStorage.setItem(PERMISSIONS_ASKED_KEY, 'true');
       onComplete();
     }
   };
 
-  const requestCameraPermission = async () => {
+  const handleRequestCameraPermission = async () => {
     try {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setCameraPermission(status === 'granted');
+      const result = await requestCameraPermission();
       
-      if (status === 'granted') {
-        if (locationPermission) {
+      if (result.granted) {
+        if (locationPermission?.granted) {
           await AsyncStorage.setItem(PERMISSIONS_ASKED_KEY, 'true');
           onComplete();
         }
@@ -65,13 +58,12 @@ export default function PermissionModal({ visible, onComplete }: PermissionModal
     }
   };
 
-  const requestLocationPermission = async () => {
+  const handleRequestLocationPermission = async () => {
     try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setLocationPermission(status === 'granted');
+      const result = await requestLocationPermission();
       
-      if (status === 'granted') {
-        if (cameraPermission) {
+      if (result.granted) {
+        if (cameraPermission?.granted) {
           await AsyncStorage.setItem(PERMISSIONS_ASKED_KEY, 'true');
           onComplete();
         }
@@ -88,8 +80,8 @@ export default function PermissionModal({ visible, onComplete }: PermissionModal
   };
 
   const handleRequestPermissions = async () => {
-    await requestCameraPermission();
-    await requestLocationPermission();
+    await handleRequestCameraPermission();
+    await handleRequestLocationPermission();
   };
 
   return (
@@ -115,18 +107,18 @@ export default function PermissionModal({ visible, onComplete }: PermissionModal
               <Text style={styles.statusLabel}>Camera:</Text>
               <Text style={[
                 styles.statusValue,
-                cameraPermission ? styles.granted : styles.denied
+                cameraPermission?.granted ? styles.granted : styles.denied
               ]}>
-                {cameraPermission ? 'Đã cấp' : 'Chưa cấp'}
+                {cameraPermission?.granted ? 'Đã cấp' : 'Chưa cấp'}
               </Text>
             </View>
             <View style={styles.statusRow}>
               <Text style={styles.statusLabel}>Vị trí:</Text>
               <Text style={[
                 styles.statusValue,
-                locationPermission ? styles.granted : styles.denied
+                locationPermission?.granted ? styles.granted : styles.denied
               ]}>
-                {locationPermission ? 'Đã cấp' : 'Chưa cấp'}
+                {locationPermission?.granted ? 'Đã cấp' : 'Chưa cấp'}
               </Text>
             </View>
           </View>

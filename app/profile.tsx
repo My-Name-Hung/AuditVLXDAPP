@@ -18,7 +18,7 @@ import { useAuth } from '@/src/contexts/AuthContext';
 import { useColorScheme } from '@/src/hooks/use-color-scheme';
 import { Colors } from '@/src/constants/theme';
 import api from '@/src/services/api';
-import Header from '@/src/components/Header';
+import BackHeader from '@/src/components/BackHeader';
 
 export default function ProfileScreen() {
   const router = useRouter();
@@ -112,7 +112,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <Header />
+      <BackHeader title="Thông tin tài khoản" />
       <ScrollView style={styles.scrollView}>
         {/* Profile Header Section */}
         <View style={styles.profileHeader}>

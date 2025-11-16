@@ -14,9 +14,8 @@ import {
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import * as Camera from 'expo-camera';
-import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
+import * as Location from 'expo-location';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/src/constants/theme';
 import { useColorScheme } from '@/src/hooks/use-color-scheme';
@@ -156,7 +155,8 @@ export default function StoreDetailScreen() {
   };
 
   const requestCameraPermission = async () => {
-    const { status } = await Camera.requestCameraPermissionsAsync();
+    // Request camera permission through ImagePicker (which handles camera permissions)
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Quyền truy cập', 'Cần quyền truy cập camera để chụp ảnh');
       return false;

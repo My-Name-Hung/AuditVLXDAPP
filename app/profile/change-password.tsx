@@ -12,7 +12,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import api from '@/src/services/api';
 import { Colors } from '@/src/constants/theme';
-import Header from '@/src/components/Header';
+import BackHeader from '@/src/components/BackHeader';
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
@@ -59,7 +59,7 @@ export default function ChangePasswordScreen() {
 
   return (
     <View style={styles.container}>
-      <Header title="Thay đổi mật khẩu" />
+      <BackHeader title="Thay đổi mật khẩu" />
       <View style={styles.form}>
         <View style={styles.inputContainer}>
           <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />

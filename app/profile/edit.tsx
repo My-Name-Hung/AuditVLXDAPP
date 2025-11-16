@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/src/constants/theme';
 import api from '@/src/services/api';
-import Header from '@/src/components/Header';
+import BackHeader from '@/src/components/BackHeader';
 
 export default function EditProfileScreen() {
   const router = useRouter();
@@ -58,7 +58,7 @@ export default function EditProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <Header title="Cập nhật thông tin" />
+      <BackHeader title="Cập nhật thông tin" />
       <View style={styles.form}>
         <View style={styles.inputContainer}>
           <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />

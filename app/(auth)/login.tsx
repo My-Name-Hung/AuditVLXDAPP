@@ -74,7 +74,8 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Đăng nhập thất bại', error.message || 'Vui lòng kiểm tra lại thông tin đăng nhập');
+      const errorMessage = error.response?.data?.error || error.message || 'Tài khoản hoặc mật khẩu không đúng hãy thử lại.';
+      Alert.alert('Đăng nhập thất bại', errorMessage);
     }
   };
 
