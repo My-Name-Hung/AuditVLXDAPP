@@ -111,7 +111,7 @@ export default function Dashboard() {
 
       const res = await api.get("/dashboard/summary", {
         params,
-        timeout: 35000, // 35 seconds timeout
+        timeout: 65000, // 65 seconds timeout
       });
 
       if (res.data && res.data.success !== false) {

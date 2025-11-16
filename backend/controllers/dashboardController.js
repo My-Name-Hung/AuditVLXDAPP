@@ -7,22 +7,17 @@ async function getSummary(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
-    // Optimized query - use EXISTS instead of INNER JOIN for Images to improve performance
+    // Optimized query - use CTE to improve performance
     let query = `
-      SELECT 
-        s.UserId as UserId,
-        u.FullName,
-        s.TerritoryId,
-        t.TerritoryName,
-        COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as TotalCheckinDays,
-        COUNT(DISTINCT a.StoreId) as TotalStoresChecked
-      FROM Stores s
-      INNER JOIN Users u ON s.UserId = u.Id
-      INNER JOIN Audits a ON s.Id = a.StoreId
-      INNER JOIN Territories t ON s.TerritoryId = t.Id
-      WHERE u.Role = 'sales'
-        AND s.UserId IS NOT NULL
-        AND EXISTS (
+      WITH AuditsWithImages AS (
+        SELECT DISTINCT
+          a.UserId,
+          a.StoreId,
+          CAST(a.AuditDate AS DATE) as AuditDate,
+          s.TerritoryId
+        FROM Audits a
+        INNER JOIN Stores s ON a.StoreId = s.Id
+        WHERE EXISTS (
           SELECT 1 
           FROM Images img 
           WHERE img.AuditId = a.Id 
@@ -31,28 +26,7 @@ async function getSummary(req, res) {
         )
     `;
 
-    // Filter by territories (now from Stores)
-    if (territoryIds) {
-      const territoryArray = Array.isArray(territoryIds)
-        ? territoryIds
-        : territoryIds
-            .split(",")
-            .map((id) => parseInt(id.trim()))
-            .filter((id) => !isNaN(id));
-
-      if (territoryArray.length > 0) {
-        query += " AND s.TerritoryId IN (";
-        territoryArray.forEach((id, index) => {
-          const paramName = `territory${index}`;
-          request.input(paramName, sql.Int, id);
-          query += `@${paramName}`;
-          if (index < territoryArray.length - 1) query += ",";
-        });
-        query += ")";
-      }
-    }
-
-    // Filter by date range
+    // Filter by date range in CTE
     if (startDate) {
       query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
       request.input("startDate", sql.Date, startDate);
@@ -64,13 +38,50 @@ async function getSummary(req, res) {
     }
 
     query += `
-      GROUP BY s.UserId, u.FullName, s.TerritoryId, t.TerritoryName
-      HAVING COUNT(DISTINCT CAST(a.AuditDate AS DATE)) > 0
+      )
+      SELECT 
+        a.UserId as UserId,
+        u.FullName,
+        a.TerritoryId,
+        t.TerritoryName,
+        COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
+        COUNT(DISTINCT a.StoreId) as TotalStoresChecked
+      FROM AuditsWithImages a
+      INNER JOIN Users u ON a.UserId = u.Id
+      INNER JOIN Territories t ON a.TerritoryId = t.Id
+      WHERE u.Role = 'sales'
+        AND a.UserId IS NOT NULL
+    `;
+
+    // Filter by territories
+    if (territoryIds) {
+      const territoryArray = Array.isArray(territoryIds)
+        ? territoryIds
+        : territoryIds
+            .split(",")
+            .map((id) => parseInt(id.trim()))
+            .filter((id) => !isNaN(id));
+
+      if (territoryArray.length > 0) {
+        query += " AND a.TerritoryId IN (";
+        territoryArray.forEach((id, index) => {
+          const paramName = `territory${index}`;
+          request.input(paramName, sql.Int, id);
+          query += `@${paramName}`;
+          if (index < territoryArray.length - 1) query += ",";
+        });
+        query += ")";
+      }
+    }
+
+    query += `
+      GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
+      HAVING COUNT(DISTINCT a.AuditDate) > 0
       ORDER BY u.FullName ASC
     `;
 
-    // Set timeout to 30 seconds for dashboard query
-    request.timeout = 30000;
+    // Set timeout to 60 seconds for dashboard query
+    request.timeout = 60000;
     const result = await request.query(query);
 
     res.json({
@@ -121,17 +132,17 @@ async function getUserDetail(req, res) {
         AND img.ImageUrl != ''
     `;
 
-    if (startDate) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-      console.log("Added startDate filter:", startDate);
-    }
+      if (startDate) {
+        query += " AND a.AuditDate >= @startDate";
+        request.input("startDate", sql.Date, startDate);
+        console.log("Added startDate filter:", startDate);
+      }
 
-    if (endDate) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-      console.log("Added endDate filter:", endDate);
-    }
+      if (endDate) {
+        query += " AND a.AuditDate <= @endDate";
+        request.input("endDate", sql.Date, endDate);
+        console.log("Added endDate filter:", endDate);
+      }
 
     // Filter by store name
     if (storeName && storeName.trim() !== "") {
@@ -146,8 +157,8 @@ async function getUserDetail(req, res) {
       ORDER BY CheckinDate DESC, CheckinTime DESC
     `;
 
-    // Set timeout to 30 seconds
-    request.timeout = 30000;
+    // Set timeout to 60 seconds
+    request.timeout = 60000;
     const result = await request.query(query);
 
     res.json({
@@ -215,15 +226,15 @@ async function exportReport(req, res) {
       }
     }
 
-    if (startDate) {
-      summaryQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-    }
+      if (startDate) {
+        summaryQuery += " AND a.AuditDate >= @startDate";
+        request.input("startDate", sql.Date, startDate);
+      }
 
-    if (endDate) {
-      summaryQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-    }
+      if (endDate) {
+        summaryQuery += " AND a.AuditDate <= @endDate";
+        request.input("endDate", sql.Date, endDate);
+      }
 
     summaryQuery += `
       GROUP BY s.UserId, u.FullName, s.TerritoryId, t.TerritoryName
@@ -231,8 +242,8 @@ async function exportReport(req, res) {
       ORDER BY u.FullName ASC
     `;
 
-    // Set timeout to 30 seconds
-    request.timeout = 30000;
+    // Set timeout to 60 seconds
+    request.timeout = 60000;
     const summaryResult = await request.query(summaryQuery);
     const summaryData = summaryResult.recordset;
 
@@ -268,10 +279,10 @@ async function exportReport(req, res) {
       `;
 
       if (startDate) {
-        detailQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+        detailQuery += " AND a.AuditDate >= @startDate";
       }
       if (endDate) {
-        detailQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+        detailQuery += " AND a.AuditDate <= @endDate";
       }
 
       detailQuery += `

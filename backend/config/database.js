@@ -10,12 +10,15 @@ const config = {
     encrypt: process.env.DB_ENCRYPT === "true",
     trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === "true",
     enableArithAbort: true,
+    requestTimeout: 60000, // 60 seconds default timeout
   },
   pool: {
     max: 10,
     min: 0,
     idleTimeoutMillis: 30000,
   },
+  connectionTimeout: 30000, // 30 seconds connection timeout
+  requestTimeout: 60000, // 60 seconds request timeout
 };
 
 let pool = null;

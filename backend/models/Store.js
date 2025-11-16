@@ -179,6 +179,8 @@ class Store {
       request.input('Limit', sql.Int, filters.limit);
     }
 
+    // Set timeout to 60 seconds
+    request.timeout = 60000;
     const result = await request.query(query);
     return result.recordset;
   }
@@ -224,6 +226,8 @@ class Store {
       request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
     }
 
+    // Set timeout to 60 seconds
+    request.timeout = 60000;
     const result = await request.query(query);
     return result.recordset[0].Total;
   }

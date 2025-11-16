@@ -57,6 +57,9 @@ const getStoreById = async (req, res) => {
     const request = pool.request();
     request.input('StoreId', sql.Int, id);
 
+    // Set timeout to 60 seconds
+    request.timeout = 60000;
+    
     // Get audits with images for this store
     const auditsResult = await request.query(`
       SELECT 
