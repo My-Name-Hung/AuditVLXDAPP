@@ -27,12 +27,7 @@ const login = async (req, res) => {
         .json({ error: "Tài khoản hoặc mật khẩu không đúng hãy thử lại." });
     }
 
-    // Only allow login if user has changed password (IsChangePassword = false/0)
-    if (user.IsChangePassword === true || user.IsChangePassword === 1) {
-      return res
-        .status(403)
-        .json({ error: "Bạn phải thay đổi mật khẩu trước khi đăng nhập." });
-    }
+    // Allow login even if IsChangePassword is true - frontend will handle navigation
 
     const token = jwt.sign(
       { id: user.Id, username: user.Username, role: user.Role },

@@ -1,7 +1,8 @@
+import BackHeader from "@/src/components/BackHeader";
 import { Colors } from "@/src/constants/theme";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import { useNavigation, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -12,29 +13,12 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
-  const navigation = useNavigation();
   // Always use light theme
   const colors = Colors.light;
 
-  // Prevent going back - user must change password
-  React.useEffect(() => {
-    const unsubscribe = navigation.addListener("beforeRemove", (e) => {
-      // Prevent default behavior of leaving the screen
-      e.preventDefault();
-      // Show alert to inform user they must change password
-      Alert.alert(
-        "Thông báo",
-        "Bạn phải thay đổi mật khẩu trước khi tiếp tục.",
-        [{ text: "OK" }]
-      );
-    });
-
-    return unsubscribe;
-  }, [navigation]);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -96,26 +80,7 @@ export default function ChangePasswordScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <SafeAreaView
-        edges={["top"]}
-        style={{ backgroundColor: colors.background }}
-      >
-        <View
-          style={[
-            styles.header,
-            {
-              backgroundColor: colors.background,
-              borderBottomColor: colors.icon + "20",
-            },
-          ]}
-        >
-          <View style={styles.backButtonPlaceholder} />
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            Thay đổi mật khẩu
-          </Text>
-          <View style={styles.backButtonPlaceholder} />
-        </View>
-      </SafeAreaView>
+      <BackHeader title="Thay đổi mật khẩu" />
       <View style={styles.content}>
         <Text style={[styles.subtitle, { color: colors.icon }]}>
           Vui lòng nhập mật khẩu mới
@@ -226,24 +191,6 @@ export default function ChangePasswordScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-  },
-  backButtonPlaceholder: {
-    width: 40,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    flex: 1,
-    textAlign: "center",
-    marginHorizontal: 16,
   },
   content: {
     flex: 1,

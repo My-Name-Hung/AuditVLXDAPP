@@ -58,20 +58,10 @@ export default function LoginScreen() {
       }
 
       // Check if user needs to change password - if true, redirect to change password screen
-      // Backend now blocks login if IsChangePassword is true, so this should not happen
-      // But keep this check as a safety measure
       if (response.user.isChangePassword) {
         setLoading(false);
-        Alert.alert(
-          'Thông báo',
-          'Bạn phải thay đổi mật khẩu trước khi đăng nhập.',
-          [
-            {
-              text: 'OK',
-              onPress: () => router.replace('/(auth)/change-password'),
-            },
-          ]
-        );
+        // Auto navigate to change password screen
+        router.replace('/(auth)/change-password');
         return;
       }
 
