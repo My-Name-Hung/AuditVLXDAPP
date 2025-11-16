@@ -1,18 +1,18 @@
-import { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
 import {
-  Chart as ChartJS,
-  CategoryScale,
-  LinearScale,
   BarElement,
+  CategoryScale,
+  Chart as ChartJS,
+  Legend,
+  LinearScale,
   Title,
   Tooltip,
-  Legend,
 } from "chart.js";
+import { useEffect, useRef, useState } from "react";
 import { Bar } from "react-chartjs-2";
-import api from "../services/api";
-import MultiSelect from "../components/MultiSelect";
+import { useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
+import MultiSelect from "../components/MultiSelect";
+import api from "../services/api";
 import "./Dashboard.css";
 
 ChartJS.register(
@@ -50,7 +50,10 @@ export default function Dashboard() {
     new Date().toISOString().split("T")[0]
   );
   const [selectedMonth, setSelectedMonth] = useState<string>(
-    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`
+    `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(
+      2,
+      "0"
+    )}`
   );
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -87,7 +90,7 @@ export default function Dashboard() {
       } else {
         setLoading(true);
       }
-      
+
       const params: any = {};
 
       if (selectedTerritories.length > 0) {
@@ -106,11 +109,11 @@ export default function Dashboard() {
         params.endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
       }
 
-      const res = await api.get("/dashboard/summary", { 
+      const res = await api.get("/dashboard/summary", {
         params,
         timeout: 35000, // 35 seconds timeout
       });
-      
+
       if (res.data && res.data.success !== false) {
         setSummaryData(res.data.data || []);
       } else {
@@ -120,8 +123,13 @@ export default function Dashboard() {
     } catch (error: unknown) {
       console.error("Error fetching summary:", error);
       setSummaryData([]);
-      const errorMessage = (error as { message?: string })?.message || "Lỗi khi tải dữ liệu dashboard";
-      if (errorMessage.includes("timeout") || errorMessage.includes("ETIMEOUT")) {
+      const errorMessage =
+        (error as { message?: string })?.message ||
+        "Lỗi khi tải dữ liệu dashboard";
+      if (
+        errorMessage.includes("timeout") ||
+        errorMessage.includes("ETIMEOUT")
+      ) {
         console.error("Dashboard query timeout - query may be too slow");
       }
     } finally {
@@ -161,7 +169,7 @@ export default function Dashboard() {
       setExportProgress(50);
       await generateExcel(res.data.data, setExportProgress);
       setExportProgress(100);
-      
+
       // Delay a bit to show 100% before closing
       setTimeout(() => {
         setExportLoading(false);
@@ -181,12 +189,12 @@ export default function Dashboard() {
   ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
-    
+
     if (progressCallback) progressCallback(60);
 
     // Sheet Tổng hợp
     const summarySheet = workbook.addWorksheet("Tổng hợp");
-    
+
     // Header style
     const headerStyle = {
       font: { bold: true, color: { argb: "FFFFFFFF" } },
@@ -211,12 +219,19 @@ export default function Dashboard() {
     summarySheet.getCell("A1").alignment = { horizontal: "center" };
 
     summarySheet.mergeCells("A2:E2");
-    summarySheet.getCell("A2").value = "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
+    summarySheet.getCell("A2").value =
+      "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
     summarySheet.getCell("A2").font = { bold: true, size: 12 };
     summarySheet.getCell("A2").alignment = { horizontal: "center" };
 
     // Headers
-    summarySheet.getRow(4).values = ["Stt", "Họ tên", "Địa bàn phụ trách", "Tổng số ngày checkin", "Tổng số cửa hàng checkin"];
+    summarySheet.getRow(4).values = [
+      "Stt",
+      "Họ tên",
+      "Địa bàn phụ trách",
+      "Tổng số ngày checkin",
+      "Tổng số cửa hàng checkin",
+    ];
     summarySheet.getRow(4).eachCell((cell) => {
       cell.style = headerStyle;
     });
@@ -269,28 +284,29 @@ export default function Dashboard() {
 
     // Detail sheets
     const totalUsers = data.summary.length;
-    
+
     // Count how many times each FullName appears
     const nameCountMap = new Map<string, number>();
     data.summary.forEach((user) => {
       const count = nameCountMap.get(user.FullName) || 0;
       nameCountMap.set(user.FullName, count + 1);
     });
-    
+
     for (let i = 0; i < data.summary.length; i++) {
       const user = data.summary[i];
       // If multiple users have the same FullName, include territory name
       // Otherwise, just use FullName
       const nameCount = nameCountMap.get(user.FullName) || 0;
-      const sheetName = nameCount > 1
-        ? `Chi tiết ${user.FullName} - ${user.TerritoryName}`
-        : `Chi tiết ${user.FullName}`;
-      
+      const sheetName =
+        nameCount > 1
+          ? `Chi tiết ${user.FullName} - ${user.TerritoryName}`
+          : `Chi tiết ${user.FullName}`;
+
       const detailSheet = workbook.addWorksheet(sheetName);
       // Use combination key: UserId-TerritoryId to get correct data
       const detailKey = `${user.UserId}-${user.TerritoryId}`;
       const userDetails = data.details[detailKey] || [];
-      
+
       // Update progress for each user sheet
       if (progressCallback) {
         const progress = 60 + Math.floor((i / totalUsers) * 30);
@@ -304,22 +320,34 @@ export default function Dashboard() {
       detailSheet.getCell("A1").alignment = { horizontal: "center" };
 
       detailSheet.mergeCells("A2:F2");
-      detailSheet.getCell("A2").value = "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
+      detailSheet.getCell("A2").value =
+        "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
       detailSheet.getCell("A2").font = { bold: true, size: 12 };
       detailSheet.getCell("A2").alignment = { horizontal: "center" };
 
       // Headers
-      detailSheet.getRow(4).values = ["Ngày", "STT", "NPP/Cửa hàng", "Địa chỉ cửa hàng", "Thời Gian Checkin", "Ghi chú"];
+      detailSheet.getRow(4).values = [
+        "Ngày",
+        "STT",
+        "NPP/Cửa hàng",
+        "Địa chỉ cửa hàng",
+        "Thời Gian Checkin",
+        "Ghi chú",
+      ];
       detailSheet.getRow(4).eachCell((cell) => {
         cell.style = headerStyle;
       });
 
       // Data
-      console.log(`Sheet: ${sheetName}, DetailKey: ${detailKey}, Details count: ${userDetails.length}`);
+      console.log(
+        `Sheet: ${sheetName}, DetailKey: ${detailKey}, Details count: ${userDetails.length}`
+      );
       userDetails.forEach((detail, index) => {
         const checkinDate = new Date(detail.CheckinDate);
-        const checkinTime = detail.CheckinTime ? new Date(detail.CheckinTime) : null;
-        
+        const checkinTime = detail.CheckinTime
+          ? new Date(detail.CheckinTime)
+          : null;
+
         detailSheet.addRow([
           checkinDate.toLocaleDateString("vi-VN"),
           index + 1,
@@ -343,17 +371,36 @@ export default function Dashboard() {
 
     // Download
     const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `BaoCaoCheckin_${new Date().toISOString().split("T")[0]}.xlsx`;
+    link.download = `BaoCaoCheckin_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
 
+  // Count how many times each FullName appears with different territories
+  const nameCountMap = new Map<string, number>();
+  summaryData.forEach((item) => {
+    const count = nameCountMap.get(item.FullName) || 0;
+    nameCountMap.set(item.FullName, count + 1);
+  });
+
+  // Generate labels: if user appears multiple times, show "FullName - TerritoryName", otherwise just "FullName"
+  const chartLabels = summaryData.map((item) => {
+    const nameCount = nameCountMap.get(item.FullName) || 0;
+    return nameCount > 1
+      ? `${item.FullName} - ${item.TerritoryName}`
+      : item.FullName;
+  });
+
   const chartData = {
-    labels: summaryData.map((item) => item.TerritoryName),
+    labels: chartLabels,
     datasets: [
       {
         label: "Số ngày checkin",
@@ -411,7 +458,10 @@ export default function Dashboard() {
         <div className="filter-group">
           <label>Địa bàn phụ trách</label>
           <MultiSelect
-            options={territories.map((t) => ({ id: t.Id, name: t.TerritoryName }))}
+            options={territories.map((t) => ({
+              id: t.Id,
+              name: t.TerritoryName,
+            }))}
             selected={selectedTerritories}
             onChange={setSelectedTerritories}
           />
@@ -472,7 +522,9 @@ export default function Dashboard() {
                     <td>
                       <button
                         className="user-name-link"
-                        onClick={() => navigate(`/dashboard/user/${item.UserId}`)}
+                        onClick={() =>
+                          navigate(`/dashboard/user/${item.UserId}`)
+                        }
                       >
                         {item.FullName}
                       </button>
@@ -483,15 +535,23 @@ export default function Dashboard() {
                   </tr>
                 ))}
                 <tr className="total-row">
-                  <td colSpan={3}><strong>TỔNG CỘNG</strong></td>
+                  <td colSpan={3}>
+                    <strong>TỔNG CỘNG</strong>
+                  </td>
                   <td>
                     <strong>
-                      {summaryData.reduce((sum, item) => sum + item.TotalCheckinDays, 0)}
+                      {summaryData.reduce(
+                        (sum, item) => sum + item.TotalCheckinDays,
+                        0
+                      )}
                     </strong>
                   </td>
                   <td>
                     <strong>
-                      {summaryData.reduce((sum, item) => sum + item.TotalStoresChecked, 0)}
+                      {summaryData.reduce(
+                        (sum, item) => sum + item.TotalStoresChecked,
+                        0
+                      )}
                     </strong>
                   </td>
                 </tr>

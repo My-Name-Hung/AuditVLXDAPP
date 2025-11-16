@@ -137,6 +137,50 @@ const updateUser = async (req, res) => {
   }
 };
 
+const uploadAvatar = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: "Avatar image is required" });
+    }
+
+    const userId = req.user.id;
+    const { uploadImageWithWatermark } = require("../services/cloudinaryService");
+
+    // Upload to Cloudinary (without watermark for avatar)
+    const cloudinary = require("cloudinary").v2;
+    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+
+    const uploadResult = await cloudinary.uploader.upload(base64Image, {
+      folder: "avatars",
+      resource_type: "image",
+      transformation: [
+        { width: 400, height: 400, crop: "fill", gravity: "face" },
+        { quality: "auto" },
+      ],
+    });
+
+    // Update user avatar in database
+    const { getPool, sql } = require("../config/database");
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("Id", sql.Int, userId);
+    request.input("Avatar", sql.NVarChar(500), uploadResult.secure_url);
+
+    const result = await request.query(`
+      UPDATE Users 
+      SET Avatar = @Avatar, UpdatedAt = GETDATE()
+      OUTPUT INSERTED.*
+      WHERE Id = @Id
+    `);
+
+    const { Password, ...userWithoutPassword } = result.recordset[0];
+    res.json({ avatar: uploadResult.secure_url, user: userWithoutPassword });
+  } catch (error) {
+    console.error("Upload avatar error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
@@ -190,4 +234,5 @@ module.exports = {
   createUser,
   updateUser,
   deleteUser,
+  uploadAvatar,
 };

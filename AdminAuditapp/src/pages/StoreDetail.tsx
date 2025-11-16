@@ -147,8 +147,8 @@ export default function StoreDetail() {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      not_audited: "Chưa audit",
-      audited: "Đã audit",
+      not_audited: "Chưa thực hiện",
+      audited: "Đã thực hiện",
       passed: "Đạt",
       failed: "Không đạt",
     };
