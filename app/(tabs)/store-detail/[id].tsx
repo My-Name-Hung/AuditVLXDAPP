@@ -18,7 +18,6 @@ import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { Colors } from '@/src/constants/theme';
-import { useColorScheme } from '@/src/hooks/use-color-scheme';
 import api from '@/src/services/api';
 
 interface Store {
@@ -84,8 +83,8 @@ export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  // Always use light theme
+  const colors = Colors.light;
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);

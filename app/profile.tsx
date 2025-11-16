@@ -15,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { useColorScheme } from '@/src/hooks/use-color-scheme';
 import { Colors } from '@/src/constants/theme';
 import api from '@/src/services/api';
 import BackHeader from '@/src/components/BackHeader';
@@ -23,9 +22,10 @@ import BackHeader from '@/src/components/BackHeader';
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, updateUser } = useAuth();
-  const colorScheme = useColorScheme();
+  // Always use light theme
+  const colors = Colors.light;
   const [uploading, setUploading] = useState(false);
-  const [darkMode, setDarkMode] = useState(colorScheme === 'dark');
+  const [darkMode, setDarkMode] = useState(false); // Always false for light theme
 
   const handleUploadAvatar = async () => {
     try {

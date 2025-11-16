@@ -1,9 +1,8 @@
 import BackHeader from "@/src/components/BackHeader";
 import { Colors } from "@/src/constants/theme";
-import { useColorScheme } from "@/src/hooks/use-color-scheme";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -17,8 +16,9 @@ import {
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? "light"];
+  const navigation = useNavigation();
+  // Always use light theme
+  const colors = Colors.light;
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -53,7 +53,14 @@ export default function ChangePasswordScreen() {
       Alert.alert("Thành công", "Đổi mật khẩu thành công", [
         {
           text: "OK",
-          onPress: () => router.replace("/(tabs)/stores"),
+          onPress: () => {
+            // Navigate back or to stores if can't go back
+            if (navigation.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)/stores");
+            }
+          },
         },
       ]);
     } catch (error: any) {

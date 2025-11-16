@@ -3,7 +3,6 @@ import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { useColorScheme } from '@/src/hooks/use-color-scheme';
 import { Colors } from '@/src/constants/theme';
 
 interface HeaderProps {
@@ -12,8 +11,8 @@ interface HeaderProps {
 
 export default function Header({ title }: HeaderProps) {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? 'light'];
+  // Always use light theme
+  const colors = Colors.light;
 
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>

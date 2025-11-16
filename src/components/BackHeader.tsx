@@ -1,7 +1,6 @@
 import { Colors } from "@/src/constants/theme";
-import { useColorScheme } from "@/src/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useNavigation, useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,12 +8,29 @@ import { SafeAreaView } from "react-native-safe-area-context";
 interface BackHeaderProps {
   title?: string;
   rightComponent?: React.ReactNode;
+  fallbackRoute?: string; // Route to navigate if can't go back
 }
 
-export default function BackHeader({ title, rightComponent }: BackHeaderProps) {
+export default function BackHeader({
+  title,
+  rightComponent,
+  fallbackRoute,
+}: BackHeaderProps) {
   const router = useRouter();
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? "light"];
+  const navigation = useNavigation();
+  // Always use light theme
+  const colors = Colors.light;
+
+  const handleBack = () => {
+    if (navigation.canGoBack()) {
+      router.back();
+    } else if (fallbackRoute) {
+      router.replace(fallbackRoute as any);
+    } else {
+      // Default fallback to stores
+      router.replace("/(tabs)/stores");
+    }
+  };
 
   return (
     <SafeAreaView
@@ -30,10 +46,7 @@ export default function BackHeader({ title, rightComponent }: BackHeaderProps) {
           },
         ]}
       >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
 

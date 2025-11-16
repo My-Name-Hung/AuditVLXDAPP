@@ -7,7 +7,7 @@ const login = async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required' });
+      return res.status(400).json({ error: 'Tên đăng nhập và mật khẩu là bắt buộc' });
     }
 
     // Allow login by Username or UserCode
@@ -41,7 +41,7 @@ const login = async (req, res) => {
     });
   } catch (error) {
     console.error('Login error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Lỗi máy chủ. Vui lòng thử lại sau.' });
   }
 };
 
@@ -50,13 +50,13 @@ const register = async (req, res) => {
     const { username, password, fullName, email, phone, role } = req.body;
 
     if (!username || !password || !fullName) {
-      return res.status(400).json({ error: 'Username, password, and fullName are required' });
+      return res.status(400).json({ error: 'Tên đăng nhập, mật khẩu và họ tên là bắt buộc' });
     }
 
     // Check if user exists
     const existingUser = await User.findByUsername(username);
     if (existingUser) {
-      return res.status(400).json({ error: 'Username already exists' });
+      return res.status(400).json({ error: 'Tên đăng nhập đã tồn tại' });
     }
 
     // Hash password
@@ -91,7 +91,7 @@ const register = async (req, res) => {
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Lỗi máy chủ. Vui lòng thử lại sau.' });
   }
 };
 
@@ -100,14 +100,14 @@ const refreshToken = async (req, res) => {
     const { token } = req.body;
 
     if (!token) {
-      return res.status(400).json({ error: 'Token is required' });
+      return res.status(400).json({ error: 'Token là bắt buộc' });
     }
 
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id);
 
     if (!user) {
-      return res.status(401).json({ error: 'User not found' });
+      return res.status(401).json({ error: 'Không tìm thấy người dùng' });
     }
 
     const newToken = jwt.sign(
@@ -119,7 +119,7 @@ const refreshToken = async (req, res) => {
     res.json({ token: newToken });
   } catch (error) {
     console.error('Refresh token error:', error);
-    res.status(401).json({ error: 'Invalid token' });
+    res.status(401).json({ error: 'Token không hợp lệ' });
   }
 };
 
@@ -129,18 +129,18 @@ const changePassword = async (req, res) => {
     const userId = req.user.id;
 
     if (!currentPassword || !newPassword) {
-      return res.status(400).json({ error: 'Current password and new password are required' });
+      return res.status(400).json({ error: 'Mật khẩu hiện tại và mật khẩu mới là bắt buộc' });
     }
 
     const user = await User.findById(userId);
     if (!user) {
-      return res.status(404).json({ error: 'User not found' });
+      return res.status(404).json({ error: 'Không tìm thấy người dùng' });
     }
 
     // Verify current password
     const isValidPassword = await bcrypt.compare(currentPassword, user.Password);
     if (!isValidPassword) {
-      return res.status(401).json({ error: 'Current password is incorrect' });
+      return res.status(401).json({ error: 'Mật khẩu hiện tại không đúng' });
     }
 
     // Hash new password
@@ -149,10 +149,10 @@ const changePassword = async (req, res) => {
     // Update password
     await User.updatePassword(userId, hashedNewPassword);
 
-    res.json({ message: 'Password changed successfully' });
+    res.json({ message: 'Đổi mật khẩu thành công' });
   } catch (error) {
     console.error('Change password error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    res.status(500).json({ error: 'Lỗi máy chủ. Vui lòng thử lại sau.' });
   }
 };
 
