@@ -1,9 +1,9 @@
-import { Colors } from "@/src/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useNavigation, useRouter } from "expo-router";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useTheme } from "@/src/contexts/ThemeContext";
 
 interface BackHeaderProps {
   title?: string;
@@ -18,8 +18,7 @@ export default function BackHeader({
 }: BackHeaderProps) {
   const router = useRouter();
   const navigation = useNavigation();
-  // Always use light theme
-  const colors = Colors.light;
+  const { colors } = useTheme();
 
   const handleBack = () => {
     if (navigation.canGoBack()) {

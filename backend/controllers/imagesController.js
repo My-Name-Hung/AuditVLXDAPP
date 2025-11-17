@@ -14,9 +14,10 @@ const uploadImage = async (req, res) => {
     }
 
     // Upload to Cloudinary with watermark
+    // Convert latitude and longitude to numbers (they come as strings from FormData)
     const metadata = {
-      latitude: latitude || null,
-      longitude: longitude || null,
+      latitude: latitude ? parseFloat(latitude) : null,
+      longitude: longitude ? parseFloat(longitude) : null,
       timestamp: new Date().toISOString(),
     };
 
@@ -27,8 +28,8 @@ const uploadImage = async (req, res) => {
       AuditId: auditId,
       ImageUrl: uploadResult.secure_url,
       ReferenceImageUrl: referenceImageUrl || null,
-      Latitude: latitude || null,
-      Longitude: longitude || null,
+      Latitude: latitude ? parseFloat(latitude) : null,
+      Longitude: longitude ? parseFloat(longitude) : null,
       CapturedAt: new Date(),
     });
 

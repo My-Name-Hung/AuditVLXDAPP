@@ -26,12 +26,11 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
   const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 
   // Create watermark text: Use compact format to prevent overlap
-  const latValue =
-    latitude !== null && latitude !== undefined ? latitude.toFixed(6) : "N/A";
-  const lonValue =
-    longitude !== null && longitude !== undefined
-      ? longitude.toFixed(6)
-      : "N/A";
+  // Ensure latitude and longitude are numbers before calling toFixed
+  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
+  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
+  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
   // Format: Compact single line with shorter labels
   // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
   const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}`;
@@ -97,12 +96,11 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
   const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 
   // Create watermark text: Use compact format to prevent overlap
-  const latValue =
-    latitude !== null && latitude !== undefined ? latitude.toFixed(6) : "N/A";
-  const lonValue =
-    longitude !== null && longitude !== undefined
-      ? longitude.toFixed(6)
-      : "N/A";
+  // Ensure latitude and longitude are numbers before calling toFixed
+  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
+  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
+  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
   // Format: Compact single line with shorter labels
   // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
   const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;

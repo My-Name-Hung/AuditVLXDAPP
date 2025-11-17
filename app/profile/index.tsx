@@ -1,12 +1,11 @@
 import BackHeader from "@/src/components/BackHeader";
-import { Colors } from "@/src/constants/theme";
 import { useAuth } from "@/src/contexts/AuthContext";
+import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import { useRouter } from "expo-router";
-import React, { useState, useEffect } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter, useFocusEffect } from "expo-router";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -19,28 +18,19 @@ import {
   View,
 } from "react-native";
 
-const DARK_MODE_KEY = 'dark_mode_enabled';
-
 export default function ProfileScreen() {
   const router = useRouter();
   const { user, logout, updateUser } = useAuth();
+  const { isDarkMode, toggleDarkMode, colors } = useTheme();
   const [uploading, setUploading] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
 
-  useEffect(() => {
-    loadDarkModePreference();
-  }, []);
-
-  const loadDarkModePreference = async () => {
-    try {
-      const saved = await AsyncStorage.getItem(DARK_MODE_KEY);
-      if (saved === 'true') {
-        setDarkMode(true);
-      }
-    } catch (error) {
-      console.error('Error loading dark mode preference:', error);
-    }
-  };
+  // Reload user data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      // User data is already in context, but we can force a refresh if needed
+      // The context should already have the latest data after updateUser is called
+    }, [])
+  );
 
   const handleUploadAvatar = async () => {
     try {
@@ -114,33 +104,26 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const toggleDarkMode = async (value: boolean) => {
-    try {
-      setDarkMode(value);
-      await AsyncStorage.setItem(DARK_MODE_KEY, value ? 'true' : 'false');
-      // Theme will update automatically via _layout.tsx polling
-    } catch (error) {
-      console.error('Error saving dark mode preference:', error);
-    }
-  };
 
   if (!user) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
         <BackHeader title="Thông tin tài khoản" />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <BackHeader title="Thông tin tài khoản" />
       <ScrollView style={styles.scrollView}>
         {/* Profile Header Section */}
-        <View style={styles.profileHeader}>
+        <View
+          style={[styles.profileHeader, { backgroundColor: colors.primary }]}
+        >
           <View style={styles.avatarContainer}>
             {user.avatar ? (
               <Image source={{ uri: user.avatar }} style={styles.avatar} />
@@ -155,46 +138,93 @@ export default function ProfileScreen() {
               </View>
             )}
             <TouchableOpacity
-              style={styles.editAvatarButton}
+              style={[
+                styles.editAvatarButton,
+                { backgroundColor: colors.primary },
+              ]}
               onPress={handleUploadAvatar}
               disabled={uploading}
             >
               <Ionicons name="camera" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
-          <Text style={styles.fullName}>{user.fullName}</Text>
-          <Text style={styles.contactInfo}>
+          <Text style={[styles.fullName, { color: "#fefefe" }]}>
+            {user.fullName}
+          </Text>
+          <Text style={[styles.contactInfo, { color: "#fefefe" }]}>
             {user.phone || "Chưa có"} | {user.email || "Chưa có"}
           </Text>
         </View>
 
         {/* Features Section */}
-        <View style={styles.featuresSection}>
+        <View
+          style={[
+            styles.featuresSection,
+            { backgroundColor: colors.background },
+          ]}
+        >
           <TouchableOpacity
-            style={styles.featureItem}
+            style={[
+              styles.featureItem,
+              {
+                backgroundColor:
+                  colors.background === "#151718" ? "#1F1F1F" : "#fff",
+                borderColor: colors.icon + "40",
+              },
+            ]}
             onPress={() => router.push("/profile/edit")}
           >
-            <Ionicons name="person-outline" size={24} color="#333" />
-            <Text style={styles.featureText}>Cập nhật thông tin tài khoản</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons name="person-outline" size={24} color={colors.text} />
+            <Text style={[styles.featureText, { color: colors.text }]}>
+              Cập nhật thông tin tài khoản
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.icon} />
           </TouchableOpacity>
 
           <TouchableOpacity
-            style={styles.featureItem}
+            style={[
+              styles.featureItem,
+              {
+                backgroundColor:
+                  colors.background === "#151718" ? "#1F1F1F" : "#fff",
+                borderColor: colors.icon + "40",
+              },
+            ]}
             onPress={() => router.push("/profile/change-password")}
           >
-            <Ionicons name="lock-closed-outline" size={24} color="#333" />
-            <Text style={styles.featureText}>Thay đổi mật khẩu</Text>
-            <Ionicons name="chevron-forward" size={20} color="#999" />
+            <Ionicons
+              name="lock-closed-outline"
+              size={24}
+              color={colors.text}
+            />
+            <Text style={[styles.featureText, { color: colors.text }]}>
+              Thay đổi mật khẩu
+            </Text>
+            <Ionicons name="chevron-forward" size={20} color={colors.icon} />
           </TouchableOpacity>
 
-          <View style={styles.featureItem}>
-            <Ionicons name="color-palette-outline" size={24} color="#333" />
-            <Text style={styles.featureText}>Giao diện sáng tối</Text>
+          <View
+            style={[
+              styles.featureItem,
+              {
+                backgroundColor:
+                  colors.background === "#151718" ? "#1F1F1F" : "#fff",
+                borderColor: colors.icon + "40",
+              },
+            ]}
+          >
+            <Ionicons
+              name="color-palette-outline"
+              size={24}
+              color={colors.text}
+            />
+            <Text style={[styles.featureText, { color: colors.text }]}>
+              Giao diện sáng tối
+            </Text>
             <Switch
-              value={darkMode}
+              value={isDarkMode}
               onValueChange={toggleDarkMode}
-              trackColor={{ false: "#767577", true: Colors.light.primary }}
+              trackColor={{ false: "#767577", true: colors.primary }}
               thumbColor="#fff"
             />
           </View>
@@ -212,7 +242,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.secondary,
   },
   scrollView: {
     flex: 1,
@@ -223,7 +252,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   profileHeader: {
-    backgroundColor: Colors.light.primary,
     paddingTop: 40,
     paddingBottom: 32,
     paddingHorizontal: 24,
@@ -268,7 +296,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: Colors.light.primary,
     borderWidth: 3,
     borderColor: "#fff",
     justifyContent: "center",
@@ -277,33 +304,27 @@ const styles = StyleSheet.create({
   fullName: {
     fontSize: 24,
     fontWeight: "bold",
-    color: Colors.light.secondary,
     marginBottom: 8,
   },
   contactInfo: {
     fontSize: 14,
-    color: Colors.light.secondary,
     opacity: 0.9,
   },
   featuresSection: {
-    backgroundColor: Colors.light.secondary,
     marginTop: 16,
     paddingHorizontal: 16,
   },
   featureItem: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#fff",
     padding: 16,
     borderRadius: 8,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
   },
   featureText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
     marginLeft: 12,
   },
   logoutButton: {
@@ -319,3 +340,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+

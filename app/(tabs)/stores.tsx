@@ -1,5 +1,5 @@
 import Header from "@/src/components/Header";
-import { Colors } from "@/src/constants/theme";
+import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -76,6 +76,7 @@ const sortStoresByStatus = (stores: Store[]): Store[] => {
 
 export default function StoresScreen() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [stores, setStores] = useState<Store[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [loading, setLoading] = useState(true);
@@ -189,12 +190,17 @@ export default function StoresScreen() {
 
   const renderStoreItem = ({ item }: { item: Store }) => (
     <TouchableOpacity
-      style={styles.storeCard}
+      style={[
+        styles.storeCard,
+        { backgroundColor: colors.background, borderColor: colors.icon + "20" },
+      ]}
       onPress={() => router.push(`/(tabs)/store-detail/${item.Id}`)}
     >
       <View style={styles.storeCardHeader}>
         <View style={styles.storeCardTitleContainer}>
-          <Text style={styles.storeName}>{item.StoreName}</Text>
+          <Text style={[styles.storeName, { color: colors.text }]}>
+            {item.StoreName}
+          </Text>
           <View
             style={[
               styles.statusBadge,
@@ -204,12 +210,16 @@ export default function StoresScreen() {
             <Text style={styles.statusText}>{getStatusLabel(item.Status)}</Text>
           </View>
         </View>
-        <Ionicons name="chevron-forward" size={24} color="#999" />
+        <Ionicons name="chevron-forward" size={24} color={colors.icon} />
       </View>
 
-      <Text style={styles.storeCode}>{item.StoreCode}</Text>
-      <Text style={styles.storeAddress}>{item.Address}</Text>
-      <Text style={styles.storeContact}>
+      <Text style={[styles.storeCode, { color: colors.icon }]}>
+        {item.StoreCode}
+      </Text>
+      <Text style={[styles.storeAddress, { color: colors.icon }]}>
+        {item.Address}
+      </Text>
+      <Text style={[styles.storeContact, { color: colors.icon }]}>
         {item.PartnerName || "N/A"} | {item.Phone || "N/A"}
       </Text>
     </TouchableOpacity>
@@ -220,22 +230,41 @@ export default function StoresScreen() {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.secondary }]}>
       <Header />
 
       {/* Filters */}
-      <View style={styles.filtersContainer}>
+      <View
+        style={[
+          styles.filtersContainer,
+          {
+            backgroundColor: colors.background,
+            borderBottomColor: colors.icon + "20",
+          },
+        ]}
+      >
         <View style={styles.filterRow}>
-          <View style={styles.searchContainer}>
+          <View
+            style={[
+              styles.searchContainer,
+              {
+                backgroundColor:
+                  colors.background === "#fefefe"
+                    ? "#f5f5f5"
+                    : colors.secondary,
+              },
+            ]}
+          >
             <Ionicons
               name="search-outline"
               size={20}
-              color="#666"
+              color={colors.icon}
               style={styles.searchIcon}
             />
             <TextInput
-              style={styles.searchInput}
+              style={[styles.searchInput, { color: colors.text }]}
               placeholder="Mã/Tên cửa hàng"
+              placeholderTextColor={colors.icon}
               value={searchText}
               onChangeText={setSearchText}
             />
@@ -245,10 +274,18 @@ export default function StoresScreen() {
         <View style={styles.filterRow}>
           <View style={styles.dropdownContainer}>
             <TouchableOpacity
-              style={styles.dropdown}
+              style={[
+                styles.dropdown,
+                {
+                  backgroundColor:
+                    colors.background === "#fefefe"
+                      ? "#f5f5f5"
+                      : colors.secondary,
+                },
+              ]}
               onPress={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
             >
-              <Text style={styles.dropdownText}>
+              <Text style={[styles.dropdownText, { color: colors.text }]}>
                 {selectedTerritory
                   ? territories.find((t) => t.Id === selectedTerritory)
                       ?.TerritoryName
@@ -257,26 +294,50 @@ export default function StoresScreen() {
               <Ionicons
                 name={showTerritoryDropdown ? "chevron-up" : "chevron-down"}
                 size={20}
-                color="#666"
+                color={colors.icon}
               />
             </TouchableOpacity>
             {showTerritoryDropdown && (
-              <View style={styles.dropdownMenu}>
+              <View
+                style={[
+                  styles.dropdownMenu,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.icon + "20",
+                  },
+                ]}
+              >
                 <TextInput
-                  style={styles.dropdownSearch}
+                  style={[
+                    styles.dropdownSearch,
+                    {
+                      color: colors.text,
+                      borderBottomColor: colors.icon + "20",
+                    },
+                  ]}
                   placeholder="Tìm địa bàn..."
+                  placeholderTextColor={colors.icon}
                   value={territorySearch}
                   onChangeText={setTerritorySearch}
                 />
                 <TouchableOpacity
-                  style={styles.dropdownItem}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.secondary },
+                  ]}
                   onPress={() => {
                     setSelectedTerritory(null);
                     setShowTerritoryDropdown(false);
                     setTerritorySearch("");
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, styles.clearText]}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      styles.clearText,
+                      { color: colors.primary },
+                    ]}
+                  >
                     Tất cả
                   </Text>
                 </TouchableOpacity>
@@ -285,14 +346,22 @@ export default function StoresScreen() {
                   keyExtractor={(item) => item.Id.toString()}
                   renderItem={({ item }) => (
                     <TouchableOpacity
-                      style={styles.dropdownItem}
+                      style={[
+                        styles.dropdownItem,
+                        { borderBottomColor: colors.secondary },
+                      ]}
                       onPress={() => {
                         setSelectedTerritory(item.Id);
                         setShowTerritoryDropdown(false);
                         setTerritorySearch("");
                       }}
                     >
-                      <Text style={styles.dropdownItemText}>
+                      <Text
+                        style={[
+                          styles.dropdownItemText,
+                          { color: colors.text },
+                        ]}
+                      >
                         {item.TerritoryName}
                       </Text>
                     </TouchableOpacity>
@@ -305,66 +374,119 @@ export default function StoresScreen() {
 
           <View style={styles.dropdownContainer}>
             <TouchableOpacity
-              style={styles.dropdown}
+              style={[
+                styles.dropdown,
+                {
+                  backgroundColor:
+                    colors.background === "#fefefe"
+                      ? "#f5f5f5"
+                      : colors.secondary,
+                },
+              ]}
               onPress={() => setShowStatusDropdown(!showStatusDropdown)}
             >
-              <Text style={styles.dropdownText}>
+              <Text style={[styles.dropdownText, { color: colors.text }]}>
                 {selectedStatus ? getStatusLabel(selectedStatus) : "Trạng thái"}
               </Text>
               <Ionicons
                 name={showStatusDropdown ? "chevron-up" : "chevron-down"}
                 size={20}
-                color="#666"
+                color={colors.icon}
               />
             </TouchableOpacity>
             {showStatusDropdown && (
-              <View style={styles.dropdownMenu}>
+              <View
+                style={[
+                  styles.dropdownMenu,
+                  {
+                    backgroundColor: colors.background,
+                    borderColor: colors.icon + "20",
+                  },
+                ]}
+              >
                 <TouchableOpacity
-                  style={styles.dropdownItem}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.secondary },
+                  ]}
                   onPress={() => {
                     setSelectedStatus(null);
                     setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, styles.clearText]}>
+                  <Text
+                    style={[
+                      styles.dropdownItemText,
+                      styles.clearText,
+                      { color: colors.primary },
+                    ]}
+                  >
                     Tất cả
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.dropdownItem}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.secondary },
+                  ]}
                   onPress={() => {
                     setSelectedStatus("not_audited");
                     setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Chưa thực hiện</Text>
+                  <Text
+                    style={[styles.dropdownItemText, { color: colors.text }]}
+                  >
+                    Chưa thực hiện
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.dropdownItem}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.secondary },
+                  ]}
                   onPress={() => {
                     setSelectedStatus("audited");
                     setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Đã thực hiện</Text>
+                  <Text
+                    style={[styles.dropdownItemText, { color: colors.text }]}
+                  >
+                    Đã thực hiện
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.dropdownItem}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.secondary },
+                  ]}
                   onPress={() => {
                     setSelectedStatus("passed");
                     setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Đạt</Text>
+                  <Text
+                    style={[styles.dropdownItemText, { color: colors.text }]}
+                  >
+                    Đạt
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                  style={styles.dropdownItem}
+                  style={[
+                    styles.dropdownItem,
+                    { borderBottomColor: colors.secondary },
+                  ]}
                   onPress={() => {
                     setSelectedStatus("failed");
                     setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Không đạt</Text>
+                  <Text
+                    style={[styles.dropdownItemText, { color: colors.text }]}
+                  >
+                    Không đạt
+                  </Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -375,7 +497,7 @@ export default function StoresScreen() {
       {/* Store List */}
       {loading && stores.length === 0 ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <FlatList
@@ -391,13 +513,15 @@ export default function StoresScreen() {
           ListFooterComponent={
             loading && stores.length > 0 ? (
               <View style={styles.footerLoading}>
-                <ActivityIndicator size="small" color={Colors.light.primary} />
+                <ActivityIndicator size="small" color={colors.primary} />
               </View>
             ) : null
           }
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={styles.emptyText}>Không tìm thấy cửa hàng</Text>
+              <Text style={[styles.emptyText, { color: colors.icon }]}>
+                Không tìm thấy cửa hàng
+              </Text>
             </View>
           }
         />
@@ -409,13 +533,10 @@ export default function StoresScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.secondary,
   },
   filtersContainer: {
-    backgroundColor: "#fff",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
   },
   filterRow: {
     flexDirection: "row",
@@ -426,7 +547,6 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
@@ -437,7 +557,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: "#333",
   },
   dropdownContainer: {
     flex: 1,
@@ -447,24 +566,20 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
   },
   dropdownText: {
     fontSize: 14,
-    color: "#333",
   },
   dropdownMenu: {
     position: "absolute",
     top: 48,
     left: 0,
     right: 0,
-    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
     maxHeight: 300,
     zIndex: 1000,
     elevation: 5,
@@ -472,7 +587,6 @@ const styles = StyleSheet.create({
   dropdownSearch: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#e0e0e0",
     fontSize: 14,
   },
   dropdownList: {
@@ -481,26 +595,21 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#f5f5f5",
   },
   dropdownItemText: {
     fontSize: 14,
-    color: "#333",
   },
   clearText: {
-    color: Colors.light.primary,
     fontWeight: "500",
   },
   listContent: {
     padding: 16,
   },
   storeCard: {
-    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: "#e0e0e0",
   },
   storeCardHeader: {
     flexDirection: "row",
@@ -517,7 +626,6 @@ const styles = StyleSheet.create({
   storeName: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#333",
     flex: 1,
   },
   statusBadge: {
@@ -532,17 +640,14 @@ const styles = StyleSheet.create({
   },
   storeCode: {
     fontSize: 14,
-    color: "#666",
     marginBottom: 4,
   },
   storeAddress: {
     fontSize: 14,
-    color: "#666",
     marginBottom: 4,
   },
   storeContact: {
     fontSize: 14,
-    color: "#666",
   },
   loadingContainer: {
     flex: 1,
@@ -559,6 +664,5 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: "#999",
   },
 });

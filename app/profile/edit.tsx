@@ -45,7 +45,15 @@ export default function EditProfileScreen() {
         email: email.trim() || null,
       });
 
-      updateUser(response.data);
+      // Map backend response (database format) to frontend format
+      const updatedUserData = {
+        fullName: response.data.FullName || response.data.fullName,
+        email: response.data.Email || response.data.email,
+        phone: response.data.Phone || response.data.phone,
+        avatar: response.data.Avatar || response.data.avatar,
+      };
+
+      updateUser(updatedUserData);
       Alert.alert('Thành công', 'Đã cập nhật thông tin', [
         { text: 'OK', onPress: () => router.back() },
       ]);

@@ -3,8 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/src/constants/theme';
 import { useAuth } from '@/src/contexts/AuthContext';
+import { useTheme } from '@/src/contexts/ThemeContext';
 
 interface HeaderProps {
   title?: string;
@@ -13,17 +13,23 @@ interface HeaderProps {
 export default function Header({ title }: HeaderProps) {
   const router = useRouter();
   const { user } = useAuth();
-  // Always use light theme
-  const colors = Colors.light;
+  const { colors, isDarkMode } = useTheme();
 
   return (
     <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>
-      <View style={[styles.header, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.icon + '20' }]}>
         <TouchableOpacity
           style={styles.userSection}
           onPress={() => router.push('/profile')}
         >
-          <Ionicons name="person-circle-outline" size={28} color={colors.primary} />
+          {user?.avatar ? (
+            <Image
+              source={{ uri: user.avatar }}
+              style={styles.avatar}
+            />
+          ) : (
+            <Ionicons name="person-circle-outline" size={28} color={colors.primary} />
+          )}
           {user?.fullName && (
             <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
               {user.fullName}
@@ -38,7 +44,10 @@ export default function Header({ title }: HeaderProps) {
         <View style={styles.logoContainer}>
           <Image
             source={require('@/assets/images/icon.jpg')}
-            style={styles.logo}
+            style={[
+              styles.logo,
+              isDarkMode && { tintColor: '#FFFFFF' }
+            ]}
             resizeMode="contain"
           />
         </View>
@@ -55,7 +64,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   userSection: {
     flexDirection: 'row',
@@ -63,6 +71,11 @@ const styles = StyleSheet.create({
     gap: 8,
     flex: 1,
     maxWidth: '40%',
+  },
+  avatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
   },
   userName: {
     fontSize: 14,

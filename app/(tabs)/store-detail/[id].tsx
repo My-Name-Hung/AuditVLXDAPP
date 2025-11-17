@@ -19,7 +19,7 @@ import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/src/constants/theme';
+import { useTheme } from '@/src/contexts/ThemeContext';
 import api from '@/src/services/api';
 
 interface Store {
@@ -85,8 +85,7 @@ export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
-  // Always use light theme
-  const colors = Colors.light;
+  const { colors } = useTheme();
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
@@ -97,6 +96,9 @@ export default function StoreDetailScreen() {
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
+  const [locationLoadingModalVisible, setLocationLoadingModalVisible] = useState(false);
+  const [cachedLocation, setCachedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [confirmBackModalVisible, setConfirmBackModalVisible] = useState(false);
 
   const isAudited = store?.Status === 'audited' || store?.Status === 'passed' || store?.Status === 'failed';
 
@@ -185,32 +187,68 @@ export default function StoreDetailScreen() {
     }
 
     try {
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({});
-      const { latitude, longitude } = location.coords;
+      let latitude: number;
+      let longitude: number;
 
-      // Launch camera
+      // Try to use cached location first (fast)
+      if (cachedLocation) {
+        latitude = cachedLocation.latitude;
+        longitude = cachedLocation.longitude;
+      } else {
+        // Show loading modal while getting location
+        setLocationLoadingModalVisible(true);
+
+        // Try to get last known position first (very fast)
+        let location = await Location.getLastKnownPositionAsync({
+          maxAge: 60000, // Use location if it's less than 1 minute old
+        });
+
+        // If no cached location or it's too old, get fresh location with timeout
+        if (!location) {
+          location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced, // Balanced accuracy for faster response
+            maximumAge: 5000, // Accept location if it's less than 5 seconds old
+            timeout: 3000, // Timeout after 3 seconds
+          });
+        }
+
+        latitude = location.coords.latitude;
+        longitude = location.coords.longitude;
+
+        // Cache the location for next captures
+        setCachedLocation({ latitude, longitude });
+
+        // Hide loading modal before opening camera
+        setLocationLoadingModalVisible(false);
+      }
+
+      // Launch camera immediately
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        allowsEditing: false, // Disable crop/edit mode - this should auto-accept on iOS
         quality: 0.8,
+        base64: false, // Don't include base64 for faster processing
+        exif: false, // Don't include EXIF data for faster processing
       });
 
-      if (!result.canceled && result.assets[0]) {
+      // Save image immediately after capture (iOS will show preview but auto-accepts with allowsEditing: false)
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
         const newImage: CapturedImage = {
-          uri: result.assets[0].uri,
+          uri: asset.uri,
           latitude,
           longitude,
           timestamp: new Date().toISOString(),
         };
 
+        // Update state immediately
         const updatedImages = [...capturedImages];
         updatedImages[index] = newImage;
         setCapturedImages(updatedImages);
       }
     } catch (error) {
       console.error('Error capturing image:', error);
+      setLocationLoadingModalVisible(false);
       Alert.alert('Lỗi', 'Không thể chụp ảnh');
     }
   };
@@ -219,6 +257,36 @@ export default function StoreDetailScreen() {
     const updatedImages = [...capturedImages];
     updatedImages[index] = undefined;
     setCapturedImages(updatedImages);
+  };
+
+  // Check if there are any captured images
+  const hasCapturedImages = capturedImages.some((img) => img !== undefined);
+
+  // Handle back navigation with confirmation if images are captured
+  const handleBack = () => {
+    if (hasCapturedImages) {
+      // Show confirmation modal if there are captured images
+      setConfirmBackModalVisible(true);
+    } else {
+      // Go back immediately if no images
+      router.back();
+    }
+  };
+
+  // Confirm and go back, clearing all images
+  const handleConfirmBack = () => {
+    // Clear all captured images
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes('');
+    setCachedLocation(null);
+    // Close modal and go back
+    setConfirmBackModalVisible(false);
+    router.back();
+  };
+
+  // Cancel going back
+  const handleCancelBack = () => {
+    setConfirmBackModalVisible(false);
   };
 
   const handleComplete = () => {
@@ -312,7 +380,7 @@ export default function StoreDetailScreen() {
           <View style={styles.headerRight} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </View>
     );
@@ -344,13 +412,13 @@ export default function StoreDetailScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.icon + '20' }]}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết cửa hàng</Text>
         {store.Latitude && store.Longitude ? (
           <TouchableOpacity onPress={handleOpenMap} style={styles.mapButton}>
-            <Text style={[styles.mapButtonText, { color: Colors.light.primary }]}>Xem bản đồ</Text>
+            <Text style={[styles.mapButtonText, { color: colors.primary }]}>Xem bản đồ</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.headerRight} />
@@ -478,7 +546,7 @@ export default function StoreDetailScreen() {
                 {
                   backgroundColor:
                     capturedImages.length === 3 && [0, 1, 2].every((index) => capturedImages[index])
-                      ? Colors.light.primary
+                      ? colors.primary
                       : colors.icon + '40',
                 },
               ]}
@@ -573,10 +641,57 @@ export default function StoreDetailScreen() {
                 <Text style={[styles.modalButtonText, { color: colors.text }]}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
+                style={[styles.modalButton, styles.modalButtonConfirm, { backgroundColor: colors.primary }]}
                 onPress={handleConfirmUpload}
               >
                 <Text style={styles.modalButtonTextConfirm}>Xác nhận</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Location Loading Modal */}
+      <Modal
+        visible={locationLoadingModalVisible}
+        transparent
+        animationType="fade"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}>
+              Đang lấy thông tin vị trí...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Confirm Back Modal */}
+      <Modal
+        visible={confirmBackModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={handleCancelBack}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Xác nhận quay lại</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.icon, marginTop: 8 }]}>
+              Bạn có ảnh đã chụp chưa được lưu. Quay lại sẽ xóa tất cả ảnh đã chụp. Bạn có chắc muốn quay lại?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel, { backgroundColor: colors.icon + '20' }]}
+                onPress={handleCancelBack}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm, { backgroundColor: colors.primary }]}
+                onPress={handleConfirmBack}
+              >
+                <Text style={styles.modalButtonTextConfirm}>Quay lại</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -794,9 +909,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalButtonCancel: {},
-  modalButtonConfirm: {
-    backgroundColor: Colors.light.primary,
-  },
+  modalButtonConfirm: {},
   modalButtonText: {
     fontSize: 16,
     fontWeight: '600',
