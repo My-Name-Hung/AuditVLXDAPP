@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/src/constants/theme';
+import { useAuth } from '@/src/contexts/AuthContext';
 
 interface HeaderProps {
   title?: string;
@@ -11,6 +12,7 @@ interface HeaderProps {
 
 export default function Header({ title }: HeaderProps) {
   const router = useRouter();
+  const { user } = useAuth();
   // Always use light theme
   const colors = Colors.light;
 
@@ -18,10 +20,15 @@ export default function Header({ title }: HeaderProps) {
     <SafeAreaView edges={['top']} style={{ backgroundColor: colors.background }}>
       <View style={[styles.header, { backgroundColor: colors.background }]}>
         <TouchableOpacity
-          style={styles.iconButton}
+          style={styles.userSection}
           onPress={() => router.push('/profile')}
         >
           <Ionicons name="person-circle-outline" size={28} color={colors.primary} />
+          {user?.fullName && (
+            <Text style={[styles.userName, { color: colors.text }]} numberOfLines={1}>
+              {user.fullName}
+            </Text>
+          )}
         </TouchableOpacity>
 
         {title && (
@@ -50,11 +57,17 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e0e0e0',
   },
-  iconButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
+  userSection: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    maxWidth: '40%',
+  },
+  userName: {
+    fontSize: 14,
+    fontWeight: '500',
+    flex: 1,
   },
   title: {
     fontSize: 18,

@@ -4,7 +4,9 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import React, { useState } from "react";
+import { useRouter } from "expo-router";
+import React, { useState, useEffect } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   ActivityIndicator,
   Alert,
@@ -17,10 +19,28 @@ import {
   View,
 } from "react-native";
 
+const DARK_MODE_KEY = 'dark_mode_enabled';
+
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, logout, updateUser } = useAuth();
   const [uploading, setUploading] = useState(false);
-  const [darkMode, setDarkMode] = useState(false); // Always false for light theme
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    loadDarkModePreference();
+  }, []);
+
+  const loadDarkModePreference = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(DARK_MODE_KEY);
+      if (saved === 'true') {
+        setDarkMode(true);
+      }
+    } catch (error) {
+      console.error('Error loading dark mode preference:', error);
+    }
+  };
 
   const handleUploadAvatar = async () => {
     try {
@@ -81,16 +101,27 @@ export default function ProfileScreen() {
         text: "Đăng xuất",
         style: "destructive",
         onPress: async () => {
-          await logout();
+          try {
+            await logout();
+            router.replace("/(auth)/login");
+          } catch (error) {
+            console.error("Logout error:", error);
+            // Still navigate to login even if logout fails
+            router.replace("/(auth)/login");
+          }
         },
       },
     ]);
   };
 
-  const toggleDarkMode = (value: boolean) => {
-    setDarkMode(value);
-    // Note: Dark mode toggle will be handled by system or theme provider
-    // This is just for UI state
+  const toggleDarkMode = async (value: boolean) => {
+    try {
+      setDarkMode(value);
+      await AsyncStorage.setItem(DARK_MODE_KEY, value ? 'true' : 'false');
+      // Theme will update automatically via _layout.tsx polling
+    } catch (error) {
+      console.error('Error saving dark mode preference:', error);
+    }
   };
 
   if (!user) {
@@ -139,15 +170,23 @@ export default function ProfileScreen() {
 
         {/* Features Section */}
         <View style={styles.featuresSection}>
-          <View style={styles.featureItem}>
+          <TouchableOpacity
+            style={styles.featureItem}
+            onPress={() => router.push("/profile/edit")}
+          >
             <Ionicons name="person-outline" size={24} color="#333" />
             <Text style={styles.featureText}>Cập nhật thông tin tài khoản</Text>
-          </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
 
-          <View style={styles.featureItem}>
+          <TouchableOpacity
+            style={styles.featureItem}
+            onPress={() => router.push("/profile/change-password")}
+          >
             <Ionicons name="lock-closed-outline" size={24} color="#333" />
             <Text style={styles.featureText}>Thay đổi mật khẩu</Text>
-          </View>
+            <Ionicons name="chevron-forward" size={20} color="#999" />
+          </TouchableOpacity>
 
           <View style={styles.featureItem}>
             <Ionicons name="color-palette-outline" size={24} color="#333" />

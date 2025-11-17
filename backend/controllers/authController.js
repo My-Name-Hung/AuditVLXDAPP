@@ -43,7 +43,9 @@ const login = async (req, res) => {
         username: user.Username,
         fullName: user.FullName,
         email: user.Email,
+        phone: user.Phone,
         role: user.Role,
+        avatar: user.Avatar || null,
         isChangePassword: user.IsChangePassword || false,
       },
     });

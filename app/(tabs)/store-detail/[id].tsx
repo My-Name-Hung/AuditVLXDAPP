@@ -11,7 +11,9 @@ import {
   Modal,
   TextInput,
   Linking,
+  Dimensions,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
@@ -92,6 +94,8 @@ export default function StoreDetailScreen() {
   const [storeImages, setStoreImages] = useState<StoreImage[]>([]);
   const [uploading, setUploading] = useState(false);
   const [notesModalVisible, setNotesModalVisible] = useState(false);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
 
   const isAudited = store?.Status === 'audited' || store?.Status === 'passed' || store?.Status === 'failed';
@@ -316,7 +320,7 @@ export default function StoreDetailScreen() {
 
   if (!store) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -327,12 +331,17 @@ export default function StoreDetailScreen() {
         <View style={styles.emptyContainer}>
           <Text style={[styles.emptyText, { color: colors.text }]}>Không tìm thấy cửa hàng</Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
+  const handleImagePress = (imageUrl: string) => {
+    setSelectedImage(imageUrl);
+    setImageModalVisible(true);
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.icon + '20' }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -416,12 +425,16 @@ export default function StoreDetailScreen() {
             {storeImages.length > 0 ? (
               <View style={styles.imagesGrid}>
                 {storeImages.map((img, index) => (
-                  <View key={img.Id} style={styles.imageContainer}>
+                  <TouchableOpacity
+                    key={img.Id}
+                    style={styles.imageContainer}
+                    onPress={() => handleImagePress(img.ImageUrl)}
+                  >
                     <Image source={{ uri: img.ImageUrl }} style={styles.image} />
                     <Text style={[styles.imageTime, { color: colors.icon }]}>
                       {new Date(img.CapturedAt).toLocaleString('vi-VN')}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 ))}
               </View>
             ) : (
@@ -486,6 +499,47 @@ export default function StoreDetailScreen() {
         )}
       </ScrollView>
 
+      {/* Image Zoom Modal */}
+      <Modal
+        visible={imageModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setImageModalVisible(false);
+          setSelectedImage(null);
+        }}
+      >
+        <View style={styles.imageModalOverlay}>
+          <TouchableOpacity
+            style={styles.imageModalCloseButton}
+            onPress={() => {
+              setImageModalVisible(false);
+              setSelectedImage(null);
+            }}
+          >
+            <Ionicons name="close" size={32} color="#fff" />
+          </TouchableOpacity>
+          {selectedImage && (
+            <ScrollView
+              style={styles.imageModalScrollView}
+              contentContainerStyle={styles.imageModalContent}
+              maximumZoomScale={5}
+              minimumZoomScale={1}
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              bouncesZoom={true}
+              centerContent={true}
+            >
+              <Image
+                source={{ uri: selectedImage }}
+                style={styles.imageModalImage}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          )}
+        </View>
+      </Modal>
+
       {/* Notes Modal */}
       <Modal
         visible={notesModalVisible}
@@ -528,7 +582,7 @@ export default function StoreDetailScreen() {
           </View>
         </View>
       </Modal>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -751,5 +805,36 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  imageModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imageModalCloseButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 20,
+    padding: 8,
+  },
+  imageModalScrollView: {
+    flex: 1,
+    width: Dimensions.get('window').width,
+  },
+  imageModalContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: Dimensions.get('window').width,
+    minHeight: Dimensions.get('window').height,
+  },
+  imageModalImage: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+    resizeMode: 'contain',
   },
 });

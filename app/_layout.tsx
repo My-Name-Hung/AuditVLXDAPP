@@ -1,24 +1,32 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import 'react-native-reanimated';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  DarkTheme,
+  DefaultTheme,
+  ThemeProvider,
+} from "@react-navigation/native";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import "react-native-reanimated";
 
-import { useColorScheme } from '@/src/hooks/use-color-scheme';
-import { AuthProvider } from '@/src/contexts/AuthContext';
-import PermissionModal, { checkPermissionsAsked } from '@/src/components/PermissionModal';
+import PermissionModal, {
+  checkPermissionsAsked,
+} from "@/src/components/PermissionModal";
+import { AuthProvider } from "@/src/contexts/AuthContext";
 
 export const unstable_settings = {
-  anchor: '(tabs)',
+  anchor: "(tabs)",
 };
 
+const DARK_MODE_KEY = "dark_mode_enabled";
+
 export default function RootLayout() {
-  // Force light theme by default
   const [showPermissionModal, setShowPermissionModal] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
 
   useEffect(() => {
     checkInitialPermissions();
+    loadDarkModePreference();
   }, []);
 
   const checkInitialPermissions = async () => {
@@ -28,14 +36,37 @@ export default function RootLayout() {
     }
   };
 
+  const loadDarkModePreference = async () => {
+    try {
+      const saved = await AsyncStorage.getItem(DARK_MODE_KEY);
+      setIsDarkMode(saved === "true");
+    } catch (error) {
+      console.error("Error loading dark mode preference:", error);
+    }
+  };
+
+  // Listen for dark mode changes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      AsyncStorage.getItem(DARK_MODE_KEY).then((saved) => {
+        setIsDarkMode(saved === "true");
+      });
+    }, 500); // Check every 500ms
+
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <AuthProvider>
-      <ThemeProvider value={DefaultTheme}>
+      <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
         <Stack>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="profile" options={{ headerShown: false }} />
-          <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          <Stack.Screen
+            name="modal"
+            options={{ presentation: "modal", title: "Modal" }}
+          />
         </Stack>
         <StatusBar style="auto" />
         <PermissionModal

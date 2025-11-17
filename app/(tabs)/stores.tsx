@@ -1,20 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import Header from "@/src/components/Header";
+import { Colors } from "@/src/constants/theme";
+import api from "@/src/services/api";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  FlatList,
+  RefreshControl,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  RefreshControl,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/src/constants/theme';
-import api from '@/src/services/api';
-import Header from '@/src/components/Header';
+  View,
+} from "react-native";
 
 interface Territory {
   Id: number;
@@ -39,44 +38,64 @@ interface Store {
 
 const getStatusLabel = (status: string) => {
   const statusMap: Record<string, string> = {
-    'not_audited': 'Chưa thực hiện',
-    'audited': 'Đã thực hiện',
-    'passed': 'Đạt',
-    'failed': 'Không đạt',
+    not_audited: "Chưa thực hiện",
+    audited: "Đã thực hiện",
+    passed: "Đạt",
+    failed: "Không đạt",
   };
   return statusMap[status] || status;
 };
 
 const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
-    'not_audited': '#FF9800',
-    'audited': '#2196F3',
-    'passed': '#4CAF50',
-    'failed': '#F44336',
+    not_audited: "#FF9800",
+    audited: "#2196F3",
+    passed: "#4CAF50",
+    failed: "#F44336",
   };
-  return colorMap[status] || '#999';
+  return colorMap[status] || "#999";
+};
+
+const getStatusPriority = (status: string): number => {
+  const priorityMap: Record<string, number> = {
+    not_audited: 1, // Chưa thực hiện - đầu tiên
+    failed: 2, // Không đạt
+    passed: 3, // Đạt
+    audited: 4, // Đã thực hiện - cuối cùng
+  };
+  return priorityMap[status] || 99; // Unknown status goes to end
+};
+
+const sortStoresByStatus = (stores: Store[]): Store[] => {
+  return [...stores].sort((a, b) => {
+    const priorityA = getStatusPriority(a.Status);
+    const priorityB = getStatusPriority(b.Status);
+    return priorityA - priorityB;
+  });
 };
 
 export default function StoresScreen() {
   const router = useRouter();
-  const { user } = useAuth();
   const [stores, setStores] = useState<Store[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [hasMore, setHasMore] = useState(true);
 
   // Filters
-  const [searchText, setSearchText] = useState('');
-  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(null);
-  const [selectedRank, setSelectedRank] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
+    null
+  );
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
-  const [showRankDropdown, setShowRankDropdown] = useState(false);
-  const [territorySearch, setTerritorySearch] = useState('');
+  const [showStatusDropdown, setShowStatusDropdown] = useState(false);
+  const [territorySearch, setTerritorySearch] = useState("");
 
-  const searchTimeoutRef = useRef<NodeJS.Timeout>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     fetchTerritories();
@@ -99,14 +118,14 @@ export default function StoresScreen() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchText, selectedTerritory, selectedRank]);
+  }, [searchText, selectedTerritory, selectedStatus]);
 
   const fetchTerritories = async () => {
     try {
-      const response = await api.get('/territories');
+      const response = await api.get("/territories");
       setTerritories(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching territories:', error);
+      console.error("Error fetching territories:", error);
     }
   };
 
@@ -128,25 +147,28 @@ export default function StoresScreen() {
       if (selectedTerritory) {
         params.territoryId = selectedTerritory;
       }
-      if (selectedRank !== null) {
-        params.rank = selectedRank;
+      if (selectedStatus) {
+        params.status = selectedStatus;
       }
 
-      const response = await api.get('/stores', { params });
+      const response = await api.get("/stores", { params });
       const data = response.data.data || [];
       const pagination = response.data.pagination || {};
 
+      // Sort stores by status priority
+      const sortedData = sortStoresByStatus(data);
+
       if (reset) {
-        setStores(data);
+        setStores(sortedData);
       } else {
-        setStores((prev) => [...prev, ...data]);
+        // When loading more, sort the combined array
+        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
       }
 
-      setTotalPages(pagination.totalPages || 1);
       setHasMore(pagination.page < pagination.totalPages);
       setPage((prev) => (reset ? 2 : prev + 1));
     } catch (error) {
-      console.error('Error fetching stores:', error);
+      console.error("Error fetching stores:", error);
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -188,7 +210,7 @@ export default function StoresScreen() {
       <Text style={styles.storeCode}>{item.StoreCode}</Text>
       <Text style={styles.storeAddress}>{item.Address}</Text>
       <Text style={styles.storeContact}>
-        {item.PartnerName || 'N/A'} | {item.Phone || 'N/A'}
+        {item.PartnerName || "N/A"} | {item.Phone || "N/A"}
       </Text>
     </TouchableOpacity>
   );
@@ -200,12 +222,17 @@ export default function StoresScreen() {
   return (
     <View style={styles.container}>
       <Header />
-      
+
       {/* Filters */}
       <View style={styles.filtersContainer}>
         <View style={styles.filterRow}>
           <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={20} color="#666" style={styles.searchIcon} />
+            <Ionicons
+              name="search-outline"
+              size={20}
+              color="#666"
+              style={styles.searchIcon}
+            />
             <TextInput
               style={styles.searchInput}
               placeholder="Mã/Tên cửa hàng"
@@ -223,11 +250,12 @@ export default function StoresScreen() {
             >
               <Text style={styles.dropdownText}>
                 {selectedTerritory
-                  ? territories.find((t) => t.Id === selectedTerritory)?.TerritoryName
-                  : 'Địa bàn phụ trách'}
+                  ? territories.find((t) => t.Id === selectedTerritory)
+                      ?.TerritoryName
+                  : "Địa bàn phụ trách"}
               </Text>
               <Ionicons
-                name={showTerritoryDropdown ? 'chevron-up' : 'chevron-down'}
+                name={showTerritoryDropdown ? "chevron-up" : "chevron-down"}
                 size={20}
                 color="#666"
               />
@@ -240,6 +268,18 @@ export default function StoresScreen() {
                   value={territorySearch}
                   onChangeText={setTerritorySearch}
                 />
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setSelectedTerritory(null);
+                    setShowTerritoryDropdown(false);
+                    setTerritorySearch("");
+                  }}
+                >
+                  <Text style={[styles.dropdownItemText, styles.clearText]}>
+                    Tất cả
+                  </Text>
+                </TouchableOpacity>
                 <FlatList
                   data={filteredTerritories}
                   keyExtractor={(item) => item.Id.toString()}
@@ -249,24 +289,16 @@ export default function StoresScreen() {
                       onPress={() => {
                         setSelectedTerritory(item.Id);
                         setShowTerritoryDropdown(false);
-                        setTerritorySearch('');
+                        setTerritorySearch("");
                       }}
                     >
-                      <Text style={styles.dropdownItemText}>{item.TerritoryName}</Text>
+                      <Text style={styles.dropdownItemText}>
+                        {item.TerritoryName}
+                      </Text>
                     </TouchableOpacity>
                   )}
                   style={styles.dropdownList}
                 />
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => {
-                    setSelectedTerritory(null);
-                    setShowTerritoryDropdown(false);
-                    setTerritorySearch('');
-                  }}
-                >
-                  <Text style={[styles.dropdownItemText, styles.clearText]}>Tất cả</Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -274,45 +306,65 @@ export default function StoresScreen() {
           <View style={styles.dropdownContainer}>
             <TouchableOpacity
               style={styles.dropdown}
-              onPress={() => setShowRankDropdown(!showRankDropdown)}
+              onPress={() => setShowStatusDropdown(!showStatusDropdown)}
             >
               <Text style={styles.dropdownText}>
-                {selectedRank !== null ? `Cấp ${selectedRank}` : 'Cấp cửa hàng'}
+                {selectedStatus ? getStatusLabel(selectedStatus) : "Trạng thái"}
               </Text>
               <Ionicons
-                name={showRankDropdown ? 'chevron-up' : 'chevron-down'}
+                name={showStatusDropdown ? "chevron-up" : "chevron-down"}
                 size={20}
                 color="#666"
               />
             </TouchableOpacity>
-            {showRankDropdown && (
+            {showStatusDropdown && (
               <View style={styles.dropdownMenu}>
                 <TouchableOpacity
                   style={styles.dropdownItem}
                   onPress={() => {
-                    setSelectedRank(1);
-                    setShowRankDropdown(false);
+                    setSelectedStatus(null);
+                    setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Cấp 1</Text>
+                  <Text style={[styles.dropdownItemText, styles.clearText]}>
+                    Tất cả
+                  </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dropdownItem}
                   onPress={() => {
-                    setSelectedRank(2);
-                    setShowRankDropdown(false);
+                    setSelectedStatus("not_audited");
+                    setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={styles.dropdownItemText}>Cấp 2</Text>
+                  <Text style={styles.dropdownItemText}>Chưa thực hiện</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.dropdownItem}
                   onPress={() => {
-                    setSelectedRank(null);
-                    setShowRankDropdown(false);
+                    setSelectedStatus("audited");
+                    setShowStatusDropdown(false);
                   }}
                 >
-                  <Text style={[styles.dropdownItemText, styles.clearText]}>Tất cả</Text>
+                  <Text style={styles.dropdownItemText}>Đã thực hiện</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setSelectedStatus("passed");
+                    setShowStatusDropdown(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>Đạt</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setSelectedStatus("failed");
+                    setShowStatusDropdown(false);
+                  }}
+                >
+                  <Text style={styles.dropdownItemText}>Không đạt</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -360,21 +412,21 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.secondary,
   },
   filtersContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: "#e0e0e0",
   },
   filterRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 12,
   },
   searchContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
@@ -385,42 +437,42 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: 14,
-    color: '#333',
+    color: "#333",
   },
   dropdownContainer: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   dropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f5f5f5',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f5f5f5",
     borderRadius: 8,
     paddingHorizontal: 12,
     height: 44,
   },
   dropdownText: {
     fontSize: 14,
-    color: '#333',
+    color: "#333",
   },
   dropdownMenu: {
-    position: 'absolute',
+    position: "absolute",
     top: 48,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    maxHeight: 200,
+    borderColor: "#e0e0e0",
+    maxHeight: 300,
     zIndex: 1000,
     elevation: 5,
   },
   dropdownSearch: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: "#e0e0e0",
     fontSize: 14,
   },
   dropdownList: {
@@ -429,43 +481,43 @@ const styles = StyleSheet.create({
   dropdownItem: {
     padding: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#f5f5f5',
+    borderBottomColor: "#f5f5f5",
   },
   dropdownItemText: {
     fontSize: 14,
-    color: '#333',
+    color: "#333",
   },
   clearText: {
     color: Colors.light.primary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   listContent: {
     padding: 16,
   },
   storeCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
   storeCardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   storeCardTitleContainer: {
     flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   storeName: {
     fontSize: 18,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     flex: 1,
   },
   statusBadge: {
@@ -474,40 +526,39 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   statusText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   storeCode: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 4,
   },
   storeAddress: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
     marginBottom: 4,
   },
   storeContact: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   footerLoading: {
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyContainer: {
     padding: 32,
-    alignItems: 'center',
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
+    color: "#999",
   },
 });
-

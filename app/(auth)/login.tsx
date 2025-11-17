@@ -7,7 +7,6 @@ import {
   StyleSheet,
   Image,
   Alert,
-  Modal,
   ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -17,15 +16,13 @@ import { Colors } from '@/src/constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, authenticateWithBiometrics, isBiometricAvailable, isBiometricEnabled, enableBiometric } = useAuth();
+  const { login } = useAuth();
   
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [biometricModalVisible, setBiometricModalVisible] = useState(false);
-  const [fingerprintModalVisible, setFingerprintModalVisible] = useState(false);
 
   useEffect(() => {
     loadSavedCredentials();
@@ -65,14 +62,8 @@ export default function LoginScreen() {
         return;
       }
 
-      // Show biometric setup modal if available and not enabled
-      if (isBiometricAvailable && !isBiometricEnabled) {
-        setLoading(false);
-        setBiometricModalVisible(true);
-      } else {
-        setLoading(false);
-        router.replace('/(tabs)/stores');
-      }
+      setLoading(false);
+      router.replace('/(tabs)/stores');
     } catch (error: any) {
       setLoading(false);
       const errorMessage = error.response?.data?.error || error.message || 'Tài khoản hoặc mật khẩu không đúng hãy thử lại.';
@@ -80,42 +71,7 @@ export default function LoginScreen() {
     }
   };
 
-  const handleBiometricSetup = async () => {
-    setBiometricModalVisible(false);
-    try {
-      // Skip enabled check for setup
-      const success = await authenticateWithBiometrics(true);
-      if (success) {
-        await enableBiometric();
-        Alert.alert('Thành công', 'Đã bật đăng nhập bằng vân tay');
-        router.replace('/(tabs)/stores');
-      } else {
-        Alert.alert('Thất bại', 'Xác thực vân tay không thành công');
-        router.replace('/(tabs)/stores');
-      }
-    } catch (error) {
-      console.error('Biometric setup error:', error);
-      router.replace('/(tabs)/stores');
-    }
-  };
 
-  const handleFingerprintLogin = async () => {
-    try {
-      const success = await authenticateWithBiometrics();
-      if (success) {
-        const saved = await getSavedCredentials();
-        if (saved) {
-          setUsername(saved.username);
-          setPassword(saved.password);
-          await handleLogin();
-        } else {
-          Alert.alert('Lỗi', 'Không tìm thấy thông tin đăng nhập đã lưu');
-        }
-      }
-    } catch (error) {
-      console.error('Fingerprint login error:', error);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -178,63 +134,22 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {isBiometricAvailable && isBiometricEnabled && (
-          <TouchableOpacity
-            style={styles.fingerprintButton}
-            onPress={handleFingerprintLogin}
-          >
-            <Ionicons name="finger-print-outline" size={24} color={Colors.light.primary} />
-            <Text style={styles.fingerprintText}>Đăng nhập bằng vân tay</Text>
-          </TouchableOpacity>
-        )}
 
-        <TouchableOpacity
-          style={[styles.loginButton, loading && styles.loginButtonDisabled]}
-          onPress={handleLogin}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.loginButtonText}>Đăng nhập</Text>
-          )}
-        </TouchableOpacity>
+        <View style={styles.loginButtonContainer}>
+          <TouchableOpacity
+            style={[styles.loginButton, loading && styles.loginButtonDisabled]}
+            onPress={handleLogin}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginButtonText}>Đăng nhập</Text>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Biometric Setup Modal */}
-      <Modal
-        visible={biometricModalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setBiometricModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Ionicons name="finger-print" size={64} color={Colors.light.primary} />
-            <Text style={styles.modalTitle}>Bật đăng nhập bằng vân tay?</Text>
-            <Text style={styles.modalMessage}>
-              Bạn có muốn sử dụng vân tay để đăng nhập nhanh hơn không?
-            </Text>
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => {
-                  setBiometricModalVisible(false);
-                  router.replace('/(tabs)/stores');
-                }}
-              >
-                <Text style={styles.modalButtonTextCancel}>Bỏ qua</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm]}
-                onPress={handleBiometricSetup}
-              >
-                <Text style={styles.modalButtonTextConfirm}>Đồng ý</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -317,25 +232,18 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
   },
-  fingerprintButton: {
+  loginButtonContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 12,
-    marginBottom: 16,
-  },
-  fingerprintText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: Colors.light.primary,
-    fontWeight: '500',
+    gap: 12,
+    marginTop: 8,
   },
   loginButton: {
+    flex: 1,
     backgroundColor: Colors.light.primary,
     borderRadius: 8,
     padding: 16,
     alignItems: 'center',
-    marginTop: 8,
   },
   loginButtonDisabled: {
     opacity: 0.6,

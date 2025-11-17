@@ -1,9 +1,9 @@
-import { Tabs } from 'expo-router';
-import React from 'react';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons } from "@expo/vector-icons";
+import { Tabs } from "expo-router";
+import React from "react";
 
-import { HapticTab } from '@/src/components/haptic-tab';
-import { Colors } from '@/src/constants/theme';
+import { HapticTab } from "@/src/components/haptic-tab";
+import { Colors } from "@/src/constants/theme";
 
 export default function TabLayout() {
   // Always use light theme
@@ -12,13 +12,17 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.light.tint,
         headerShown: false,
+        tabBarStyle: { display: "none" },
         tabBarButton: HapticTab,
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="stores"
         options={{
-          title: 'Cửa hàng',
-          tabBarIcon: ({ color }) => <Ionicons name="storefront-outline" size={24} color={color} />,
+          title: "Cửa hàng",
+          tabBarIcon: ({ color }) => (
+            <Ionicons name="storefront-outline" size={24} color={color} />
+          ),
         }}
       />
       <Tabs.Screen

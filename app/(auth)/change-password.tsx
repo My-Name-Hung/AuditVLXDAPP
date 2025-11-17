@@ -1,5 +1,6 @@
 import BackHeader from "@/src/components/BackHeader";
 import { Colors } from "@/src/constants/theme";
+import { useAuth } from "@/src/contexts/AuthContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -7,6 +8,7 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -16,8 +18,15 @@ import {
 
 export default function ChangePasswordScreen() {
   const router = useRouter();
+  const {
+    isBiometricAvailable,
+    isBiometricEnabled,
+    enableBiometric,
+    authenticateWithBiometrics,
+  } = useAuth();
   // Always use light theme
   const colors = Colors.light;
+  const [biometricModalVisible, setBiometricModalVisible] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -26,6 +35,44 @@ export default function ChangePasswordScreen() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  const handleBiometricSetup = async () => {
+    setBiometricModalVisible(false);
+    try {
+      // Skip enabled check for setup
+      const success = await authenticateWithBiometrics();
+      if (success) {
+        await enableBiometric();
+        Alert.alert("Thành công", "Đã bật đăng nhập bằng vân tay", [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace("/(tabs)/stores");
+            },
+          },
+        ]);
+      } else {
+        Alert.alert("Thất bại", "Xác thực vân tay không thành công", [
+          {
+            text: "OK",
+            onPress: () => {
+              router.replace("/(tabs)/stores");
+            },
+          },
+        ]);
+      }
+    } catch (error) {
+      console.error("Biometric setup error:", error);
+      Alert.alert("Thành công", "Đổi mật khẩu thành công", [
+        {
+          text: "OK",
+          onPress: () => {
+            router.replace("/(tabs)/stores");
+          },
+        },
+      ]);
+    }
+  };
 
   const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -53,15 +100,21 @@ export default function ChangePasswordScreen() {
       // Check if response is successful (status 200-299)
       if (response.status >= 200 && response.status < 300) {
         setLoading(false); // Set loading to false before showing alert
-        Alert.alert("Thành công", "Đổi mật khẩu thành công", [
-          {
-            text: "OK",
-            onPress: () => {
-              // After changing password, navigate to stores
-              router.replace("/(tabs)/stores");
+
+        // Show biometric setup modal if available and not enabled
+        if (isBiometricAvailable && !isBiometricEnabled) {
+          setBiometricModalVisible(true);
+        } else {
+          Alert.alert("Thành công", "Đổi mật khẩu thành công", [
+            {
+              text: "OK",
+              onPress: () => {
+                // After changing password, navigate to stores
+                router.replace("/(tabs)/stores");
+              },
             },
-          },
-        ]);
+          ]);
+        }
         return; // Exit early to prevent any further execution
       }
     } catch (error: any) {
@@ -184,6 +237,48 @@ export default function ChangePasswordScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Biometric Setup Modal */}
+      <Modal
+        visible={biometricModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setBiometricModalVisible(false);
+          router.replace("/(tabs)/stores");
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Ionicons
+              name="finger-print"
+              size={64}
+              color={Colors.light.primary}
+            />
+            <Text style={styles.modalTitle}>Bật đăng nhập bằng vân tay?</Text>
+            <Text style={styles.modalMessage}>
+              Bạn có muốn sử dụng vân tay để đăng nhập nhanh hơn không?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => {
+                  setBiometricModalVisible(false);
+                  router.replace("/(tabs)/stores");
+                }}
+              >
+                <Text style={styles.modalButtonTextCancel}>Bỏ qua</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={handleBiometricSetup}
+              >
+                <Text style={styles.modalButtonTextConfirm}>Bật</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -236,6 +331,59 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 24,
+    width: "85%",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#333",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  modalMessage: {
+    fontSize: 14,
+    color: "#666",
+    textAlign: "center",
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  modalButton: {
+    flex: 1,
+    padding: 14,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  modalButtonCancel: {
+    backgroundColor: "#f5f5f5",
+  },
+  modalButtonConfirm: {
+    backgroundColor: Colors.light.primary,
+  },
+  modalButtonTextCancel: {
+    color: "#666",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalButtonTextConfirm: {
     color: "#fff",
     fontSize: 16,
     fontWeight: "600",
