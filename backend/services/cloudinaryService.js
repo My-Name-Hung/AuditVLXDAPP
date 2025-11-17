@@ -41,16 +41,11 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
       "base64"
     )}`;
 
-    // Upload image first without transformation
+    // Upload image with watermark transformation applied eagerly (stored permanently)
+    // This ensures watermark is always visible, not just in URL transformation
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-    });
-
-    // Apply watermark transformation using URL transformation (not eager)
-    // This ensures watermark is applied only once
-    // No shadow effect - just plain text
-    const transformedUrl = cloudinary.url(uploadResult.public_id, {
-      transformation: [
+      eager: [
         {
           overlay: {
             font_family: "Arial",
@@ -64,13 +59,18 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
           y: 20,
         },
       ],
+      eager_async: false, // Wait for transformation to complete
     });
 
-    // Return the transformed URL with watermark
+    // Return the URL with watermark (use eager transformation URL if available)
+    const watermarkedUrl = uploadResult.eager && uploadResult.eager.length > 0
+      ? uploadResult.eager[0].secure_url
+      : uploadResult.secure_url;
+
     return {
       ...uploadResult,
-      secure_url: transformedUrl.replace("http://", "https://"),
-      url: transformedUrl,
+      secure_url: watermarkedUrl,
+      url: watermarkedUrl.replace("https://", "http://"),
     };
   } catch (error) {
     console.error("Cloudinary upload error:", error);
@@ -106,16 +106,11 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
   const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;
 
   try {
-    // Upload image first without transformation
+    // Upload image with watermark transformation applied eagerly (stored permanently)
+    // This ensures watermark is always visible, not just in URL transformation
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-    });
-
-    // Apply watermark transformation using URL transformation (not eager)
-    // This ensures watermark is applied only once
-    // No shadow effect - just plain text
-    const transformedUrl = cloudinary.url(uploadResult.public_id, {
-      transformation: [
+      eager: [
         {
           overlay: {
             font_family: "Arial",
@@ -129,13 +124,18 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
           y: 20,
         },
       ],
+      eager_async: false, // Wait for transformation to complete
     });
 
-    // Return the transformed URL with watermark
+    // Return the URL with watermark (use eager transformation URL if available)
+    const watermarkedUrl = uploadResult.eager && uploadResult.eager.length > 0
+      ? uploadResult.eager[0].secure_url
+      : uploadResult.secure_url;
+
     return {
       ...uploadResult,
-      secure_url: transformedUrl.replace("http://", "https://"),
-      url: transformedUrl,
+      secure_url: watermarkedUrl,
+      url: watermarkedUrl.replace("https://", "http://"),
     };
   } catch (error) {
     console.error("Cloudinary upload error:", error);

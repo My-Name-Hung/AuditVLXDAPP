@@ -17,6 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import * as Location from 'expo-location';
 import { useAuth } from '@/src/contexts/AuthContext';
 import { useTheme } from '@/src/contexts/ThemeContext';
@@ -207,8 +208,6 @@ export default function StoreDetailScreen() {
         if (!location) {
           location = await Location.getCurrentPositionAsync({
             accuracy: Location.Accuracy.Balanced, // Balanced accuracy for faster response
-            maximumAge: 5000, // Accept location if it's less than 5 seconds old
-            timeout: 3000, // Timeout after 3 seconds
           });
         }
 
@@ -324,9 +323,19 @@ export default function StoreDetailScreen() {
       // Upload 3 images (filter out undefined)
       const imagesToUpload = capturedImages.filter((img): img is CapturedImage => img !== undefined);
       const uploadPromises = imagesToUpload.map(async (img, index) => {
+        // Resize and compress image before upload for faster upload speed
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          img.uri,
+          [{ resize: { width: 1280 } }], // Resize to max width 1280px (maintains aspect ratio)
+          {
+            compress: 0.7, // Compress to 70% quality (good balance between quality and size)
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+
         const formData = new FormData();
         formData.append('image', {
-          uri: img.uri,
+          uri: manipulatedImage.uri,
           type: 'image/jpeg',
           name: `image_${index + 1}.jpg`,
         } as any);
@@ -797,6 +806,7 @@ const styles = StyleSheet.create({
   imagesSection: {
     borderRadius: 12,
     padding: 16,
+    height:200,
     borderWidth: 1,
     borderColor: '#e0e0e0',
   },
