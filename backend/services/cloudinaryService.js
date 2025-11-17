@@ -55,7 +55,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
         {
           overlay: {
             font_family: "Arial",
-            font_size: 24,
+            font_size: 36,
             font_weight: "bold",
             text: watermarkText,
           },

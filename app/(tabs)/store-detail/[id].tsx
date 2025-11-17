@@ -47,6 +47,7 @@ interface CapturedImage {
   latitude: number;
   longitude: number;
   timestamp: string;
+  timezoneOffset: number;
 }
 
 interface StoreImage {
@@ -277,11 +278,13 @@ export default function StoreDetailScreen() {
       // Save image immediately after capture (iOS will show preview but auto-accepts with allowsEditing: false)
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
+        const now = new Date();
         const newImage: CapturedImage = {
           uri: asset.uri,
           latitude,
           longitude,
-          timestamp: new Date().toISOString(),
+          timestamp: now.toISOString(),
+          timezoneOffset: now.getTimezoneOffset(),
         };
 
         // Update state immediately
@@ -388,6 +391,8 @@ export default function StoreDetailScreen() {
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
         formData.append("longitude", img.longitude.toString());
+        formData.append("timestamp", img.timestamp);
+        formData.append("timezoneOffset", img.timezoneOffset.toString());
 
         return api.post("/images/upload", formData, {
           headers: {

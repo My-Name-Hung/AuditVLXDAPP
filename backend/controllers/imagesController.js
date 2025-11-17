@@ -3,7 +3,14 @@ const { uploadImageWithWatermark } = require('../services/cloudinaryService');
 
 const uploadImage = async (req, res) => {
   try {
-    const { auditId, latitude, longitude, referenceImageUrl } = req.body;
+    const {
+      auditId,
+      latitude,
+      longitude,
+      referenceImageUrl,
+      timestamp,
+      timezoneOffset,
+    } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: 'Image file is required' });
@@ -15,10 +22,27 @@ const uploadImage = async (req, res) => {
 
     // Upload to Cloudinary with watermark
     // Convert latitude and longitude to numbers (they come as strings from FormData)
+    const latitudeNum = latitude ? parseFloat(latitude) : null;
+    const longitudeNum = longitude ? parseFloat(longitude) : null;
+    const timezoneOffsetMinutes =
+      typeof timezoneOffset !== "undefined" && timezoneOffset !== null
+        ? parseInt(timezoneOffset, 10)
+        : null;
+
+    const rawTimestamp = timestamp || new Date().toISOString();
+    const timestampDate = new Date(rawTimestamp);
+    const adjustedTimestamp =
+      timestampDate instanceof Date && !isNaN(timestampDate.valueOf())
+        ? new Date(
+            timestampDate.getTime() -
+              (timezoneOffsetMinutes ? timezoneOffsetMinutes * 60000 : 0)
+          )
+        : new Date();
+
     const metadata = {
-      latitude: latitude ? parseFloat(latitude) : null,
-      longitude: longitude ? parseFloat(longitude) : null,
-      timestamp: new Date().toISOString(),
+      latitude: latitudeNum,
+      longitude: longitudeNum,
+      timestamp: adjustedTimestamp.toISOString(),
     };
 
     const uploadResult = await uploadImageWithWatermark(req.file.buffer, metadata);
@@ -28,9 +52,9 @@ const uploadImage = async (req, res) => {
       AuditId: auditId,
       ImageUrl: uploadResult.secure_url,
       ReferenceImageUrl: referenceImageUrl || null,
-      Latitude: latitude ? parseFloat(latitude) : null,
-      Longitude: longitude ? parseFloat(longitude) : null,
-      CapturedAt: new Date(),
+      Latitude: latitudeNum,
+      Longitude: longitudeNum,
+      CapturedAt: adjustedTimestamp,
     });
 
     // Auto-update store status to 'audited' when image is uploaded

@@ -81,6 +81,7 @@ export default function StoreDetail() {
     type: "success",
     message: "",
   });
+  const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
@@ -251,14 +252,33 @@ export default function StoreDetail() {
     setIsDragging(false);
   };
 
-  const handleDownloadImage = () => {
-    if (!selectedImage) return;
-    const link = document.createElement("a");
-    link.href = selectedImage.url;
-    link.download = `store-image-${Date.now()}.jpg`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+  const handleDownloadImage = async () => {
+    if (!selectedImage || downloadingImage) return;
+    try {
+      setDownloadingImage(true);
+      const response = await fetch(selectedImage.url, { mode: "cors" });
+      if (!response.ok) {
+        throw new Error("Không thể tải ảnh");
+      }
+      const blob = await response.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `store-image-${Date.now()}.jpg`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (error) {
+      console.error("Error downloading image:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Không thể tải ảnh. Vui lòng thử lại.",
+      });
+    } finally {
+      setDownloadingImage(false);
+    }
   };
 
   const handleViewOnGoogleMaps = (lat: number | null, lon: number | null) => {
@@ -371,8 +391,8 @@ export default function StoreDetail() {
                 <label>Thông tin liên hệ:</label>
                 <span>
                   {store.Phone || "-"}
-                  {store.Phone && store.UserFullName ? " - " : ""}
-                  {store.UserFullName || ""}
+                  {store.Phone && store.PartnerName ? " - " : ""}
+                  {store.PartnerName || ""}
                 </span>
               </div>
               <div className="info-item">
@@ -579,8 +599,18 @@ export default function StoreDetail() {
             {/* Bottom Toolbar */}
             <div className="image-modal-bottombar">
               <span className="zoom-level">{imageZoom}%</span>
-              <button className="image-modal-btn" onClick={handleDownloadImage}>
-                <HiDownload /> Tải về
+              <button
+                className="image-modal-btn"
+                onClick={handleDownloadImage}
+                disabled={downloadingImage}
+              >
+                {downloadingImage ? (
+                  "Đang tải..."
+                ) : (
+                  <>
+                    <HiDownload /> Tải về
+                  </>
+                )}
               </button>
               {selectedImage.lat && selectedImage.lon && (
                 <button
