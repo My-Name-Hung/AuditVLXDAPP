@@ -128,11 +128,18 @@ class User {
     request.input('Id', sql.Int, userId);
     request.input('Password', sql.NVarChar(255), newPassword);
 
-    const result = await request.query(`
+    // Update password
+    await request.query(`
       UPDATE Users 
       SET Password = @Password, IsChangePassword = 0, UpdatedAt = GETDATE()
       WHERE Id = @Id
-      OUTPUT INSERTED.*
+    `);
+
+    // Fetch updated user
+    const selectRequest = pool.request();
+    selectRequest.input('Id', sql.Int, userId);
+    const result = await selectRequest.query(`
+      SELECT * FROM Users WHERE Id = @Id
     `);
 
     return result.recordset[0];
