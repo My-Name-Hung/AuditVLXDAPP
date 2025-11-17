@@ -29,6 +29,20 @@ class Territory {
     `);
     return result.recordset[0];
   }
+
+  static async create(territoryName) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input('TerritoryName', sql.NVarChar(200), territoryName);
+
+    const result = await request.query(`
+      INSERT INTO Territories (TerritoryName, CreatedAt, UpdatedAt)
+      OUTPUT INSERTED.*
+      VALUES (@TerritoryName, GETDATE(), GETDATE())
+    `);
+
+    return result.recordset[0];
+  }
 }
 
 module.exports = Territory;

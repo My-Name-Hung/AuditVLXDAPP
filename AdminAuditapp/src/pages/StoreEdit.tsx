@@ -51,6 +51,10 @@ export default function StoreEdit() {
     message: "",
   });
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [addTerritoryModalOpen, setAddTerritoryModalOpen] = useState(false);
+  const [newTerritoryName, setNewTerritoryName] = useState("");
+  const [addTerritoryLoading, setAddTerritoryLoading] = useState(false);
+  const [cancelConfirmModalOpen, setCancelConfirmModalOpen] = useState(false);
 
   const [formData, setFormData] = useState({
     storeName: "",
@@ -118,10 +122,74 @@ export default function StoreEdit() {
   const fetchUsers = async () => {
     try {
       const res = await api.get("/users");
-      setUsers(res.data || []);
+      // API returns { data: users[], pagination: {...} }
+      const usersData = res.data.data || res.data;
+      setUsers(Array.isArray(usersData) ? usersData : []);
     } catch (error) {
       console.error("Error fetching users:", error);
+      setUsers([]);
     }
+  };
+
+  const handleAddTerritory = async () => {
+    if (!newTerritoryName.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng nhập tên địa bàn",
+      });
+      return;
+    }
+
+    try {
+      setAddTerritoryLoading(true);
+      const res = await api.post("/territories", {
+        territoryName: newTerritoryName.trim(),
+      });
+
+      if (res.data.success) {
+        // Add new territory to the list
+        const newTerritory = res.data.data;
+        setTerritories([...territories, newTerritory]);
+        
+        // Close modal and reset form
+        setAddTerritoryModalOpen(false);
+        setNewTerritoryName("");
+        
+        // Show success notification
+        setNotification({
+          isOpen: true,
+          type: "success",
+          message: res.data.message || "Đã thêm địa bàn thành công",
+        });
+      }
+    } catch (error: any) {
+      console.error("Error adding territory:", error);
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message:
+          error.response?.data?.error ||
+          "Lỗi khi thêm địa bàn. Vui lòng thử lại.",
+      });
+    } finally {
+      setAddTerritoryLoading(false);
+    }
+  };
+
+  const handleCancelAddTerritory = () => {
+    if (newTerritoryName.trim()) {
+      setCancelConfirmModalOpen(true);
+    } else {
+      setAddTerritoryModalOpen(false);
+      setNewTerritoryName("");
+    }
+  };
+
+  const confirmCancel = () => {
+    setCancelConfirmModalOpen(false);
+    setAddTerritoryModalOpen(false);
+    setNewTerritoryName("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -213,6 +281,12 @@ export default function StoreEdit() {
           <p className="page-kicker">Chỉnh sửa cửa hàng</p>
           <h2>{store.StoreName}</h2>
         </div>
+        <button
+          className="btn-add-territory"
+          onClick={() => setAddTerritoryModalOpen(true)}
+        >
+          Thêm địa bàn phụ trách
+        </button>
       </div>
 
       <form onSubmit={handleSubmit} className="store-edit-form">
@@ -373,6 +447,76 @@ export default function StoreEdit() {
         message={notification.message}
         onClose={() => setNotification({ ...notification, isOpen: false })}
         duration={3000}
+      />
+
+      {/* Add Territory Modal */}
+      {addTerritoryModalOpen && (
+        <div
+          className="modal-overlay"
+          onClick={handleCancelAddTerritory}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3>Thêm địa bàn phụ trách</h3>
+            <div className="form-group" style={{ marginTop: "20px" }}>
+              <label>Tên địa bàn</label>
+              <input
+                type="text"
+                value={newTerritoryName}
+                onChange={(e) => setNewTerritoryName(e.target.value)}
+                placeholder="Nhập tên địa bàn"
+                className="form-input"
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={handleCancelAddTerritory}
+                disabled={addTerritoryLoading}
+              >
+                Hủy
+              </button>
+              <button
+                className="btn-confirm"
+                onClick={handleAddTerritory}
+                disabled={addTerritoryLoading || !newTerritoryName.trim()}
+              >
+                {addTerritoryLoading ? "Đang xử lý..." : "Hoàn thành"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Cancel Confirm Modal */}
+      {cancelConfirmModalOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Xác nhận hủy</h3>
+            <p>Bạn có chắc muốn hủy? Thông tin đã nhập sẽ không được lưu.</p>
+            <div className="modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={() => setCancelConfirmModalOpen(false)}
+              >
+                Không
+              </button>
+              <button className="btn-confirm" onClick={confirmCancel}>
+                Có, hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading Modal for Add Territory */}
+      <LoadingModal
+        isOpen={addTerritoryLoading}
+        message="Đang thêm địa bàn..."
+        progress={0}
       />
     </div>
   );
