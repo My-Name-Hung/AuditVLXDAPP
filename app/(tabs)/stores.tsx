@@ -1,3 +1,4 @@
+import BoardingTour from "@/src/components/BoardingTour";
 import Header from "@/src/components/Header";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
@@ -93,6 +94,28 @@ export default function StoresScreen() {
   const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
+  const storesTourSteps = [
+    {
+      title: "Tìm kiếm nhanh",
+      description:
+        "Sử dụng ô tìm kiếm để lọc theo mã hoặc tên cửa hàng. Kết quả cập nhật sau 0.5 giây để tối ưu hiệu suất.",
+    },
+    {
+      title: "Bộ lọc nâng cao",
+      description:
+        "Chọn địa bàn hoặc trạng thái để ưu tiên các cửa hàng cần audit. Dropdown cho phép chọn lại Tất cả bất cứ lúc nào.",
+    },
+    {
+      title: "Thẻ trạng thái",
+      description:
+        "Mỗi thẻ hiển thị mã, địa chỉ, người phụ trách và trạng thái màu hóa (Đạt/Không đạt/Chưa làm) để bạn nắm tiến độ.",
+    },
+    {
+      title: "Mở chi tiết",
+      description:
+        "Chạm vào thẻ để đi đến màn hình chi tiết và bắt đầu quy trình audit, chụp ảnh, ghi chú.",
+    },
+  ];
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
     undefined
@@ -526,6 +549,7 @@ export default function StoresScreen() {
           }
         />
       )}
+      <BoardingTour storageKey="stores-list" steps={storesTourSteps} />
     </View>
   );
 }

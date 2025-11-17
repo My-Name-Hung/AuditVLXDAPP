@@ -1,27 +1,28 @@
-import React, { useState, useEffect } from 'react';
+import BoardingTour from "@/src/components/BoardingTour";
+import { useAuth } from "@/src/contexts/AuthContext";
+import { useTheme } from "@/src/contexts/ThemeContext";
+import api from "@/src/services/api";
+import { Ionicons } from "@expo/vector-icons";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
   ActivityIndicator,
   Alert,
-  Modal,
-  TextInput,
-  Linking,
   Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import * as ImagePicker from 'expo-image-picker';
-import * as ImageManipulator from 'expo-image-manipulator';
-import * as Location from 'expo-location';
-import { useAuth } from '@/src/contexts/AuthContext';
-import { useTheme } from '@/src/contexts/ThemeContext';
-import api from '@/src/services/api';
+  Image,
+  Linking,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 interface Store {
   Id: number;
@@ -58,28 +59,28 @@ interface StoreImage {
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    not_audited: 'Chưa thực hiện',
-    audited: 'Đã thực hiện',
-    passed: 'Đạt',
-    failed: 'Không đạt',
+    not_audited: "Chưa thực hiện",
+    audited: "Đã thực hiện",
+    passed: "Đạt",
+    failed: "Không đạt",
   };
   return labels[status] || status;
 };
 
 const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
-    not_audited: '#FF9800',
-    audited: '#2196F3',
-    passed: '#4CAF50',
-    failed: '#F44336',
+    not_audited: "#FF9800",
+    audited: "#2196F3",
+    passed: "#4CAF50",
+    failed: "#F44336",
   };
-  return colorMap[status] || '#999';
+  return colorMap[status] || "#999";
 };
 
 const getRankLabel = (rank: number | null) => {
-  if (rank === 1) return 'Đơn vị, tổ chức';
-  if (rank === 2) return 'Cá nhân';
-  return '-';
+  if (rank === 1) return "Đơn vị, tổ chức";
+  if (rank === 2) return "Cá nhân";
+  return "-";
 };
 
 export default function StoreDetailScreen() {
@@ -90,18 +91,54 @@ export default function StoreDetailScreen() {
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
-  const [capturedImages, setCapturedImages] = useState<(CapturedImage | undefined)[]>([undefined, undefined, undefined]);
+  const [capturedImages, setCapturedImages] = useState<
+    (CapturedImage | undefined)[]
+  >([undefined, undefined, undefined]);
   const [storeImages, setStoreImages] = useState<StoreImage[]>([]);
   const [uploading, setUploading] = useState(false);
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [notes, setNotes] = useState('');
-  const [locationLoadingModalVisible, setLocationLoadingModalVisible] = useState(false);
-  const [cachedLocation, setCachedLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [notes, setNotes] = useState("");
+  const [locationLoadingModalVisible, setLocationLoadingModalVisible] =
+    useState(false);
+  const [cachedLocation, setCachedLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
   const [confirmBackModalVisible, setConfirmBackModalVisible] = useState(false);
+  const storeDetailTourSteps = [
+    {
+      title: "Tổng quan cửa hàng",
+      description:
+        "Kiểm tra trạng thái, thông tin liên hệ và người phụ trách để đảm bảo đúng đối tượng audit.",
+    },
+    {
+      title: "Định vị và liên hệ",
+      description:
+        "Nhấn biểu tượng bản đồ để mở Google Maps hoặc gọi điện/email trực tiếp cho cửa hàng.",
+    },
+    {
+      title: "Chụp 3 ảnh chuẩn",
+      description:
+        "Sử dụng các nút chụp ảnh. Mỗi ảnh tự động ghim tọa độ, thời gian để đáp ứng yêu cầu kiểm tra.",
+    },
+    {
+      title: "Ghi chú & hoàn tất",
+      description:
+        "Nhấn Hoàn thành > điền ghi chú. Hệ thống sẽ tạo audit, upload ảnh và cập nhật vị trí.",
+    },
+    {
+      title: "Kho ảnh lịch sử",
+      description:
+        "Kéo xuống cuối trang để xem ảnh đã upload trước đó và tham chiếu khi tái audit.",
+    },
+  ];
 
-  const isAudited = store?.Status === 'audited' || store?.Status === 'passed' || store?.Status === 'failed';
+  const isAudited =
+    store?.Status === "audited" ||
+    store?.Status === "passed" ||
+    store?.Status === "failed";
 
   useEffect(() => {
     fetchStore();
@@ -115,7 +152,11 @@ export default function StoreDetailScreen() {
       setStore(storeData);
 
       // If store is audited, get images from audits
-      if (storeData.Status === 'audited' || storeData.Status === 'passed' || storeData.Status === 'failed') {
+      if (
+        storeData.Status === "audited" ||
+        storeData.Status === "passed" ||
+        storeData.Status === "failed"
+      ) {
         // getStoreById returns audits with images in storeData.audits or storeData.Audits
         const audits = storeData.audits || storeData.Audits || [];
         if (audits.length > 0) {
@@ -130,8 +171,8 @@ export default function StoreDetailScreen() {
         }
       }
     } catch (error) {
-      console.error('Error fetching store:', error);
-      Alert.alert('Lỗi', 'Không thể tải thông tin cửa hàng');
+      console.error("Error fetching store:", error);
+      Alert.alert("Lỗi", "Không thể tải thông tin cửa hàng");
     } finally {
       setLoading(false);
     }
@@ -146,7 +187,7 @@ export default function StoreDetailScreen() {
         setStoreImages(imagesResponse.data || []);
       }
     } catch (error) {
-      console.error('Error fetching store images:', error);
+      console.error("Error fetching store images:", error);
     }
   };
 
@@ -154,8 +195,8 @@ export default function StoreDetailScreen() {
     if (store?.Latitude && store?.Longitude) {
       const url = `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`;
       Linking.openURL(url).catch((err) => {
-        console.error('Error opening map:', err);
-        Alert.alert('Lỗi', 'Không thể mở bản đồ');
+        console.error("Error opening map:", err);
+        Alert.alert("Lỗi", "Không thể mở bản đồ");
       });
     }
   };
@@ -163,8 +204,8 @@ export default function StoreDetailScreen() {
   const requestCameraPermission = async () => {
     // Request camera permission through ImagePicker (which handles camera permissions)
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Quyền truy cập', 'Cần quyền truy cập camera để chụp ảnh');
+    if (status !== "granted") {
+      Alert.alert("Quyền truy cập", "Cần quyền truy cập camera để chụp ảnh");
       return false;
     }
     return true;
@@ -172,8 +213,11 @@ export default function StoreDetailScreen() {
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Quyền truy cập', 'Cần quyền truy cập vị trí để ghi nhận tọa độ');
+    if (status !== "granted") {
+      Alert.alert(
+        "Quyền truy cập",
+        "Cần quyền truy cập vị trí để ghi nhận tọa độ"
+      );
       return false;
     }
     return true;
@@ -246,9 +290,9 @@ export default function StoreDetailScreen() {
         setCapturedImages(updatedImages);
       }
     } catch (error) {
-      console.error('Error capturing image:', error);
+      console.error("Error capturing image:", error);
       setLocationLoadingModalVisible(false);
-      Alert.alert('Lỗi', 'Không thể chụp ảnh');
+      Alert.alert("Lỗi", "Không thể chụp ảnh");
     }
   };
 
@@ -276,7 +320,7 @@ export default function StoreDetailScreen() {
   const handleConfirmBack = () => {
     // Clear all captured images
     setCapturedImages([undefined, undefined, undefined]);
-    setNotes('');
+    setNotes("");
     setCachedLocation(null);
     // Close modal and go back
     setConfirmBackModalVisible(false);
@@ -290,12 +334,12 @@ export default function StoreDetailScreen() {
 
   const handleComplete = () => {
     if (capturedImages.length < 3) {
-      Alert.alert('Lỗi', 'Vui lòng chụp đầy đủ 3 ảnh');
+      Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
       return;
     }
     const hasAllImages = [0, 1, 2].every((index) => capturedImages[index]);
     if (!hasAllImages) {
-      Alert.alert('Lỗi', 'Vui lòng chụp đầy đủ 3 ảnh');
+      Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
       return;
     }
     setNotesModalVisible(true);
@@ -309,7 +353,7 @@ export default function StoreDetailScreen() {
 
     try {
       // Create audit first
-      const auditResponse = await api.post('/audits', {
+      const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: store.Id,
         notes: notes.trim() || null,
@@ -321,7 +365,9 @@ export default function StoreDetailScreen() {
       const firstImage = capturedImages[0];
 
       // Upload 3 images (filter out undefined)
-      const imagesToUpload = capturedImages.filter((img): img is CapturedImage => img !== undefined);
+      const imagesToUpload = capturedImages.filter(
+        (img): img is CapturedImage => img !== undefined
+      );
       const uploadPromises = imagesToUpload.map(async (img, index) => {
         // Resize and compress image before upload for faster upload speed
         const manipulatedImage = await ImageManipulator.manipulateAsync(
@@ -334,18 +380,18 @@ export default function StoreDetailScreen() {
         );
 
         const formData = new FormData();
-        formData.append('image', {
+        formData.append("image", {
           uri: manipulatedImage.uri,
-          type: 'image/jpeg',
+          type: "image/jpeg",
           name: `image_${index + 1}.jpg`,
         } as any);
-        formData.append('auditId', auditId.toString());
-        formData.append('latitude', img.latitude.toString());
-        formData.append('longitude', img.longitude.toString());
+        formData.append("auditId", auditId.toString());
+        formData.append("latitude", img.latitude.toString());
+        formData.append("longitude", img.longitude.toString());
 
-        return api.post('/images/upload', formData, {
+        return api.post("/images/upload", formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         });
       });
@@ -360,19 +406,19 @@ export default function StoreDetailScreen() {
         });
       }
 
-      Alert.alert('Thành công', 'Đã hoàn thành audit cửa hàng', [
+      Alert.alert("Thành công", "Đã hoàn thành audit cửa hàng", [
         {
-          text: 'OK',
+          text: "OK",
           onPress: () => {
             setCapturedImages([undefined, undefined, undefined]);
-            setNotes('');
+            setNotes("");
             fetchStore();
           },
         },
       ]);
     } catch (error: any) {
-      console.error('Error uploading images:', error);
-      Alert.alert('Lỗi', error.response?.data?.error || 'Upload ảnh thất bại');
+      console.error("Error uploading images:", error);
+      Alert.alert("Lỗi", error.response?.data?.error || "Upload ảnh thất bại");
     } finally {
       setUploading(false);
     }
@@ -382,10 +428,15 @@ export default function StoreDetailScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết cửa hàng</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Chi tiết cửa hàng
+          </Text>
           <View style={styles.headerRight} />
         </View>
         <View style={styles.loadingContainer}>
@@ -397,16 +448,26 @@ export default function StoreDetailScreen() {
 
   if (!store) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: colors.background }]}
+        edges={["top"]}
+      >
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết cửa hàng</Text>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>
+            Chi tiết cửa hàng
+          </Text>
           <View style={styles.headerRight} />
         </View>
         <View style={styles.emptyContainer}>
-          <Text style={[styles.emptyText, { color: colors.text }]}>Không tìm thấy cửa hàng</Text>
+          <Text style={[styles.emptyText, { color: colors.text }]}>
+            Không tìm thấy cửa hàng
+          </Text>
         </View>
       </SafeAreaView>
     );
@@ -418,77 +479,128 @@ export default function StoreDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      edges={["top"]}
+    >
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.icon + '20' }]}>
+      <View style={[styles.header, { borderBottomColor: colors.icon + "20" }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Chi tiết cửa hàng</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>
+          Chi tiết cửa hàng
+        </Text>
         {store.Latitude && store.Longitude ? (
           <TouchableOpacity onPress={handleOpenMap} style={styles.mapButton}>
-            <Text style={[styles.mapButtonText, { color: colors.primary }]}>Xem bản đồ</Text>
+            <Text style={[styles.mapButtonText, { color: colors.primary }]}>
+              Xem bản đồ
+            </Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.headerRight} />
         )}
       </View>
 
-      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Store Info Section */}
-        <View style={[styles.infoSection, { backgroundColor: colors.background }]}>
+        <View
+          style={[styles.infoSection, { backgroundColor: colors.background }]}
+        >
           <View style={styles.infoGrid}>
             <View style={styles.infoColumn}>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Mã cửa hàng:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.StoreCode}</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Mã cửa hàng:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.StoreCode}
+                </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Tên cửa hàng:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.StoreName}</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Tên cửa hàng:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.StoreName}
+                </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Loại đối tượng:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{getRankLabel(store.Rank)}</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Loại đối tượng:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {getRankLabel(store.Rank)}
+                </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Địa chỉ cửa hàng:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.Address || '-'}</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Địa chỉ cửa hàng:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.Address || "-"}
+                </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Mã số thuế:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.TaxCode || '-'}</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Mã số thuế:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.TaxCode || "-"}
+                </Text>
               </View>
             </View>
 
             <View style={styles.infoColumn}>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Địa bàn phụ trách:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.TerritoryName || '-'}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Tên đối tác:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.PartnerName || '-'}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Thông tin liên hệ:</Text>
-                <Text style={[styles.infoValue, { color: colors.text }]}>{store.Phone || '-'}</Text>
-              </View>
-              <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>User Phụ trách:</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Địa bàn phụ trách:
+                </Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>
-                  {store.UserFullName || '-'} {store.UserCode ? `(${store.UserCode})` : ''}
+                  {store.TerritoryName || "-"}
                 </Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={[styles.infoLabel, { color: colors.icon }]}>Trạng thái:</Text>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Tên đối tác:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.PartnerName || "-"}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Thông tin liên hệ:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.Phone || "-"}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  User Phụ trách:
+                </Text>
+                <Text style={[styles.infoValue, { color: colors.text }]}>
+                  {store.UserFullName || "-"}{" "}
+                  {store.UserCode ? `(${store.UserCode})` : ""}
+                </Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                  Trạng thái:
+                </Text>
                 <View
                   style={[
                     styles.statusBadge,
                     { backgroundColor: getStatusColor(store.Status) },
                   ]}
                 >
-                  <Text style={styles.statusText}>{getStatusLabel(store.Status)}</Text>
+                  <Text style={styles.statusText}>
+                    {getStatusLabel(store.Status)}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -497,8 +609,15 @@ export default function StoreDetailScreen() {
 
         {/* Camera Section or Images Display */}
         {isAudited ? (
-          <View style={[styles.imagesSection, { backgroundColor: colors.background }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Ảnh đã chụp</Text>
+          <View
+            style={[
+              styles.imagesSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Ảnh đã chụp
+            </Text>
             {storeImages.length > 0 ? (
               <View style={styles.imagesGrid}>
                 {storeImages.map((img, index) => (
@@ -507,20 +626,32 @@ export default function StoreDetailScreen() {
                     style={styles.imageContainer}
                     onPress={() => handleImagePress(img.ImageUrl)}
                   >
-                    <Image source={{ uri: img.ImageUrl }} style={styles.image} />
+                    <Image
+                      source={{ uri: img.ImageUrl }}
+                      style={styles.image}
+                    />
                     <Text style={[styles.imageTime, { color: colors.icon }]}>
-                      {new Date(img.CapturedAt).toLocaleString('vi-VN')}
+                      {new Date(img.CapturedAt).toLocaleString("vi-VN")}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
             ) : (
-              <Text style={[styles.emptyText, { color: colors.icon }]}>Chưa có ảnh</Text>
+              <Text style={[styles.emptyText, { color: colors.icon }]}>
+                Chưa có ảnh
+              </Text>
             )}
           </View>
         ) : (
-          <View style={[styles.cameraSection, { backgroundColor: colors.background }]}>
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>Chụp ảnh</Text>
+          <View
+            style={[
+              styles.cameraSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Chụp ảnh
+            </Text>
             <View style={styles.cameraGrid}>
               {[0, 1, 2].map((index) => {
                 const image = capturedImages[index];
@@ -528,17 +659,27 @@ export default function StoreDetailScreen() {
                   <View key={index} style={styles.cameraItem}>
                     {image ? (
                       <View style={styles.capturedImageContainer}>
-                        <Image source={{ uri: image.uri }} style={styles.capturedImage} />
+                        <Image
+                          source={{ uri: image.uri }}
+                          style={styles.capturedImage}
+                        />
                         <TouchableOpacity
                           style={styles.removeButton}
                           onPress={() => removeImage(index)}
                         >
-                          <Ionicons name="close-circle" size={24} color="#F44336" />
+                          <Ionicons
+                            name="close-circle"
+                            size={24}
+                            color="#F44336"
+                          />
                         </TouchableOpacity>
                       </View>
                     ) : (
                       <TouchableOpacity
-                        style={[styles.cameraButton, { borderColor: colors.icon + '40' }]}
+                        style={[
+                          styles.cameraButton,
+                          { borderColor: colors.icon + "40" },
+                        ]}
                         onPress={() => captureImage(index)}
                       >
                         <Ionicons name="camera" size={32} color={colors.icon} />
@@ -554,9 +695,10 @@ export default function StoreDetailScreen() {
                 styles.completeButton,
                 {
                   backgroundColor:
-                    capturedImages.length === 3 && [0, 1, 2].every((index) => capturedImages[index])
+                    capturedImages.length === 3 &&
+                    [0, 1, 2].every((index) => capturedImages[index])
                       ? colors.primary
-                      : colors.icon + '40',
+                      : colors.icon + "40",
                 },
               ]}
               onPress={handleComplete}
@@ -625,13 +767,27 @@ export default function StoreDetailScreen() {
         onRequestClose={() => setNotesModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Ghi chú</Text>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Ghi chú
+            </Text>
             <Text style={[styles.modalSubtitle, { color: colors.icon }]}>
               Ghi chú tình trạng cửa hàng (có thể để trống)
             </Text>
             <TextInput
-              style={[styles.notesInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.icon + '40' }]}
+              style={[
+                styles.notesInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                },
+              ]}
               placeholder="Nhập ghi chú..."
               placeholderTextColor={colors.icon}
               value={notes}
@@ -641,16 +797,26 @@ export default function StoreDetailScreen() {
             />
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel, { backgroundColor: colors.icon + '20' }]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonCancel,
+                  { backgroundColor: colors.icon + "20" },
+                ]}
                 onPress={() => {
                   setNotesModalVisible(false);
-                  setNotes('');
+                  setNotes("");
                 }}
               >
-                <Text style={[styles.modalButtonText, { color: colors.text }]}>Hủy</Text>
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>
+                  Hủy
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm, { backgroundColor: colors.primary }]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonConfirm,
+                  { backgroundColor: colors.primary },
+                ]}
                 onPress={handleConfirmUpload}
               >
                 <Text style={styles.modalButtonTextConfirm}>Xác nhận</Text>
@@ -667,9 +833,16 @@ export default function StoreDetailScreen() {
         animationType="fade"
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}>
+            <Text
+              style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}
+            >
               Đang lấy thông tin vị trí...
             </Text>
           </View>
@@ -684,20 +857,43 @@ export default function StoreDetailScreen() {
         onRequestClose={handleCancelBack}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Xác nhận quay lại</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.icon, marginTop: 8 }]}>
-              Bạn có ảnh đã chụp chưa được lưu. Quay lại sẽ xóa tất cả ảnh đã chụp. Bạn có chắc muốn quay lại?
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Xác nhận quay lại
+            </Text>
+            <Text
+              style={[
+                styles.modalSubtitle,
+                { color: colors.icon, marginTop: 8 },
+              ]}
+            >
+              Bạn có ảnh đã chụp chưa được lưu. Quay lại sẽ xóa tất cả ảnh đã
+              chụp. Bạn có chắc muốn quay lại?
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonCancel, { backgroundColor: colors.icon + '20' }]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonCancel,
+                  { backgroundColor: colors.icon + "20" },
+                ]}
                 onPress={handleCancelBack}
               >
-                <Text style={[styles.modalButtonText, { color: colors.text }]}>Hủy</Text>
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>
+                  Hủy
+                </Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonConfirm, { backgroundColor: colors.primary }]}
+                style={[
+                  styles.modalButton,
+                  styles.modalButtonConfirm,
+                  { backgroundColor: colors.primary },
+                ]}
                 onPress={handleConfirmBack}
               >
                 <Text style={styles.modalButtonTextConfirm}>Quay lại</Text>
@@ -706,6 +902,7 @@ export default function StoreDetailScreen() {
           </View>
         </View>
       </Modal>
+      <BoardingTour storageKey="store-detail" steps={storeDetailTourSteps} />
     </SafeAreaView>
   );
 }
@@ -715,9 +912,9 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
@@ -727,9 +924,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     flex: 1,
-    textAlign: 'center',
+    textAlign: "center",
   },
   headerRight: {
     width: 80,
@@ -739,7 +936,7 @@ const styles = StyleSheet.create({
   },
   mapButtonText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   scrollView: {
     flex: 1,
@@ -749,13 +946,13 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   emptyText: {
     fontSize: 16,
@@ -765,10 +962,10 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
   infoGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 16,
   },
   infoColumn: {
@@ -781,7 +978,7 @@ const styles = StyleSheet.create({
   infoLabel: {
     fontSize: 12,
     marginBottom: 4,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   infoValue: {
     fontSize: 14,
@@ -790,33 +987,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 4,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
   },
   statusText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   cameraSection: {
     borderRadius: 12,
     padding: 16,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
   imagesSection: {
     borderRadius: 12,
     padding: 16,
-    height:200,
+    height: 200,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 16,
   },
   cameraGrid: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
     marginBottom: 16,
   },
@@ -827,72 +1024,72 @@ const styles = StyleSheet.create({
   cameraButton: {
     flex: 1,
     borderWidth: 2,
-    borderStyle: 'dashed',
+    borderStyle: "dashed",
     borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#f5f5f5",
   },
   capturedImageContainer: {
     flex: 1,
-    position: 'relative',
+    position: "relative",
   },
   capturedImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 8,
   },
   removeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -8,
     right: -8,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 12,
   },
   completeButton: {
     padding: 16,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   completeButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   imagesGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   imageContainer: {
-    width: '30%',
+    width: "30%",
     aspectRatio: 1,
   },
   image: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
     borderRadius: 8,
   },
   imageTime: {
     fontSize: 10,
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: "center",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContent: {
-    width: '85%',
+    width: "85%",
     maxWidth: 400,
     borderRadius: 16,
     padding: 24,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   modalSubtitle: {
@@ -905,59 +1102,59 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     minHeight: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     marginBottom: 24,
   },
   modalButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   modalButton: {
     flex: 1,
     padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalButtonCancel: {},
   modalButtonConfirm: {},
   modalButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalButtonTextConfirm: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   imageModalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.95)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.95)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   imageModalCloseButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 50,
     right: 20,
     zIndex: 10,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
     borderRadius: 20,
     padding: 8,
   },
   imageModalScrollView: {
     flex: 1,
-    width: Dimensions.get('window').width,
+    width: Dimensions.get("window").width,
   },
   imageModalContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    minWidth: Dimensions.get('window').width,
-    minHeight: Dimensions.get('window').height,
+    justifyContent: "center",
+    alignItems: "center",
+    minWidth: Dimensions.get("window").width,
+    minHeight: Dimensions.get("window").height,
   },
   imageModalImage: {
-    width: Dimensions.get('window').width,
-    height: Dimensions.get('window').height,
-    resizeMode: 'contain',
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
+    resizeMode: "contain",
   },
 });

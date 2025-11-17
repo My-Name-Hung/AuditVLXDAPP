@@ -1,39 +1,57 @@
-import React, { useState, useEffect } from 'react';
+import BackHeader from "@/src/components/BackHeader";
+import BoardingTour from "@/src/components/BoardingTour";
+import { Colors } from "@/src/constants/theme";
+import { useAuth } from "@/src/contexts/AuthContext";
+import api from "@/src/services/api";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
-  View,
+  ActivityIndicator,
+  Alert,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '@/src/contexts/AuthContext';
-import { Colors } from '@/src/constants/theme';
-import api from '@/src/services/api';
-import BackHeader from '@/src/components/BackHeader';
+  View,
+} from "react-native";
 
 export default function EditProfileScreen() {
   const router = useRouter();
   const { user, updateUser } = useAuth();
-  const [fullName, setFullName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [fullName, setFullName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const profileTourSteps = [
+    {
+      title: "Cập nhật thông tin cá nhân",
+      description:
+        "Điền họ tên, số điện thoại, email chính xác để quản trị viên có thể liên hệ khi cần.",
+    },
+    {
+      title: "Đồng bộ tài khoản",
+      description:
+        "Thông tin sau khi lưu sẽ đồng bộ khắp ứng dụng và hiển thị tại phần hồ sơ, danh sách audit.",
+    },
+    {
+      title: "An toàn dữ liệu",
+      description:
+        "Chúng tôi chỉ sử dụng dữ liệu này cho mục đích xác thực và liên hệ nội bộ.",
+    },
+  ];
 
   useEffect(() => {
     if (user) {
-      setFullName(user.fullName || '');
-      setPhone(user.phone || '');
-      setEmail(user.email || '');
+      setFullName(user.fullName || "");
+      setPhone(user.phone || "");
+      setEmail(user.email || "");
     }
   }, [user]);
 
   const handleSave = async () => {
     if (!fullName.trim()) {
-      Alert.alert('Lỗi', 'Họ và tên không được để trống');
+      Alert.alert("Lỗi", "Họ và tên không được để trống");
       return;
     }
 
@@ -54,11 +72,14 @@ export default function EditProfileScreen() {
       };
 
       updateUser(updatedUserData);
-      Alert.alert('Thành công', 'Đã cập nhật thông tin', [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert("Thành công", "Đã cập nhật thông tin", [
+        { text: "OK", onPress: () => router.back() },
       ]);
     } catch (error: any) {
-      Alert.alert('Lỗi', error.response?.data?.error || 'Cập nhật thông tin thất bại');
+      Alert.alert(
+        "Lỗi",
+        error.response?.data?.error || "Cập nhật thông tin thất bại"
+      );
     } finally {
       setLoading(false);
     }
@@ -69,7 +90,12 @@ export default function EditProfileScreen() {
       <BackHeader title="Cập nhật thông tin" />
       <View style={styles.form}>
         <View style={styles.inputContainer}>
-          <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+          <Ionicons
+            name="person-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Họ và tên"
@@ -79,7 +105,12 @@ export default function EditProfileScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Ionicons name="call-outline" size={20} color="#666" style={styles.inputIcon} />
+          <Ionicons
+            name="call-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Số điện thoại"
@@ -90,7 +121,12 @@ export default function EditProfileScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Ionicons name="mail-outline" size={20} color="#666" style={styles.inputIcon} />
+          <Ionicons
+            name="mail-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Email"
@@ -114,6 +150,7 @@ export default function EditProfileScreen() {
           )}
         </TouchableOpacity>
       </View>
+      <BoardingTour storageKey="profile-edit" steps={profileTourSteps} />
     </View>
   );
 }
@@ -127,12 +164,12 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
     marginBottom: 16,
     paddingHorizontal: 12,
   },
@@ -143,22 +180,21 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   button: {
     backgroundColor: Colors.light.primary,
     borderRadius: 8,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 8,
   },
   buttonDisabled: {
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
-

@@ -27,10 +27,16 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
 
   // Create watermark text: Use compact format to prevent overlap
   // Ensure latitude and longitude are numbers before calling toFixed
-  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
-  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
-  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
-  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
+  const latNum =
+    latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum =
+    longitude !== null && longitude !== undefined
+      ? parseFloat(longitude)
+      : null;
+  const latValue =
+    latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
+  const lonValue =
+    lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
   // Format: Compact single line with shorter labels
   // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
   const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}`;
@@ -49,7 +55,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
         {
           overlay: {
             font_family: "Arial",
-            font_size: 13,
+            font_size: 24,
             font_weight: "bold",
             text: watermarkText,
           },
@@ -63,9 +69,10 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
     });
 
     // Return the URL with watermark (use eager transformation URL if available)
-    const watermarkedUrl = uploadResult.eager && uploadResult.eager.length > 0
-      ? uploadResult.eager[0].secure_url
-      : uploadResult.secure_url;
+    const watermarkedUrl =
+      uploadResult.eager && uploadResult.eager.length > 0
+        ? uploadResult.eager[0].secure_url
+        : uploadResult.secure_url;
 
     return {
       ...uploadResult,
@@ -97,10 +104,16 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
 
   // Create watermark text: Use compact format to prevent overlap
   // Ensure latitude and longitude are numbers before calling toFixed
-  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
-  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
-  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
-  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
+  const latNum =
+    latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum =
+    longitude !== null && longitude !== undefined
+      ? parseFloat(longitude)
+      : null;
+  const latValue =
+    latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
+  const lonValue =
+    lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
   // Format: Compact single line with shorter labels
   // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
   const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;
@@ -114,7 +127,7 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
         {
           overlay: {
             font_family: "Arial",
-            font_size: 13,
+            font_size: 24,
             font_weight: "bold",
             text: watermarkText,
           },
@@ -128,9 +141,10 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
     });
 
     // Return the URL with watermark (use eager transformation URL if available)
-    const watermarkedUrl = uploadResult.eager && uploadResult.eager.length > 0
-      ? uploadResult.eager[0].secure_url
-      : uploadResult.secure_url;
+    const watermarkedUrl =
+      uploadResult.eager && uploadResult.eager.length > 0
+        ? uploadResult.eager[0].secure_url
+        : uploadResult.secure_url;
 
     return {
       ...uploadResult,
