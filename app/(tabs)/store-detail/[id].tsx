@@ -7,7 +7,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -40,6 +40,7 @@ interface Store {
   UserCode: string;
   Latitude: number | null;
   Longitude: number | null;
+  FailedReason?: string | null;
 }
 
 interface CapturedImage {
@@ -141,11 +142,20 @@ export default function StoreDetailScreen() {
     store?.Status === "passed" ||
     store?.Status === "failed";
 
-  useEffect(() => {
-    fetchStore();
+  const fetchStoreImages = useCallback(async () => {
+    try {
+      const response = await api.get(`/audits?storeId=${id}`);
+      if (response.data && response.data.length > 0) {
+        const auditId = response.data[0].Id;
+        const imagesResponse = await api.get(`/images/audit/${auditId}`);
+        setStoreImages(imagesResponse.data || []);
+      }
+    } catch (error) {
+      console.error("Error fetching store images:", error);
+    }
   }, [id]);
 
-  const fetchStore = async () => {
+  const fetchStore = useCallback(async () => {
     try {
       setLoading(true);
       const response = await api.get(`/stores/${id}`);
@@ -165,6 +175,9 @@ export default function StoreDetailScreen() {
           const images = latestAudit.Images || latestAudit.images || [];
           if (images.length > 0) {
             setStoreImages(images);
+          } else {
+            // Fallback: fetch audits separately
+            await fetchStoreImages();
           }
         } else {
           // Fallback: fetch audits separately
@@ -177,20 +190,11 @@ export default function StoreDetailScreen() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, fetchStoreImages]);
 
-  const fetchStoreImages = async () => {
-    try {
-      const response = await api.get(`/audits?storeId=${id}`);
-      if (response.data && response.data.length > 0) {
-        const auditId = response.data[0].Id;
-        const imagesResponse = await api.get(`/images/audit/${auditId}`);
-        setStoreImages(imagesResponse.data || []);
-      }
-    } catch (error) {
-      console.error("Error fetching store images:", error);
-    }
-  };
+  useEffect(() => {
+    fetchStore();
+  }, [fetchStore]);
 
   const handleOpenMap = () => {
     if (store?.Latitude && store?.Longitude) {
@@ -608,6 +612,22 @@ export default function StoreDetailScreen() {
                   </Text>
                 </View>
               </View>
+
+              {/* Failed Reason - show directly under status when store is failed */}
+              {store.Status === "failed" && !!store.FailedReason && (
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: colors.icon }]}>
+                    Lý do không đạt:
+                  </Text>
+                  <View style={styles.failedReasonBox}>
+                    <Text
+                      style={[styles.failedReasonText, { color: colors.text }]}
+                    >
+                      {store.FailedReason}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
           </View>
         </View>
@@ -998,6 +1018,19 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  failedReasonBox: {
+    flex: 1,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  failedReasonText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   cameraSection: {
     borderRadius: 12,
