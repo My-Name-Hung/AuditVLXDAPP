@@ -77,6 +77,8 @@
   color: var(--primary-color);
   margin-bottom: 0.35rem;
   font-size: 2rem;
+  text-align: center;
+  justify-items: center;
 }
 
 .login-header p {
@@ -192,10 +194,13 @@
 
 .btn-full {
   width: 100%;
-  padding: 0.9rem;
+  padding: 0.9rem 1.5rem;
   font-size: 1rem;
   border-radius: 12px;
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* Modal */

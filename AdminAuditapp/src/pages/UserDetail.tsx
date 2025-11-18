@@ -1,6 +1,6 @@
-import { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
+import { useNavigate, useParams } from "react-router-dom";
 import api from "../services/api";
 import "./UserDetail.css";
 
@@ -13,10 +13,35 @@ interface UserDetailItem {
   Notes: string;
 }
 
+interface UserInfo {
+  Id: number;
+  FullName: string;
+  [key: string]: unknown;
+}
+
+const formatUtcDate = (value: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString("vi-VN", {
+    timeZone: "UTC",
+  });
+};
+
+const formatUtcTime = (value: string) => {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString("vi-VN", {
+    hour12: false,
+    timeZone: "UTC",
+  });
+};
+
 export default function UserDetail() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
-  const [userInfo, setUserInfo] = useState<any>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [detailData, setDetailData] = useState<UserDetailItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [startDate, setStartDate] = useState<string>("");
@@ -25,17 +50,48 @@ export default function UserDetail() {
   const [storeNameFilter, setStoreNameFilter] = useState<string>("");
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => {
-    if (userId) {
-      fetchUserInfo();
+  const fetchUserInfo = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const userRes = await api.get(`/users/${userId}`);
+      setUserInfo(userRes.data as UserInfo);
+    } catch (error) {
+      console.error("Error fetching user info:", error);
     }
   }, [userId]);
 
-  useEffect(() => {
-    if (userId) {
-      fetchUserDetail();
+  const fetchUserDetail = useCallback(async () => {
+    if (!userId) return;
+    try {
+      setLoading(true);
+      const params: Record<string, string> = {};
+
+      if (startDate) {
+        params.startDate = startDate;
+      }
+      if (endDate) {
+        params.endDate = endDate;
+      }
+      if (storeNameFilter && storeNameFilter.trim()) {
+        params.storeName = storeNameFilter.trim();
+      }
+
+      const detailRes = await api.get(`/dashboard/user/${userId}`, { params });
+      setDetailData((detailRes.data.data as UserDetailItem[]) || []);
+    } catch (error) {
+      console.error("Error fetching user detail:", error);
+    } finally {
+      setLoading(false);
     }
   }, [userId, startDate, endDate, storeNameFilter]);
+
+  useEffect(() => {
+    fetchUserInfo();
+  }, [fetchUserInfo]);
+
+  useEffect(() => {
+    fetchUserDetail();
+  }, [fetchUserDetail]);
 
   // Debounce storeNameInput to storeNameFilter
   useEffect(() => {
@@ -56,41 +112,6 @@ export default function UserDetail() {
       }
     };
   }, [storeNameInput]);
-
-  const fetchUserInfo = async () => {
-    try {
-      const userRes = await api.get(`/users/${userId}`);
-      setUserInfo(userRes.data);
-    } catch (error) {
-      console.error("Error fetching user info:", error);
-    }
-  };
-
-  const fetchUserDetail = async () => {
-    try {
-      setLoading(true);
-      const params: any = {};
-      
-      if (startDate) {
-        params.startDate = startDate;
-      }
-      if (endDate) {
-        params.endDate = endDate;
-      }
-      if (storeNameFilter && storeNameFilter.trim()) {
-        params.storeName = storeNameFilter.trim();
-      }
-
-      console.log("Fetching user detail with params:", params);
-      const detailRes = await api.get(`/dashboard/user/${userId}`, { params });
-      console.log("User detail response:", detailRes.data);
-      setDetailData(detailRes.data.data || []);
-    } catch (error) {
-      console.error("Error fetching user detail:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleClearFilters = () => {
     setStartDate("");
@@ -193,27 +214,16 @@ export default function UserDetail() {
                 </td>
               </tr>
             ) : (
-              detailData.map((item, index) => {
-                const checkinDate = new Date(item.CheckinDate);
-                const checkinTime = item.CheckinTime
-                  ? new Date(item.CheckinTime)
-                  : null;
-
-                return (
-                  <tr key={item.AuditId}>
-                    <td>{checkinDate.toLocaleDateString("vi-VN")}</td>
-                    <td>{index + 1}</td>
-                    <td>{item.StoreName}</td>
-                    <td>{item.Address || ""}</td>
-                    <td>
-                      {checkinTime
-                        ? checkinTime.toLocaleTimeString("vi-VN")
-                        : ""}
-                    </td>
-                    <td>{item.Notes || ""}</td>
-                  </tr>
-                );
-              })
+              detailData.map((item, index) => (
+                <tr key={item.AuditId}>
+                  <td>{formatUtcDate(item.CheckinDate)}</td>
+                  <td>{index + 1}</td>
+                  <td>{item.StoreName}</td>
+                  <td>{item.Address || ""}</td>
+                  <td>{formatUtcTime(item.CheckinTime)}</td>
+                  <td>{item.Notes || ""}</td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
@@ -221,4 +231,3 @@ export default function UserDetail() {
     </div>
   );
 }
-

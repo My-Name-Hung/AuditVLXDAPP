@@ -143,7 +143,8 @@ const createStore = async (req, res) => {
       userId,
       rank,
       taxCode,
-      partnerName
+      partnerName,
+      openDate,
     } = req.body;
 
     if (!storeName || !address) {
@@ -166,6 +167,7 @@ const createStore = async (req, res) => {
       Rank: rank ? parseInt(rank) : null,
       TaxCode: taxCode,
       PartnerName: partnerName,
+      OpenDate: openDate || null,
     });
 
     res.status(201).json(store);
@@ -190,7 +192,8 @@ const updateStore = async (req, res) => {
       userId,
       rank,
       taxCode,
-      partnerName
+      partnerName,
+      openDate,
     } = req.body;
 
     const store = await Store.findById(id);
@@ -225,6 +228,7 @@ const updateStore = async (req, res) => {
     request.input('Rank', sql.Int, rank !== undefined ? rank : store.Rank);
     request.input('TaxCode', sql.VarChar(50), taxCode !== undefined ? taxCode : store.TaxCode);
     request.input('PartnerName', sql.NVarChar(200), partnerName !== undefined ? partnerName : store.PartnerName);
+    request.input('OpenDate', sql.Date, openDate !== undefined ? openDate : store.OpenDate);
 
     const result = await request.query(`
       UPDATE Stores 
@@ -240,6 +244,7 @@ const updateStore = async (req, res) => {
           Rank = @Rank,
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
+          OpenDate = @OpenDate,
           UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id

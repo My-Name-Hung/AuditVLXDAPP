@@ -41,6 +41,7 @@ interface Store {
   Latitude: number | null;
   Longitude: number | null;
   FailedReason?: string | null;
+  OpenDate?: string | null;
 }
 
 interface CapturedImage {
@@ -154,6 +155,13 @@ export default function StoreDetailScreen() {
       console.error("Error fetching store images:", error);
     }
   }, [id]);
+
+  const isAuditOpenToday = (openDate?: string | null) => {
+    if (!openDate) return true; // Backward compatibility: allow audit if not set
+    const todayStr = new Date().toISOString().split("T")[0];
+    const openStr = new Date(openDate).toISOString().split("T")[0];
+    return todayStr === openStr;
+  };
 
   const fetchStore = useCallback(async () => {
     try {
@@ -633,7 +641,7 @@ export default function StoreDetailScreen() {
         </View>
 
         {/* Camera Section or Images Display */}
-        {isAudited ? (
+      {isAudited || !isAuditOpenToday(store?.OpenDate) ? (
           <View
             style={[
               styles.imagesSection,
@@ -674,6 +682,20 @@ export default function StoreDetailScreen() {
               { backgroundColor: colors.background },
             ]}
           >
+            {!isAuditOpenToday(store?.OpenDate) && (
+              <Text
+                style={[
+                  styles.notOpenText,
+                  { color: colors.icon, marginBottom: 8 },
+                ]}
+              >
+                Cửa hàng này chỉ được audit vào ngày{" "}
+                {store?.OpenDate
+                  ? new Date(store.OpenDate).toLocaleDateString("vi-VN")
+                  : ""}
+                . Vui lòng liên hệ admin nếu cần thay đổi.
+              </Text>
+            )}
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Chụp ảnh
             </Text>
@@ -1031,6 +1053,10 @@ const styles = StyleSheet.create({
   failedReasonText: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  notOpenText: {
+    fontSize: 13,
+    marginBottom: 4,
   },
   cameraSection: {
     borderRadius: 12,

@@ -193,10 +193,37 @@
 .btn-reset {
   background: #dbeafe;
   color: #1d4ed8;
+  border: 1px solid #1d4ed8;
+  padding: 0.5rem 3rem;
+  box-shadow: 0 0 0 1px rgba(29, 78, 216, 0.15);
 }
 
 .btn-reset:hover {
   background: #bfdbfe;
+}
+
+.failed-reason-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.5rem;
+}
+
+.failed-reason-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #991b1b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}
+
+.failed-reason-text {
+  font-size: 0.95rem;
+  color: #7f1d1d;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }
 
 .status-badge {
@@ -209,8 +236,8 @@
 }
 
 .status-not_audited {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #fed7aa; /* muted orange */
+  color: #92400e;
 }
 
 .status-audited {
@@ -574,6 +601,37 @@
   margin: 0 0 1.5rem 0;
   color: var(--text-secondary);
   line-height: 1.6;
+}
+
+.modal-failed-reason-input {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.modal-failed-reason-input label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.failed-reason-textarea {
+  width: 100%;
+  min-height: 120px;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  padding: 0.75rem;
+  font-size: 0.95rem;
+  resize: vertical;
+  font-family: inherit;
+  color: var(--text-primary);
+}
+
+.failed-reason-textarea:focus {
+  outline: none;
+  border-color: #0138c3;
+  box-shadow: 0 0 0 3px rgba(1, 56, 195, 0.15);
 }
 
 .modal-actions {

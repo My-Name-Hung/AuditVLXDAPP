@@ -249,6 +249,10 @@
   color: var(--text-secondary);
 }
 
+.stores-table td.status-col {
+  text-align: center;
+}
+
 .stores-table td strong {
   color: #0138c3;
   font-weight: 600;
@@ -269,8 +273,8 @@
 }
 
 .status-not_audited {
-  background: #f3f4f6;
-  color: #6b7280;
+  background: #fed7aa; /* muted orange */
+  color: #92400e;
 }
 
 .status-audited {

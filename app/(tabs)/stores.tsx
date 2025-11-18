@@ -35,6 +35,7 @@ interface Store {
   TerritoryName: string;
   UserFullName: string;
   UserCode: string;
+  OpenDate?: string | null;
 }
 
 const getStatusLabel = (status: string) => {

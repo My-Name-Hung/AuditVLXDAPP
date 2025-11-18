@@ -22,6 +22,7 @@ interface Store {
   UserId: number | null;
   Latitude: number | null;
   Longitude: number | null;
+  OpenDate?: string | null;
 }
 
 interface Territory {
@@ -68,6 +69,7 @@ export default function StoreEdit() {
     partnerName: "",
     latitude: "",
     longitude: "",
+    openDate: "",
   });
 
   useEffect(() => {
@@ -97,6 +99,9 @@ export default function StoreEdit() {
         partnerName: data.PartnerName || "",
         latitude: data.Latitude?.toString() || "",
         longitude: data.Longitude?.toString() || "",
+        openDate: data.OpenDate
+          ? new Date(data.OpenDate).toISOString().split("T")[0]
+          : "",
       });
     } catch (error) {
       console.error("Error fetching store:", error);
@@ -212,6 +217,7 @@ export default function StoreEdit() {
         // Latitude and Longitude are not editable, keep existing values
         latitude: store?.Latitude || null,
         longitude: store?.Longitude || null,
+        openDate: formData.openDate || null,
       };
 
       await api.put(`/stores/${id}`, payload);
@@ -359,6 +365,17 @@ export default function StoreEdit() {
           <h3>Thông tin bổ sung</h3>
           <div className="form-grid">
             <div className="form-group">
+                <label>Ngày mở audit</label>
+                <input
+                  type="date"
+                  value={formData.openDate}
+                  onChange={(e) =>
+                    setFormData({ ...formData, openDate: e.target.value })
+                  }
+                  className="form-input"
+                />
+              </div>
+              <div className="form-group">
               <label>Cấp cửa hàng</label>
               <Select
                 options={rankOptions}

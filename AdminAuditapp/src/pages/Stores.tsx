@@ -762,7 +762,7 @@ export default function Stores() {
                   <td>{store.Address || "-"}</td>
                   <td>{store.PartnerName || "-"}</td>
                   <td>{store.Phone || "-"}</td>
-                  <td>
+                  <td className="status-col">
                     <span className={`status-badge status-${store.Status}`}>
                       {getStatusLabel(store.Status)}
                     </span>

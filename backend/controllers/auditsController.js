@@ -41,6 +41,26 @@ const createAudit = async (req, res) => {
       return res.status(400).json({ error: 'UserId and StoreId are required' });
     }
 
+    // Enforce OpenDate: store can only be audited on its configured OpenDate (if set)
+    const Store = require('../models/Store');
+    const store = await Store.findById(storeId);
+    if (!store) {
+      return res.status(404).json({ error: 'Store not found' });
+    }
+
+    if (store.OpenDate) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const openDateStr = new Date(store.OpenDate).toISOString().split('T')[0];
+      if (openDateStr !== todayStr) {
+        return res.status(400).json({
+          error: `Cửa hàng chỉ được audit vào ngày ${openDateStr
+            .split('-')
+            .reverse()
+            .join('/')}. Vui lòng liên hệ admin để điều chỉnh.`,
+        });
+      }
+    }
+
     // If result is provided, validate it
     if (result && !['pass', 'fail'].includes(result.toLowerCase())) {
       return res.status(400).json({ error: 'Result must be "pass" or "fail"' });
@@ -60,7 +80,6 @@ const createAudit = async (req, res) => {
     // Auto-update store status based on audit result
     // Only update if skipStatusUpdate is not true (for image upload audits, status will be updated when images are uploaded)
     if (!skipStatusUpdate && result) {
-      const Store = require('../models/Store');
       const newStatus = result.toLowerCase() === 'pass' ? 'passed' : 'failed';
       await Store.updateStatus(storeId, newStatus);
     }

@@ -82,6 +82,7 @@ type TabType = "import-stores" | "import-users" | "export-reports";
 export default function ImportExport() {
   const [activeTab, setActiveTab] = useState<TabType>("import-stores");
   const [storesFile, setStoresFile] = useState<File | null>(null);
+  const [storesOpenDate, setStoresOpenDate] = useState<string>("");
   const [usersFile, setUsersFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
@@ -242,12 +243,22 @@ export default function ImportExport() {
       return;
     }
 
+    if (!storesOpenDate) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng chọn ngày mở audit áp dụng cho danh sách cửa hàng.",
+      });
+      return;
+    }
+
     try {
       setImportLoading(true);
       setImportProgress(0);
 
       const formData = new FormData();
       formData.append("file", storesFile);
+      formData.append("openDate", storesOpenDate);
 
       setImportProgress(30);
       const res = await api.post("/import/stores", formData, {
@@ -274,6 +285,7 @@ export default function ImportExport() {
       }
 
       setStoresFile(null);
+      setStoresOpenDate("");
       if (storesFileInputRef.current) {
         storesFileInputRef.current.value = "";
       }
@@ -932,6 +944,14 @@ export default function ImportExport() {
               </div>
 
               <div className="upload-area">
+                <div className="date-selector">
+                  <label>Ngày mở audit cho danh sách cửa hàng</label>
+                  <input
+                    type="date"
+                    value={storesOpenDate}
+                    onChange={(e) => setStoresOpenDate(e.target.value)}
+                  />
+                </div>
                 <input
                   ref={storesFileInputRef}
                   type="file"
