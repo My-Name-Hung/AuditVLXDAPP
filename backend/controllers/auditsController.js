@@ -116,6 +116,9 @@ const deleteAudit = async (req, res) => {
 
     await request.query("DELETE FROM Audits WHERE Id = @Id");
 
+    const Store = require("../models/Store");
+    await Store.refreshStatusFromLatest(audit.StoreId);
+
     res.json({ message: "Audit deleted successfully" });
   } catch (error) {
     console.error("Delete audit error:", error);

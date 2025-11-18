@@ -412,18 +412,24 @@ export default function StoreDetail() {
   };
 
   const handleResetStoreConfirm = async () => {
-    if (!store) return;
+    if (!store || !selectedAudit) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Không xác định được ngày audit để làm lại.",
+      });
+      return;
+    }
     try {
       setResetLoading(true);
       setResetModalOpen(false);
-      await api.post(`/stores/${store.Id}/reset`);
+      await api.delete(`/audits/${selectedAudit.AuditId}`);
       await fetchStoreDetail();
       setResetLoading(false);
       setNotification({
         isOpen: true,
         type: "success",
-        message:
-          "Đã làm mới dữ liệu cửa hàng, trạng thái trở về 'Chưa thực hiện'.",
+        message: "Đã xoá dữ liệu audit của ngày đã chọn.",
       });
     } catch (error: unknown) {
       console.error("Error resetting store audits:", error);
@@ -627,6 +633,7 @@ export default function StoreDetail() {
               <button
                 className="btn-status btn-reset"
                 onClick={() => setResetModalOpen(true)}
+                disabled={!selectedAudit}
               >
                 Làm lại
               </button>
@@ -885,9 +892,14 @@ export default function StoreDetail() {
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Làm lại cửa hàng</h3>
             <p>
-              Hành động này sẽ xóa toàn bộ dữ liệu audit, hình ảnh của cửa hàng{" "}
-              <strong>{store.StoreName}</strong> và đặt trạng thái về{" "}
-              <strong>Chưa thực hiện</strong>. Bạn có chắc chắn muốn tiếp tục?
+              Hành động này sẽ xóa dữ liệu audit ngày{" "}
+              <strong>
+                {selectedAudit
+                  ? formatAuditDateTime(selectedAudit.AuditDate)
+                  : ""}
+              </strong>{" "}
+              (bao gồm toàn bộ hình ảnh và kết quả chấm). Bạn có chắc chắn muốn
+              làm lại?
             </p>
             <div className="modal-actions">
               <button

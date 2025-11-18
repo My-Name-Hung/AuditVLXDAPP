@@ -164,7 +164,9 @@
   position: relative;
   width: 260px;
 }
-
+.audit-date-selector button:hover{
+  color: #fefefe;
+}
 .audit-date-button {
   width: 100%;
   display: flex;
@@ -176,6 +178,7 @@
   background: white;
   font-size: 0.9rem;
   cursor: pointer;
+  color: #000;
 }
 
 .audit-date-button .chevron {
