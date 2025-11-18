@@ -16,7 +16,6 @@ class Store {
       Rank,
       TaxCode,
       PartnerName,
-      OpenDate,
     } = storeData;
 
     // Generate StoreCode
@@ -52,9 +51,6 @@ class Store {
     if (PartnerName !== undefined && PartnerName !== null) {
       request.input("PartnerName", sql.NVarChar(200), PartnerName);
     }
-    if (OpenDate !== undefined && OpenDate !== null) {
-      request.input("OpenDate", sql.Date, OpenDate);
-    }
 
     let query = `
       INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
@@ -89,10 +85,6 @@ class Store {
     if (PartnerName !== undefined && PartnerName !== null) {
       query += `, PartnerName`;
       values += `, @PartnerName`;
-    }
-    if (OpenDate !== undefined && OpenDate !== null) {
-      query += `, OpenDate`;
-      values += `, @OpenDate`;
     }
 
     query += `, CreatedAt, UpdatedAt)
@@ -264,6 +256,36 @@ class Store {
     `);
 
     return result.recordset[0];
+  }
+
+  static async refreshStatusFromLatest(storeId) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("StoreId", sql.Int, storeId);
+
+    const result = await request.query(`
+      SELECT TOP 1 Result, FailedReason
+      FROM Audits
+      WHERE StoreId = @StoreId
+      ORDER BY AuditDate DESC, Id DESC
+    `);
+
+    let status = "not_audited";
+    let failedReason = null;
+
+    if (result.recordset.length > 0) {
+      const latest = result.recordset[0];
+      if (latest.Result === "fail") {
+        status = "failed";
+        failedReason = latest.FailedReason || null;
+      } else if (latest.Result === "pass") {
+        status = "passed";
+      } else {
+        status = "audited";
+      }
+    }
+
+    return this.updateStatus(storeId, status, failedReason);
   }
 
   static async generateStoreCode() {

@@ -40,6 +40,7 @@ interface Image {
 interface Audit {
   AuditId: number;
   Result: string;
+  FailedReason: string | null;
   Notes: string;
   AuditDate: string;
   AuditCreatedAt: string;
@@ -54,6 +55,9 @@ export default function StoreDetail() {
   const navigate = useNavigate();
   const [store, setStore] = useState<Store | null>(null);
   const [audits, setAudits] = useState<Audit[]>([]);
+  const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
+  const [auditDateDropdownOpen, setAuditDateDropdownOpen] = useState(false);
+  const [auditDateSearch, setAuditDateSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{
@@ -70,10 +74,12 @@ export default function StoreDetail() {
     isOpen: boolean;
     newStatus: "passed" | "failed" | null;
     failedReason: string;
+    auditId: number | null;
   }>({
     isOpen: false,
     newStatus: null,
     failedReason: "",
+    auditId: null,
   });
   const [notification, setNotification] = useState<{
     isOpen: boolean;
@@ -138,7 +144,14 @@ export default function StoreDetail() {
         Longitude: data.Longitude,
         FailedReason: data.FailedReason || null,
       });
-      setAudits(data.audits || []);
+      const auditsData = data.audits || [];
+      setAudits(auditsData);
+      setSelectedAuditId((prev) => {
+        if (prev && auditsData.some((audit: Audit) => audit.AuditId === prev)) {
+          return prev;
+        }
+        return auditsData.length > 0 ? auditsData[0].AuditId : null;
+      });
     } catch (error) {
       console.error("Error fetching store detail:", error);
     } finally {
@@ -164,6 +177,22 @@ export default function StoreDetail() {
     if (rank === 1) return "Đơn vị, tổ chức";
     if (rank === 2) return "Cá nhân";
     return "-";
+  };
+
+  const formatAuditDateTime = (value: string) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("vi-VN", {
+      hour12: false,
+    });
+  };
+
+  const mapAuditResultToStoreStatus = (result?: string | null) => {
+    if (!result) return "audited";
+    if (result === "fail") return "failed";
+    if (result === "pass") return "passed";
+    return "audited";
   };
 
   // Extract coordinates from image URL or use store coordinates
@@ -295,15 +324,32 @@ export default function StoreDetail() {
   const [resetLoading, setResetLoading] = useState(false);
 
   const handleStatusUpdateClick = (newStatus: "passed" | "failed") => {
+    if (!selectedAudit) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Không tìm thấy bản ghi audit để cập nhật.",
+      });
+      return;
+    }
     setStatusUpdateModal({
       isOpen: true,
       newStatus,
       failedReason: "",
+      auditId: selectedAudit.AuditId,
     });
   };
 
   const handleStatusUpdateConfirm = async () => {
     if (!store || !statusUpdateModal.newStatus) return;
+    if (!statusUpdateModal.auditId) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Không xác định được ngày audit để cập nhật trạng thái.",
+      });
+      return;
+    }
 
     if (
       statusUpdateModal.newStatus === "failed" &&
@@ -319,8 +365,14 @@ export default function StoreDetail() {
 
     try {
       setUpdateLoading(true);
-      const payload: { status: "passed" | "failed"; failedReason?: string } = {
+      const updatedStatus = statusUpdateModal.newStatus;
+      const payload: {
+        status: "passed" | "failed";
+        failedReason?: string;
+        auditId: number | null;
+      } = {
         status: statusUpdateModal.newStatus,
+        auditId: statusUpdateModal.auditId,
       };
       if (statusUpdateModal.newStatus === "failed") {
         payload.failedReason = statusUpdateModal.failedReason.trim();
@@ -329,6 +381,7 @@ export default function StoreDetail() {
         isOpen: false,
         newStatus: null,
         failedReason: "",
+        auditId: null,
       });
 
       await api.patch(`/stores/${store.Id}/status`, payload);
@@ -341,7 +394,7 @@ export default function StoreDetail() {
         isOpen: true,
         type: "success",
         message: `Đã cập nhật trạng thái cửa hàng thành "${getStatusLabel(
-          statusUpdateModal.newStatus
+          updatedStatus
         )}" thành công.`,
       });
     } catch (error: unknown) {
@@ -386,22 +439,20 @@ export default function StoreDetail() {
     }
   };
 
-  // Collect all images from all audits for grid display
-  const allImages: Array<
-    Image & { auditDate: string; auditUser: string; auditResult: string }
-  > = [];
-  audits.forEach((audit) => {
-    if (audit.Images && audit.Images.length > 0) {
-      audit.Images.forEach((image) => {
-        allImages.push({
-          ...image,
-          auditDate: audit.AuditDate,
-          auditUser: `${audit.UserFullName} (${audit.UserCode})`,
-          auditResult: audit.Result,
-        });
-      });
-    }
-  });
+  const selectedAudit =
+    audits.find((audit) => audit.AuditId === selectedAuditId) || null;
+  const effectiveStatus =
+    selectedAudit && store
+      ? mapAuditResultToStoreStatus(selectedAudit.Result)
+      : store?.Status || "not_audited";
+  const selectedImages = selectedAudit?.Images || [];
+  const selectedFailedReason =
+    effectiveStatus === "failed" ? selectedAudit?.FailedReason || null : null;
+  const filteredAudits = audits.filter((audit) =>
+    formatAuditDateTime(audit.AuditDate)
+      .toLowerCase()
+      .includes(auditDateSearch.toLowerCase())
+  );
 
   if (loading) {
     return <div className="loading">Đang tải dữ liệu...</div>;
@@ -476,8 +527,8 @@ export default function StoreDetail() {
               </div>
               <div className="info-item">
                 <label>Trạng thái:</label>
-                <span className={`status-badge status-${store.Status}`}>
-                  {getStatusLabel(store.Status)}
+                <span className={`status-badge status-${effectiveStatus}`}>
+                  {getStatusLabel(effectiveStatus)}
                 </span>
               </div>
             </div>
@@ -499,80 +550,145 @@ export default function StoreDetail() {
           )}
         </div>
 
-        {/* Images Section */}
-        {allImages.length > 0 && (
-          <div className="audits-section">
-            <div className="section-header">
+        <div className="audits-section">
+          <div className="section-header">
+            <div className="section-title-group">
               <h3>Lịch sử Audit và Hình ảnh</h3>
-              <div className="status-action-buttons">
-                <button
-                  className="btn-status btn-passed"
-                  onClick={() => handleStatusUpdateClick("passed")}
-                >
-                  Đạt
-                </button>
-                <button
-                  className="btn-status btn-failed"
-                  onClick={() => handleStatusUpdateClick("failed")}
-                >
-                  Không đạt
-                </button>
-                <button
-                  className="btn-status btn-reset"
-                  onClick={() => setResetModalOpen(true)}
-                >
-                  Làm lại
-                </button>
-              </div>
-            </div>
-
-            {store.Status === "failed" && store.FailedReason && (
-              <div className="failed-reason-box">
-                <div className="failed-reason-label">Lý do không đạt:</div>
-                <div className="failed-reason-text">{store.FailedReason}</div>
-              </div>
-            )}
-            <div className="images-grid">
-              {allImages.map((image, index) => {
-                const coords = getImageCoordinates(image);
-                return (
-                  <div key={`${image.Id}-${index}`} className="image-card">
-                    <img
-                      src={image.ImageUrl}
-                      alt={`Image ${image.Id}`}
-                      onClick={() => handleImageClick(image)}
-                      className="grid-image"
-                    />
-                    <div className="image-info">
-                      <span className="image-time">
-                        {image.CapturedAt
-                          ? new Date(image.CapturedAt).toLocaleString("vi-VN")
-                          : "-"}
-                      </span>
-                      {coords.lat && coords.lon && (
-                        <button
-                          className="btn-view-map"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewOnGoogleMaps(coords.lat, coords.lon);
-                          }}
-                        >
-                          Xem trên Google Maps
-                        </button>
-                      )}
+              {audits.length > 0 && (
+                <div className="audit-date-selector">
+                  <button
+                    type="button"
+                    className="audit-date-button"
+                    onClick={() =>
+                      setAuditDateDropdownOpen(!auditDateDropdownOpen)
+                    }
+                  >
+                    {selectedAudit
+                      ? formatAuditDateTime(selectedAudit.AuditDate)
+                      : "Chưa có lịch sử"}
+                    <span className="chevron">
+                      {auditDateDropdownOpen ? "▲" : "▼"}
+                    </span>
+                  </button>
+                  {auditDateDropdownOpen && (
+                    <div className="audit-date-dropdown">
+                      <input
+                        type="text"
+                        className="audit-date-search"
+                        placeholder="Tìm ngày..."
+                        value={auditDateSearch}
+                        onChange={(e) => setAuditDateSearch(e.target.value)}
+                      />
+                      <div className="audit-date-options">
+                        {filteredAudits.length > 0 ? (
+                          filteredAudits.map((audit) => (
+                            <button
+                              key={audit.AuditId}
+                              className={`audit-date-option ${
+                                selectedAuditId === audit.AuditId
+                                  ? "active"
+                                  : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedAuditId(audit.AuditId);
+                                setAuditDateDropdownOpen(false);
+                                setAuditDateSearch("");
+                              }}
+                            >
+                              {formatAuditDateTime(audit.AuditDate)}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="audit-date-empty">
+                            Không tìm thấy ngày phù hợp
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="status-action-buttons">
+              <button
+                className="btn-status btn-passed"
+                onClick={() => handleStatusUpdateClick("passed")}
+                disabled={!selectedAudit}
+              >
+                Đạt
+              </button>
+              <button
+                className="btn-status btn-failed"
+                onClick={() => handleStatusUpdateClick("failed")}
+                disabled={!selectedAudit}
+              >
+                Không đạt
+              </button>
+              <button
+                className="btn-status btn-reset"
+                onClick={() => setResetModalOpen(true)}
+              >
+                Làm lại
+              </button>
             </div>
           </div>
-        )}
 
-        {allImages.length === 0 && (
-          <div className="no-audits">
-            <p>Chưa có lịch sử audit và hình ảnh cho cửa hàng này</p>
-          </div>
-        )}
+          {selectedFailedReason && (
+            <div className="failed-reason-box">
+              <div className="failed-reason-label">Lý do không đạt:</div>
+              <div className="failed-reason-text">{selectedFailedReason}</div>
+            </div>
+          )}
+
+          {selectedAudit ? (
+            selectedImages.length > 0 ? (
+              <div className="images-grid">
+                {selectedImages.map((image, index) => {
+                  const coords = getImageCoordinates(image);
+                  return (
+                    <div key={`${image.Id}-${index}`} className="image-card">
+                      <img
+                        src={image.ImageUrl}
+                        alt={`Image ${image.Id}`}
+                        onClick={() => handleImageClick(image)}
+                        className="grid-image"
+                      />
+                      <div className="image-info">
+                        <span className="image-time">
+                          {image.CapturedAt
+                            ? new Date(image.CapturedAt).toLocaleString("vi-VN")
+                            : "-"}
+                        </span>
+                        {coords.lat && coords.lon && (
+                          <button
+                            className="btn-view-map"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewOnGoogleMaps(coords.lat, coords.lon);
+                            }}
+                          >
+                            Xem trên Google Maps
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="no-audits">
+                <p>
+                  Chưa có hình ảnh cho ngày{" "}
+                  {formatAuditDateTime(selectedAudit.AuditDate)}
+                </p>
+              </div>
+            )
+          ) : (
+            <div className="no-audits">
+              <p>Chưa có lịch sử audit và hình ảnh cho cửa hàng này</p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Image Modal with Zoom and Download */}
@@ -705,6 +821,7 @@ export default function StoreDetail() {
               isOpen: false,
               newStatus: null,
               failedReason: "",
+              auditId: null,
             })
           }
         >
@@ -746,6 +863,7 @@ export default function StoreDetail() {
                     isOpen: false,
                     newStatus: null,
                     failedReason: "",
+                    auditId: null,
                   })
                 }
               >

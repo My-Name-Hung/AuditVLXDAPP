@@ -44,7 +44,6 @@ export default function StoreAdd() {
     rank: null as number | string | null,
     taxCode: "",
     partnerName: "",
-    openDate: "",
   });
 
   useEffect(() => {
@@ -112,7 +111,6 @@ export default function StoreAdd() {
         // Latitude and Longitude will be null - auto updated when user takes photo
         latitude: null,
         longitude: null,
-        openDate: formData.openDate || null,
       };
 
       await api.post("/stores", payload);
@@ -258,20 +256,6 @@ export default function StoreAdd() {
           <div className="form-section">
             <h3>Thông tin bổ sung</h3>
             <div className="form-grid">
-              <div className="form-group">
-                <label>
-                  Ngày mở audit <span className="required">*</span>
-                </label>
-                <input
-                  type="date"
-                  value={formData.openDate}
-                  onChange={(e) =>
-                    setFormData({ ...formData, openDate: e.target.value })
-                  }
-                  className="form-input"
-                  required
-                />
-              </div>
               <div className="form-group">
                 <label>Cấp cửa hàng</label>
                 <Select

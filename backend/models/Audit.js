@@ -3,19 +3,27 @@ const { getPool, sql } = require('../config/database');
 class Audit {
   static async create(auditData) {
     const pool = await getPool();
-    const { UserId, StoreId, Result, Notes, AuditDate } = auditData;
+    const {
+      UserId,
+      StoreId,
+      Result = "audited",
+      Notes,
+      AuditDate,
+      FailedReason,
+    } = auditData;
 
     const request = pool.request();
-    request.input('UserId', sql.Int, UserId);
-    request.input('StoreId', sql.Int, StoreId);
-    request.input('Result', sql.VarChar(20), Result); // 'pass' or 'fail'
-    request.input('Notes', sql.NVarChar(1000), Notes);
-    request.input('AuditDate', sql.DateTime, AuditDate || new Date());
+    request.input("UserId", sql.Int, UserId);
+    request.input("StoreId", sql.Int, StoreId);
+    request.input("Result", sql.VarChar(20), Result);
+    request.input("Notes", sql.NVarChar(1000), Notes);
+    request.input("AuditDate", sql.DateTime, AuditDate || new Date());
+    request.input("FailedReason", sql.NVarChar(1000), FailedReason || null);
 
     const result = await request.query(`
-      INSERT INTO Audits (UserId, StoreId, Result, Notes, AuditDate, CreatedAt, UpdatedAt)
+      INSERT INTO Audits (UserId, StoreId, Result, Notes, AuditDate, FailedReason, CreatedAt, UpdatedAt)
       OUTPUT INSERTED.*
-      VALUES (@UserId, @StoreId, @Result, @Notes, @AuditDate, GETDATE(), GETDATE())
+      VALUES (@UserId, @StoreId, @Result, @Notes, @AuditDate, @FailedReason, GETDATE(), GETDATE())
     `);
 
     return result.recordset[0];
@@ -68,6 +76,40 @@ class Audit {
 
     const result = await request.query(query);
     return result.recordset;
+  }
+
+  static async updateResult(id, result, failedReason = null) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("Id", sql.Int, id);
+    request.input("Result", sql.VarChar(20), result);
+    request.input("FailedReason", sql.NVarChar(1000), failedReason || null);
+
+    const resultQuery = await request.query(`
+      UPDATE Audits
+      SET Result = @Result,
+          FailedReason = @FailedReason,
+          UpdatedAt = GETDATE()
+      OUTPUT INSERTED.*
+      WHERE Id = @Id
+    `);
+
+    return resultQuery.recordset[0];
+  }
+
+  static async findLatestByStore(storeId) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("StoreId", sql.Int, storeId);
+
+    const result = await request.query(`
+      SELECT TOP 1 *
+      FROM Audits
+      WHERE StoreId = @StoreId
+      ORDER BY AuditDate DESC, Id DESC
+    `);
+
+    return result.recordset[0] || null;
   }
 }
 

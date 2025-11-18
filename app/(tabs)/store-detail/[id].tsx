@@ -7,7 +7,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -41,7 +41,6 @@ interface Store {
   Latitude: number | null;
   Longitude: number | null;
   FailedReason?: string | null;
-  OpenDate?: string | null;
 }
 
 interface CapturedImage {
@@ -58,6 +57,16 @@ interface StoreImage {
   CapturedAt: string;
   Latitude: number;
   Longitude: number;
+}
+
+interface AuditHistory {
+  AuditId: number;
+  Result: string;
+  FailedReason: string | null;
+  Notes: string;
+  AuditDate: string;
+  AuditCreatedAt: string;
+  Images: StoreImage[];
 }
 
 const getStatusLabel = (status: string) => {
@@ -86,6 +95,42 @@ const getRankLabel = (rank: number | null) => {
   return "-";
 };
 
+const formatDateKey = (value: string | Date) => {
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(date.getDate()).padStart(2, "0")}`;
+};
+
+const isSameDay = (dateStr: string, compare: Date) => {
+  const targetKey = formatDateKey(dateStr);
+  const compareKey = formatDateKey(compare);
+  return targetKey === compareKey;
+};
+
+const getAuditStatusLabel = (result: string) => {
+  switch (result) {
+    case "fail":
+      return "Không đạt";
+    case "pass":
+      return "Đạt";
+    default:
+      return "Đã thực hiện";
+  }
+};
+
+const getAuditStatusStyle = (result: string) => {
+  switch (result) {
+    case "fail":
+      return { backgroundColor: "#fee2e2", color: "#991b1b" };
+    case "pass":
+      return { backgroundColor: "#d1fae5", color: "#065f46" };
+    default:
+      return { backgroundColor: "#dbeafe", color: "#1e40af" };
+  }
+};
+
 export default function StoreDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -97,7 +142,10 @@ export default function StoreDetailScreen() {
   const [capturedImages, setCapturedImages] = useState<
     (CapturedImage | undefined)[]
   >([undefined, undefined, undefined]);
-  const [storeImages, setStoreImages] = useState<StoreImage[]>([]);
+  const [audits, setAudits] = useState<AuditHistory[]>([]);
+  const [allowNewAudit, setAllowNewAudit] = useState(false);
+  const [showNewAuditModal, setShowNewAuditModal] = useState(false);
+  const promptedDateRef = useRef<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
@@ -138,30 +186,14 @@ export default function StoreDetailScreen() {
     },
   ];
 
-  const isAudited =
-    store?.Status === "audited" ||
-    store?.Status === "passed" ||
-    store?.Status === "failed";
-
-  const fetchStoreImages = useCallback(async () => {
-    try {
-      const response = await api.get(`/audits?storeId=${id}`);
-      if (response.data && response.data.length > 0) {
-        const auditId = response.data[0].Id;
-        const imagesResponse = await api.get(`/images/audit/${auditId}`);
-        setStoreImages(imagesResponse.data || []);
-      }
-    } catch (error) {
-      console.error("Error fetching store images:", error);
-    }
-  }, [id]);
-
-  const isAuditOpenToday = (openDate?: string | null) => {
-    if (!openDate) return true; // Backward compatibility: allow audit if not set
-    const todayStr = new Date().toISOString().split("T")[0];
-    const openStr = new Date(openDate).toISOString().split("T")[0];
-    return todayStr === openStr;
-  };
+  const sortedAudits = [...audits].sort(
+    (a, b) =>
+      new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+  );
+  const hasTodayAudit = sortedAudits.some((audit) =>
+    isSameDay(audit.AuditDate, new Date())
+  );
+  const showCameraSection = allowNewAudit || sortedAudits.length === 0;
 
   const fetchStore = useCallback(async () => {
     try {
@@ -169,28 +201,12 @@ export default function StoreDetailScreen() {
       const response = await api.get(`/stores/${id}`);
       const storeData = response.data;
       setStore(storeData);
-
-      // If store is audited, get images from audits
-      if (
-        storeData.Status === "audited" ||
-        storeData.Status === "passed" ||
-        storeData.Status === "failed"
-      ) {
-        // getStoreById returns audits with images in storeData.audits or storeData.Audits
-        const audits = storeData.audits || storeData.Audits || [];
-        if (audits.length > 0) {
-          const latestAudit = audits[0];
-          const images = latestAudit.Images || latestAudit.images || [];
-          if (images.length > 0) {
-            setStoreImages(images);
-          } else {
-            // Fallback: fetch audits separately
-            await fetchStoreImages();
-          }
-        } else {
-          // Fallback: fetch audits separately
-          await fetchStoreImages();
-        }
+      const auditData = storeData.audits || storeData.Audits || [];
+      setAudits(auditData);
+      if (auditData.length === 0) {
+        setAllowNewAudit(true);
+      } else {
+        setAllowNewAudit(false);
       }
     } catch (error) {
       console.error("Error fetching store:", error);
@@ -198,11 +214,33 @@ export default function StoreDetailScreen() {
     } finally {
       setLoading(false);
     }
-  }, [id, fetchStoreImages]);
+  }, [id]);
 
   useEffect(() => {
     fetchStore();
   }, [fetchStore]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (sortedAudits.length === 0) {
+      setShowNewAuditModal(false);
+      return;
+    }
+    if (hasTodayAudit) {
+      setShowNewAuditModal(false);
+      promptedDateRef.current = formatDateKey(new Date());
+      return;
+    }
+    if (!allowNewAudit) {
+      const todayKey = formatDateKey(new Date());
+      if (promptedDateRef.current !== todayKey) {
+        setShowNewAuditModal(true);
+        promptedDateRef.current = todayKey;
+      }
+    }
+  }, [sortedAudits, hasTodayAudit, allowNewAudit, loading]);
 
   const handleOpenMap = () => {
     if (store?.Latitude && store?.Longitude) {
@@ -373,7 +411,6 @@ export default function StoreDetailScreen() {
         storeId: store.Id,
         notes: notes.trim() || null,
         auditDate: new Date().toISOString(),
-        skipStatusUpdate: true, // Don't update status yet, will be updated when images are uploaded
       });
 
       const auditId = auditResponse.data.Id;
@@ -422,6 +459,8 @@ export default function StoreDetailScreen() {
           longitude: firstImage.longitude,
         });
       }
+
+    setAllowNewAudit(false);
 
       Alert.alert("Thành công", "Đã hoàn thành audit cửa hàng", [
         {
@@ -640,64 +679,15 @@ export default function StoreDetailScreen() {
           </View>
         </View>
 
-        {/* Camera Section or Images Display */}
-      {isAudited || !isAuditOpenToday(store?.OpenDate) ? (
-          <View
-            style={[
-              styles.imagesSection,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Ảnh đã chụp
-            </Text>
-            {storeImages.length > 0 ? (
-              <View style={styles.imagesGrid}>
-                {storeImages.map((img, index) => (
-                  <TouchableOpacity
-                    key={img.Id}
-                    style={styles.imageContainer}
-                    onPress={() => handleImagePress(img.ImageUrl)}
-                  >
-                    <Image
-                      source={{ uri: img.ImageUrl }}
-                      style={styles.image}
-                    />
-                    <Text style={[styles.imageTime, { color: colors.icon }]}>
-                      {new Date(img.CapturedAt).toLocaleString("vi-VN")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            ) : (
-              <Text style={[styles.emptyText, { color: colors.icon }]}>
-                Chưa có ảnh
-              </Text>
-            )}
-          </View>
-        ) : (
+        {showCameraSection && (
           <View
             style={[
               styles.cameraSection,
               { backgroundColor: colors.background },
             ]}
           >
-            {!isAuditOpenToday(store?.OpenDate) && (
-              <Text
-                style={[
-                  styles.notOpenText,
-                  { color: colors.icon, marginBottom: 8 },
-                ]}
-              >
-                Cửa hàng này chỉ được audit vào ngày{" "}
-                {store?.OpenDate
-                  ? new Date(store.OpenDate).toLocaleDateString("vi-VN")
-                  : ""}
-                . Vui lòng liên hệ admin nếu cần thay đổi.
-              </Text>
-            )}
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Chụp ảnh
+              Chụp ảnh {sortedAudits.length > 0 ? "ngày hôm nay" : ""}
             </Text>
             <View style={styles.cameraGrid}>
               {[0, 1, 2].map((index) => {
@@ -761,9 +751,148 @@ export default function StoreDetailScreen() {
                 <Text style={styles.completeButtonText}>Hoàn thành</Text>
               )}
             </TouchableOpacity>
+
+            {!hasTodayAudit && !allowNewAudit && (
+              <TouchableOpacity
+                style={styles.startTodayBtn}
+                onPress={() => setShowNewAuditModal(true)}
+              >
+                <Text style={styles.startTodayText}>
+                  Bắt đầu audit cho hôm nay
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
+        {sortedAudits.length > 0 ? (
+          <View
+            style={[
+              styles.historySection,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Lịch sử các ngày trước
+            </Text>
+            {sortedAudits.map((audit) => {
+              const badgeStyle = getAuditStatusStyle(audit.Result);
+              return (
+                <View key={audit.AuditId} style={styles.historyCard}>
+                  <View style={styles.historyHeader}>
+                    <View>
+                      <Text style={[styles.historyDate, { color: colors.text }]}>
+                        {new Date(audit.AuditDate).toLocaleString("vi-VN", {
+                          hour12: false,
+                        })}
+                      </Text>
+                      {audit.Notes ? (
+                        <Text style={styles.historyNotes}>{audit.Notes}</Text>
+                      ) : null}
+                    </View>
+                    <View
+                      style={[
+                        styles.historyStatusBadge,
+                        { backgroundColor: badgeStyle.backgroundColor },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.historyStatusText,
+                          { color: badgeStyle.color },
+                        ]}
+                      >
+                        {getAuditStatusLabel(audit.Result)}
+                      </Text>
+                    </View>
+                  </View>
+                  {audit.Result === "fail" && audit.FailedReason ? (
+                    <Text style={styles.historyFailedReason}>
+                      Lý do: {audit.FailedReason}
+                    </Text>
+                  ) : null}
+                  {audit.Images && audit.Images.length > 0 ? (
+                    <View style={styles.imagesGrid}>
+                      {audit.Images.map((img) => (
+                        <TouchableOpacity
+                          key={img.Id}
+                          style={styles.imageContainer}
+                          onPress={() => handleImagePress(img.ImageUrl)}
+                        >
+                          <Image
+                            source={{ uri: img.ImageUrl }}
+                            style={styles.image}
+                          />
+                          <Text
+                            style={[styles.imageTime, { color: colors.icon }]}
+                          >
+                            {new Date(img.CapturedAt).toLocaleString("vi-VN")}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : (
+                    <Text style={[styles.emptyText, { color: colors.icon }]}>
+                      Chưa có ảnh cho ngày này
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ) : (
+          <View
+            style={[
+              styles.imagesSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.emptyText, { color: colors.icon }]}>
+              Chưa có lịch sử audit cho cửa hàng này
+            </Text>
           </View>
         )}
       </ScrollView>
+
+      <Modal
+        visible={showNewAuditModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowNewAuditModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+            <Ionicons
+              name="calendar-outline"
+              size={48}
+              color={colors.primary}
+            />
+            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}>
+              Audit ngày mới
+            </Text>
+            <Text style={[styles.modalSubtitle, { color: colors.icon }]}>
+              Hôm nay cửa hàng chưa được audit. Bạn có muốn bắt đầu chụp ảnh cho ngày hôm nay?
+            </Text>
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonCancel]}
+                onPress={() => setShowNewAuditModal(false)}
+              >
+                <Text style={styles.modalButtonText}>Để sau</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonConfirm]}
+                onPress={() => {
+                  setAllowNewAudit(true);
+                  setShowNewAuditModal(false);
+                }}
+              >
+                <Text style={styles.modalButtonTextConfirm}>Bắt đầu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Image Zoom Modal */}
       <Modal
@@ -1054,10 +1183,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  notOpenText: {
-    fontSize: 13,
-    marginBottom: 4,
-  },
   cameraSection: {
     borderRadius: 12,
     padding: 16,
@@ -1067,7 +1192,7 @@ const styles = StyleSheet.create({
   imagesSection: {
     borderRadius: 12,
     padding: 16,
-    height: 200,
+    minHeight: 200,
     borderWidth: 1,
     borderColor: "#e0e0e0",
   },
@@ -1188,6 +1313,62 @@ const styles = StyleSheet.create({
   modalButtonTextConfirm: {
     color: "#fff",
     fontSize: 16,
+    fontWeight: "600",
+  },
+  historySection: {
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#e0e0e0",
+    marginTop: 16,
+  },
+  historyCard: {
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 12,
+  },
+  historyHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  historyDate: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  historyNotes: {
+    fontSize: 13,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  historyStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  historyStatusText: {
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  historyFailedReason: {
+    fontSize: 13,
+    color: "#991b1b",
+    marginBottom: 6,
+  },
+  startTodayBtn: {
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: "#1d4ed8",
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: "center",
+  },
+  startTodayText: {
+    color: "#1d4ed8",
     fontWeight: "600",
   },
   imageModalOverlay: {

@@ -4,80 +4,28 @@
  * based on audit and image data
  */
 
-const Store = require('../models/Store');
-const { getPool, sql } = require('../config/database');
-
+const Store = require("../models/Store");
+const { getPool } = require("../config/database");
 /**
- * Calculate the appropriate status for a store based on its audits and images
- * Priority: passed/failed > audited > not_audited
- * 
- * @param {number} storeId - The ID of the store
- * @returns {Promise<string>} - The calculated status
- */
-async function calculateStoreStatus(storeId) {
-  const pool = await getPool();
-  const request = pool.request();
-  request.input('StoreId', sql.Int, storeId);
-
-  // Check if store has any audits with pass result
-  const passResult = await request.query(`
-    SELECT TOP 1 1
-    FROM Audits
-    WHERE StoreId = @StoreId AND Result = 'pass'
-  `);
-
-  if (passResult.recordset.length > 0) {
-    return 'passed';
-  }
-
-  // Check if store has any audits with fail result
-  const failResult = await request.query(`
-    SELECT TOP 1 1
-    FROM Audits
-    WHERE StoreId = @StoreId AND Result = 'fail'
-  `);
-
-  if (failResult.recordset.length > 0) {
-    return 'failed';
-  }
-
-  // Check if store has audits with images
-  const auditedResult = await request.query(`
-    SELECT TOP 1 1
-    FROM Audits a
-    INNER JOIN Images i ON a.Id = i.AuditId
-    WHERE a.StoreId = @StoreId
-  `);
-
-  if (auditedResult.recordset.length > 0) {
-    return 'audited';
-  }
-
-  // Default: not_audited
-  return 'not_audited';
-}
-
-/**
- * Update store status based on its audits and images
- * This function recalculates and updates the status
- * 
- * @param {number} storeId - The ID of the store
- * @returns {Promise<Object>} - The updated store object
+ * Recalculate and update a store's status based on its latest audit.
+ * Priority is determined by the most recent audit entry for the store.
+ *
+ * @param {number} storeId
+ * @returns {Promise<Object>}
  */
 async function updateStoreStatusFromData(storeId) {
-  const status = await calculateStoreStatus(storeId);
-  return await Store.updateStatus(storeId, status);
+  return Store.refreshStatusFromLatest(storeId);
 }
 
 /**
  * Update status for all stores in the database
  * Useful for batch updates or after data migration
- * 
+ *
  * @returns {Promise<Object>} - Summary of updates
  */
 async function updateAllStoreStatuses() {
   const pool = await getPool();
-  
+
   // Get all stores
   const storesResult = await pool.request().query(`
     SELECT Id FROM Stores
@@ -100,13 +48,11 @@ async function updateAllStoreStatuses() {
   return {
     total: stores.length,
     updated,
-    errors
+    errors,
   };
 }
 
 module.exports = {
-  calculateStoreStatus,
   updateStoreStatusFromData,
-  updateAllStoreStatuses
+  updateAllStoreStatuses,
 };
-

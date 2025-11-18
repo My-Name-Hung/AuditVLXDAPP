@@ -1,5 +1,5 @@
-const Image = require('../models/Image');
-const { uploadImageWithWatermark } = require('../services/cloudinaryService');
+const Image = require("../models/Image");
+const { uploadImageWithWatermark } = require("../services/cloudinaryService");
 
 const uploadImage = async (req, res) => {
   try {
@@ -13,11 +13,11 @@ const uploadImage = async (req, res) => {
     } = req.body;
 
     if (!req.file) {
-      return res.status(400).json({ error: 'Image file is required' });
+      return res.status(400).json({ error: "Image file is required" });
     }
 
     if (!auditId) {
-      return res.status(400).json({ error: 'AuditId is required' });
+      return res.status(400).json({ error: "AuditId is required" });
     }
 
     // Upload to Cloudinary with watermark
@@ -45,7 +45,10 @@ const uploadImage = async (req, res) => {
       timestamp: adjustedTimestamp.toISOString(),
     };
 
-    const uploadResult = await uploadImageWithWatermark(req.file.buffer, metadata);
+    const uploadResult = await uploadImageWithWatermark(
+      req.file.buffer,
+      metadata
+    );
 
     // Save to database
     const image = await Image.create({
@@ -57,18 +60,12 @@ const uploadImage = async (req, res) => {
       CapturedAt: adjustedTimestamp,
     });
 
-    // Auto-update store status to 'audited' when image is uploaded
-    // Only update if store is not already 'passed' or 'failed'
-    const Audit = require('../models/Audit');
+    // Refresh store status based on latest audit after successful upload
+    const Audit = require("../models/Audit");
     const audit = await Audit.findById(auditId);
     if (audit && audit.StoreId) {
-      const Store = require('../models/Store');
-      const store = await Store.findById(audit.StoreId);
-      // Update to 'audited' if store is 'not_audited' or NULL
-      // Don't override 'passed' or 'failed' status (these are set by admin)
-      if (store && store.Status !== 'passed' && store.Status !== 'failed') {
-        await Store.updateStatus(audit.StoreId, 'audited');
-      }
+      const Store = require("../models/Store");
+      await Store.refreshStatusFromLatest(audit.StoreId);
     }
 
     res.status(201).json({
@@ -76,8 +73,10 @@ const uploadImage = async (req, res) => {
       cloudinaryId: uploadResult.public_id,
     });
   } catch (error) {
-    console.error('Upload image error:', error);
-    res.status(500).json({ error: 'Internal server error', details: error.message });
+    console.error("Upload image error:", error);
+    res
+      .status(500)
+      .json({ error: "Internal server error", details: error.message });
   }
 };
 
@@ -87,8 +86,8 @@ const getImagesByAudit = async (req, res) => {
     const images = await Image.findByAuditId(auditId);
     res.json(images);
   } catch (error) {
-    console.error('Get images by audit error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get images by audit error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -98,13 +97,13 @@ const getImageById = async (req, res) => {
     const image = await Image.findById(id);
 
     if (!image) {
-      return res.status(404).json({ error: 'Image not found' });
+      return res.status(404).json({ error: "Image not found" });
     }
 
     res.json(image);
   } catch (error) {
-    console.error('Get image by id error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get image by id error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -114,20 +113,20 @@ const deleteImage = async (req, res) => {
 
     const image = await Image.findById(id);
     if (!image) {
-      return res.status(404).json({ error: 'Image not found' });
+      return res.status(404).json({ error: "Image not found" });
     }
 
-    const { getPool, sql } = require('../config/database');
+    const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, id);
+    request.input("Id", sql.Int, id);
 
-    await request.query('DELETE FROM Images WHERE Id = @Id');
+    await request.query("DELETE FROM Images WHERE Id = @Id");
 
-    res.json({ message: 'Image deleted successfully' });
+    res.json({ message: "Image deleted successfully" });
   } catch (error) {
-    console.error('Delete image error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Delete image error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -137,4 +136,3 @@ module.exports = {
   getImageById,
   deleteImage,
 };
-

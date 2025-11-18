@@ -1,15 +1,25 @@
-const Store = require('../models/Store');
-const { resetStoreAuditById } = require('../utils/auditReset');
+const Store = require("../models/Store");
+const Audit = require("../models/Audit");
+const { resetStoreAuditById } = require("../utils/auditReset");
 
 const getAllStores = async (req, res) => {
   try {
-    const { status, territoryId, userId, rank, storeName, userName, page, pageSize } = req.query;
+    const {
+      status,
+      territoryId,
+      userId,
+      rank,
+      storeName,
+      userName,
+      page,
+      pageSize,
+    } = req.query;
     const filters = {};
-    
+
     if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
     if (userId) filters.UserId = parseInt(userId);
-    if (rank !== undefined && rank !== null && rank !== '') {
+    if (rank !== undefined && rank !== null && rank !== "") {
       filters.Rank = parseInt(rank);
     }
     if (storeName) filters.storeName = storeName;
@@ -25,7 +35,7 @@ const getAllStores = async (req, res) => {
 
     const [stores, total] = await Promise.all([
       Store.findAll(filters),
-      Store.count(filters)
+      Store.count(filters),
     ]);
 
     res.json({
@@ -34,12 +44,12 @@ const getAllStores = async (req, res) => {
         page: currentPage,
         pageSize: limit,
         total: total,
-        totalPages: Math.ceil(total / limit)
-      }
+        totalPages: Math.ceil(total / limit),
+      },
     });
   } catch (error) {
-    console.error('Get all stores error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get all stores error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -49,18 +59,18 @@ const getStoreById = async (req, res) => {
     const store = await Store.findById(id);
 
     if (!store) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({ error: "Store not found" });
     }
 
     // Get store details with related data
-    const { getPool, sql } = require('../config/database');
+    const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
-    request.input('StoreId', sql.Int, id);
+    request.input("StoreId", sql.Int, id);
 
     // Set timeout to 60 seconds
     request.timeout = 60000;
-    
+
     // Get audits with images for this store
     const auditsResult = await request.query(`
       SELECT 
@@ -68,6 +78,7 @@ const getStoreById = async (req, res) => {
         a.Result,
         a.Notes,
         a.AuditDate,
+        a.FailedReason,
         a.CreatedAt as AuditCreatedAt,
         u.Id as UserId,
         u.FullName as UserFullName,
@@ -92,16 +103,16 @@ const getStoreById = async (req, res) => {
     `);
 
     // Parse JSON images for each audit
-    const audits = auditsResult.recordset.map(audit => {
+    const audits = auditsResult.recordset.map((audit) => {
       let images = [];
       try {
         images = audit.Images ? JSON.parse(audit.Images) : [];
-      } catch (e) {
+      } catch (_error) {
         images = [];
       }
       return {
         ...audit,
-        Images: images
+        Images: images,
       };
     });
 
@@ -122,37 +133,38 @@ const getStoreById = async (req, res) => {
 
     res.json({
       ...storeDetails,
-      audits
+      audits,
     });
   } catch (error) {
-    console.error('Get store by id error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Get store by id error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
 const createStore = async (req, res) => {
   try {
-    const { 
-      storeName, 
-      address, 
-      phone, 
-      email, 
-      latitude, 
+    const {
+      storeName,
+      address,
+      phone,
+      email,
+      latitude,
       longitude,
       territoryId,
       userId,
       rank,
       taxCode,
       partnerName,
-      openDate,
     } = req.body;
 
     if (!storeName || !address) {
-      return res.status(400).json({ error: 'StoreName and address are required' });
+      return res
+        .status(400)
+        .json({ error: "StoreName and address are required" });
     }
 
     if (rank && ![1, 2].includes(parseInt(rank))) {
-      return res.status(400).json({ error: 'Rank must be 1 or 2' });
+      return res.status(400).json({ error: "Rank must be 1 or 2" });
     }
 
     const store = await Store.create({
@@ -167,68 +179,119 @@ const createStore = async (req, res) => {
       Rank: rank ? parseInt(rank) : null,
       TaxCode: taxCode,
       PartnerName: partnerName,
-      OpenDate: openDate || null,
     });
 
     res.status(201).json(store);
   } catch (error) {
-    console.error('Create store error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Create store error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
 const updateStore = async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      storeName, 
-      address, 
-      phone, 
-      email, 
-      latitude, 
-      longitude, 
+    const {
+      storeName,
+      address,
+      phone,
+      email,
+      latitude,
+      longitude,
       status,
       territoryId,
       userId,
       rank,
       taxCode,
       partnerName,
-      openDate,
     } = req.body;
 
     const store = await Store.findById(id);
     if (!store) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({ error: "Store not found" });
     }
 
     // Validate status if provided
-    if (status && !['not_audited', 'audited', 'passed', 'failed'].includes(status)) {
-      return res.status(400).json({ error: 'Invalid status. Must be: not_audited, audited, passed, or failed' });
+    if (
+      status &&
+      !["not_audited", "audited", "passed", "failed"].includes(status)
+    ) {
+      return res.status(400).json({
+        error:
+          "Invalid status. Must be: not_audited, audited, passed, or failed",
+      });
     }
 
     // Validate rank if provided
-    if (rank !== undefined && rank !== null && ![1, 2].includes(parseInt(rank))) {
-      return res.status(400).json({ error: 'Rank must be 1 or 2' });
+    if (
+      rank !== undefined &&
+      rank !== null &&
+      ![1, 2].includes(parseInt(rank))
+    ) {
+      return res.status(400).json({ error: "Rank must be 1 or 2" });
     }
 
-    const { getPool, sql } = require('../config/database');
+    const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
 
-    request.input('Id', sql.Int, id);
-    request.input('StoreName', sql.NVarChar(200), storeName !== undefined ? storeName : store.StoreName);
-    request.input('Address', sql.NVarChar(500), address !== undefined ? address : store.Address);
-    request.input('Phone', sql.VarChar(20), phone !== undefined ? phone : store.Phone);
-    request.input('Email', sql.NVarChar(200), email !== undefined ? email : store.Email);
-    request.input('Latitude', sql.Decimal(10, 8), latitude !== undefined ? latitude : store.Latitude);
-    request.input('Longitude', sql.Decimal(11, 8), longitude !== undefined ? longitude : store.Longitude);
-    request.input('Status', sql.VarChar(20), status !== undefined ? status : store.Status);
-    request.input('TerritoryId', sql.Int, territoryId !== undefined ? territoryId : store.TerritoryId);
-    request.input('UserId', sql.Int, userId !== undefined ? userId : store.UserId);
-    request.input('Rank', sql.Int, rank !== undefined ? rank : store.Rank);
-    request.input('TaxCode', sql.VarChar(50), taxCode !== undefined ? taxCode : store.TaxCode);
-    request.input('PartnerName', sql.NVarChar(200), partnerName !== undefined ? partnerName : store.PartnerName);
-    request.input('OpenDate', sql.Date, openDate !== undefined ? openDate : store.OpenDate);
+    request.input("Id", sql.Int, id);
+    request.input(
+      "StoreName",
+      sql.NVarChar(200),
+      storeName !== undefined ? storeName : store.StoreName
+    );
+    request.input(
+      "Address",
+      sql.NVarChar(500),
+      address !== undefined ? address : store.Address
+    );
+    request.input(
+      "Phone",
+      sql.VarChar(20),
+      phone !== undefined ? phone : store.Phone
+    );
+    request.input(
+      "Email",
+      sql.NVarChar(200),
+      email !== undefined ? email : store.Email
+    );
+    request.input(
+      "Latitude",
+      sql.Decimal(10, 8),
+      latitude !== undefined ? latitude : store.Latitude
+    );
+    request.input(
+      "Longitude",
+      sql.Decimal(11, 8),
+      longitude !== undefined ? longitude : store.Longitude
+    );
+    request.input(
+      "Status",
+      sql.VarChar(20),
+      status !== undefined ? status : store.Status
+    );
+    request.input(
+      "TerritoryId",
+      sql.Int,
+      territoryId !== undefined ? territoryId : store.TerritoryId
+    );
+    request.input(
+      "UserId",
+      sql.Int,
+      userId !== undefined ? userId : store.UserId
+    );
+    request.input("Rank", sql.Int, rank !== undefined ? rank : store.Rank);
+    request.input(
+      "TaxCode",
+      sql.VarChar(50),
+      taxCode !== undefined ? taxCode : store.TaxCode
+    );
+    request.input(
+      "PartnerName",
+      sql.NVarChar(200),
+      partnerName !== undefined ? partnerName : store.PartnerName
+    );
 
     const result = await request.query(`
       UPDATE Stores 
@@ -244,7 +307,6 @@ const updateStore = async (req, res) => {
           Rank = @Rank,
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
-          OpenDate = @OpenDate,
           UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id
@@ -252,35 +314,65 @@ const updateStore = async (req, res) => {
 
     res.json(result.recordset[0]);
   } catch (error) {
-    console.error('Update store error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Update store error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
 const updateStoreStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, failedReason } = req.body;
+    const { status, failedReason, auditId } = req.body;
 
-    if (!status || !['not_audited', 'audited', 'passed', 'failed'].includes(status)) {
-      return res.status(400).json({ error: 'Status is required and must be: not_audited, audited, passed, or failed' });
+    if (!status || !["audited", "passed", "failed"].includes(status)) {
+      return res.status(400).json({
+        error: "Status must be one của: audited, passed, failed",
+      });
     }
 
-    // If status is 'failed', failedReason is required
-    if (status === 'failed' && (!failedReason || failedReason.trim() === '')) {
-      return res.status(400).json({ error: 'FailedReason is required when status is "failed"' });
+    if (status === "failed" && (!failedReason || failedReason.trim() === "")) {
+      return res
+        .status(400)
+        .json({ error: "Vui lòng nhập lý do khi chọn trạng thái 'Không đạt'" });
     }
 
     const store = await Store.findById(id);
     if (!store) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({ error: "Store not found" });
     }
 
-    const updatedStore = await Store.updateStatus(id, status, failedReason || null);
-    res.json(updatedStore);
+    const targetAudit = auditId
+      ? await Audit.findById(auditId)
+      : await Audit.findLatestByStore(id);
+
+    if (!targetAudit || targetAudit.StoreId !== store.Id) {
+      return res
+        .status(400)
+        .json({ error: "Không tìm thấy bản ghi audit hợp lệ để cập nhật" });
+    }
+
+    const auditResultMap = {
+      audited: "audited",
+      passed: "pass",
+      failed: "fail",
+    };
+
+    const updatedAudit = await Audit.updateResult(
+      targetAudit.Id,
+      auditResultMap[status],
+      status === "failed" ? failedReason : null
+    );
+
+    await Store.refreshStatusFromLatest(id);
+    const updatedStore = await Store.findById(id);
+
+    res.json({
+      store: updatedStore,
+      audit: updatedAudit,
+    });
   } catch (error) {
-    console.error('Update store status error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Update store status error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -318,20 +410,20 @@ const deleteStore = async (req, res) => {
 
     const store = await Store.findById(id);
     if (!store) {
-      return res.status(404).json({ error: 'Store not found' });
+      return res.status(404).json({ error: "Store not found" });
     }
 
-    const { getPool, sql } = require('../config/database');
+    const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, id);
+    request.input("Id", sql.Int, id);
 
-    await request.query('DELETE FROM Stores WHERE Id = @Id');
+    await request.query("DELETE FROM Stores WHERE Id = @Id");
 
-    res.json({ message: 'Store deleted successfully' });
+    res.json({ message: "Store deleted successfully" });
   } catch (error) {
-    console.error('Delete store error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Delete store error:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 };
 
@@ -344,4 +436,3 @@ module.exports = {
   resetStoreAuditData,
   deleteStore,
 };
-

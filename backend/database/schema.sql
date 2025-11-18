@@ -42,7 +42,6 @@ CREATE TABLE Stores (
     Longitude DECIMAL(11, 8),
     TerritoryId INT NULL,
     UserId INT NULL,
-    OpenDate DATE NULL,
     Status VARCHAR(20) NOT NULL DEFAULT 'not_audited',
     Rank INT NULL,
     TaxCode VARCHAR(50),

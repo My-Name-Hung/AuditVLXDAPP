@@ -11,9 +11,6 @@ const importStores = async (req, res) => {
       return res.status(400).json({ error: "Excel file is required" });
     }
 
-    // Optional: common OpenDate for all imported stores (YYYY-MM-DD)
-    const { openDate } = req.body;
-
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(req.file.buffer);
     const worksheet = workbook.getWorksheet(1);
@@ -172,9 +169,6 @@ const importStores = async (req, res) => {
         if (rowData.userId) {
           request.input("UserId", sql.Int, rowData.userId);
         }
-        if (openDate) {
-          request.input("OpenDate", sql.Date, openDate);
-        }
 
         let query = `
           INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
@@ -199,10 +193,6 @@ const importStores = async (req, res) => {
         if (rowData.userId) {
           query += `, UserId`;
           values += `, @UserId`;
-        }
-        if (openDate) {
-          query += `, OpenDate`;
-          values += `, @OpenDate`;
         }
 
         query += `, CreatedAt, UpdatedAt)
