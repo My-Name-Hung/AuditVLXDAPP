@@ -182,28 +182,49 @@ async function exportReport(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
-    // Get summary data (same as getSummary) - optimized
+    // Align export summary with dashboard summary logic
     let summaryQuery = `
-      SELECT 
-        s.UserId as UserId,
-        u.FullName,
-        s.TerritoryId,
-        t.TerritoryName,
-        COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as TotalCheckinDays,
-        COUNT(DISTINCT a.StoreId) as TotalStoresChecked
-      FROM Stores s
-      INNER JOIN Users u ON s.UserId = u.Id
-      INNER JOIN Audits a ON s.Id = a.StoreId
-      INNER JOIN Territories t ON s.TerritoryId = t.Id
-      WHERE u.Role = 'sales'
-        AND s.UserId IS NOT NULL
-        AND EXISTS (
+      WITH AuditsWithImages AS (
+        SELECT DISTINCT
+          a.UserId,
+          a.StoreId,
+          CAST(a.AuditDate AS DATE) as AuditDate,
+          s.TerritoryId
+        FROM Audits a
+        INNER JOIN Stores s ON a.StoreId = s.Id
+        WHERE EXISTS (
           SELECT 1 
           FROM Images img 
           WHERE img.AuditId = a.Id 
             AND img.ImageUrl IS NOT NULL 
             AND img.ImageUrl != ''
         )
+    `;
+
+    if (startDate) {
+      summaryQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      summaryQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    summaryQuery += `
+      )
+      SELECT 
+        a.UserId as UserId,
+        u.FullName,
+        a.TerritoryId,
+        t.TerritoryName,
+        COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
+        COUNT(DISTINCT a.StoreId) as TotalStoresChecked
+      FROM AuditsWithImages a
+      INNER JOIN Users u ON a.UserId = u.Id
+      INNER JOIN Territories t ON a.TerritoryId = t.Id
+      WHERE u.Role = 'sales'
+        AND a.UserId IS NOT NULL
     `;
 
     if (territoryIds) {
@@ -215,7 +236,7 @@ async function exportReport(req, res) {
             .filter((id) => !isNaN(id));
 
       if (territoryArray.length > 0) {
-        summaryQuery += " AND s.TerritoryId IN (";
+        summaryQuery += " AND a.TerritoryId IN (";
         territoryArray.forEach((id, index) => {
           const paramName = `territory${index}`;
           request.input(paramName, sql.Int, id);
@@ -226,19 +247,9 @@ async function exportReport(req, res) {
       }
     }
 
-      if (startDate) {
-        summaryQuery += " AND a.AuditDate >= @startDate";
-        request.input("startDate", sql.Date, startDate);
-      }
-
-      if (endDate) {
-        summaryQuery += " AND a.AuditDate <= @endDate";
-        request.input("endDate", sql.Date, endDate);
-      }
-
     summaryQuery += `
-      GROUP BY s.UserId, u.FullName, s.TerritoryId, t.TerritoryName
-      HAVING COUNT(DISTINCT CAST(a.AuditDate AS DATE)) > 0
+      GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
+      HAVING COUNT(DISTINCT a.AuditDate) > 0
       ORDER BY u.FullName ASC
     `;
 
@@ -272,17 +283,17 @@ async function exportReport(req, res) {
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
         INNER JOIN Images img ON a.Id = img.AuditId
-        WHERE s.UserId = @UserId
+        WHERE a.UserId = @UserId
           AND s.TerritoryId = @TerritoryId
           AND img.ImageUrl IS NOT NULL
           AND img.ImageUrl != ''
       `;
 
       if (startDate) {
-        detailQuery += " AND a.AuditDate >= @startDate";
+        detailQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
       }
       if (endDate) {
-        detailQuery += " AND a.AuditDate <= @endDate";
+        detailQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       }
 
       detailQuery += `
