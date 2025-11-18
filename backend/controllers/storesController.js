@@ -1,4 +1,5 @@
 const Store = require('../models/Store');
+const { resetStoreAuditById } = require('../utils/auditReset');
 
 const getAllStores = async (req, res) => {
   try {
@@ -278,6 +279,34 @@ const updateStoreStatus = async (req, res) => {
   }
 };
 
+const resetStoreAuditData = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const storeId = parseInt(id, 10);
+
+    if (Number.isNaN(storeId)) {
+      return res.status(400).json({ error: "Invalid store id" });
+    }
+
+    const store = await Store.findById(storeId);
+    if (!store) {
+      return res.status(404).json({ error: "Store not found" });
+    }
+
+    const result = await resetStoreAuditById(storeId);
+    const updatedStore = await Store.findById(storeId);
+
+    res.json({
+      message: "Đã làm mới dữ liệu audit và hình ảnh của cửa hàng.",
+      auditsDeleted: result.auditsDeleted,
+      store: updatedStore,
+    });
+  } catch (error) {
+    console.error("Reset store audit error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const deleteStore = async (req, res) => {
   try {
     const { id } = req.params;
@@ -307,6 +336,7 @@ module.exports = {
   createStore,
   updateStore,
   updateStoreStatus,
+  resetStoreAuditData,
   deleteStore,
 };
 

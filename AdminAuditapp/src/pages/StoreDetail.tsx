@@ -86,6 +86,8 @@ export default function StoreDetail() {
   });
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
 
@@ -353,6 +355,37 @@ export default function StoreDetail() {
     }
   };
 
+  const handleResetStoreConfirm = async () => {
+    if (!store) return;
+
+    try {
+      setResetLoading(true);
+      setResetModalOpen(false);
+
+      await api.post(`/stores/${store.Id}/reset`);
+
+      await fetchStoreDetail();
+
+      setResetLoading(false);
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: "Đã làm mới dữ liệu audit và hình ảnh cho cửa hàng.",
+      });
+    } catch (error: unknown) {
+      console.error("Error resetting store audits:", error);
+      setResetLoading(false);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Không thể làm mới dữ liệu cửa hàng. Vui lòng thử lại.";
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: errorMessage,
+      });
+    }
+  };
+
   // Collect all images from all audits for grid display
   const allImages: Array<
     Image & { auditDate: string; auditUser: string; auditResult: string }
@@ -483,6 +516,12 @@ export default function StoreDetail() {
                   onClick={() => handleStatusUpdateClick("failed")}
                 >
                   Không đạt
+                </button>
+                <button
+                  className="btn-status btn-reset"
+                  onClick={() => setResetModalOpen(true)}
+                >
+                  Làm lại
                 </button>
               </div>
             </div>
@@ -718,10 +757,40 @@ export default function StoreDetail() {
         </div>
       )}
 
+      {/* Reset Store Confirmation Modal */}
+      {resetModalOpen && (
+        <div className="modal-overlay" onClick={() => setResetModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Làm lại cửa hàng</h3>
+            <p>
+              Hành động này sẽ xóa toàn bộ dữ liệu audit và hình ảnh của cửa hàng{" "}
+              <strong>{store.StoreName}</strong>, đồng thời đặt trạng thái về{" "}
+              <strong>Chưa thực hiện</strong>.
+            </p>
+            <p>Bạn có chắc chắn muốn tiếp tục?</p>
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setResetModalOpen(false)}>
+                Hủy
+              </button>
+              <button className="btn-primary" onClick={handleResetStoreConfirm}>
+                Xác nhận
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Loading Modal for Status Update */}
       <LoadingModal
         isOpen={updateLoading}
         message="Đang cập nhật trạng thái cửa hàng..."
+        progress={0}
+      />
+
+      {/* Loading Modal for Reset */}
+      <LoadingModal
+        isOpen={resetLoading}
+        message="Đang làm mới dữ liệu cửa hàng..."
         progress={0}
       />
 

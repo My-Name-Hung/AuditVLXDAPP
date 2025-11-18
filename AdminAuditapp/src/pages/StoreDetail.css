@@ -185,6 +185,15 @@
   background: #fecaca;
 }
 
+.btn-reset {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.btn-reset:hover {
+  background: #bfdbfe;
+}
+
 .status-badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;
