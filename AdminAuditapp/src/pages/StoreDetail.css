@@ -600,6 +600,64 @@
   background: #e5e7eb;
 }
 
+/* Failed Reason Display Box */
+.failed-reason-box {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  border-left: 4px solid #dc2626;
+  border-radius: 8px;
+  padding: 1rem 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.failed-reason-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #991b1b;
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.failed-reason-text {
+  font-size: 0.9375rem;
+  color: #7f1d1d;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Modal Failed Reason Input */
+.modal-failed-reason-input {
+  margin: 1.5rem 0;
+}
+
+.modal-failed-reason-input label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.5rem;
+}
+
+.failed-reason-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 100px;
+  transition: border-color 0.2s;
+}
+
+.failed-reason-textarea:focus {
+  outline: none;
+  border-color: #0138c3;
+  box-shadow: 0 0 0 3px rgba(1, 56, 195, 0.1);
+}
+
 /* Responsive */
 @media (max-width: 1024px) {
   .main-section {

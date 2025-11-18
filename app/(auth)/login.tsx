@@ -1,25 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import { Colors } from "@/src/constants/theme";
 import {
-  View,
+  clearSavedCredentials,
+  getSavedCredentials,
+  saveCredentials,
+  useAuth,
+} from "@/src/contexts/AuthContext";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Image,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth, saveCredentials, getSavedCredentials, clearSavedCredentials } from '@/src/contexts/AuthContext';
-import { Colors } from '@/src/constants/theme';
+  View,
+} from "react-native";
 
 export default function LoginScreen() {
   const router = useRouter();
   const { login } = useAuth();
-  
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
+
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberPassword, setRememberPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,14 +44,14 @@ export default function LoginScreen() {
 
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert('Lỗi', 'Vui lòng nhập tên đăng nhập và mật khẩu');
+      Alert.alert("Lỗi", "Vui lòng nhập tên đăng nhập và mật khẩu");
       return;
     }
 
     setLoading(true);
     try {
       const response = await login(username.trim(), password);
-      
+
       // Save credentials if remember password is checked
       if (rememberPassword) {
         await saveCredentials(username.trim(), password);
@@ -58,26 +63,27 @@ export default function LoginScreen() {
       if (response.user.isChangePassword) {
         setLoading(false);
         // Auto navigate to change password screen
-        router.replace('/(auth)/change-password');
+        router.replace("/(auth)/change-password");
         return;
       }
 
       setLoading(false);
-      router.replace('/(tabs)/stores');
+      router.replace("/(tabs)/stores");
     } catch (error: any) {
       setLoading(false);
-      const errorMessage = error.response?.data?.error || error.message || 'Tài khoản hoặc mật khẩu không đúng hãy thử lại.';
-      Alert.alert('Đăng nhập thất bại', errorMessage);
+      const errorMessage =
+        error.response?.data?.error ||
+        error.message ||
+        "Tài khoản hoặc mật khẩu không đúng hãy thử lại.";
+      Alert.alert("Đăng nhập thất bại", errorMessage);
     }
   };
-
-
 
   return (
     <View style={styles.container}>
       <View style={styles.logoContainer}>
         <Image
-          source={require('@/assets/images/icon.jpg')}
+          source={require("@/assets/images/icon.jpg")}
           style={styles.logo}
           resizeMode="contain"
         />
@@ -88,7 +94,12 @@ export default function LoginScreen() {
 
       <View style={styles.form}>
         <View style={styles.inputContainer}>
-          <Ionicons name="person-outline" size={20} color="#666" style={styles.inputIcon} />
+          <Ionicons
+            name="person-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Tên đăng nhập hoặc Mã nhân viên"
@@ -100,7 +111,12 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.inputContainer}>
-          <Ionicons name="lock-closed-outline" size={20} color="#666" style={styles.inputIcon} />
+          <Ionicons
+            name="lock-closed-outline"
+            size={20}
+            color="#666"
+            style={styles.inputIcon}
+          />
           <TextInput
             style={styles.input}
             placeholder="Mật khẩu"
@@ -115,7 +131,7 @@ export default function LoginScreen() {
             style={styles.eyeButton}
           >
             <Ionicons
-              name={showPassword ? 'eye-outline' : 'eye-off-outline'}
+              name={showPassword ? "eye-outline" : "eye-off-outline"}
               size={20}
               color="#666"
             />
@@ -127,13 +143,19 @@ export default function LoginScreen() {
             style={styles.checkboxContainer}
             onPress={() => setRememberPassword(!rememberPassword)}
           >
-            <View style={[styles.checkbox, rememberPassword && styles.checkboxChecked]}>
-              {rememberPassword && <Ionicons name="checkmark" size={16} color="#fff" />}
+            <View
+              style={[
+                styles.checkbox,
+                rememberPassword && styles.checkboxChecked,
+              ]}
+            >
+              {rememberPassword && (
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              )}
             </View>
             <Text style={styles.rememberText}>Ghi nhớ mật khẩu</Text>
           </TouchableOpacity>
         </View>
-
 
         <View style={styles.loginButtonContainer}>
           <TouchableOpacity
@@ -149,7 +171,6 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </View>
-
     </View>
   );
 }
@@ -158,11 +179,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.secondary,
-    justifyContent: 'center',
+    justifyContent: "center",
     padding: 24,
   },
   logoContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 32,
   },
   logo: {
@@ -172,27 +193,27 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: Colors.light.primary,
-    textAlign: 'center',
+    textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
     fontSize: 16,
-    color: '#666',
-    textAlign: 'center',
+    color: "#666",
+    textAlign: "center",
     marginBottom: 32,
   },
   form: {
-    width: '100%',
+    width: "100%",
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: "#e0e0e0",
     marginBottom: 16,
     paddingHorizontal: 12,
   },
@@ -203,7 +224,7 @@ const styles = StyleSheet.create({
     flex: 1,
     height: 50,
     fontSize: 16,
-    color: '#333',
+    color: "#333",
   },
   eyeButton: {
     padding: 4,
@@ -212,8 +233,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   checkboxContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   checkbox: {
     width: 20,
@@ -222,19 +243,19 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.primary,
     borderRadius: 4,
     marginRight: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   checkboxChecked: {
     backgroundColor: Colors.light.primary,
   },
   rememberText: {
     fontSize: 14,
-    color: '#666',
+    color: "#666",
   },
   loginButtonContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     marginTop: 8,
   },
@@ -243,70 +264,69 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
     borderRadius: 8,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   loginButtonDisabled: {
     opacity: 0.6,
   },
   loginButtonText: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 24,
-    width: '85%',
+    width: "85%",
     maxWidth: 400,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#333',
+    fontWeight: "bold",
+    color: "#333",
     marginTop: 16,
     marginBottom: 8,
   },
   modalMessage: {
     fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
+    color: "#666",
+    textAlign: "center",
     marginBottom: 24,
     lineHeight: 20,
   },
   modalButtons: {
-    flexDirection: 'row',
-    width: '100%',
+    flexDirection: "row",
+    width: "100%",
     gap: 12,
   },
   modalButton: {
     flex: 1,
     padding: 12,
     borderRadius: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalButtonCancel: {
-    backgroundColor: '#f5f5f5',
+    backgroundColor: "#f5f5f5",
   },
   modalButtonConfirm: {
     backgroundColor: Colors.light.primary,
   },
   modalButtonTextCancel: {
-    color: '#666',
+    color: "#666",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   modalButtonTextConfirm: {
-    color: '#fff',
+    color: "#fff",
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
-

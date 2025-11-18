@@ -74,6 +74,13 @@ export default function Stores() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number>>({
+    all: 0,
+    not_audited: 0,
+    audited: 0,
+    passed: 0,
+    failed: 0,
+  });
   const storeNameInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFilterChangingRef = useRef(false);
@@ -83,6 +90,7 @@ export default function Stores() {
     fetchTerritories();
     fetchUsers();
     fetchStores();
+    fetchStatusCounts();
   }, []);
 
   // Refresh stores when navigating back from add/edit page
@@ -165,6 +173,46 @@ export default function Stores() {
     } catch (error) {
       console.error("Error fetching users:", error);
       setUsers([]);
+    }
+  };
+
+  const fetchStatusCounts = async () => {
+    try {
+      // Fetch counts for each status (without other filters)
+      const statuses: StatusFilter[] = ["all", "not_audited", "audited", "passed", "failed"];
+      const counts: Record<StatusFilter, number> = {
+        all: 0,
+        not_audited: 0,
+        audited: 0,
+        passed: 0,
+        failed: 0,
+      };
+
+      // Fetch all statuses in parallel
+      await Promise.all(
+        statuses.map(async (status) => {
+          try {
+            const params: Record<string, string | number> = {
+              page: 1,
+              pageSize: 1, // We only need the total count
+            };
+
+            if (status !== "all") {
+              params.status = status;
+            }
+
+            const res = await api.get("/stores", { params });
+            counts[status] = res.data.pagination?.total || 0;
+          } catch (error) {
+            console.error(`Error fetching count for status ${status}:`, error);
+            counts[status] = 0;
+          }
+        })
+      );
+
+      setStatusCounts(counts);
+    } catch (error) {
+      console.error("Error fetching status counts:", error);
     }
   };
 
@@ -255,6 +303,7 @@ export default function Stores() {
       setStoreToDelete(null);
 
       await fetchStores();
+      await fetchStatusCounts(); // Refresh status counts after delete
 
       setDeleteLoading(false);
       setNotification({
@@ -534,7 +583,8 @@ export default function Stores() {
             className={`status-tab ${statusFilter === "all" ? "active" : ""}`}
             onClick={() => setStatusFilter("all")}
           >
-            Tất cả
+            <span>Tất cả</span>
+            <span className="status-count">({statusCounts.all})</span>
           </button>
           <button
             className={`status-tab ${
@@ -542,7 +592,8 @@ export default function Stores() {
             }`}
             onClick={() => setStatusFilter("not_audited")}
           >
-            Chưa audit
+            <span>Chưa thực hiện</span>
+            <span className="status-count">({statusCounts.not_audited})</span>
           </button>
           <button
             className={`status-tab ${
@@ -550,7 +601,8 @@ export default function Stores() {
             }`}
             onClick={() => setStatusFilter("audited")}
           >
-            Đã audit
+            <span>Đã thực hiện</span>
+            <span className="status-count">({statusCounts.audited})</span>
           </button>
           <button
             className={`status-tab ${
@@ -558,7 +610,8 @@ export default function Stores() {
             }`}
             onClick={() => setStatusFilter("passed")}
           >
-            Đạt
+            <span>Đạt</span>
+            <span className="status-count">({statusCounts.passed})</span>
           </button>
           <button
             className={`status-tab ${
@@ -566,7 +619,8 @@ export default function Stores() {
             }`}
             onClick={() => setStatusFilter("failed")}
           >
-            Không đạt
+            <span>Không đạt</span>
+            <span className="status-count">({statusCounts.failed})</span>
           </button>
         </div>
         <div className="stores-actions">

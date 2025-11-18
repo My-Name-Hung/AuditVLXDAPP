@@ -1,2 +1,1 @@
-// Re-export screen from src/screens
-export { default } from "@/src/screens/HomeScreen";
+export { default } from "./stores";

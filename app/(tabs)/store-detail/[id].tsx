@@ -40,6 +40,7 @@ interface Store {
   UserCode: string;
   Latitude: number | null;
   Longitude: number | null;
+  FailedReason: string | null;
 }
 
 interface CapturedImage {
@@ -612,6 +613,23 @@ export default function StoreDetailScreen() {
           </View>
         </View>
 
+        {/* Failed Reason Display - Only show for failed stores */}
+        {store.Status === "failed" && store.FailedReason && (
+          <View
+            style={[
+              styles.failedReasonBox,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.failedReasonLabel, { color: colors.text }]}>
+              Lý do không đạt:
+            </Text>
+            <Text style={[styles.failedReasonText, { color: colors.text }]}>
+              {store.FailedReason}
+            </Text>
+          </View>
+        )}
+
         {/* Camera Section or Images Display */}
         {isAudited ? (
           <View
@@ -998,6 +1016,30 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "600",
+  },
+  failedReasonBox: {
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#fecaca",
+    borderLeftWidth: 4,
+    borderLeftColor: "#dc2626",
+    backgroundColor: "#fef2f2",
+  },
+  failedReasonLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 8,
+    color: "#991b1b",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  failedReasonText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: "#7f1d1d",
   },
   cameraSection: {
     borderRadius: 12,

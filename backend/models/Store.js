@@ -232,15 +232,25 @@ class Store {
     return result.recordset[0].Total;
   }
 
-  static async updateStatus(storeId, status) {
+  static async updateStatus(storeId, status, failedReason = null) {
     const pool = await getPool();
     const request = pool.request();
     request.input('Id', sql.Int, storeId);
     request.input('Status', sql.VarChar(20), status);
+    
+    // If status is not 'failed', set FailedReason to NULL
+    // If status is 'failed', set FailedReason to the provided value (can be null if not provided)
+    if (status === 'failed') {
+      request.input('FailedReason', sql.NVarChar(1000), failedReason || null);
+    } else {
+      request.input('FailedReason', sql.NVarChar(1000), null);
+    }
 
     const result = await request.query(`
       UPDATE Stores 
-      SET Status = @Status, UpdatedAt = GETDATE()
+      SET Status = @Status, 
+          FailedReason = @FailedReason,
+          UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id
     `);

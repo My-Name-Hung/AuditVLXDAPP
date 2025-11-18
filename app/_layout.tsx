@@ -4,7 +4,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Stack } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
@@ -12,12 +12,41 @@ import "react-native-reanimated";
 import PermissionModal, {
   checkPermissionsAsked,
 } from "@/src/components/PermissionModal";
-import { AuthProvider } from "@/src/contexts/AuthContext";
+import { AuthProvider, useAuth } from "@/src/contexts/AuthContext";
 import { ThemeProvider as CustomThemeProvider } from "@/src/contexts/ThemeContext";
 
-export const unstable_settings = {
-  anchor: "(tabs)",
-};
+function RootNavigation() {
+  const { isAuthenticated, loading } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (loading) return;
+
+    const inAuthGroup = segments[0] === "(auth)";
+    const inTabsGroup = segments[0] === "(tabs)";
+
+    if (!isAuthenticated && !inAuthGroup) {
+      // Redirect to login if not authenticated
+      router.replace("/(auth)/login");
+    } else if (isAuthenticated && inAuthGroup) {
+      // Redirect to stores if authenticated but in auth group
+      router.replace("/(tabs)/stores");
+    }
+  }, [isAuthenticated, loading, segments]);
+
+  if (loading) {
+    return null;
+  }
+
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="(auth)" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="profile" />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -59,15 +88,7 @@ export default function RootLayout() {
     <AuthProvider>
       <CustomThemeProvider>
         <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen name="profile" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="modal"
-              options={{ presentation: "modal", title: "Modal" }}
-            />
-          </Stack>
+          <RootNavigation />
           <StatusBar style="auto" />
           <PermissionModal
             visible={showPermissionModal}

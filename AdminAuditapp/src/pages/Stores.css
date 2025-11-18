@@ -56,12 +56,23 @@
   position: relative;
   z-index: 12;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.25rem;
   white-space: nowrap;
   flex-shrink: 0;
   margin-bottom: 0.25rem;
   margin-top: 0.25rem;
+}
+
+.status-tab span:first-child {
+  display: block;
+}
+
+.status-count {
+  font-weight: 700;
+  color: #dc2626;
+  font-size: 0.875rem;
 }
 
 .status-tab::before {
@@ -99,16 +110,18 @@
 /* Action Buttons */
 .stores-actions {
   display: flex;
-  gap: 1rem;
+  gap: 0.5rem;
+  margin-bottom: 5px;
   align-items: center;
+  padding-right: 5px;
 }
 
 .btn-add,
 .btn-download {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1.5rem;
+  gap: 0.25rem;
+  padding: 0.75rem 0.75rem;
   border: none;
   border-radius: 8px;
   font-size: 0.9rem;
@@ -215,7 +228,7 @@
 }
 
 .stores-table thead {
-  background: #0138C3;
+  background: #0138c3;
   color: #fefefe;
 }
 
@@ -236,7 +249,7 @@
 }
 
 .stores-table td strong {
-  color: #0138C3;
+  color: #0138c3;
   font-weight: 600;
 }
 

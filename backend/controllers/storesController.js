@@ -254,10 +254,15 @@ const updateStore = async (req, res) => {
 const updateStoreStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, failedReason } = req.body;
 
     if (!status || !['not_audited', 'audited', 'passed', 'failed'].includes(status)) {
       return res.status(400).json({ error: 'Status is required and must be: not_audited, audited, passed, or failed' });
+    }
+
+    // If status is 'failed', failedReason is required
+    if (status === 'failed' && (!failedReason || failedReason.trim() === '')) {
+      return res.status(400).json({ error: 'FailedReason is required when status is "failed"' });
     }
 
     const store = await Store.findById(id);
@@ -265,7 +270,7 @@ const updateStoreStatus = async (req, res) => {
       return res.status(404).json({ error: 'Store not found' });
     }
 
-    const updatedStore = await Store.updateStatus(id, status);
+    const updatedStore = await Store.updateStatus(id, status, failedReason || null);
     res.json(updatedStore);
   } catch (error) {
     console.error('Update store status error:', error);

@@ -165,9 +165,19 @@ export default function Dashboard() {
       }
 
       setExportProgress(20);
+      // Fetch export data for details
       const res = await api.get("/dashboard/export", { params });
       setExportProgress(50);
-      await generateExcel(res.data.data, setExportProgress);
+      
+      // Use summaryData from state (which matches the UI) instead of data from export API
+      // This ensures the summary table in Excel matches what's shown on the UI
+      await generateExcel(
+        {
+          summary: summaryData, // Use state data that matches UI
+          details: res.data.data.details || {},
+        },
+        setExportProgress
+      );
       setExportProgress(100);
 
       // Delay a bit to show 100% before closing

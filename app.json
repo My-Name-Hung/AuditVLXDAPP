@@ -1,10 +1,10 @@
 {
   "expo": {
     "name": "Quản lý thương vụ XMTĐ",
-    "slug": "quan-ly-thuong-vu-xmtd",
+    "slug": "Auditapp",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.jpg",
+    "icon": "./assets/images/icon-adaptive.png",
     "scheme": "auditapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,17 +13,24 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#fefefe",
-        "foregroundImage": "./assets/images/icon.jpg",
-        "backgroundImage": "./assets/images/icon.jpg",
-        "monochromeImage": "./assets/images/icon.jpg"
+        "foregroundImage": "./assets/images/icon-adaptive.png",
+        "backgroundColor": "#FFFFFF"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ],
+      "enableProguardInReleaseBuilds": true,
+      "allowBackup": false,
+      "package": "com.hung141525.Auditapp"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/icon.jpg"
+      "favicon": "./assets/images/icon-adaptive.png"
     },
     "plugins": [
       "expo-router",
@@ -61,6 +68,7 @@
       "eas": {
         "projectId": "1ea6010a-a487-4e40-a333-74886ee6d4aa"
       }
-    }
+    },
+    "owner": "hung141525"
   }
 }
