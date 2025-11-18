@@ -87,7 +87,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Try to parse user data
-      let parsedUser;
+      let parsedUser: User | null = null;
       try {
         parsedUser = JSON.parse(storedUser);
       } catch {
@@ -107,9 +107,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const response = await api.get(`/users/${parsedUser.id}`);
         // Only set auth state if response is successful and contains valid user data
         if (response.status >= 200 && response.status < 300 && response.data) {
+          const apiUser = response.data;
+
+          // Merge stored user with latest data from API to keep flags like IsChangePassword in sync
+          const mergedUser: User = {
+            id: apiUser.Id ?? parsedUser.id,
+            userCode: apiUser.UserCode ?? parsedUser.userCode,
+            username: apiUser.Username ?? parsedUser.username,
+            fullName: apiUser.FullName ?? parsedUser.fullName,
+            email: apiUser.Email ?? parsedUser.email,
+            phone: apiUser.Phone ?? parsedUser.phone,
+            role: apiUser.Role ?? parsedUser.role,
+            avatar: apiUser.Avatar ?? parsedUser.avatar,
+            isChangePassword:
+              typeof apiUser.IsChangePassword === "boolean"
+                ? apiUser.IsChangePassword
+                : apiUser.IsChangePassword !== undefined
+                ? Boolean(apiUser.IsChangePassword)
+                : parsedUser.isChangePassword ?? false,
+          };
+
           setToken(storedToken);
-          setUser(parsedUser);
+          setUser(mergedUser);
           setIsBiometricEnabled(biometricEnabled === "true");
+
+          // Keep latest user snapshot in storage
+          await AsyncStorage.setItem("user", JSON.stringify(mergedUser));
         } else {
           throw new Error("Invalid API response");
         }

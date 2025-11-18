@@ -1,6 +1,7 @@
 import BackHeader from "@/src/components/BackHeader";
 import { Colors } from "@/src/constants/theme";
 import api from "@/src/services/api";
+import { useAuth } from "@/src/contexts/AuthContext";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
@@ -18,6 +19,7 @@ export default function ChangePasswordScreen() {
   const router = useRouter();
   // Always use light theme
   const colors = Colors.light;
+  const { updateUser } = useAuth();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -52,6 +54,9 @@ export default function ChangePasswordScreen() {
       // Check if response is successful (status 200-299)
       if (response.status >= 200 && response.status < 300) {
         setLoading(false); // Set loading to false before showing alert
+
+        // Cập nhật lại flag isChangePassword trong client để không bắt đổi lại
+        updateUser({ isChangePassword: false });
 
         Alert.alert("Thành công", "Đổi mật khẩu thành công", [
           {
@@ -96,6 +101,7 @@ export default function ChangePasswordScreen() {
             <TextInput
               style={styles.input}
               placeholder="Mật khẩu hiện tại"
+              placeholderTextColor="#9CA3AF"
               value={currentPassword}
               onChangeText={setCurrentPassword}
               secureTextEntry={!showCurrentPassword}
@@ -124,6 +130,7 @@ export default function ChangePasswordScreen() {
             <TextInput
               style={styles.input}
               placeholder="Mật khẩu mới"
+              placeholderTextColor="#9CA3AF"
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry={!showNewPassword}
@@ -152,6 +159,7 @@ export default function ChangePasswordScreen() {
             <TextInput
               style={styles.input}
               placeholder="Xác nhận mật khẩu mới"
+              placeholderTextColor="#9CA3AF"
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry={!showConfirmPassword}

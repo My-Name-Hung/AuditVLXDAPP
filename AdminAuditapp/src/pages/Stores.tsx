@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HiEye, HiPencil, HiTrash } from "react-icons/hi";
 import { HiArrowDownTray, HiPlus } from "react-icons/hi2";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -27,6 +27,24 @@ interface Store {
   Latitude: number | null;
   Longitude: number | null;
 }
+
+const STATUS_SORT_ORDER: Record<string, number> = {
+  not_audited: 0,
+  audited: 1,
+  passed: 2,
+  failed: 3,
+};
+
+const sortStoresByStatus = (storeList: Store[]) => {
+  return [...storeList].sort((a, b) => {
+    const orderA = STATUS_SORT_ORDER[a.Status] ?? 99;
+    const orderB = STATUS_SORT_ORDER[b.Status] ?? 99;
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    return a.StoreCode.localeCompare(b.StoreCode);
+  });
+};
 
 interface Territory {
   Id: number;
@@ -74,7 +92,9 @@ export default function Stores() {
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
-  const [statusCounts, setStatusCounts] = useState<Record<StatusFilter, number>>({
+  const [statusCounts, setStatusCounts] = useState<
+    Record<StatusFilter, number>
+  >({
     all: 0,
     not_audited: 0,
     audited: 0,
@@ -91,6 +111,7 @@ export default function Stores() {
     fetchUsers();
     fetchStores();
     fetchStatusCounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Refresh stores when navigating back from add/edit page
@@ -98,11 +119,13 @@ export default function Stores() {
     if (location.pathname === "/stores" && !isFilterChangingRef.current) {
       fetchStores();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
 
   useEffect(() => {
     setPage(1); // Reset to first page when filters change
     fetchStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
 
   useEffect(() => {
@@ -111,6 +134,7 @@ export default function Stores() {
       return;
     }
     fetchStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
   // Debounce store name filter
@@ -153,6 +177,7 @@ export default function Stores() {
       }
       // Don't reset isFilterChangingRef here to prevent race condition
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeNameFilter]);
 
   const fetchTerritories = async () => {
@@ -179,7 +204,13 @@ export default function Stores() {
   const fetchStatusCounts = async () => {
     try {
       // Fetch counts for each status (without other filters)
-      const statuses: StatusFilter[] = ["all", "not_audited", "audited", "passed", "failed"];
+      const statuses: StatusFilter[] = [
+        "all",
+        "not_audited",
+        "audited",
+        "passed",
+        "failed",
+      ];
       const counts: Record<StatusFilter, number> = {
         all: 0,
         not_audited: 0,
@@ -216,7 +247,7 @@ export default function Stores() {
     }
   };
 
-  const fetchStores = async () => {
+  const fetchStores = useCallback(async () => {
     try {
       setLoading(true);
       const params: Record<string, string | number> = {
@@ -241,7 +272,8 @@ export default function Stores() {
       }
 
       const res = await api.get("/stores", { params });
-      setStores(res.data.data || []);
+      const fetchedStores: Store[] = res.data.data || [];
+      setStores(sortStoresByStatus(fetchedStores));
       if (res.data.pagination) {
         setTotal(res.data.pagination.total);
         setTotalPages(res.data.pagination.totalPages);
@@ -265,7 +297,15 @@ export default function Stores() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [
+    page,
+    pageSize,
+    statusFilter,
+    selectedTerritory,
+    selectedRank,
+    selectedUser,
+    storeNameFilter,
+  ]);
 
   const hasActiveFilters = () => {
     return (
@@ -698,9 +738,9 @@ export default function Stores() {
               <th>Tên cửa hàng</th>
               <th>Loại đối tượng</th>
               <th>Địa chỉ</th>
-              <th>Mã số thuế</th>
               <th>Tên đối tác</th>
               <th>Số điện thoại</th>
+              <th>Trạng thái</th>
               <th>Thao tác</th>
             </tr>
           </thead>
@@ -720,9 +760,13 @@ export default function Stores() {
                   <td>{store.StoreName}</td>
                   <td>{getRankLabel(store.Rank)}</td>
                   <td>{store.Address || "-"}</td>
-                  <td>{store.TaxCode || "-"}</td>
                   <td>{store.PartnerName || "-"}</td>
                   <td>{store.Phone || "-"}</td>
+                  <td>
+                    <span className={`status-badge status-${store.Status}`}>
+                      {getStatusLabel(store.Status)}
+                    </span>
+                  </td>
                   <td>
                     <div className="action-buttons">
                       {store.Status !== "not_audited" && (

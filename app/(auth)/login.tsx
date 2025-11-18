@@ -103,6 +103,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="Tên đăng nhập hoặc Mã nhân viên"
+            placeholderTextColor="#9CA3AF"
             value={username}
             onChangeText={setUsername}
             autoCapitalize="none"
@@ -120,6 +121,7 @@ export default function LoginScreen() {
           <TextInput
             style={styles.input}
             placeholder="Mật khẩu"
+            placeholderTextColor="#9CA3AF"
             value={password}
             onChangeText={setPassword}
             secureTextEntry={!showPassword}

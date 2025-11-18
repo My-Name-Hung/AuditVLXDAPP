@@ -16,7 +16,7 @@ import { AuthProvider, useAuth } from "@/src/contexts/AuthContext";
 import { ThemeProvider as CustomThemeProvider } from "@/src/contexts/ThemeContext";
 
 function RootNavigation() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -25,15 +25,26 @@ function RootNavigation() {
 
     const inAuthGroup = segments[0] === "(auth)";
     const inTabsGroup = segments[0] === "(tabs)";
+    const inChangePasswordScreen =
+      inAuthGroup && segments[1] === "change-password";
+
+    const requiresChangePassword = !!user?.isChangePassword;
 
     if (!isAuthenticated && !inAuthGroup) {
       // Redirect to login if not authenticated
       router.replace("/(auth)/login");
-    } else if (isAuthenticated && inAuthGroup) {
-      // Redirect to stores if authenticated but in auth group
+    } else if (
+      isAuthenticated &&
+      requiresChangePassword &&
+      !inChangePasswordScreen
+    ) {
+      // Force user to go to change password screen on first login or when required
+      router.replace("/(auth)/change-password");
+    } else if (isAuthenticated && inAuthGroup && !requiresChangePassword) {
+      // Redirect to stores if authenticated but in auth group and no password change required
       router.replace("/(tabs)/stores");
     }
-  }, [isAuthenticated, loading, segments]);
+  }, [isAuthenticated, loading, segments, user]);
 
   if (loading) {
     return null;

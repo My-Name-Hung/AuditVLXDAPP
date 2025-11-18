@@ -25,7 +25,6 @@ interface Store {
   UserCode: string | null;
   Latitude: number | null;
   Longitude: number | null;
-  FailedReason: string | null;
 }
 
 interface Image {
@@ -69,11 +68,9 @@ export default function StoreDetail() {
   const [statusUpdateModal, setStatusUpdateModal] = useState<{
     isOpen: boolean;
     newStatus: "passed" | "failed" | null;
-    failedReason: string;
   }>({
     isOpen: false,
     newStatus: null,
-    failedReason: "",
   });
   const [notification, setNotification] = useState<{
     isOpen: boolean;
@@ -86,8 +83,6 @@ export default function StoreDetail() {
   });
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
-  const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
 
@@ -138,7 +133,6 @@ export default function StoreDetail() {
         UserCode: data.UserCode,
         Latitude: data.Latitude,
         Longitude: data.Longitude,
-        FailedReason: data.FailedReason || null,
       });
       setAudits(data.audits || []);
     } catch (error) {
@@ -297,37 +291,18 @@ export default function StoreDetail() {
     setStatusUpdateModal({
       isOpen: true,
       newStatus,
-      failedReason: "",
     });
   };
 
   const handleStatusUpdateConfirm = async () => {
     if (!store || !statusUpdateModal.newStatus) return;
 
-    // Validate failedReason if status is "failed"
-    if (
-      statusUpdateModal.newStatus === "failed" &&
-      (!statusUpdateModal.failedReason || statusUpdateModal.failedReason.trim() === "")
-    ) {
-      setNotification({
-        isOpen: true,
-        type: "error",
-        message: "Vui lòng nhập lý do không đạt.",
-      });
-      return;
-    }
-
     try {
       setUpdateLoading(true);
-      const failedReason = statusUpdateModal.newStatus === "failed" 
-        ? statusUpdateModal.failedReason.trim() 
-        : undefined;
-      
-      setStatusUpdateModal({ isOpen: false, newStatus: null, failedReason: "" });
+      setStatusUpdateModal({ isOpen: false, newStatus: null });
 
       await api.patch(`/stores/${store.Id}/status`, {
         status: statusUpdateModal.newStatus,
-        failedReason: failedReason,
       });
 
       // Refresh store data
@@ -347,37 +322,6 @@ export default function StoreDetail() {
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
           ?.error || "Lỗi khi cập nhật trạng thái cửa hàng. Vui lòng thử lại.";
-      setNotification({
-        isOpen: true,
-        type: "error",
-        message: errorMessage,
-      });
-    }
-  };
-
-  const handleResetStoreConfirm = async () => {
-    if (!store) return;
-
-    try {
-      setResetLoading(true);
-      setResetModalOpen(false);
-
-      await api.post(`/stores/${store.Id}/reset`);
-
-      await fetchStoreDetail();
-
-      setResetLoading(false);
-      setNotification({
-        isOpen: true,
-        type: "success",
-        message: "Đã làm mới dữ liệu audit và hình ảnh cho cửa hàng.",
-      });
-    } catch (error: unknown) {
-      console.error("Error resetting store audits:", error);
-      setResetLoading(false);
-      const errorMessage =
-        (error as { response?: { data?: { error?: string } } })?.response?.data
-          ?.error || "Không thể làm mới dữ liệu cửa hàng. Vui lòng thử lại.";
       setNotification({
         isOpen: true,
         type: "error",
@@ -517,23 +461,8 @@ export default function StoreDetail() {
                 >
                   Không đạt
                 </button>
-                <button
-                  className="btn-status btn-reset"
-                  onClick={() => setResetModalOpen(true)}
-                >
-                  Làm lại
-                </button>
               </div>
             </div>
-            
-            {/* Failed Reason Display - Only show for failed stores */}
-            {store.Status === "failed" && store.FailedReason && (
-              <div className="failed-reason-box">
-                <div className="failed-reason-label">Lý do không đạt:</div>
-                <div className="failed-reason-text">{store.FailedReason}</div>
-              </div>
-            )}
-            
             <div className="images-grid">
               {allImages.map((image, index) => {
                 const coords = getImageCoordinates(image);
@@ -703,7 +632,7 @@ export default function StoreDetail() {
         <div
           className="modal-overlay"
           onClick={() =>
-            setStatusUpdateModal({ isOpen: false, newStatus: null, failedReason: "" })
+            setStatusUpdateModal({ isOpen: false, newStatus: null })
           }
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -716,32 +645,11 @@ export default function StoreDetail() {
               </strong>
               ?
             </p>
-            
-            {/* Show failed reason input only when status is "failed" */}
-            {statusUpdateModal.newStatus === "failed" && (
-              <div className="modal-failed-reason-input">
-                <label htmlFor="failedReason">Lý do không đạt <span style={{ color: "#dc2626" }}>*</span></label>
-                <textarea
-                  id="failedReason"
-                  value={statusUpdateModal.failedReason}
-                  onChange={(e) =>
-                    setStatusUpdateModal({
-                      ...statusUpdateModal,
-                      failedReason: e.target.value,
-                    })
-                  }
-                  placeholder="Nhập lý do không đạt của cửa hàng..."
-                  rows={4}
-                  className="failed-reason-textarea"
-                />
-              </div>
-            )}
-            
             <div className="modal-actions">
               <button
                 className="btn-secondary"
                 onClick={() =>
-                  setStatusUpdateModal({ isOpen: false, newStatus: null, failedReason: "" })
+                  setStatusUpdateModal({ isOpen: false, newStatus: null })
                 }
               >
                 Hủy
@@ -750,29 +658,6 @@ export default function StoreDetail() {
                 className="btn-primary"
                 onClick={handleStatusUpdateConfirm}
               >
-                {statusUpdateModal.newStatus === "failed" ? "Hoàn thành" : "Xác nhận"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Store Confirmation Modal */}
-      {resetModalOpen && (
-        <div className="modal-overlay" onClick={() => setResetModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Làm lại cửa hàng</h3>
-            <p>
-              Hành động này sẽ xóa toàn bộ dữ liệu audit và hình ảnh của cửa hàng{" "}
-              <strong>{store.StoreName}</strong>, đồng thời đặt trạng thái về{" "}
-              <strong>Chưa thực hiện</strong>.
-            </p>
-            <p>Bạn có chắc chắn muốn tiếp tục?</p>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setResetModalOpen(false)}>
-                Hủy
-              </button>
-              <button className="btn-primary" onClick={handleResetStoreConfirm}>
                 Xác nhận
               </button>
             </div>
@@ -784,13 +669,6 @@ export default function StoreDetail() {
       <LoadingModal
         isOpen={updateLoading}
         message="Đang cập nhật trạng thái cửa hàng..."
-        progress={0}
-      />
-
-      {/* Loading Modal for Reset */}
-      <LoadingModal
-        isOpen={resetLoading}
-        message="Đang làm mới dữ liệu cửa hàng..."
         progress={0}
       />
 
