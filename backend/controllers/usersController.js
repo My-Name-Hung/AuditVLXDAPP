@@ -3,11 +3,12 @@ const User = require("../models/User");
 
 const getAllUsers = async (req, res) => {
   try {
-    const { search, role, page, pageSize } = req.query;
+    const { search, role, position, page, pageSize } = req.query;
     const filters = {};
 
     if (search) filters.search = search;
     if (role) filters.Role = role;
+    if (position) filters.Position = position;
 
     // Pagination
     const currentPage = parseInt(page) || 1;
@@ -218,10 +219,6 @@ const uploadAvatar = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const {
-      uploadImageWithWatermark,
-    } = require("../services/cloudinaryService");
-
     // Upload to Cloudinary (without watermark for avatar)
     const cloudinary = require("cloudinary").v2;
     const base64Image = `data:${

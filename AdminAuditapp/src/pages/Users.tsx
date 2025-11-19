@@ -1,12 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { HiPencil, HiTrash } from "react-icons/hi";
-import { HiArrowDownTray, HiPlus, HiArrowPath } from "react-icons/hi2";
+import { HiArrowDownTray, HiArrowPath, HiPlus } from "react-icons/hi2";
 import { useLocation, useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
 import api from "../services/api";
 import "./Users.css";
+
+const DEFAULT_POSITION_FILTERS = [
+  "all",
+  "Quản trị Viên",
+  "Nhân viên Thị Trường",
+];
 
 interface User {
   Id: number;
@@ -22,14 +28,17 @@ interface User {
   UpdatedAt: string;
 }
 
-type RoleFilter = "all" | "admin" | "sales";
+type PositionFilter = "all" | string;
 
 export default function Users() {
   const navigate = useNavigate();
   const location = useLocation();
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [roleFilter, setRoleFilter] = useState<RoleFilter>("all");
+  const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
+  const [positionOptions, setPositionOptions] = useState<string[]>(
+    DEFAULT_POSITION_FILTERS
+  );
   const [searchFilter, setSearchFilter] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
@@ -59,28 +68,65 @@ export default function Users() {
     auditCount: 0,
   });
   const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
-  const [userToResetPassword, setUserToResetPassword] = useState<User | null>(null);
+  const [userToResetPassword, setUserToResetPassword] = useState<User | null>(
+    null
+  );
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSearchFilterRef = useRef<string>("");
   const isFilterChangingRef = useRef(false);
 
+  const fetchUsers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const params: Record<string, string | number> = {
+        page,
+        pageSize,
+      };
+
+      if (positionFilter !== "all") {
+        params.position = positionFilter;
+      }
+      if (searchFilter.trim()) {
+        params.search = searchFilter.trim();
+      }
+
+      const res = await api.get("/users", { params });
+      setUsers(res.data.data || []);
+      if (res.data.pagination) {
+        setTotal(res.data.pagination.total);
+        setTotalPages(res.data.pagination.totalPages);
+      }
+
+      // Reset isFilterChangingRef after fetch completes
+      setTimeout(() => {
+        if (isFilterChangingRef.current) {
+          isFilterChangingRef.current = false;
+        }
+      }, 100);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, pageSize, positionFilter, searchFilter]);
+
   useEffect(() => {
     fetchUsers();
-  }, []);
+  }, [fetchUsers]);
 
   // Refresh users when navigating back from add/edit page
   useEffect(() => {
     if (location.pathname === "/users") {
       fetchUsers();
     }
-  }, [location.pathname]);
+  }, [location.pathname, fetchUsers]);
 
   useEffect(() => {
     setPage(1); // Reset to first page when filters change
     fetchUsers();
-  }, [roleFilter]);
+  }, [positionFilter, fetchUsers]);
 
   useEffect(() => {
     // Skip fetch if filter is changing to avoid race condition
@@ -88,7 +134,7 @@ export default function Users() {
       return;
     }
     fetchUsers();
-  }, [page, pageSize]);
+  }, [page, pageSize, fetchUsers]);
 
   // Debounce search filter
   useEffect(() => {
@@ -127,42 +173,7 @@ export default function Users() {
         clearTimeout(debounceTimerRef.current);
       }
     };
-  }, [searchFilter]);
-
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      const params: Record<string, string | number> = {
-        page,
-        pageSize,
-      };
-
-      if (roleFilter !== "all") {
-        params.role = roleFilter;
-      }
-      if (searchFilter.trim()) {
-        params.search = searchFilter.trim();
-      }
-
-      const res = await api.get("/users", { params });
-      setUsers(res.data.data || []);
-      if (res.data.pagination) {
-        setTotal(res.data.pagination.total);
-        setTotalPages(res.data.pagination.totalPages);
-      }
-
-      // Reset isFilterChangingRef after fetch completes
-      setTimeout(() => {
-        if (isFilterChangingRef.current) {
-          isFilterChangingRef.current = false;
-        }
-      }, 100);
-    } catch (error) {
-      console.error("Error fetching users:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [searchFilter, fetchUsers]);
 
   const handleDeleteUser = (user: User) => {
     setUserToDelete(user);
@@ -294,11 +305,11 @@ export default function Users() {
   };
 
   const hasActiveFilters = () => {
-    return roleFilter !== "all" || searchFilter.trim() !== "";
+    return positionFilter !== "all" || searchFilter.trim() !== "";
   };
 
   const handleClearFilters = () => {
-    setRoleFilter("all");
+    setPositionFilter("all");
     setSearchFilter("");
   };
 
@@ -314,8 +325,8 @@ export default function Users() {
         pageSize: 10000, // Get all users
       };
 
-      if (roleFilter !== "all") {
-        params.role = roleFilter;
+      if (positionFilter !== "all") {
+        params.position = positionFilter;
       }
       if (searchFilter.trim()) {
         params.search = searchFilter.trim();
@@ -446,11 +457,29 @@ export default function Users() {
     window.URL.revokeObjectURL(url);
   };
 
-  const roleOptions = [
-    { id: "all", name: "Tất cả" },
-    { id: "admin", name: "Admin" },
-    { id: "sales", name: "Sales" },
-  ];
+  const loadPositionOptions = async () => {
+    try {
+      const res = await api.get<string[]>("/users/positions");
+      if (Array.isArray(res.data)) {
+        setPositionOptions((prev) => {
+          const merged = [...prev];
+          res.data.forEach((pos) => {
+            const trimmed = pos?.trim();
+            if (trimmed && !merged.includes(trimmed)) {
+              merged.push(trimmed);
+            }
+          });
+          return merged;
+        });
+      }
+    } catch (error) {
+      console.warn("Không thể tải danh sách chức vụ:", error);
+    }
+  };
+
+  useEffect(() => {
+    loadPositionOptions();
+  }, []);
 
   if (loading && users.length === 0) {
     return (
@@ -489,12 +518,15 @@ export default function Users() {
         </div>
 
         <div className="filter-group">
-          <label>Vai trò</label>
+          <label>Chức vụ</label>
           <Select
-            options={roleOptions}
-            value={roleFilter}
-            onChange={(value) => setRoleFilter(value as RoleFilter)}
-            placeholder="Chọn vai trò"
+            options={positionOptions.map((pos) => ({
+              id: pos,
+              name: pos === "all" ? "Tất cả" : pos,
+            }))}
+            value={positionFilter}
+            onChange={(value) => setPositionFilter(value as PositionFilter)}
+            placeholder="Chọn chức vụ"
             searchable={false}
           />
         </div>
@@ -538,7 +570,7 @@ export default function Users() {
                   <td>{user.FullName}</td>
                   <td>{user.Email || "-"}</td>
                   <td>{user.Phone || "-"}</td>
-                <td>{user.Position || "-"}</td>
+                  <td>{user.Position || "-"}</td>
                   <td>
                     <div className="action-buttons">
                       <button
@@ -659,7 +691,8 @@ export default function Users() {
           <div className="modal-content">
             <h3>Xác nhận reset mật khẩu</h3>
             <p>
-              Bạn có chắc muốn reset mật khẩu của nhân viên "{userToResetPassword?.FullName}" về mặc định (123456)?
+              Bạn có chắc muốn reset mật khẩu của nhân viên "
+              {userToResetPassword?.FullName}" về mặc định (123456)?
             </p>
             <p style={{ color: "#666", fontSize: "14px", marginTop: "8px" }}>
               Nhân viên sẽ phải đổi mật khẩu khi đăng nhập lần tiếp theo.

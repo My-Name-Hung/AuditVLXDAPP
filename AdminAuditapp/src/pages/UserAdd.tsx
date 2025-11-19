@@ -22,7 +22,8 @@ export default function UserAdd() {
   });
 
   const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
-  const [positionOptions, setPositionOptions] = useState<string[]>(DEFAULT_POSITIONS);
+  const [positionOptions, setPositionOptions] =
+    useState<string[]>(DEFAULT_POSITIONS);
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
 
@@ -159,9 +160,7 @@ export default function UserAdd() {
       setCreateLoading(true);
 
       const resolvedPassword =
-        formData.role === "admin"
-          ? formData.password.trim()
-          : "123456";
+        formData.role === "admin" ? formData.password.trim() : "123456";
 
       const payload = {
         username: formData.username.trim(),
@@ -219,7 +218,10 @@ export default function UserAdd() {
 
   const handleRoleChange = (value: string) => {
     const role = value as "admin" | "sales";
-    const prevDefault = getDefaultPositionForRole(formData.role, positionOptions);
+    const prevDefault = getDefaultPositionForRole(
+      formData.role,
+      positionOptions
+    );
     const nextDefault = getDefaultPositionForRole(role, positionOptions);
     const shouldReplace =
       !formData.position ||
@@ -290,7 +292,13 @@ export default function UserAdd() {
               placeholder="Nhập mật khẩu cho admin"
               required
             />
-            <small style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+            <small
+              style={{
+                color: "#666",
+                fontSize: "0.85rem",
+                marginTop: "0.25rem",
+              }}
+            >
               Admin yêu cầu đặt mật khẩu riêng khi tạo tài khoản.
             </small>
           </div>
@@ -303,7 +311,13 @@ export default function UserAdd() {
               disabled
               className="form-input disabled"
             />
-            <small style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+            <small
+              style={{
+                color: "#666",
+                fontSize: "0.85rem",
+                marginTop: "0.25rem",
+              }}
+            >
               Mật khẩu mặc định cho nhân viên mới (Sales) là "123456"
             </small>
           </div>
@@ -462,4 +476,3 @@ export default function UserAdd() {
     </div>
   );
 }
-

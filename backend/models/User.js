@@ -94,6 +94,11 @@ class User {
       request.input('Role', sql.VarChar(50), filters.Role);
     }
 
+    if (filters.Position) {
+      query += ' AND Position = @Position';
+      request.input('Position', sql.NVarChar(200), filters.Position);
+    }
+
     query += ' ORDER BY UserCode ASC';
 
     // Add pagination
@@ -126,6 +131,11 @@ class User {
     if (filters.Role) {
       query += ' AND Role = @Role';
       request.input('Role', sql.VarChar(50), filters.Role);
+    }
+
+    if (filters.Position) {
+      query += ' AND Position = @Position';
+      request.input('Position', sql.NVarChar(200), filters.Position);
     }
 
     const result = await request.query(query);
