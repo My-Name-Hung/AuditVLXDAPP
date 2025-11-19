@@ -33,6 +33,7 @@ export default function UserAdd() {
     phone: "",
     role: "sales" as "admin" | "sales",
     position: "",
+    password: "",
   });
 
   useEffect(() => {
@@ -91,7 +92,8 @@ export default function UserAdd() {
       formData.fullName.trim() !== "" ||
       formData.email.trim() !== "" ||
       formData.phone.trim() !== "" ||
-      formData.position.trim() !== ""
+      formData.position.trim() !== "" ||
+      formData.password.trim() !== ""
     );
   };
 
@@ -144,12 +146,26 @@ export default function UserAdd() {
       return;
     }
 
+    if (formData.role === "admin" && !formData.password.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng nhập mật khẩu cho tài khoản admin.",
+      });
+      return;
+    }
+
     try {
       setCreateLoading(true);
 
+      const resolvedPassword =
+        formData.role === "admin"
+          ? formData.password.trim()
+          : "123456";
+
       const payload = {
         username: formData.username.trim(),
-        password: "123456", // Default password
+        password: resolvedPassword,
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),
@@ -213,6 +229,7 @@ export default function UserAdd() {
       ...prev,
       role,
       position: shouldReplace ? nextDefault : prev.position,
+      password: role === "admin" ? "" : "",
     }));
   };
 
@@ -259,18 +276,38 @@ export default function UserAdd() {
           />
         </div>
 
-        <div className="form-group">
-          <label>Mật khẩu mặc định</label>
-          <input
-            type="text"
-            value="123456"
-            disabled
-            className="form-input disabled"
-          />
-          <small style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
-            Mật khẩu mặc định cho nhân viên mới là "123456"
-          </small>
-        </div>
+        {formData.role === "admin" ? (
+          <div className="form-group">
+            <label>
+              Mật khẩu <span className="required">*</span>
+            </label>
+            <input
+              type="password"
+              value={formData.password}
+              onChange={(e) =>
+                setFormData({ ...formData, password: e.target.value })
+              }
+              placeholder="Nhập mật khẩu cho admin"
+              required
+            />
+            <small style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+              Admin yêu cầu đặt mật khẩu riêng khi tạo tài khoản.
+            </small>
+          </div>
+        ) : (
+          <div className="form-group">
+            <label>Mật khẩu mặc định</label>
+            <input
+              type="text"
+              value="123456"
+              disabled
+              className="form-input disabled"
+            />
+            <small style={{ color: "#666", fontSize: "0.85rem", marginTop: "0.25rem" }}>
+              Mật khẩu mặc định cho nhân viên mới (Sales) là "123456"
+            </small>
+          </div>
+        )}
 
         <div className="form-group">
           <label>

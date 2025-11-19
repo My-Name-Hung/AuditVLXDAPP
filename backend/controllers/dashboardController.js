@@ -245,7 +245,7 @@ async function exportReport(req, res) {
         });
         summaryQuery += ")";
       }
-    }
+      }
 
     summaryQuery += `
       GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName

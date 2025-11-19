@@ -537,7 +537,7 @@ export default function Users() {
                   </td>
                   <td>{user.FullName}</td>
                   <td>{user.Email || "-"}</td>
-                <td>{user.Phone || "-"}</td>
+                  <td>{user.Phone || "-"}</td>
                 <td>{user.Position || "-"}</td>
                   <td>
                     <div className="action-buttons">

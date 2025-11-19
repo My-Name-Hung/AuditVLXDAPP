@@ -556,8 +556,8 @@ export default function StoreDetail() {
           )}
         </div>
 
-        <div className="audits-section">
-          <div className="section-header">
+          <div className="audits-section">
+            <div className="section-header">
             <div className="section-title-group">
               <h3>Lịch sử Audit và Hình ảnh</h3>
               {audits.length > 0 && (
@@ -615,21 +615,21 @@ export default function StoreDetail() {
                 </div>
               )}
             </div>
-            <div className="status-action-buttons">
-              <button
-                className="btn-status btn-passed"
-                onClick={() => handleStatusUpdateClick("passed")}
+              <div className="status-action-buttons">
+                <button
+                  className="btn-status btn-passed"
+                  onClick={() => handleStatusUpdateClick("passed")}
                 disabled={!selectedAudit}
-              >
-                Đạt
-              </button>
-              <button
-                className="btn-status btn-failed"
-                onClick={() => handleStatusUpdateClick("failed")}
+                >
+                  Đạt
+                </button>
+                <button
+                  className="btn-status btn-failed"
+                  onClick={() => handleStatusUpdateClick("failed")}
                 disabled={!selectedAudit}
-              >
-                Không đạt
-              </button>
+                >
+                  Không đạt
+                </button>
               <button
                 className="btn-status btn-reset"
                 onClick={() => setResetModalOpen(true)}
@@ -638,7 +638,7 @@ export default function StoreDetail() {
                 Làm lại
               </button>
             </div>
-          </div>
+              </div>
 
           {selectedFailedReason && (
             <div className="failed-reason-box">
@@ -649,52 +649,52 @@ export default function StoreDetail() {
 
           {selectedAudit ? (
             selectedImages.length > 0 ? (
-              <div className="images-grid">
+            <div className="images-grid">
                 {selectedImages.map((image, index) => {
-                  const coords = getImageCoordinates(image);
-                  return (
-                    <div key={`${image.Id}-${index}`} className="image-card">
-                      <img
-                        src={image.ImageUrl}
-                        alt={`Image ${image.Id}`}
-                        onClick={() => handleImageClick(image)}
-                        className="grid-image"
-                      />
-                      <div className="image-info">
-                        <span className="image-time">
-                          {image.CapturedAt
-                            ? new Date(image.CapturedAt).toLocaleString("vi-VN")
-                            : "-"}
-                        </span>
-                        {coords.lat && coords.lon && (
-                          <button
-                            className="btn-view-map"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleViewOnGoogleMaps(coords.lat, coords.lon);
-                            }}
-                          >
-                            Xem trên Google Maps
-                          </button>
-                        )}
-                      </div>
+                const coords = getImageCoordinates(image);
+                return (
+                  <div key={`${image.Id}-${index}`} className="image-card">
+                    <img
+                      src={image.ImageUrl}
+                      alt={`Image ${image.Id}`}
+                      onClick={() => handleImageClick(image)}
+                      className="grid-image"
+                    />
+                    <div className="image-info">
+                      <span className="image-time">
+                        {image.CapturedAt
+                          ? new Date(image.CapturedAt).toLocaleString("vi-VN")
+                          : "-"}
+                      </span>
+                      {coords.lat && coords.lon && (
+                        <button
+                          className="btn-view-map"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleViewOnGoogleMaps(coords.lat, coords.lon);
+                          }}
+                        >
+                          Xem trên Google Maps
+                        </button>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
+            </div>
             ) : (
               <div className="no-audits">
                 <p>
                   Chưa có hình ảnh cho ngày{" "}
                   {formatAuditDateTime(selectedAudit.AuditDate)}
                 </p>
-              </div>
+          </div>
             )
           ) : (
-            <div className="no-audits">
-              <p>Chưa có lịch sử audit và hình ảnh cho cửa hàng này</p>
-            </div>
-          )}
+          <div className="no-audits">
+            <p>Chưa có lịch sử audit và hình ảnh cho cửa hàng này</p>
+          </div>
+        )}
         </div>
       </div>
 

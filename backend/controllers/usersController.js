@@ -57,12 +57,11 @@ const getUserById = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { username, password, fullName, email, phone, role, position } = req.body;
+    const { username, password, fullName, email, phone, role, position } =
+      req.body;
 
-    if (!username || !password || !fullName) {
-      return res
-        .status(400)
-        .json({ error: "Username, password, and fullName are required" });
+    if (!username || !fullName) {
+      return res.status(400).json({ error: "Username và Họ tên là bắt buộc" });
     }
 
     const existingUser = await User.findByUsername(username);
@@ -70,11 +69,28 @@ const createUser = async (req, res) => {
       return res.status(400).json({ error: "Username already exists" });
     }
 
+    const normalizedRole = (role || "user").toLowerCase();
+
     if (!position || !position.toString().trim()) {
       return res.status(400).json({ error: "Chức vụ là bắt buộc" });
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    let resolvedPassword = password;
+    if (normalizedRole === "admin") {
+      if (!password || !password.toString().trim()) {
+        return res
+          .status(400)
+          .json({ error: "Vui lòng nhập mật khẩu cho tài khoản admin" });
+      }
+      resolvedPassword = password.toString().trim();
+    } else {
+      resolvedPassword =
+        password && password.toString().trim().length > 0
+          ? password.toString().trim()
+          : "123456";
+    }
+
+    const hashedPassword = await bcrypt.hash(resolvedPassword, 10);
 
     const user = await User.create({
       Username: username,
@@ -82,7 +98,7 @@ const createUser = async (req, res) => {
       FullName: fullName,
       Email: email,
       Phone: phone,
-      Role: role || "user",
+      Role: normalizedRole,
       Position: position.toString().trim(),
       IsChangePassword: true, // Default to true - user must change password on first login
     });
@@ -105,7 +121,11 @@ const updateUser = async (req, res) => {
       return res.status(404).json({ error: "User not found" });
     }
 
-    if (position !== undefined && position !== null && !position.toString().trim()) {
+    if (
+      position !== undefined &&
+      position !== null &&
+      !position.toString().trim()
+    ) {
       return res.status(400).json({ error: "Chức vụ không hợp lệ" });
     }
 
@@ -198,11 +218,15 @@ const uploadAvatar = async (req, res) => {
     }
 
     const userId = req.user.id;
-    const { uploadImageWithWatermark } = require("../services/cloudinaryService");
+    const {
+      uploadImageWithWatermark,
+    } = require("../services/cloudinaryService");
 
     // Upload to Cloudinary (without watermark for avatar)
     const cloudinary = require("cloudinary").v2;
-    const base64Image = `data:${req.file.mimetype};base64,${req.file.buffer.toString("base64")}`;
+    const base64Image = `data:${
+      req.file.mimetype
+    };base64,${req.file.buffer.toString("base64")}`;
 
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "avatars",

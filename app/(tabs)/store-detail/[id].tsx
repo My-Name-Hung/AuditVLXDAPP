@@ -657,25 +657,25 @@ export default function StoreDetailScreen() {
                   <Text style={styles.statusText}>
                     {getStatusLabel(store.Status)}
                   </Text>
-                </View>
-              </View>
+          </View>
+        </View>
 
               {/* Failed Reason - show directly under status when store is failed */}
               {store.Status === "failed" && !!store.FailedReason && (
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.icon }]}>
                     Lý do không đạt:
-                  </Text>
+            </Text>
                   <View style={styles.failedReasonBox}>
                     <Text
                       style={[styles.failedReasonText, { color: colors.text }]}
                     >
                       {store.FailedReason}
                     </Text>
-                  </View>
+              </View>
                 </View>
-              )}
-            </View>
+            )}
+          </View>
           </View>
         </View>
 
