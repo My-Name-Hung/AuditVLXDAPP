@@ -45,6 +45,7 @@ const login = async (req, res) => {
         email: user.Email,
         phone: user.Phone,
         role: user.Role,
+        position: user.Position || null,
         avatar: user.Avatar || null,
         isChangePassword: user.IsChangePassword || false,
       },
@@ -99,6 +100,7 @@ const register = async (req, res) => {
         fullName: user.FullName,
         email: user.Email,
         role: user.Role,
+        position: user.Position || null,
       },
     });
   } catch (error) {

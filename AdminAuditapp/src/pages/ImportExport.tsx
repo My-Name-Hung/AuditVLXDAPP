@@ -162,6 +162,7 @@ export default function ImportExport() {
           "Email",
           "Số điện thoại",
           "Vai trò (admin hoặc sales)",
+          "Chức vụ",
         ];
 
         // Add sample data row
@@ -171,6 +172,7 @@ export default function ImportExport() {
           "user@example.com",
           "0123456789",
           "sales",
+          "Nhân viên Thị Trường",
         ];
       }
 
@@ -207,6 +209,7 @@ export default function ImportExport() {
           { width: 30 },
           { width: 15 },
           { width: 20 },
+          { width: 25 },
         ];
       }
 

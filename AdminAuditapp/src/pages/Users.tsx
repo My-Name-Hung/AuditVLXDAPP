@@ -16,6 +16,7 @@ interface User {
   Email: string;
   Phone: string;
   Role: string;
+  Position?: string | null;
   IsChangePassword: boolean;
   CreatedAt: string;
   UpdatedAt: string;
@@ -385,6 +386,7 @@ export default function Users() {
       "Tên nhân viên",
       "Email",
       "Số điện thoại",
+      "Chức vụ",
       "Vai trò",
     ];
     sheet.getRow(4).values = headers;
@@ -401,6 +403,7 @@ export default function Users() {
         user.FullName,
         user.Email || "",
         user.Phone || "",
+        user.Position || "",
         getRoleLabel(user.Role),
       ]);
 
@@ -422,6 +425,7 @@ export default function Users() {
       { width: 30 }, // Tên nhân viên
       { width: 30 }, // Email
       { width: 15 }, // Số điện thoại
+      { width: 25 }, // Chức vụ
       { width: 15 }, // Vai trò
     ];
 
@@ -514,7 +518,7 @@ export default function Users() {
               <th>Tên nhân viên</th>
               <th>Email</th>
               <th>Số điện thoại</th>
-              <th>Vai trò</th>
+              <th>Chức vụ</th>
               <th>Thao tác</th>
             </tr>
           </thead>
@@ -533,8 +537,8 @@ export default function Users() {
                   </td>
                   <td>{user.FullName}</td>
                   <td>{user.Email || "-"}</td>
-                  <td>{user.Phone || "-"}</td>
-                  <td>{getRoleLabel(user.Role)}</td>
+                <td>{user.Phone || "-"}</td>
+                <td>{user.Position || "-"}</td>
                   <td>
                     <div className="action-buttons">
                       <button
@@ -545,7 +549,7 @@ export default function Users() {
                         <HiPencil />
                       </button>
                       <button
-                        className="btn-reset"
+                        className="btn-resetUsers"
                         onClick={() => handleResetPassword(user)}
                         title="Reset mật khẩu"
                       >

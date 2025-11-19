@@ -22,6 +22,7 @@ CREATE TABLE Users (
     Email NVARCHAR(200),
     Phone VARCHAR(20),
     Role VARCHAR(50) NOT NULL DEFAULT 'user',
+    Position NVARCHAR(200),
     Avatar NVARCHAR(500),
     IsChangePassword BIT NOT NULL DEFAULT 1,
     CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),

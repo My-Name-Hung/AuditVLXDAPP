@@ -295,6 +295,7 @@ const importUsers = async (req, res) => {
         phone: row.getCell(4)?.value?.toString()?.trim() || null,
         role:
           row.getCell(5)?.value?.toString()?.trim()?.toLowerCase() || "sales",
+        position: row.getCell(6)?.value?.toString()?.trim() || null,
       };
 
       results.total++;
@@ -326,6 +327,13 @@ const importUsers = async (req, res) => {
         continue;
       }
 
+      if (!rowData.position) {
+        rowData.position =
+          rowData.role === "admin"
+            ? "Quản trị Viên"
+            : "Nhân viên Thị Trường";
+      }
+
       validRows.push(rowData);
     }
 
@@ -348,12 +356,13 @@ const importUsers = async (req, res) => {
         request.input('Email', sql.NVarChar(200), rowData.email);
         request.input('Phone', sql.VarChar(20), rowData.phone);
         request.input('Role', sql.VarChar(50), rowData.role);
+        request.input('Position', sql.NVarChar(200), rowData.position);
         request.input('IsChangePassword', sql.Bit, true);
 
         const result = await request.query(`
-          INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt)
+          INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, Position, IsChangePassword, CreatedAt, UpdatedAt)
           OUTPUT INSERTED.*
-          VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @IsChangePassword, GETDATE(), GETDATE())
+          VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @Position, @IsChangePassword, GETDATE(), GETDATE())
         `);
 
         const createdUser = result.recordset[0];

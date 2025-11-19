@@ -15,6 +15,7 @@ interface User {
   Email: string;
   Phone: string;
   Role: string;
+  Position?: string | null;
 }
 
 export default function UserEdit() {
@@ -33,13 +34,23 @@ export default function UserEdit() {
   });
   const [updateLoading, setUpdateLoading] = useState(false);
 
+  const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
+  const [positionOptions, setPositionOptions] = useState<string[]>(DEFAULT_POSITIONS);
+  const [isAddingPosition, setIsAddingPosition] = useState(false);
+  const [newPositionValue, setNewPositionValue] = useState("");
+
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
     phone: "",
     role: "sales" as "admin" | "sales",
+    position: "",
     password: "",
   });
+
+  useEffect(() => {
+    fetchPositions();
+  }, []);
 
   useEffect(() => {
     if (id) {
@@ -48,17 +59,57 @@ export default function UserEdit() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const mergePositionOptions = (current: string[], incoming: string[]) => {
+    const normalized = [...current];
+    incoming.forEach((item) => {
+      const trimmed = item?.trim();
+      if (trimmed && !normalized.includes(trimmed)) {
+        normalized.push(trimmed);
+      }
+    });
+    return normalized;
+  };
+
+  const fetchPositions = async () => {
+    try {
+      const res = await api.get<string[]>("/users/positions");
+      if (Array.isArray(res.data)) {
+        setPositionOptions((prev) => mergePositionOptions(prev, res.data));
+      }
+    } catch (error) {
+      console.warn("Không thể tải danh sách chức vụ:", error);
+    }
+  };
+
+  const ensurePositionOption = (value: string) => {
+    if (!value) return;
+    setPositionOptions((prev) =>
+      prev.includes(value) ? prev : [...prev, value]
+    );
+  };
+
+  const getDefaultPositionForRole = (role: string) => {
+    const expected = role === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường";
+    ensurePositionOption(expected);
+    return expected;
+  };
+
   const fetchUser = async () => {
     try {
       setLoading(true);
       const res = await api.get(`/users/${id}`);
       const data = res.data;
       setUser(data);
+      const resolvedPosition =
+        (data.Position && data.Position.trim()) ||
+        getDefaultPositionForRole(data.Role || "sales");
+      ensurePositionOption(resolvedPosition);
       setFormData({
         fullName: data.FullName || "",
         email: data.Email || "",
         phone: data.Phone || "",
         role: data.Role || "sales",
+        position: resolvedPosition,
         password: "",
       });
     } catch (error) {
@@ -105,6 +156,15 @@ export default function UserEdit() {
       return;
     }
 
+    if (!formData.position.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng chọn hoặc thêm chức vụ.",
+      });
+      return;
+    }
+
     try {
       setUpdateLoading(true);
 
@@ -113,6 +173,7 @@ export default function UserEdit() {
         email: formData.email.trim(),
         phone: formData.phone.trim(),
         role: formData.role,
+        position: formData.position.trim(),
       };
 
       // Only include password if it's provided
@@ -150,6 +211,43 @@ export default function UserEdit() {
     { id: "admin", name: "Admin" },
     { id: "sales", name: "Sales" },
   ];
+
+  const positionSelectOptions = positionOptions.map((pos) => ({
+    id: pos,
+    name: pos,
+  }));
+
+  const handleRoleChange = (value: string) => {
+    const role = value as "admin" | "sales";
+    const prevDefault = getDefaultPositionForRole(formData.role);
+    const nextDefault = getDefaultPositionForRole(role);
+    const shouldReplace =
+      !formData.position ||
+      formData.position === prevDefault ||
+      !positionOptions.includes(formData.position);
+    const updatedPosition = shouldReplace ? nextDefault : formData.position;
+    setFormData((prev) => ({
+      ...prev,
+      role,
+      position: updatedPosition,
+    }));
+  };
+
+  const handleAddPosition = () => {
+    if (!newPositionValue.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng nhập tên chức vụ.",
+      });
+      return;
+    }
+    const value = newPositionValue.trim();
+    ensurePositionOption(value);
+    setFormData((prev) => ({ ...prev, position: value }));
+    setNewPositionValue("");
+    setIsAddingPosition(false);
+  };
 
   if (loading) {
     return (
@@ -249,12 +347,56 @@ export default function UserEdit() {
           <Select
             options={roleOptions}
             value={formData.role}
-            onChange={(value) =>
-              setFormData({ ...formData, role: value as "admin" | "sales" })
-            }
+            onChange={handleRoleChange}
             placeholder="Chọn vai trò"
             searchable={false}
           />
+        </div>
+
+        <div className="form-group">
+          <label>
+            Chức vụ <span className="required">*</span>
+          </label>
+          <div className="position-select-group">
+            <div className="position-select">
+              <Select
+                options={positionSelectOptions}
+                value={formData.position}
+                onChange={(value) =>
+                  setFormData({ ...formData, position: value || "" })
+                }
+                placeholder="Chọn chức vụ"
+                searchable={true}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-add-position"
+              onClick={() => {
+                setIsAddingPosition((prev) => !prev);
+                setNewPositionValue("");
+              }}
+            >
+              {isAddingPosition ? "Hủy" : "Thêm chức vụ"}
+            </button>
+          </div>
+          {isAddingPosition && (
+            <div className="position-add-inline">
+              <input
+                type="text"
+                value={newPositionValue}
+                onChange={(e) => setNewPositionValue(e.target.value)}
+                placeholder="Nhập tên chức vụ mới"
+              />
+              <button
+                type="button"
+                className="btn-save-position"
+                onClick={handleAddPosition}
+              >
+                Lưu
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="form-group">

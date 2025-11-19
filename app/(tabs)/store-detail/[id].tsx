@@ -203,11 +203,7 @@ export default function StoreDetailScreen() {
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
       setAudits(auditData);
-      if (auditData.length === 0) {
-        setAllowNewAudit(true);
-      } else {
-        setAllowNewAudit(false);
-      }
+      setAllowNewAudit(auditData.length === 0);
     } catch (error) {
       console.error("Error fetching store:", error);
       Alert.alert("Lỗi", "Không thể tải thông tin cửa hàng");
@@ -219,6 +215,10 @@ export default function StoreDetailScreen() {
   useEffect(() => {
     fetchStore();
   }, [fetchStore]);
+
+  useEffect(() => {
+    promptedDateRef.current = null;
+  }, [id]);
 
   useEffect(() => {
     if (loading) {
@@ -813,23 +813,24 @@ export default function StoreDetailScreen() {
                   ) : null}
                   {audit.Images && audit.Images.length > 0 ? (
                     <View style={styles.imagesGrid}>
-                      {audit.Images.map((img) => (
-                        <TouchableOpacity
-                          key={img.Id}
-                          style={styles.imageContainer}
-                          onPress={() => handleImagePress(img.ImageUrl)}
-                        >
-                          <Image
-                            source={{ uri: img.ImageUrl }}
-                            style={styles.image}
-                          />
-                          <Text
-                            style={[styles.imageTime, { color: colors.icon }]}
-                          >
-                            {new Date(img.CapturedAt).toLocaleString("vi-VN")}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
+                  {audit.Images.map((img) => (
+                    <View key={img.Id} style={styles.imageItem}>
+                      <TouchableOpacity
+                        style={styles.imageContainer}
+                        onPress={() => handleImagePress(img.ImageUrl)}
+                      >
+                        <Image
+                          source={{ uri: img.ImageUrl }}
+                          style={styles.image}
+                        />
+                      </TouchableOpacity>
+                      <Text
+                        style={[styles.imageTime, { color: colors.icon }]}
+                      >
+                        {new Date(img.CapturedAt).toLocaleString("vi-VN")}
+                      </Text>
+                    </View>
+                  ))}
                     </View>
                   ) : (
                     <Text style={[styles.emptyText, { color: colors.icon }]}>
@@ -876,7 +877,10 @@ export default function StoreDetailScreen() {
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.modalButtonCancel]}
-                onPress={() => setShowNewAuditModal(false)}
+                onPress={() => {
+                  setAllowNewAudit(true);
+                  setShowNewAuditModal(false);
+                }}
               >
                 <Text style={styles.modalButtonText}>Để sau</Text>
               </TouchableOpacity>
@@ -1250,9 +1254,14 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 12,
   },
-  imageContainer: {
+  imageItem: {
     width: "30%",
+  },
+  imageContainer: {
+    width: "100%",
     aspectRatio: 1,
+    borderRadius: 8,
+    overflow: "hidden",
   },
   image: {
     width: "100%",
@@ -1304,11 +1313,16 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     alignItems: "center",
   },
-  modalButtonCancel: {},
-  modalButtonConfirm: {},
+  modalButtonCancel: {
+    backgroundColor: "#f1f5f9",
+  },
+  modalButtonConfirm: {
+    backgroundColor: "#1d4ed8",
+  },
   modalButtonText: {
     fontSize: 16,
     fontWeight: "600",
+    color: "#111827",
   },
   modalButtonTextConfirm: {
     color: "#fff",

@@ -9,6 +9,7 @@ interface User {
   fullName: string;
   email: string;
   role: string;
+  position?: string | null;
 }
 
 interface LoginResponse {

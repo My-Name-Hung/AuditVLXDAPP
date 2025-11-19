@@ -3,7 +3,16 @@ const { getPool, sql } = require('../config/database');
 class User {
   static async create(userData) {
     const pool = await getPool();
-    const { Username, Password, FullName, Email, Phone, Role = 'user', IsChangePassword = 0 } = userData;
+    const {
+      Username,
+      Password,
+      FullName,
+      Email,
+      Phone,
+      Role = 'user',
+      Position = null,
+      IsChangePassword = 0
+    } = userData;
 
     // Generate UserCode
     const userCode = await this.generateUserCode();
@@ -16,12 +25,13 @@ class User {
     request.input('Email', sql.NVarChar(200), Email);
     request.input('Phone', sql.VarChar(20), Phone);
     request.input('Role', sql.VarChar(50), Role);
+    request.input('Position', sql.NVarChar(200), Position);
     request.input('IsChangePassword', sql.Bit, IsChangePassword);
 
     const result = await request.query(`
-      INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt)
+      INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, Position, IsChangePassword, CreatedAt, UpdatedAt)
       OUTPUT INSERTED.*
-      VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @IsChangePassword, GETDATE(), GETDATE())
+      VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @Position, @IsChangePassword, GETDATE(), GETDATE())
     `);
 
     return result.recordset[0];
@@ -66,7 +76,7 @@ class User {
   static async findAll(filters = {}) {
     const pool = await getPool();
     let query = `
-      SELECT Id, UserCode, Username, FullName, Email, Phone, Role, IsChangePassword, CreatedAt, UpdatedAt
+      SELECT Id, UserCode, Username, FullName, Email, Phone, Role, Position, IsChangePassword, CreatedAt, UpdatedAt
       FROM Users
       WHERE 1=1
     `;

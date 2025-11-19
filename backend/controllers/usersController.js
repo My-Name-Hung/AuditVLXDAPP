@@ -57,7 +57,7 @@ const getUserById = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { username, password, fullName, email, phone, role } = req.body;
+    const { username, password, fullName, email, phone, role, position } = req.body;
 
     if (!username || !password || !fullName) {
       return res
@@ -70,6 +70,10 @@ const createUser = async (req, res) => {
       return res.status(400).json({ error: "Username already exists" });
     }
 
+    if (!position || !position.toString().trim()) {
+      return res.status(400).json({ error: "Chức vụ là bắt buộc" });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const user = await User.create({
@@ -79,6 +83,7 @@ const createUser = async (req, res) => {
       Email: email,
       Phone: phone,
       Role: role || "user",
+      Position: position.toString().trim(),
       IsChangePassword: true, // Default to true - user must change password on first login
     });
 
@@ -93,11 +98,15 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, email, phone, role, password } = req.body;
+    const { fullName, email, phone, role, password, position } = req.body;
 
     const user = await User.findById(id);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
+    }
+
+    if (position !== undefined && position !== null && !position.toString().trim()) {
+      return res.status(400).json({ error: "Chức vụ không hợp lệ" });
     }
 
     const { getPool, sql } = require("../config/database");
@@ -109,6 +118,13 @@ const updateUser = async (req, res) => {
     request.input("Email", sql.NVarChar(200), email || user.Email);
     request.input("Phone", sql.VarChar(20), phone || user.Phone);
     request.input("Role", sql.VarChar(50), role || user.Role);
+    request.input(
+      "Position",
+      sql.NVarChar(200),
+      position !== undefined && position !== null
+        ? position.toString().trim()
+        : user.Position
+    );
 
     let updateQuery = `
       UPDATE Users 
@@ -116,6 +132,7 @@ const updateUser = async (req, res) => {
           Email = @Email, 
           Phone = @Phone, 
           Role = @Role,
+          Position = @Position,
           UpdatedAt = GETDATE()
     `;
 
@@ -265,6 +282,23 @@ const deleteUser = async (req, res) => {
   }
 };
 
+const getUserPositions = async (_req, res) => {
+  try {
+    const { getPool } = require("../config/database");
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT DISTINCT Position
+      FROM Users
+      WHERE Position IS NOT NULL AND LTRIM(RTRIM(Position)) <> ''
+      ORDER BY Position
+    `);
+    res.json(result.recordset.map((row) => row.Position));
+  } catch (error) {
+    console.error("Get user positions error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -273,4 +307,5 @@ module.exports = {
   deleteUser,
   resetPassword,
   uploadAvatar,
+  getUserPositions,
 };

@@ -84,7 +84,7 @@
 
 .filter-input:focus {
   outline: none;
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .btn-clear-filters {
@@ -117,7 +117,7 @@
 }
 
 .users-table thead {
-  background: #0138C3;
+  background: #0138c3;
   color: #fefefe;
 }
 
@@ -144,7 +144,7 @@
 }
 
 .users-table td strong {
-  color: #0138C3;
+  color: #0138c3;
   font-weight: 600;
 }
 
@@ -161,7 +161,7 @@
 }
 
 .btn-edit,
-.btn-reset,
+.btn-resetUsers,
 .btn-delete {
   padding: 0.5rem;
   border: none;
@@ -184,12 +184,12 @@
   background: #e0a800;
 }
 
-.btn-reset {
+.btn-resetUsers {
   background: #ffc107;
   color: #333;
 }
 
-.btn-reset:hover {
+.btn-resetUsers:hover {
   background: #e0a800;
 }
 
@@ -239,7 +239,7 @@
 
 .pagination-btn:hover:not(:disabled) {
   background: #f8f9fa;
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .pagination-btn:disabled {

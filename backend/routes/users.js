@@ -7,6 +7,7 @@ const { authenticateToken } = require('../middlewares/auth');
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', authenticateToken, usersController.getAllUsers);
+router.get('/positions', authenticateToken, usersController.getUserPositions);
 router.get('/:id', authenticateToken, usersController.getUserById);
 router.post('/', authenticateToken, usersController.createUser);
 router.put('/:id', authenticateToken, usersController.updateUser);
