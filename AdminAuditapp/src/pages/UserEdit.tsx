@@ -217,7 +217,10 @@ export default function UserEdit() {
     name: pos,
   }));
 
-  const handleRoleChange = (value: string) => {
+  const handleRoleChange = (value: string | number | null) => {
+    if (!value || typeof value === "number") {
+      return;
+    }
     const role = value as "admin" | "sales";
     const prevDefault = getDefaultPositionForRole(formData.role);
     const nextDefault = getDefaultPositionForRole(role);
@@ -363,7 +366,10 @@ export default function UserEdit() {
                 options={positionSelectOptions}
                 value={formData.position}
                 onChange={(value) =>
-                  setFormData({ ...formData, position: value || "" })
+                  setFormData({
+                    ...formData,
+                    position: value ? String(value) : "",
+                  })
                 }
                 placeholder="Chọn chức vụ"
                 searchable={true}

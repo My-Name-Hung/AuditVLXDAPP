@@ -49,7 +49,6 @@ export default function UserAdd() {
       }
     };
     fetchPositions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -185,15 +184,15 @@ export default function UserAdd() {
       setTimeout(() => {
         navigate("/users");
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error creating user:", error);
       setCreateLoading(false);
       setNotification({
         isOpen: true,
         type: "error",
         message:
-          error.response?.data?.error ||
-          "Lỗi khi tạo nhân viên. Vui lòng thử lại.",
+          (error as { response?: { data?: { error?: string } } })?.response
+            ?.data?.error || "Lỗi khi tạo nhân viên. Vui lòng thử lại.",
       });
     }
   };
@@ -216,7 +215,10 @@ export default function UserAdd() {
     name: pos,
   }));
 
-  const handleRoleChange = (value: string) => {
+  const handleRoleChange = (value: string | number | null) => {
+    if (!value || typeof value === "number") {
+      return;
+    }
     const role = value as "admin" | "sales";
     const prevDefault = getDefaultPositionForRole(
       formData.role,
@@ -391,7 +393,10 @@ export default function UserAdd() {
                 options={positionSelectOptions}
                 value={formData.position}
                 onChange={(value) =>
-                  setFormData({ ...formData, position: value || "" })
+                  setFormData({
+                    ...formData,
+                    position: value ? String(value) : "",
+                  })
                 }
                 placeholder="Chọn chức vụ"
                 searchable={true}
