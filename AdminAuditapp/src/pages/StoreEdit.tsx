@@ -252,9 +252,9 @@ export default function StoreEdit() {
         message: `Đã cập nhật thông tin cửa hàng "${formData.storeName}" thành công.`,
       });
 
-      // Navigate back after 1.5 seconds
+      // Navigate back after 1.5 seconds with refresh flag
       setTimeout(() => {
-        navigate("/stores");
+        navigate("/stores", { state: { refresh: true } });
       }, 1500);
     } catch (error: unknown) {
       console.error("Error updating store:", error);

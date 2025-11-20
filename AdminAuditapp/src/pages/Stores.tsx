@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { HiEye, HiPencil, HiTrash } from "react-icons/hi";
 import { HiArrowDownTray, HiPlus } from "react-icons/hi2";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -261,6 +261,7 @@ export default function Stores() {
       const params: Record<string, string | number> = {
         page,
         pageSize,
+        _t: Date.now(), // Add timestamp to prevent caching
       };
 
       if (statusFilter !== "all") {
@@ -397,12 +398,21 @@ export default function Stores() {
     return labels[status] || status;
   };
 
-  const formatStatusWithUsers = (store: Store): string => {
-    // If store has userStatuses and more than 1 user, format as "Status (User), Status (User)"
+  const formatStatusWithUsers = (store: Store): React.ReactNode => {
+    // If store has userStatuses and more than 1 user, format as multiple lines
     if (store.userStatuses && store.userStatuses.length > 1) {
-      return store.userStatuses
-        .map((us) => `${getStatusLabel(us.Status)} (${us.UserFullName})`)
-        .join(", ");
+      return (
+        <div className="status-multi-user">
+          {store.userStatuses.map((us, index) => (
+            <div key={us.UserId} className="status-user-item">
+              <span className={`status-badge-inline status-${us.Status}`}>
+                {getStatusLabel(us.Status)}
+              </span>
+              <span className="status-user-name">({us.UserFullName})</span>
+            </div>
+          ))}
+        </div>
+      );
     }
     // If only 1 user or no userStatuses, just show status
     return getStatusLabel(store.Status);
@@ -782,21 +792,46 @@ export default function Stores() {
                   <td>{store.PartnerName || "-"}</td>
                   <td>{store.Phone || "-"}</td>
                   <td className="status-col">
-                    <span className={`status-badge status-${store.Status}`}>
-                      {formatStatusWithUsers(store)}
-                    </span>
+                    {store.userStatuses && store.userStatuses.length > 1 ? (
+                      formatStatusWithUsers(store)
+                    ) : (
+                      <span className={`status-badge status-${store.Status}`}>
+                        {formatStatusWithUsers(store) as string}
+                      </span>
+                    )}
                   </td>
                   <td>
                     <div className="action-buttons">
-                      {store.Status !== "not_audited" && (
-                        <button
-                          className="btn-action btn-view"
-                          onClick={() => handleViewStore(store.Id)}
-                          title="Xem chi tiết"
-                        >
-                          <HiEye />
-                        </button>
-                      )}
+                      {(() => {
+                        // Show view button if:
+                        // 1. Single user and status is not "not_audited"
+                        // 2. Multiple users and at least one has status not "not_audited"
+                        if (store.userStatuses && store.userStatuses.length > 1) {
+                          const hasAuditedUser = store.userStatuses.some(
+                            (us) => us.Status !== "not_audited"
+                          );
+                          return hasAuditedUser ? (
+                            <button
+                              className="btn-action btn-view"
+                              onClick={() => handleViewStore(store.Id)}
+                              title="Xem chi tiết"
+                            >
+                              <HiEye />
+                            </button>
+                          ) : null;
+                        } else {
+                          // Single user or no userStatuses
+                          return store.Status !== "not_audited" ? (
+                            <button
+                              className="btn-action btn-view"
+                              onClick={() => handleViewStore(store.Id)}
+                              title="Xem chi tiết"
+                            >
+                              <HiEye />
+                            </button>
+                          ) : null;
+                        }
+                      })()}
                       <button
                         className="btn-action btn-edit"
                         onClick={() => handleEditStore(store.Id)}

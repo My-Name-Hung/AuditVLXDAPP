@@ -493,7 +493,16 @@ const updateStore = async (req, res) => {
       sql.Int,
       userId !== undefined ? userId : store.UserId
     );
-    request.input("Rank", sql.Int, rank !== undefined ? rank : store.Rank);
+    // Handle Rank: if rank is explicitly null, set it to null; otherwise use provided value or existing value
+    if (rank !== undefined) {
+      if (rank === null || rank === "") {
+        request.input("Rank", sql.Int, null);
+      } else {
+        request.input("Rank", sql.Int, parseInt(rank));
+      }
+    } else {
+      request.input("Rank", sql.Int, store.Rank);
+    }
     request.input(
       "TaxCode",
       sql.VarChar(50),
@@ -505,7 +514,8 @@ const updateStore = async (req, res) => {
       partnerName !== undefined ? partnerName : store.PartnerName
     );
 
-    const result = await request.query(`
+    // Build dynamic UPDATE query to handle null Rank properly
+    let updateQuery = `
       UPDATE Stores 
       SET StoreName = @StoreName, 
           Address = @Address, 
@@ -516,13 +526,26 @@ const updateStore = async (req, res) => {
           Status = @Status,
           TerritoryId = @TerritoryId,
           UserId = @UserId,
-          Rank = @Rank,
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
-          UpdatedAt = GETDATE()
+          UpdatedAt = GETDATE()`;
+    
+    // Handle Rank separately to allow null
+    if (rank !== undefined) {
+      if (rank === null || rank === "") {
+        updateQuery += `, Rank = NULL`;
+      } else {
+        updateQuery += `, Rank = @Rank`;
+      }
+    } else {
+      updateQuery += `, Rank = @Rank`;
+    }
+    
+    updateQuery += `
       OUTPUT INSERTED.*
-      WHERE Id = @Id
-    `);
+      WHERE Id = @Id`;
+
+    const result = await request.query(updateQuery);
 
     // Sync UserId to StoreUsers if UserId was updated (only if StoreUsers is empty for backward compatibility)
     if (userId !== undefined) {

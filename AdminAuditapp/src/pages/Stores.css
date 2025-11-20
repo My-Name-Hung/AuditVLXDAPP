@@ -251,6 +251,7 @@
 
 .stores-table td.status-col {
   text-align: center;
+  vertical-align: middle;
 }
 
 .stores-table td strong {
@@ -269,6 +270,46 @@
   text-transform: uppercase;
   letter-spacing: 0.02em;
   min-width: 110px;
+  white-space: nowrap;
+}
+
+/* Multi-user status container */
+.status-multi-user {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  align-items: center;
+  min-width: 150px;
+  padding: 0.5rem 0;
+}
+
+.status-user-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: 100%;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.status-badge-inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.status-user-name {
+  font-size: 0.7rem;
+  color: #666;
+  font-weight: 500;
   white-space: nowrap;
 }
 
