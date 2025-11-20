@@ -7,6 +7,13 @@ import NotificationModal from "../components/NotificationModal";
 import api from "../services/api";
 import "./StoreDetail.css";
 
+interface UserStatus {
+  UserId: number;
+  UserFullName: string;
+  UserCode: string;
+  Status: string;
+}
+
 interface Store {
   Id: number;
   StoreCode: string;
@@ -26,6 +33,12 @@ interface Store {
   Latitude: number | null;
   Longitude: number | null;
   FailedReason: string | null;
+  userStatuses?: UserStatus[]; // Status for each assigned user
+  assignedUsers?: Array<{
+    UserId: number;
+    FullName: string;
+    UserCode: string;
+  }>;
 }
 
 interface Image {
@@ -92,6 +105,8 @@ export default function StoreDetail() {
   });
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [userSelectModalOpen, setUserSelectModalOpen] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
 
@@ -111,7 +126,7 @@ export default function StoreDetail() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const fetchStoreDetail = async (showLoading = false) => {
+  const fetchStoreDetail = async (showLoading = false, userId?: number | null) => {
     try {
       if (showLoading) {
         setDataLoading(true);
@@ -119,10 +134,13 @@ export default function StoreDetail() {
         setLoading(true);
       }
 
-      // Add timestamp to prevent caching
-      const res = await api.get(`/stores/${id}`, {
-        params: { _t: Date.now() },
-      });
+      // Add timestamp to prevent caching and userId if provided
+      const params: { _t: number; userId?: number } = { _t: Date.now() };
+      if (userId) {
+        params.userId = userId;
+      }
+
+      const res = await api.get(`/stores/${id}`, { params });
       const data = res.data;
       setStore({
         Id: data.Id,
@@ -143,9 +161,28 @@ export default function StoreDetail() {
         Latitude: data.Latitude,
         Longitude: data.Longitude,
         FailedReason: data.FailedReason || null,
+        userStatuses: data.userStatuses || [],
+        assignedUsers: data.assignedUsers || [],
       });
       const auditsData = data.audits || [];
       setAudits(auditsData);
+
+      // Check if we need to show user selection modal
+      const userStatuses = data.userStatuses || [];
+      if (userStatuses.length > 1) {
+        // Multiple users - show modal
+        setUserSelectModalOpen(true);
+        // Don't set selectedUserId yet - wait for user selection
+      } else if (userStatuses.length === 1) {
+        // Single user - auto select
+        setSelectedUserId(userStatuses[0].UserId);
+        setUserSelectModalOpen(false);
+      } else {
+        // No users - don't show modal
+        setSelectedUserId(null);
+        setUserSelectModalOpen(false);
+      }
+
       setSelectedAuditId((prev) => {
         if (prev && auditsData.some((audit: Audit) => audit.AuditId === prev)) {
           return prev;
@@ -445,20 +482,58 @@ export default function StoreDetail() {
     }
   };
 
+  // Filter audits by selectedUserId if provided
+  const userFilteredAudits = selectedUserId
+    ? audits.filter((audit) => audit.UserId === selectedUserId)
+    : audits;
+
   const selectedAudit =
-    audits.find((audit) => audit.AuditId === selectedAuditId) || null;
-  const effectiveStatus =
-    selectedAudit && store
-      ? mapAuditResultToStoreStatus(selectedAudit.Result)
-      : store?.Status || "not_audited";
+    userFilteredAudits.find((audit) => audit.AuditId === selectedAuditId) || null;
+  
+  // Get status, lat/lon from selected user's status or selected audit
+  let effectiveStatus = store?.Status || "not_audited";
+  let effectiveLatitude = store?.Latitude || null;
+  let effectiveLongitude = store?.Longitude || null;
+  let effectiveUserFullName = store?.UserFullName || null;
+  let effectiveUserCode = store?.UserCode || null;
+
+  if (selectedUserId && store?.userStatuses) {
+    const userStatus = store.userStatuses.find((us) => us.UserId === selectedUserId);
+    if (userStatus) {
+      effectiveStatus = userStatus.Status;
+      effectiveUserFullName = userStatus.UserFullName;
+      effectiveUserCode = userStatus.UserCode;
+    }
+  }
+
+  // Override with selected audit if available
+  if (selectedAudit && store) {
+    effectiveStatus = mapAuditResultToStoreStatus(selectedAudit.Result);
+    // Get lat/lon from first image of selected audit
+    if (selectedAudit.Images && selectedAudit.Images.length > 0) {
+      const firstImage = selectedAudit.Images[0];
+      if (firstImage.Latitude && firstImage.Longitude) {
+        effectiveLatitude = firstImage.Latitude;
+        effectiveLongitude = firstImage.Longitude;
+      }
+    }
+  }
+
   const selectedImages = selectedAudit?.Images || [];
   const selectedFailedReason =
     effectiveStatus === "failed" ? selectedAudit?.FailedReason || null : null;
-  const filteredAudits = audits.filter((audit) =>
+  const filteredAudits = userFilteredAudits.filter((audit) =>
     formatAuditDateTime(audit.AuditDate)
       .toLowerCase()
       .includes(auditDateSearch.toLowerCase())
   );
+
+  const handleUserSelect = async (userId: number) => {
+    setSelectedUserId(userId);
+    setUserSelectModalOpen(false);
+    // Fetch store detail with selected userId to get correct data
+    await fetchStoreDetail(false, userId);
+  };
 
   if (loading) {
     return <div className="loading">Đang tải dữ liệu...</div>;
@@ -511,8 +586,8 @@ export default function StoreDetail() {
               <div className="info-item">
                 <label>Nhân viên phụ trách:</label>
                 <span>
-                  {store.UserFullName || "-"}{" "}
-                  {store.UserCode ? `(${store.UserCode})` : ""}
+                  {effectiveUserFullName || "-"}{" "}
+                  {effectiveUserCode ? `(${effectiveUserCode})` : ""}
                 </span>
               </div>
               <div className="info-item">
@@ -541,14 +616,14 @@ export default function StoreDetail() {
           </div>
 
           {/* Google Maps - Right Panel */}
-          {store.Latitude && store.Longitude && (
+          {effectiveLatitude && effectiveLongitude && (
             <div className="map-section">
               <iframe
                 title="Bản đồ"
                 width="100%"
                 height="100%"
                 scrolling="no"
-                src={`https://maps.google.com/maps?q=${store.Latitude},${store.Longitude}&output=embed`}
+                src={`https://maps.google.com/maps?q=${effectiveLatitude},${effectiveLongitude}&output=embed`}
                 style={{ border: 0 }}
                 allowFullScreen
               ></iframe>
@@ -560,6 +635,23 @@ export default function StoreDetail() {
             <div className="section-header">
             <div className="section-title-group">
               <h3>Lịch sử Audit và Hình ảnh</h3>
+              {store.userStatuses && store.userStatuses.length > 1 && selectedUserId && (
+                <button
+                  className="btn-change-user"
+                  onClick={() => setUserSelectModalOpen(true)}
+                  style={{
+                    marginLeft: "16px",
+                    padding: "8px 16px",
+                    backgroundColor: "#0138C3",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer",
+                  }}
+                >
+                  Đổi user
+                </button>
+              )}
               {audits.length > 0 && (
                 <div className="audit-date-selector">
                   <button
@@ -928,6 +1020,47 @@ export default function StoreDetail() {
         message="Đang làm mới dữ liệu cửa hàng..."
         progress={0}
       />
+
+      {/* User Selection Modal */}
+      {userSelectModalOpen && store?.userStatuses && store.userStatuses.length > 1 && (
+        <div className="modal-overlay" onClick={() => setUserSelectModalOpen(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Chọn nhân viên để xem</h3>
+            <div className="user-list">
+              {store.userStatuses.map((userStatus) => (
+                <button
+                  key={userStatus.UserId}
+                  className={`user-item ${selectedUserId === userStatus.UserId ? "selected" : ""}`}
+                  onClick={() => handleUserSelect(userStatus.UserId)}
+                  style={{
+                    width: "100%",
+                    padding: "12px 16px",
+                    marginBottom: "8px",
+                    textAlign: "left",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    backgroundColor: selectedUserId === userStatus.UserId ? "#e3f2fd" : "white",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ fontWeight: "bold" }}>{userStatus.UserFullName}</div>
+                  <div style={{ fontSize: "12px", color: "#666" }}>
+                    {userStatus.UserCode} - {getStatusLabel(userStatus.Status)}
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="modal-actions" style={{ marginTop: "16px" }}>
+              <button
+                className="btn-secondary"
+                onClick={() => setUserSelectModalOpen(false)}
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Notification Modal */}
       <NotificationModal

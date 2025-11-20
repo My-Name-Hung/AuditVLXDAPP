@@ -8,6 +8,13 @@ import Select from "../components/Select";
 import api from "../services/api";
 import "./Stores.css";
 
+interface UserStatus {
+  UserId: number;
+  UserFullName: string;
+  UserCode: string;
+  Status: string;
+}
+
 interface Store {
   Id: number;
   StoreCode: string;
@@ -26,6 +33,7 @@ interface Store {
   UserCode: string | null;
   Latitude: number | null;
   Longitude: number | null;
+  userStatuses?: UserStatus[]; // Status for each assigned user
 }
 
 const STATUS_SORT_ORDER: Record<string, number> = {
@@ -387,6 +395,17 @@ export default function Stores() {
       failed: "Không đạt",
     };
     return labels[status] || status;
+  };
+
+  const formatStatusWithUsers = (store: Store): string => {
+    // If store has userStatuses and more than 1 user, format as "Status (User), Status (User)"
+    if (store.userStatuses && store.userStatuses.length > 1) {
+      return store.userStatuses
+        .map((us) => `${getStatusLabel(us.Status)} (${us.UserFullName})`)
+        .join(", ");
+    }
+    // If only 1 user or no userStatuses, just show status
+    return getStatusLabel(store.Status);
   };
 
   const handleExportStores = async () => {
@@ -764,7 +783,7 @@ export default function Stores() {
                   <td>{store.Phone || "-"}</td>
                   <td className="status-col">
                     <span className={`status-badge status-${store.Status}`}>
-                      {getStatusLabel(store.Status)}
+                      {formatStatusWithUsers(store)}
                     </span>
                   </td>
                   <td>

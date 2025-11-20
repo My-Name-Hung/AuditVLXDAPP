@@ -185,8 +185,14 @@ export default function StoresScreen() {
       if (reset) {
         setStores(sortedData);
       } else {
-        // When loading more, sort the combined array
-        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
+        // When loading more, remove duplicates by Id before combining
+        setStores((prev) => {
+          const existingIds = new Set(prev.map((store) => store.Id));
+          const newStores = sortedData.filter(
+            (store) => !existingIds.has(store.Id)
+          );
+          return sortStoresByStatus([...prev, ...newStores]);
+        });
       }
 
       setHasMore(pagination.page < pagination.totalPages);

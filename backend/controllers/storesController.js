@@ -41,16 +41,41 @@ const getAllStores = async (req, res) => {
     // Get current user ID from token
     const currentUserId = req.user?.id || req.user?.userId;
 
-    // Calculate user-specific status for each store
-    if (currentUserId) {
-      const { getPool, sql } = require("../config/database");
-      const pool = await getPool();
+    // Get status for all assigned users for each store
+    const { getPool, sql } = require("../config/database");
+    const pool = await getPool();
+    const StoreUser = require("../models/StoreUser");
 
-      for (let store of stores) {
-        // Get latest audit for this user and store
+    for (let store of stores) {
+      // Get all assigned users for this store
+      const assignedUsers = await StoreUser.getUsersByStoreId(store.Id);
+      
+      // If no assigned users, check primary user (backward compatibility)
+      if (assignedUsers.length === 0 && store.UserId) {
+        // Get primary user info
+        const userRequest = pool.request();
+        userRequest.input("UserId", sql.Int, store.UserId);
+        const userResult = await userRequest.query(`
+          SELECT Id, FullName, UserCode
+          FROM Users
+          WHERE Id = @UserId
+        `);
+        
+        if (userResult.recordset.length > 0) {
+          assignedUsers.push({
+            UserId: userResult.recordset[0].Id,
+            FullName: userResult.recordset[0].FullName,
+            UserCode: userResult.recordset[0].UserCode,
+          });
+        }
+      }
+
+      // Get status for each assigned user
+      const userStatuses = [];
+      for (const assignedUser of assignedUsers) {
         const auditRequest = pool.request();
         auditRequest.input("StoreId", sql.Int, store.Id);
-        auditRequest.input("UserId", sql.Int, currentUserId);
+        auditRequest.input("UserId", sql.Int, assignedUser.UserId);
 
         const auditResult = await auditRequest.query(`
           SELECT TOP 1 
@@ -62,24 +87,42 @@ const getAllStores = async (req, res) => {
           ORDER BY AuditDate DESC, CreatedAt DESC
         `);
 
+        let userStatus = "not_audited";
         if (auditResult.recordset.length > 0) {
           const latestAudit = auditResult.recordset[0];
-          // Map audit result to store status
           if (latestAudit.Result === "pass") {
-            store.Status = "passed";
-            store.FailedReason = null;
+            userStatus = "passed";
           } else if (latestAudit.Result === "fail") {
-            store.Status = "failed";
-            store.FailedReason = latestAudit.FailedReason;
+            userStatus = "failed";
           } else if (latestAudit.Result === "audited") {
-            store.Status = "audited";
-            store.FailedReason = null;
+            userStatus = "audited";
           }
-        } else {
-          // User hasn't audited this store yet
-          store.Status = "not_audited";
-          store.FailedReason = null;
         }
+
+        userStatuses.push({
+          UserId: assignedUser.UserId,
+          UserFullName: assignedUser.FullName,
+          UserCode: assignedUser.UserCode,
+          Status: userStatus,
+        });
+      }
+
+      // Store user statuses array
+      store.userStatuses = userStatuses;
+
+      // For backward compatibility: if currentUserId is provided, set store.Status to current user's status
+      if (currentUserId) {
+        const currentUserStatus = userStatuses.find(
+          (us) => us.UserId === currentUserId
+        );
+        if (currentUserStatus) {
+          store.Status = currentUserStatus.Status;
+        } else {
+          store.Status = "not_audited";
+        }
+      } else {
+        // If no currentUserId, use the first user's status or default
+        store.Status = userStatuses.length > 0 ? userStatuses[0].Status : "not_audited";
       }
     }
 
@@ -101,6 +144,7 @@ const getAllStores = async (req, res) => {
 const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { userId } = req.query; // For admin to view specific user's data
     const store = await Store.findById(id);
 
     if (!store) {
@@ -233,6 +277,63 @@ const getStoreById = async (req, res) => {
     const StoreUser = require("../models/StoreUser");
     const assignedUsers = await StoreUser.getUsersByStoreId(parseInt(id));
 
+    // If no assigned users, check primary user (backward compatibility)
+    let allAssignedUsers = assignedUsers;
+    if (assignedUsers.length === 0 && storeDetails.UserId) {
+      const userRequest = pool.request();
+      userRequest.input("UserId", sql.Int, storeDetails.UserId);
+      const userResult = await userRequest.query(`
+        SELECT Id, FullName, UserCode
+        FROM Users
+        WHERE Id = @UserId
+      `);
+      
+      if (userResult.recordset.length > 0) {
+        allAssignedUsers = [{
+          UserId: userResult.recordset[0].Id,
+          FullName: userResult.recordset[0].FullName,
+          UserCode: userResult.recordset[0].UserCode,
+        }];
+      }
+    }
+
+    // Get status for each assigned user
+    const userStatuses = [];
+    for (const assignedUser of allAssignedUsers) {
+      const auditRequest = pool.request();
+      auditRequest.input("StoreId", sql.Int, parseInt(id));
+      auditRequest.input("UserId", sql.Int, assignedUser.UserId);
+
+      const auditResult = await auditRequest.query(`
+        SELECT TOP 1 
+          Result,
+          FailedReason,
+          AuditDate
+        FROM Audits
+        WHERE StoreId = @StoreId AND UserId = @UserId
+        ORDER BY AuditDate DESC, CreatedAt DESC
+      `);
+
+      let userStatus = "not_audited";
+      if (auditResult.recordset.length > 0) {
+        const latestAudit = auditResult.recordset[0];
+        if (latestAudit.Result === "pass") {
+          userStatus = "passed";
+        } else if (latestAudit.Result === "fail") {
+          userStatus = "failed";
+        } else if (latestAudit.Result === "audited") {
+          userStatus = "audited";
+        }
+      }
+
+      userStatuses.push({
+        UserId: assignedUser.UserId,
+        UserFullName: assignedUser.FullName,
+        UserCode: assignedUser.UserCode,
+        Status: userStatus,
+      });
+    }
+
     res.json({
       ...storeDetails,
       Status: userStatus, // Override with user-specific status
@@ -243,7 +344,8 @@ const getStoreById = async (req, res) => {
         currentUserInfo?.FullName || storeDetails.UserFullName || null,
       UserCode: currentUserInfo?.UserCode || storeDetails.UserCode || null,
       audits: userAudits, // Only return audits for current user
-      assignedUsers,
+      assignedUsers: allAssignedUsers,
+      userStatuses, // Status for each assigned user
     });
   } catch (error) {
     console.error("Get store by id error:", error);

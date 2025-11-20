@@ -1,9 +1,9 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import api from '../services/api';
-import './StoreDetail.css';
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
+import api from "../services/api";
+import "./StoreDetail.css";
 
 interface Store {
   Id: number;
@@ -47,38 +47,43 @@ interface AuditHistory {
   Notes: string;
   AuditDate: string;
   AuditCreatedAt: string;
+  UserId?: number;
+  userId?: number;
   Images: StoreImage[];
 }
 
 const getStatusLabel = (status: string) => {
   const labels: Record<string, string> = {
-    not_audited: 'Chưa thực hiện',
-    audited: 'Đã thực hiện',
-    passed: 'Đạt',
-    failed: 'Không đạt',
+    not_audited: "Chưa thực hiện",
+    audited: "Đã thực hiện",
+    passed: "Đạt",
+    failed: "Không đạt",
   };
   return labels[status] || status;
 };
 
 const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
-    not_audited: '#FF9800',
-    audited: '#2196F3',
-    passed: '#4CAF50',
-    failed: '#F44336',
+    not_audited: "#FF9800",
+    audited: "#2196F3",
+    passed: "#4CAF50",
+    failed: "#F44336",
   };
-  return colorMap[status] || '#999';
+  return colorMap[status] || "#999";
 };
 
 const getRankLabel = (rank: number | null) => {
-  if (rank === 1) return 'Đơn vị, tổ chức';
-  if (rank === 2) return 'Cá nhân';
-  return '-';
+  if (rank === 1) return "Đơn vị, tổ chức";
+  if (rank === 2) return "Cá nhân";
+  return "-";
 };
 
 const formatDateKey = (value: string | Date) => {
-  const date = typeof value === 'string' ? new Date(value) : value;
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  const date = typeof value === "string" ? new Date(value) : value;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
 const isSameDay = (dateStr: string, compare: Date) => {
@@ -89,23 +94,23 @@ const isSameDay = (dateStr: string, compare: Date) => {
 
 const getAuditStatusLabel = (result: string) => {
   switch (result) {
-    case 'fail':
-      return 'Không đạt';
-    case 'pass':
-      return 'Đạt';
+    case "fail":
+      return "Không đạt";
+    case "pass":
+      return "Đạt";
     default:
-      return 'Đã thực hiện';
+      return "Đã thực hiện";
   }
 };
 
 const getAuditStatusStyle = (result: string) => {
   switch (result) {
-    case 'fail':
-      return { backgroundColor: '#fee2e2', color: '#991b1b' };
-    case 'pass':
-      return { backgroundColor: '#d1fae5', color: '#065f46' };
+    case "fail":
+      return { backgroundColor: "#fee2e2", color: "#991b1b" };
+    case "pass":
+      return { backgroundColor: "#d1fae5", color: "#065f46" };
     default:
-      return { backgroundColor: '#dbeafe', color: '#1e40af' };
+      return { backgroundColor: "#dbeafe", color: "#1e40af" };
   }
 };
 
@@ -117,11 +122,9 @@ export default function StoreDetail() {
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
-  const [capturedImages, setCapturedImages] = useState<(CapturedImage | undefined)[]>([
-    undefined,
-    undefined,
-    undefined,
-  ]);
+  const [capturedImages, setCapturedImages] = useState<
+    (CapturedImage | undefined)[]
+  >([undefined, undefined, undefined]);
   const [audits, setAudits] = useState<AuditHistory[]>([]);
   const [allowNewAudit, setAllowNewAudit] = useState(false);
   const [showNewAuditModal, setShowNewAuditModal] = useState(false);
@@ -130,16 +133,23 @@ export default function StoreDetail() {
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [notes, setNotes] = useState('');
+  const [notes, setNotes] = useState("");
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
-  const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(null);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(
+    null
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  const sortedAudits = [...audits].sort(
+  // Filter audits by current user ID
+  const userAudits = audits.filter((audit) => {
+    // Check if audit has UserId field (from backend) or match with current user
+    return audit.UserId === user?.id || audit.userId === user?.id;
+  });
+
+  const sortedAudits = [...userAudits].sort(
     (a, b) => new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
   );
-  const hasTodayAudit = sortedAudits.some((audit) => isSameDay(audit.AuditDate, new Date()));
   const showCameraSection = allowNewAudit || sortedAudits.length === 0;
 
   const fetchStore = useCallback(async () => {
@@ -150,14 +160,18 @@ export default function StoreDetail() {
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
       setAudits(auditData);
-      setAllowNewAudit(auditData.length === 0);
+      // Filter audits by current user to check if user has any audits
+      const userAuditData = auditData.filter((audit: AuditHistory) => {
+        return audit.UserId === user?.id || audit.userId === user?.id;
+      });
+      setAllowNewAudit(userAuditData.length === 0);
     } catch (error) {
-      console.error('Error fetching store:', error);
-      alert('Không thể tải thông tin cửa hàng');
+      console.error("Error fetching store:", error);
+      alert("Không thể tải thông tin cửa hàng");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     fetchStore();
@@ -168,16 +182,30 @@ export default function StoreDetail() {
   }, [id]);
 
   useEffect(() => {
-    if (loading) {
+    if (loading || !user?.id) {
       return;
     }
-    if (sortedAudits.length === 0) {
+    // Filter audits by current user
+    const userAudits = audits.filter((audit) => {
+      return audit.UserId === user.id || audit.userId === user.id;
+    });
+    const sortedUserAudits = [...userAudits].sort(
+      (a, b) =>
+        new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+    );
+    const hasUserTodayAudit = sortedUserAudits.some((audit) =>
+      isSameDay(audit.AuditDate, new Date())
+    );
+
+    if (sortedUserAudits.length === 0) {
       setShowNewAuditModal(false);
+      setAllowNewAudit(true);
       return;
     }
-    if (hasTodayAudit) {
+    if (hasUserTodayAudit) {
       setShowNewAuditModal(false);
       promptedDateRef.current = formatDateKey(new Date());
+      setAllowNewAudit(false);
       return;
     }
     if (!allowNewAudit) {
@@ -187,19 +215,22 @@ export default function StoreDetail() {
         promptedDateRef.current = todayKey;
       }
     }
-  }, [sortedAudits, hasTodayAudit, allowNewAudit, loading]);
+  }, [audits, user?.id, allowNewAudit, loading]);
 
   const handleOpenMap = () => {
     if (store?.Latitude && store?.Longitude) {
       const url = `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`;
-      window.open(url, '_blank');
+      window.open(url, "_blank");
     }
   };
 
-  const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
+  const getCurrentLocation = (): Promise<{
+    latitude: number;
+    longitude: number;
+  }> => {
     return new Promise((resolve, reject) => {
       if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported'));
+        reject(new Error("Geolocation is not supported"));
         return;
       }
 
@@ -232,8 +263,10 @@ export default function StoreDetail() {
         }
       }, 100);
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      alert('Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera.');
+      console.error("Error accessing camera:", error);
+      alert(
+        "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera."
+      );
     }
   };
 
@@ -250,14 +283,14 @@ export default function StoreDetail() {
     if (!videoRef.current || currentCameraIndex === null) return;
 
     try {
-      const canvas = document.createElement('canvas');
+      const canvas = document.createElement("canvas");
       canvas.width = videoRef.current.videoWidth;
       canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext('2d');
+      const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
       ctx.drawImage(videoRef.current, 0, 0);
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+      const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
 
       // Get location
       let latitude = 0;
@@ -267,7 +300,7 @@ export default function StoreDetail() {
         latitude = location.latitude;
         longitude = location.longitude;
       } catch (error) {
-        console.warn('Could not get location:', error);
+        console.warn("Could not get location:", error);
       }
 
       const now = new Date();
@@ -285,8 +318,8 @@ export default function StoreDetail() {
 
       closeCamera();
     } catch (error) {
-      console.error('Error capturing photo:', error);
-      alert('Lỗi khi chụp ảnh');
+      console.error("Error capturing photo:", error);
+      alert("Lỗi khi chụp ảnh");
     }
   };
 
@@ -299,7 +332,7 @@ export default function StoreDetail() {
   const handleComplete = () => {
     const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
     if (!allImagesCaptured) {
-      alert('Vui lòng chụp đủ 3 ảnh');
+      alert("Vui lòng chụp đủ 3 ảnh");
       return;
     }
     setNotesModalVisible(true);
@@ -313,7 +346,7 @@ export default function StoreDetail() {
 
     try {
       // Create audit first
-      const auditResponse = await api.post('/audits', {
+      const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: store.Id,
         notes: notes.trim() || null,
@@ -333,16 +366,16 @@ export default function StoreDetail() {
         const blob = await response.blob();
 
         const formData = new FormData();
-        formData.append('image', blob, `image_${index + 1}.jpg`);
-        formData.append('auditId', auditId.toString());
-        formData.append('latitude', img.latitude.toString());
-        formData.append('longitude', img.longitude.toString());
-        formData.append('timestamp', img.timestamp);
-        formData.append('timezoneOffset', img.timezoneOffset.toString());
+        formData.append("image", blob, `image_${index + 1}.jpg`);
+        formData.append("auditId", auditId.toString());
+        formData.append("latitude", img.latitude.toString());
+        formData.append("longitude", img.longitude.toString());
+        formData.append("timestamp", img.timestamp);
+        formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        return api.post('/images/upload', formData, {
+        return api.post("/images/upload", formData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
+            "Content-Type": "multipart/form-data",
           },
         });
       });
@@ -359,13 +392,16 @@ export default function StoreDetail() {
 
       setAllowNewAudit(false);
 
-      alert('Đã hoàn thành audit cửa hàng');
+      alert("Đã hoàn thành audit cửa hàng");
       setCapturedImages([undefined, undefined, undefined]);
-      setNotes('');
+      setNotes("");
       fetchStore();
-    } catch (error: any) {
-      console.error('Error uploading images:', error);
-      alert(error.response?.data?.error || 'Upload ảnh thất bại');
+    } catch (error: unknown) {
+      console.error("Error uploading images:", error);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Upload ảnh thất bại";
+      alert(errorMessage);
     } finally {
       setUploading(false);
     }
@@ -373,7 +409,10 @@ export default function StoreDetail() {
 
   if (loading) {
     return (
-      <div className="store-detail-container" style={{ backgroundColor: colors.background }}>
+      <div
+        className="store-detail-container"
+        style={{ backgroundColor: colors.background }}
+      >
         <div className="store-detail-header">
           <button
             className="store-detail-back-button"
@@ -382,12 +421,18 @@ export default function StoreDetail() {
           >
             ← Quay lại
           </button>
-          <h1 className="store-detail-header-title" style={{ color: colors.text }}>
+          <h1
+            className="store-detail-header-title"
+            style={{ color: colors.text }}
+          >
             Chi tiết cửa hàng
           </h1>
         </div>
         <div className="store-detail-loading">
-          <div className="store-detail-spinner" style={{ borderTopColor: colors.primary }} />
+          <div
+            className="store-detail-spinner"
+            style={{ borderTopColor: colors.primary }}
+          />
         </div>
       </div>
     );
@@ -395,7 +440,10 @@ export default function StoreDetail() {
 
   if (!store) {
     return (
-      <div className="store-detail-container" style={{ backgroundColor: colors.background }}>
+      <div
+        className="store-detail-container"
+        style={{ backgroundColor: colors.background }}
+      >
         <div className="store-detail-header">
           <button
             className="store-detail-back-button"
@@ -404,7 +452,10 @@ export default function StoreDetail() {
           >
             ← Quay lại
           </button>
-          <h1 className="store-detail-header-title" style={{ color: colors.text }}>
+          <h1
+            className="store-detail-header-title"
+            style={{ color: colors.text }}
+          >
             Chi tiết cửa hàng
           </h1>
         </div>
@@ -416,9 +467,15 @@ export default function StoreDetail() {
   }
 
   return (
-    <div className="store-detail-container" style={{ backgroundColor: colors.background }}>
+    <div
+      className="store-detail-container"
+      style={{ backgroundColor: colors.background }}
+    >
       {/* Header */}
-      <div className="store-detail-header" style={{ borderBottomColor: colors.icon + '20' }}>
+      <div
+        className="store-detail-header"
+        style={{ borderBottomColor: colors.icon + "20" }}
+      >
         <button
           className="store-detail-back-button"
           onClick={() => navigate(-1)}
@@ -426,7 +483,10 @@ export default function StoreDetail() {
         >
           ← Quay lại
         </button>
-        <h1 className="store-detail-header-title" style={{ color: colors.text }}>
+        <h1
+          className="store-detail-header-title"
+          style={{ color: colors.text }}
+        >
           Chi tiết cửa hàng
         </h1>
         {store.Latitude && store.Longitude ? (
@@ -438,84 +498,139 @@ export default function StoreDetail() {
             Xem bản đồ
           </button>
         ) : (
-          <div style={{ width: '80px' }} />
+          <div style={{ width: "80px" }} />
         )}
       </div>
 
       <div className="store-detail-content">
         {/* Store Info Section */}
-        <div className="store-detail-info-section" style={{ backgroundColor: colors.background }}>
+        <div
+          className="store-detail-info-section"
+          style={{ backgroundColor: colors.background }}
+        >
           <div className="store-detail-info-grid">
             <div className="store-detail-info-column">
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Mã cửa hàng:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
                   {store.StoreCode}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Tên cửa hàng:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
                   {store.StoreName}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Loại đối tượng:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
                   {getRankLabel(store.Rank)}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Địa chỉ cửa hàng:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
-                  {store.Address || '-'}
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
+                  {store.Address || "-"}
                 </span>
               </div>
             </div>
 
             <div className="store-detail-info-column">
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Địa bàn phụ trách:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
-                  {store.TerritoryName || '-'}
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
+                  {store.TerritoryName || "-"}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Tên đối tác:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
-                  {store.PartnerName || '-'}
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
+                  {store.PartnerName || "-"}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Thông tin liên hệ:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
-                  {store.Phone || '-'}
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
+                  {store.Phone || "-"}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   User Phụ trách:
                 </span>
-                <span className="store-detail-info-value" style={{ color: colors.text }}>
-                  {store.UserFullName || '-'} {store.UserCode ? `(${store.UserCode})` : ''}
+                <span
+                  className="store-detail-info-value"
+                  style={{ color: colors.text }}
+                >
+                  {store.UserFullName || "-"}{" "}
+                  {store.UserCode ? `(${store.UserCode})` : ""}
                 </span>
               </div>
               <div className="store-detail-info-row">
-                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                <span
+                  className="store-detail-info-label"
+                  style={{ color: colors.icon }}
+                >
                   Trạng thái:
                 </span>
                 <span
@@ -525,13 +640,18 @@ export default function StoreDetail() {
                   {getStatusLabel(store.Status)}
                 </span>
               </div>
-              {store.Status === 'failed' && store.FailedReason && (
+              {store.Status === "failed" && store.FailedReason && (
                 <div className="store-detail-info-row">
-                  <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  <span
+                    className="store-detail-info-label"
+                    style={{ color: colors.icon }}
+                  >
                     Lý do không đạt:
                   </span>
                   <div className="store-detail-failed-reason-box">
-                    <span style={{ color: colors.text }}>{store.FailedReason}</span>
+                    <span style={{ color: colors.text }}>
+                      {store.FailedReason}
+                    </span>
                   </div>
                 </div>
               )}
@@ -563,7 +683,7 @@ export default function StoreDetail() {
                     setShowNewAuditModal(false);
                     setAllowNewAudit(true);
                   }}
-                  style={{ backgroundColor: colors.primary, color: '#fff' }}
+                  style={{ backgroundColor: colors.primary, color: "#fff" }}
                 >
                   Bắt đầu
                 </button>
@@ -574,9 +694,15 @@ export default function StoreDetail() {
 
         {/* Camera Section */}
         {showCameraSection && (
-          <div className="store-detail-camera-section" style={{ backgroundColor: colors.background }}>
-            <h2 className="store-detail-section-title" style={{ color: colors.text }}>
-              Chụp ảnh {sortedAudits.length > 0 ? 'ngày hôm nay' : ''}
+          <div
+            className="store-detail-camera-section"
+            style={{ backgroundColor: colors.background }}
+          >
+            <h2
+              className="store-detail-section-title"
+              style={{ color: colors.text }}
+            >
+              Chụp ảnh {sortedAudits.length > 0 ? "ngày hôm nay" : ""}
             </h2>
             <div className="store-detail-camera-grid">
               {[0, 1, 2].map((index) => {
@@ -585,7 +711,11 @@ export default function StoreDetail() {
                   <div key={index} className="store-detail-camera-item">
                     {image ? (
                       <div className="store-detail-captured-image-container">
-                        <img src={image.dataUrl} alt={`Captured ${index + 1}`} className="store-detail-captured-image" />
+                        <img
+                          src={image.dataUrl}
+                          alt={`Captured ${index + 1}`}
+                          className="store-detail-captured-image"
+                        />
                         <button
                           className="store-detail-remove-button"
                           onClick={() => removeImage(index)}
@@ -597,7 +727,7 @@ export default function StoreDetail() {
                       <button
                         className="store-detail-camera-button"
                         onClick={() => openCamera(index)}
-                        style={{ borderColor: colors.icon + '40' }}
+                        style={{ borderColor: colors.icon + "40" }}
                       >
                         📷
                       </button>
@@ -617,19 +747,25 @@ export default function StoreDetail() {
                 backgroundColor:
                   capturedImages.every((img) => img !== undefined) && !uploading
                     ? colors.primary
-                    : colors.icon + '40',
-                color: '#fff',
+                    : colors.icon + "40",
+                color: "#fff",
               }}
             >
-              {uploading ? 'Đang tải...' : 'Hoàn thành'}
+              {uploading ? "Đang tải..." : "Hoàn thành"}
             </button>
           </div>
         )}
 
         {/* Audit History */}
         {sortedAudits.length > 0 && (
-          <div className="store-detail-history-section" style={{ backgroundColor: colors.background }}>
-            <h2 className="store-detail-section-title" style={{ color: colors.text }}>
+          <div
+            className="store-detail-history-section"
+            style={{ backgroundColor: colors.background }}
+          >
+            <h2
+              className="store-detail-section-title"
+              style={{ color: colors.text }}
+            >
               Lịch sử các ngày trước
             </h2>
             {sortedAudits.map((audit) => {
@@ -638,30 +774,46 @@ export default function StoreDetail() {
                 <div key={audit.AuditId} className="store-detail-history-card">
                   <div className="store-detail-history-header">
                     <div>
-                      <p className="store-detail-history-date" style={{ color: colors.text }}>
-                        {new Date(audit.AuditDate).toLocaleString('vi-VN', { hour12: false })}
+                      <p
+                        className="store-detail-history-date"
+                        style={{ color: colors.text }}
+                      >
+                        {new Date(audit.AuditDate).toLocaleString("vi-VN", {
+                          hour12: false,
+                        })}
                       </p>
                       {audit.Notes && (
-                        <p className="store-detail-history-notes" style={{ color: colors.icon }}>
+                        <p
+                          className="store-detail-history-notes"
+                          style={{ color: colors.icon }}
+                        >
                           {audit.Notes}
                         </p>
                       )}
                     </div>
                     <span
                       className="store-detail-history-status-badge"
-                      style={{ backgroundColor: badgeStyle.backgroundColor, color: badgeStyle.color }}
+                      style={{
+                        backgroundColor: badgeStyle.backgroundColor,
+                        color: badgeStyle.color,
+                      }}
                     >
                       {getAuditStatusLabel(audit.Result)}
                     </span>
                   </div>
                   {audit.FailedReason && (
                     <div className="store-detail-history-failed-reason">
-                      <span style={{ color: colors.text }}>Lý do: {audit.FailedReason}</span>
+                      <span style={{ color: colors.text }}>
+                        Lý do: {audit.FailedReason}
+                      </span>
                     </div>
                   )}
                   <div className="store-detail-history-images">
                     {audit.Images.map((img) => (
-                      <div key={img.Id} className="store-detail-history-image-wrapper">
+                      <div
+                        key={img.Id}
+                        className="store-detail-history-image-wrapper"
+                      >
                         <img
                           src={img.ImageUrl}
                           alt="Audit"
@@ -671,8 +823,13 @@ export default function StoreDetail() {
                             setImageModalVisible(true);
                           }}
                         />
-                        <p className="store-detail-history-image-time" style={{ color: colors.icon }}>
-                          {new Date(img.CapturedAt).toLocaleString('vi-VN', { hour12: false })}
+                        <p
+                          className="store-detail-history-image-time"
+                          style={{ color: colors.icon }}
+                        >
+                          {new Date(img.CapturedAt).toLocaleString("vi-VN", {
+                            hour12: false,
+                          })}
                         </p>
                       </div>
                     ))}
@@ -688,15 +845,23 @@ export default function StoreDetail() {
       {cameraModalVisible && (
         <div className="store-detail-camera-modal-overlay">
           <div className="store-detail-camera-modal-content">
-            <video ref={videoRef} autoPlay playsInline className="store-detail-camera-video" />
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="store-detail-camera-video"
+            />
             <div className="store-detail-camera-modal-buttons">
-              <button className="store-detail-camera-modal-button" onClick={closeCamera}>
+              <button
+                className="store-detail-camera-modal-button"
+                onClick={closeCamera}
+              >
                 Hủy
               </button>
               <button
                 className="store-detail-camera-modal-button store-detail-camera-modal-button-capture"
                 onClick={capturePhoto}
-                style={{ backgroundColor: colors.primary, color: '#fff' }}
+                style={{ backgroundColor: colors.primary, color: "#fff" }}
               >
                 Chụp
               </button>
@@ -728,9 +893,9 @@ export default function StoreDetail() {
                 className="store-detail-modal-button store-detail-modal-button-confirm"
                 onClick={handleConfirmUpload}
                 disabled={uploading}
-                style={{ backgroundColor: colors.primary, color: '#fff' }}
+                style={{ backgroundColor: colors.primary, color: "#fff" }}
               >
-                {uploading ? 'Đang tải...' : 'Xác nhận'}
+                {uploading ? "Đang tải..." : "Xác nhận"}
               </button>
             </div>
           </div>
@@ -743,8 +908,15 @@ export default function StoreDetail() {
           className="store-detail-modal-overlay"
           onClick={() => setImageModalVisible(false)}
         >
-          <div className="store-detail-image-modal-content" onClick={(e) => e.stopPropagation()}>
-            <img src={selectedImage} alt="Full size" className="store-detail-image-modal-image" />
+          <div
+            className="store-detail-image-modal-content"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={selectedImage}
+              alt="Full size"
+              className="store-detail-image-modal-image"
+            />
             <button
               className="store-detail-image-modal-close"
               onClick={() => setImageModalVisible(false)}
@@ -757,4 +929,3 @@ export default function StoreDetail() {
     </div>
   );
 }
-
