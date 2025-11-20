@@ -41,6 +41,16 @@ const createAudit = async (req, res) => {
       return res.status(400).json({ error: "UserId and StoreId are required" });
     }
 
+    // Validate user assignment: Check if user is assigned to this store
+    const StoreUser = require("../models/StoreUser");
+    const canAudit = await StoreUser.canUserAuditStore(userId, storeId);
+    
+    if (!canAudit) {
+      return res.status(403).json({ 
+        error: "Bạn không có quyền audit cửa hàng này. Vui lòng liên hệ admin để được gán quyền." 
+      });
+    }
+
     // If result is provided, validate it
     if (result && !["pass", "fail", "audited"].includes(result.toLowerCase())) {
       return res

@@ -90,6 +90,20 @@ CREATE TABLE Images (
 );
 
 /**************************************
+ * StoreUsers
+ * Many-to-many relationship: Multiple users can be assigned to one store
+ **************************************/
+CREATE TABLE StoreUsers (
+    Id INT PRIMARY KEY IDENTITY(1,1),
+    StoreId INT NOT NULL,
+    UserId INT NOT NULL,
+    CreatedAt DATETIME NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT FK_StoreUsers_Stores FOREIGN KEY (StoreId) REFERENCES Stores(Id) ON DELETE CASCADE,
+    CONSTRAINT FK_StoreUsers_Users FOREIGN KEY (UserId) REFERENCES Users(Id) ON DELETE CASCADE,
+    CONSTRAINT UQ_StoreUsers_StoreId_UserId UNIQUE (StoreId, UserId)
+);
+
+/**************************************
  * Import History
  **************************************/
 CREATE TABLE ImportHistory (
@@ -128,6 +142,11 @@ CREATE INDEX IX_Audits_AuditDate ON Audits(AuditDate);
 -- Images
 CREATE INDEX IX_Images_AuditId ON Images(AuditId);
 CREATE INDEX IX_Images_ImageUrl ON Images(ImageUrl) WHERE ImageUrl IS NOT NULL;
+
+-- StoreUsers
+CREATE INDEX IX_StoreUsers_StoreId ON StoreUsers(StoreId);
+CREATE INDEX IX_StoreUsers_UserId ON StoreUsers(UserId);
+CREATE INDEX IX_StoreUsers_StoreId_UserId ON StoreUsers(StoreId, UserId);
 
 -- Import history
 CREATE INDEX IX_ImportHistory_Type ON ImportHistory(Type);

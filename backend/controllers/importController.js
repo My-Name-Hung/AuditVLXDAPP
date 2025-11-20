@@ -67,7 +67,7 @@ const importStores = async (req, res) => {
         taxCode: row.getCell(6)?.value?.toString()?.trim() || null,
         partnerName: row.getCell(7)?.value?.toString()?.trim() || null,
         territoryName: row.getCell(8)?.value?.toString()?.trim() || null,
-        userName: row.getCell(9)?.value?.toString()?.trim() || null,
+        userName: row.getCell(9)?.value?.toString()?.trim() || null, // Can be comma/semicolon separated for multiple users
         notes: row.getCell(10)?.value?.toString()?.trim() || null,
       };
 
@@ -116,23 +116,48 @@ const importStores = async (req, res) => {
         }
       }
 
-      // Map user (support FullName, UserCode, or Username)
-      let userId = null;
+      // Map users (support multiple users separated by comma or semicolon)
+      // Format: "User1, User2, User3" or "User1; User2; User3"
+      let userId = null; // Primary user (first user)
+      let userIds = []; // All assigned users
+      
       if (rowData.userName) {
-        const userKey = rowData.userName.toLowerCase().trim();
-        userId = userMap[userKey];
-        if (!userId) {
+        // Split by comma or semicolon
+        const userNames = rowData.userName
+          .split(/[,;]/)
+          .map((name) => name.trim())
+          .filter((name) => name.length > 0);
+
+        const foundUserIds = [];
+        const notFoundUsers = [];
+
+        for (const userName of userNames) {
+          const userKey = userName.toLowerCase().trim();
+          const foundUserId = userMap[userKey];
+          
+          if (foundUserId) {
+            foundUserIds.push(foundUserId);
+          } else {
+            notFoundUsers.push(userName);
+          }
+        }
+
+        if (notFoundUsers.length > 0) {
           results.errors.push({
             row: rowData.rowNumber,
             storeName: rowData.storeName,
-            error: `Không tìm thấy nhân viên: "${rowData.userName}". Vui lòng kiểm tra lại tên nhân viên, mã nhân viên (UserCode) hoặc tên đăng nhập (Username) trong file Excel.`,
+            error: `Không tìm thấy nhân viên: "${notFoundUsers.join(", ")}". Vui lòng kiểm tra lại tên nhân viên, mã nhân viên (UserCode) hoặc tên đăng nhập (Username) trong file Excel.`,
           });
           results.errorCount++;
           continue;
         }
+
+        // First user is primary user
+        userId = foundUserIds.length > 0 ? foundUserIds[0] : null;
+        userIds = foundUserIds;
       }
 
-      validRows.push({ ...rowData, territoryId, userId });
+      validRows.push({ ...rowData, territoryId, userId, userIds });
     }
 
     // Generate all StoreCodes at once to avoid race condition
@@ -216,6 +241,16 @@ const importStores = async (req, res) => {
           `);
           
           createdStore.Link = link;
+
+          // Assign users to store (if multiple users provided)
+          if (rowData.userIds && rowData.userIds.length > 0) {
+            const StoreUser = require("../models/StoreUser");
+            await StoreUser.assignUsersToStore(createdStore.Id, rowData.userIds);
+          } else if (rowData.userId) {
+            // Fallback: sync single user for backward compatibility
+            const StoreUser = require("../models/StoreUser");
+            await StoreUser.syncPrimaryUser(createdStore.Id, rowData.userId);
+          }
         }
 
         results.success.push({

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
 import { useNavigate, useParams } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
+import MultiSelect from "../components/MultiSelect";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
 import api from "../services/api";
@@ -69,6 +70,7 @@ export default function StoreEdit() {
     latitude: "",
     longitude: "",
   });
+  const [assignedUserIds, setAssignedUserIds] = useState<number[]>([]);
 
   useEffect(() => {
     if (id) {
@@ -98,6 +100,15 @@ export default function StoreEdit() {
         latitude: data.Latitude?.toString() || "",
         longitude: data.Longitude?.toString() || "",
       });
+      // Set assigned users from API response
+      if (data.assignedUsers && Array.isArray(data.assignedUsers)) {
+        setAssignedUserIds(
+          data.assignedUsers.map((u: { UserId: number }) => u.UserId)
+        );
+      } else {
+        // Fallback: if no assignedUsers, use UserId if exists
+        setAssignedUserIds(data.UserId ? [data.UserId] : []);
+      }
     } catch (error) {
       console.error("Error fetching store:", error);
       setNotification({
@@ -151,11 +162,11 @@ export default function StoreEdit() {
         // Add new territory to the list
         const newTerritory = res.data.data;
         setTerritories([...territories, newTerritory]);
-        
+
         // Close modal and reset form
         setAddTerritoryModalOpen(false);
         setNewTerritoryName("");
-        
+
         // Show success notification
         setNotification({
           isOpen: true,
@@ -215,6 +226,11 @@ export default function StoreEdit() {
       };
 
       await api.put(`/stores/${id}`, payload);
+
+      // Assign users to store
+      await api.put(`/stores/${id}/users`, {
+        userIds: assignedUserIds,
+      });
 
       setUpdateLoading(false);
       setNotification({
@@ -412,9 +428,28 @@ export default function StoreEdit() {
                 onChange={(value) =>
                   setFormData({ ...formData, userId: value as number | null })
                 }
-                placeholder="Chọn user..."
+                placeholder="Chọn user phụ trách"
                 searchable={true}
               />
+            </div>
+            <div className="form-group">
+              <label>Users được gán để audit (có thể chọn nhiều)</label>
+              <MultiSelect
+                options={users.map((u) => ({ id: u.Id, name: u.FullName }))}
+                selected={assignedUserIds}
+                onChange={setAssignedUserIds}
+                placeholder="Chọn users được gán để audit..."
+              />
+              <small
+                style={{
+                  color: "#666",
+                  fontSize: "12px",
+                  marginTop: "4px",
+                  display: "block",
+                }}
+              >
+                Chỉ các users được gán mới có quyền audit cửa hàng này
+              </small>
             </div>
           </div>
         </div>
@@ -451,14 +486,8 @@ export default function StoreEdit() {
 
       {/* Add Territory Modal */}
       {addTerritoryModalOpen && (
-        <div
-          className="modal-overlay"
-          onClick={handleCancelAddTerritory}
-        >
-          <div
-            className="modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="modal-overlay" onClick={handleCancelAddTerritory}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Thêm địa bàn phụ trách</h3>
             <div className="form-group" style={{ marginTop: "20px" }}>
               <label>Tên địa bàn</label>

@@ -108,6 +108,12 @@ class Store {
       `);
       
       createdStore.Link = link;
+
+      // Auto-sync UserId to StoreUsers for backward compatibility
+      if (UserId) {
+        const StoreUser = require('./StoreUser');
+        await StoreUser.syncPrimaryUser(createdStore.Id, UserId);
+      }
     }
 
     return createdStore;

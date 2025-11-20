@@ -1,0 +1,36 @@
+.device-check-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, #0138C3 0%, #0056d6 100%);
+  padding: 20px;
+}
+
+.device-check-content {
+  text-align: center;
+  background: #fff;
+  border-radius: 16px;
+  padding: 48px 32px;
+  max-width: 500px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+.device-check-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+}
+
+.device-check-title {
+  font-size: 24px;
+  font-weight: 600;
+  color: #11181C;
+  margin-bottom: 16px;
+}
+
+.device-check-message {
+  font-size: 16px;
+  color: #687076;
+  line-height: 1.6;
+}
+

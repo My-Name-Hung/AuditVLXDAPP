@@ -5,8 +5,6 @@ node_modules/
 
 # Expo
 .expo/
-dist/
-web-build/
 expo-env.d.ts
 
 # Native
@@ -31,8 +29,6 @@ yarn-error.*
 *.pem
 
 # local env files
-.env
-.env*.local
 # Note: .env-example should be committed as template
 
 # typescript

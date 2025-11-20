@@ -131,9 +131,14 @@ const getStoreById = async (req, res) => {
 
     const storeDetails = storeDetailsResult.recordset[0];
 
+    // Get assigned users for this store
+    const StoreUser = require("../models/StoreUser");
+    const assignedUsers = await StoreUser.getUsersByStoreId(parseInt(id));
+
     res.json({
       ...storeDetails,
       audits,
+      assignedUsers,
     });
   } catch (error) {
     console.error("Get store by id error:", error);
@@ -311,6 +316,12 @@ const updateStore = async (req, res) => {
       OUTPUT INSERTED.*
       WHERE Id = @Id
     `);
+
+    // Sync UserId to StoreUsers if UserId was updated (only if StoreUsers is empty for backward compatibility)
+    if (userId !== undefined) {
+      const StoreUser = require("../models/StoreUser");
+      await StoreUser.syncPrimaryUser(id, userId);
+    }
 
     res.json(result.recordset[0]);
   } catch (error) {

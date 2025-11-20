@@ -137,7 +137,7 @@ export default function ImportExport() {
           "Mã số thuế",
           "Tên đối tác",
           "Địa bàn phụ trách",
-          "User phụ trách (UserCode/Username/FullName)",
+          "User phụ trách (có thể nhiều, phân cách bằng dấu phẩy: User1, User2, User3)",
           "Ghi chú",
         ];
 
@@ -151,8 +151,8 @@ export default function ImportExport() {
           "1234567890",
           "Đối tác ABC",
           "TPHCM",
-          "U000001",
-          "Bắt buộc địa bàn phụ trách phải đúng, và user có thể dùng U000001 hoặc username1 hoặc Nguyễn Văn A",
+          "U000001, U000002, username3",
+          "Bắt buộc địa bàn phụ trách phải đúng. User phụ trách: có thể nhập 1 hoặc nhiều users phân cách bằng dấu phẩy. User đầu tiên là user chính. Có thể dùng UserCode (U000001), Username (username1) hoặc FullName (Nguyễn Văn A)",
         ];
       } else {
         // Template for users

@@ -1,0 +1,760 @@
+import React, { useEffect, useState, useRef, useCallback } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
+import api from '../services/api';
+import './StoreDetail.css';
+
+interface Store {
+  Id: number;
+  StoreCode: string;
+  StoreName: string;
+  Address: string;
+  Phone: string;
+  Email: string;
+  Status: string;
+  Rank: number;
+  TaxCode: string;
+  PartnerName: string;
+  TerritoryName: string;
+  UserFullName: string;
+  UserCode: string;
+  Latitude: number | null;
+  Longitude: number | null;
+  FailedReason?: string | null;
+}
+
+interface CapturedImage {
+  dataUrl: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  timezoneOffset: number;
+}
+
+interface StoreImage {
+  Id: number;
+  ImageUrl: string;
+  CapturedAt: string;
+  Latitude: number;
+  Longitude: number;
+}
+
+interface AuditHistory {
+  AuditId: number;
+  Result: string;
+  FailedReason: string | null;
+  Notes: string;
+  AuditDate: string;
+  AuditCreatedAt: string;
+  Images: StoreImage[];
+}
+
+const getStatusLabel = (status: string) => {
+  const labels: Record<string, string> = {
+    not_audited: 'Chưa thực hiện',
+    audited: 'Đã thực hiện',
+    passed: 'Đạt',
+    failed: 'Không đạt',
+  };
+  return labels[status] || status;
+};
+
+const getStatusColor = (status: string) => {
+  const colorMap: Record<string, string> = {
+    not_audited: '#FF9800',
+    audited: '#2196F3',
+    passed: '#4CAF50',
+    failed: '#F44336',
+  };
+  return colorMap[status] || '#999';
+};
+
+const getRankLabel = (rank: number | null) => {
+  if (rank === 1) return 'Đơn vị, tổ chức';
+  if (rank === 2) return 'Cá nhân';
+  return '-';
+};
+
+const formatDateKey = (value: string | Date) => {
+  const date = typeof value === 'string' ? new Date(value) : value;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+const isSameDay = (dateStr: string, compare: Date) => {
+  const targetKey = formatDateKey(dateStr);
+  const compareKey = formatDateKey(compare);
+  return targetKey === compareKey;
+};
+
+const getAuditStatusLabel = (result: string) => {
+  switch (result) {
+    case 'fail':
+      return 'Không đạt';
+    case 'pass':
+      return 'Đạt';
+    default:
+      return 'Đã thực hiện';
+  }
+};
+
+const getAuditStatusStyle = (result: string) => {
+  switch (result) {
+    case 'fail':
+      return { backgroundColor: '#fee2e2', color: '#991b1b' };
+    case 'pass':
+      return { backgroundColor: '#d1fae5', color: '#065f46' };
+    default:
+      return { backgroundColor: '#dbeafe', color: '#1e40af' };
+  }
+};
+
+export default function StoreDetail() {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { colors } = useTheme();
+
+  const [store, setStore] = useState<Store | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [capturedImages, setCapturedImages] = useState<(CapturedImage | undefined)[]>([
+    undefined,
+    undefined,
+    undefined,
+  ]);
+  const [audits, setAudits] = useState<AuditHistory[]>([]);
+  const [allowNewAudit, setAllowNewAudit] = useState(false);
+  const [showNewAuditModal, setShowNewAuditModal] = useState(false);
+  const promptedDateRef = useRef<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [notesModalVisible, setNotesModalVisible] = useState(false);
+  const [imageModalVisible, setImageModalVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  const sortedAudits = [...audits].sort(
+    (a, b) => new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+  );
+  const hasTodayAudit = sortedAudits.some((audit) => isSameDay(audit.AuditDate, new Date()));
+  const showCameraSection = allowNewAudit || sortedAudits.length === 0;
+
+  const fetchStore = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await api.get(`/stores/${id}`);
+      const storeData = response.data;
+      setStore(storeData);
+      const auditData = storeData.audits || storeData.Audits || [];
+      setAudits(auditData);
+      setAllowNewAudit(auditData.length === 0);
+    } catch (error) {
+      console.error('Error fetching store:', error);
+      alert('Không thể tải thông tin cửa hàng');
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  useEffect(() => {
+    fetchStore();
+  }, [fetchStore]);
+
+  useEffect(() => {
+    promptedDateRef.current = null;
+  }, [id]);
+
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+    if (sortedAudits.length === 0) {
+      setShowNewAuditModal(false);
+      return;
+    }
+    if (hasTodayAudit) {
+      setShowNewAuditModal(false);
+      promptedDateRef.current = formatDateKey(new Date());
+      return;
+    }
+    if (!allowNewAudit) {
+      const todayKey = formatDateKey(new Date());
+      if (promptedDateRef.current !== todayKey) {
+        setShowNewAuditModal(true);
+        promptedDateRef.current = todayKey;
+      }
+    }
+  }, [sortedAudits, hasTodayAudit, allowNewAudit, loading]);
+
+  const handleOpenMap = () => {
+    if (store?.Latitude && store?.Longitude) {
+      const url = `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`;
+      window.open(url, '_blank');
+    }
+  };
+
+  const getCurrentLocation = (): Promise<{ latitude: number; longitude: number }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error('Geolocation is not supported'));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          reject(error);
+        },
+        { timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  const openCamera = async (index: number) => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
+      setCurrentCameraIndex(index);
+      setCameraModalVisible(true);
+
+      // Wait for video element to be ready
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      alert('Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera.');
+    }
+  };
+
+  const closeCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setCameraModalVisible(false);
+    setCurrentCameraIndex(null);
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || currentCameraIndex === null) return;
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = videoRef.current.videoWidth;
+      canvas.height = videoRef.current.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      ctx.drawImage(videoRef.current, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+      // Get location
+      let latitude = 0;
+      let longitude = 0;
+      try {
+        const location = await getCurrentLocation();
+        latitude = location.latitude;
+        longitude = location.longitude;
+      } catch (error) {
+        console.warn('Could not get location:', error);
+      }
+
+      const now = new Date();
+      const capturedImage: CapturedImage = {
+        dataUrl,
+        latitude,
+        longitude,
+        timestamp: now.toISOString(),
+        timezoneOffset: now.getTimezoneOffset(),
+      };
+
+      const newImages = [...capturedImages];
+      newImages[currentCameraIndex] = capturedImage;
+      setCapturedImages(newImages);
+
+      closeCamera();
+    } catch (error) {
+      console.error('Error capturing photo:', error);
+      alert('Lỗi khi chụp ảnh');
+    }
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = [...capturedImages];
+    newImages[index] = undefined;
+    setCapturedImages(newImages);
+  };
+
+  const handleComplete = () => {
+    const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
+    if (!allImagesCaptured) {
+      alert('Vui lòng chụp đủ 3 ảnh');
+      return;
+    }
+    setNotesModalVisible(true);
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!user || !store) return;
+
+    setUploading(true);
+    setNotesModalVisible(false);
+
+    try {
+      // Create audit first
+      const auditResponse = await api.post('/audits', {
+        userId: user.id,
+        storeId: store.Id,
+        notes: notes.trim() || null,
+        auditDate: new Date().toISOString(),
+      });
+
+      const auditId = auditResponse.data.Id;
+
+      // Upload 3 images
+      const imagesToUpload = capturedImages.filter(
+        (img): img is CapturedImage => img !== undefined
+      );
+
+      const uploadPromises = imagesToUpload.map(async (img, index) => {
+        // Convert data URL to blob
+        const response = await fetch(img.dataUrl);
+        const blob = await response.blob();
+
+        const formData = new FormData();
+        formData.append('image', blob, `image_${index + 1}.jpg`);
+        formData.append('auditId', auditId.toString());
+        formData.append('latitude', img.latitude.toString());
+        formData.append('longitude', img.longitude.toString());
+        formData.append('timestamp', img.timestamp);
+        formData.append('timezoneOffset', img.timezoneOffset.toString());
+
+        return api.post('/images/upload', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        });
+      });
+
+      await Promise.all(uploadPromises);
+
+      // Update store latitude/longitude from first image
+      if (imagesToUpload[0]) {
+        await api.put(`/stores/${store.Id}`, {
+          latitude: imagesToUpload[0].latitude,
+          longitude: imagesToUpload[0].longitude,
+        });
+      }
+
+      setAllowNewAudit(false);
+
+      alert('Đã hoàn thành audit cửa hàng');
+      setCapturedImages([undefined, undefined, undefined]);
+      setNotes('');
+      fetchStore();
+    } catch (error: any) {
+      console.error('Error uploading images:', error);
+      alert(error.response?.data?.error || 'Upload ảnh thất bại');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="store-detail-container" style={{ backgroundColor: colors.background }}>
+        <div className="store-detail-header">
+          <button
+            className="store-detail-back-button"
+            onClick={() => navigate(-1)}
+            style={{ color: colors.text }}
+          >
+            ← Quay lại
+          </button>
+          <h1 className="store-detail-header-title" style={{ color: colors.text }}>
+            Chi tiết cửa hàng
+          </h1>
+        </div>
+        <div className="store-detail-loading">
+          <div className="store-detail-spinner" style={{ borderTopColor: colors.primary }} />
+        </div>
+      </div>
+    );
+  }
+
+  if (!store) {
+    return (
+      <div className="store-detail-container" style={{ backgroundColor: colors.background }}>
+        <div className="store-detail-header">
+          <button
+            className="store-detail-back-button"
+            onClick={() => navigate(-1)}
+            style={{ color: colors.text }}
+          >
+            ← Quay lại
+          </button>
+          <h1 className="store-detail-header-title" style={{ color: colors.text }}>
+            Chi tiết cửa hàng
+          </h1>
+        </div>
+        <div className="store-detail-empty">
+          <p style={{ color: colors.text }}>Không tìm thấy cửa hàng</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="store-detail-container" style={{ backgroundColor: colors.background }}>
+      {/* Header */}
+      <div className="store-detail-header" style={{ borderBottomColor: colors.icon + '20' }}>
+        <button
+          className="store-detail-back-button"
+          onClick={() => navigate(-1)}
+          style={{ color: colors.text }}
+        >
+          ← Quay lại
+        </button>
+        <h1 className="store-detail-header-title" style={{ color: colors.text }}>
+          Chi tiết cửa hàng
+        </h1>
+        {store.Latitude && store.Longitude ? (
+          <button
+            className="store-detail-map-button"
+            onClick={handleOpenMap}
+            style={{ color: colors.primary }}
+          >
+            Xem bản đồ
+          </button>
+        ) : (
+          <div style={{ width: '80px' }} />
+        )}
+      </div>
+
+      <div className="store-detail-content">
+        {/* Store Info Section */}
+        <div className="store-detail-info-section" style={{ backgroundColor: colors.background }}>
+          <div className="store-detail-info-grid">
+            <div className="store-detail-info-column">
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Mã cửa hàng:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.StoreCode}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Tên cửa hàng:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.StoreName}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Loại đối tượng:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {getRankLabel(store.Rank)}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Địa chỉ cửa hàng:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.Address || '-'}
+                </span>
+              </div>
+            </div>
+
+            <div className="store-detail-info-column">
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Địa bàn phụ trách:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.TerritoryName || '-'}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Tên đối tác:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.PartnerName || '-'}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Thông tin liên hệ:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.Phone || '-'}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  User Phụ trách:
+                </span>
+                <span className="store-detail-info-value" style={{ color: colors.text }}>
+                  {store.UserFullName || '-'} {store.UserCode ? `(${store.UserCode})` : ''}
+                </span>
+              </div>
+              <div className="store-detail-info-row">
+                <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                  Trạng thái:
+                </span>
+                <span
+                  className="store-detail-status-badge"
+                  style={{ backgroundColor: getStatusColor(store.Status) }}
+                >
+                  {getStatusLabel(store.Status)}
+                </span>
+              </div>
+              {store.Status === 'failed' && store.FailedReason && (
+                <div className="store-detail-info-row">
+                  <span className="store-detail-info-label" style={{ color: colors.icon }}>
+                    Lý do không đạt:
+                  </span>
+                  <div className="store-detail-failed-reason-box">
+                    <span style={{ color: colors.text }}>{store.FailedReason}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* New Audit Modal */}
+        {showNewAuditModal && (
+          <div className="store-detail-modal-overlay">
+            <div className="store-detail-modal-content">
+              <h2 className="store-detail-modal-title">Audit ngày mới</h2>
+              <p className="store-detail-modal-message">
+                Bạn có muốn thực hiện audit cho ngày hôm nay không?
+              </p>
+              <div className="store-detail-modal-buttons">
+                <button
+                  className="store-detail-modal-button store-detail-modal-button-cancel"
+                  onClick={() => {
+                    setShowNewAuditModal(false);
+                    setAllowNewAudit(false);
+                  }}
+                >
+                  Để sau
+                </button>
+                <button
+                  className="store-detail-modal-button store-detail-modal-button-confirm"
+                  onClick={() => {
+                    setShowNewAuditModal(false);
+                    setAllowNewAudit(true);
+                  }}
+                  style={{ backgroundColor: colors.primary, color: '#fff' }}
+                >
+                  Bắt đầu
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Camera Section */}
+        {showCameraSection && (
+          <div className="store-detail-camera-section" style={{ backgroundColor: colors.background }}>
+            <h2 className="store-detail-section-title" style={{ color: colors.text }}>
+              Chụp ảnh {sortedAudits.length > 0 ? 'ngày hôm nay' : ''}
+            </h2>
+            <div className="store-detail-camera-grid">
+              {[0, 1, 2].map((index) => {
+                const image = capturedImages[index];
+                return (
+                  <div key={index} className="store-detail-camera-item">
+                    {image ? (
+                      <div className="store-detail-captured-image-container">
+                        <img src={image.dataUrl} alt={`Captured ${index + 1}`} className="store-detail-captured-image" />
+                        <button
+                          className="store-detail-remove-button"
+                          onClick={() => removeImage(index)}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        className="store-detail-camera-button"
+                        onClick={() => openCamera(index)}
+                        style={{ borderColor: colors.icon + '40' }}
+                      >
+                        📷
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <button
+              className="store-detail-complete-button"
+              onClick={handleComplete}
+              disabled={
+                !capturedImages.every((img) => img !== undefined) || uploading
+              }
+              style={{
+                backgroundColor:
+                  capturedImages.every((img) => img !== undefined) && !uploading
+                    ? colors.primary
+                    : colors.icon + '40',
+                color: '#fff',
+              }}
+            >
+              {uploading ? 'Đang tải...' : 'Hoàn thành'}
+            </button>
+          </div>
+        )}
+
+        {/* Audit History */}
+        {sortedAudits.length > 0 && (
+          <div className="store-detail-history-section" style={{ backgroundColor: colors.background }}>
+            <h2 className="store-detail-section-title" style={{ color: colors.text }}>
+              Lịch sử các ngày trước
+            </h2>
+            {sortedAudits.map((audit) => {
+              const badgeStyle = getAuditStatusStyle(audit.Result);
+              return (
+                <div key={audit.AuditId} className="store-detail-history-card">
+                  <div className="store-detail-history-header">
+                    <div>
+                      <p className="store-detail-history-date" style={{ color: colors.text }}>
+                        {new Date(audit.AuditDate).toLocaleString('vi-VN', { hour12: false })}
+                      </p>
+                      {audit.Notes && (
+                        <p className="store-detail-history-notes" style={{ color: colors.icon }}>
+                          {audit.Notes}
+                        </p>
+                      )}
+                    </div>
+                    <span
+                      className="store-detail-history-status-badge"
+                      style={{ backgroundColor: badgeStyle.backgroundColor, color: badgeStyle.color }}
+                    >
+                      {getAuditStatusLabel(audit.Result)}
+                    </span>
+                  </div>
+                  {audit.FailedReason && (
+                    <div className="store-detail-history-failed-reason">
+                      <span style={{ color: colors.text }}>Lý do: {audit.FailedReason}</span>
+                    </div>
+                  )}
+                  <div className="store-detail-history-images">
+                    {audit.Images.map((img) => (
+                      <div key={img.Id} className="store-detail-history-image-wrapper">
+                        <img
+                          src={img.ImageUrl}
+                          alt="Audit"
+                          className="store-detail-history-image"
+                          onClick={() => {
+                            setSelectedImage(img.ImageUrl);
+                            setImageModalVisible(true);
+                          }}
+                        />
+                        <p className="store-detail-history-image-time" style={{ color: colors.icon }}>
+                          {new Date(img.CapturedAt).toLocaleString('vi-VN', { hour12: false })}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Camera Modal */}
+      {cameraModalVisible && (
+        <div className="store-detail-camera-modal-overlay">
+          <div className="store-detail-camera-modal-content">
+            <video ref={videoRef} autoPlay playsInline className="store-detail-camera-video" />
+            <div className="store-detail-camera-modal-buttons">
+              <button className="store-detail-camera-modal-button" onClick={closeCamera}>
+                Hủy
+              </button>
+              <button
+                className="store-detail-camera-modal-button store-detail-camera-modal-button-capture"
+                onClick={capturePhoto}
+                style={{ backgroundColor: colors.primary, color: '#fff' }}
+              >
+                Chụp
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notes Modal */}
+      {notesModalVisible && (
+        <div className="store-detail-modal-overlay">
+          <div className="store-detail-modal-content">
+            <h2 className="store-detail-modal-title">Ghi chú</h2>
+            <textarea
+              className="store-detail-notes-textarea"
+              placeholder="Nhập ghi chú (tùy chọn)"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+            />
+            <div className="store-detail-modal-buttons">
+              <button
+                className="store-detail-modal-button store-detail-modal-button-cancel"
+                onClick={() => setNotesModalVisible(false)}
+              >
+                Hủy
+              </button>
+              <button
+                className="store-detail-modal-button store-detail-modal-button-confirm"
+                onClick={handleConfirmUpload}
+                disabled={uploading}
+                style={{ backgroundColor: colors.primary, color: '#fff' }}
+              >
+                {uploading ? 'Đang tải...' : 'Xác nhận'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Modal */}
+      {imageModalVisible && selectedImage && (
+        <div
+          className="store-detail-modal-overlay"
+          onClick={() => setImageModalVisible(false)}
+        >
+          <div className="store-detail-image-modal-content" onClick={(e) => e.stopPropagation()}>
+            <img src={selectedImage} alt="Full size" className="store-detail-image-modal-image" />
+            <button
+              className="store-detail-image-modal-close"
+              onClick={() => setImageModalVisible(false)}
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
