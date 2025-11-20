@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import api from '../services/api';
 
 interface User {
@@ -67,6 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Validate token by fetching current user profile
+      if (!parsedUser) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const response = await api.get(`/users/${parsedUser.id}`);
         if (response.status >= 200 && response.status < 300 && response.data) {

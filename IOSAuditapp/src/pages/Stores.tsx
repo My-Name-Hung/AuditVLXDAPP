@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTheme } from '../contexts/ThemeContext';
 import api from '../services/api';
@@ -81,7 +81,7 @@ export default function Stores() {
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [territorySearch, setTerritorySearch] = useState('');
 
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     fetchTerritories();
