@@ -251,7 +251,12 @@ export default function StoreDetail() {
 
   const openCamera = async (index: number) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Use rear camera (environment) instead of front camera (user)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment", // Use rear camera
+        },
+      });
       streamRef.current = stream;
       setCurrentCameraIndex(index);
       setCameraModalVisible(true);
