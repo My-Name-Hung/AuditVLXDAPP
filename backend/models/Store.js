@@ -125,25 +125,7 @@ class Store {
     request.input("Id", sql.Int, id);
 
     const result = await request.query(`
-      SELECT 
-        Id,
-        StoreCode,
-        StoreName,
-        Address,
-        Phone,
-        Email,
-        Latitude,
-        Longitude,
-        TerritoryId,
-        UserId,
-        Status,
-        Rank,
-        TaxCode,
-        PartnerName,
-        Link,
-        CreatedAt,
-        UpdatedAt
-      FROM Stores WHERE Id = @Id
+      SELECT * FROM Stores WHERE Id = @Id
     `);
 
     return result.recordset[0];
@@ -153,23 +135,7 @@ class Store {
     const pool = await getPool();
     let query = `
       SELECT 
-        s.Id,
-        s.StoreCode,
-        s.StoreName,
-        s.Address,
-        s.Phone,
-        s.Email,
-        s.Latitude,
-        s.Longitude,
-        s.TerritoryId,
-        s.UserId,
-        s.Status,
-        s.Rank,
-        s.TaxCode,
-        s.PartnerName,
-        s.Link,
-        s.CreatedAt,
-        s.UpdatedAt,
+        s.*,
         t.TerritoryName,
         u.FullName as UserFullName,
         u.UserCode
@@ -280,19 +246,20 @@ class Store {
     request.input("Id", sql.Int, storeId);
     request.input("Status", sql.VarChar(20), status);
 
-    // Note: FailedReason is stored in Audits table, not Stores table
-    // This method only updates the Status in Stores table
-    // FailedReason should be retrieved from the latest Audit when needed
+    // If status is not 'failed', set FailedReason to NULL
+    // If status is 'failed', set FailedReason to the provided value (can be null if not provided)
+    if (status === "failed") {
+      request.input("FailedReason", sql.NVarChar(1000), failedReason || null);
+    } else {
+      request.input("FailedReason", sql.NVarChar(1000), null);
+    }
 
     const result = await request.query(`
       UPDATE Stores 
       SET Status = @Status, 
+          FailedReason = @FailedReason,
           UpdatedAt = GETDATE()
-      OUTPUT INSERTED.Id, INSERTED.StoreCode, INSERTED.StoreName, INSERTED.Address, 
-             INSERTED.Phone, INSERTED.Email, INSERTED.Latitude, INSERTED.Longitude,
-             INSERTED.TerritoryId, INSERTED.UserId, INSERTED.Status, INSERTED.Rank,
-             INSERTED.TaxCode, INSERTED.PartnerName, INSERTED.Link, 
-             INSERTED.CreatedAt, INSERTED.UpdatedAt
+      OUTPUT INSERTED.*
       WHERE Id = @Id
     `);
 

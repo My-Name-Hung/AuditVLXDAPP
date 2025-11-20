@@ -117,26 +117,9 @@ const getStoreById = async (req, res) => {
     });
 
     // Get store with territory and user info
-    // Note: Explicitly list columns to avoid issues if FailedReason column doesn't exist
     const storeDetailsResult = await request.query(`
       SELECT 
-        s.Id,
-        s.StoreCode,
-        s.StoreName,
-        s.Address,
-        s.Phone,
-        s.Email,
-        s.Latitude,
-        s.Longitude,
-        s.TerritoryId,
-        s.UserId,
-        s.Status,
-        s.Rank,
-        s.TaxCode,
-        s.PartnerName,
-        s.Link,
-        s.CreatedAt,
-        s.UpdatedAt,
+        s.*,
         t.TerritoryName,
         u.FullName as UserFullName,
         u.UserCode
