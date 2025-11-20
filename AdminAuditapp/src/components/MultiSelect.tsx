@@ -11,9 +11,18 @@ interface MultiSelectProps {
   selected: number[];
   onChange: (selected: number[]) => void;
   placeholder?: string;
+  itemLabel?: string; // Label for items (e.g., "nhân viên", "địa bàn")
+  searchPlaceholder?: string; // Placeholder for search input
 }
 
-export default function MultiSelect({ options, selected, onChange, placeholder = 'Chọn địa bàn...' }: MultiSelectProps) {
+export default function MultiSelect({ 
+  options, 
+  selected, 
+  onChange, 
+  placeholder = 'Chọn địa bàn...',
+  itemLabel = 'địa bàn',
+  searchPlaceholder = 'Tìm kiếm địa bàn...'
+}: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -57,7 +66,7 @@ export default function MultiSelect({ options, selected, onChange, placeholder =
             ? placeholder
             : selected.length === 1
             ? selectedNames[0]
-            : `Đã chọn ${selected.length} địa bàn`}
+            : `Đã chọn ${selected.length} ${itemLabel}`}
         </span>
         <span className="multi-select__arrow">{isOpen ? '▲' : '▼'}</span>
       </div>
@@ -67,7 +76,7 @@ export default function MultiSelect({ options, selected, onChange, placeholder =
           <div className="multi-select__search">
             <input
               type="text"
-              placeholder="Tìm kiếm địa bàn..."
+              placeholder={searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onClick={(e) => e.stopPropagation()}

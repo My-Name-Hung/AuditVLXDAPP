@@ -437,6 +437,8 @@ export default function StoreEdit() {
                 selected={assignedUserIds}
                 onChange={setAssignedUserIds}
                 placeholder="Chọn Nhân viên được gán để thực thi..."
+                itemLabel="nhân viên"
+                searchPlaceholder="Tìm kiếm nhân viên..."
               />
               <small
                 style={{

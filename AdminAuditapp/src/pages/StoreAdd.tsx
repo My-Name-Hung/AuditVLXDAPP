@@ -382,6 +382,8 @@ export default function StoreAdd() {
                   selected={assignedUserIds}
                   onChange={setAssignedUserIds}
                   placeholder="Chọn users được gán để audit..."
+                  itemLabel="nhân viên"
+                  searchPlaceholder="Tìm kiếm nhân viên..."
                 />
                 <small
                   style={{
