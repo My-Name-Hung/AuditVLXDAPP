@@ -675,80 +675,73 @@ export default function StoreDetail() {
         <div className="audits-section">
           <div className="section-header">
             <div className="section-title-group">
-              <h3>Lịch sử Audit và Hình ảnh</h3>
-              {store.userStatuses &&
-                store.userStatuses.length > 1 &&
-                selectedUserId && (
-                  <button
-                    className="btn-change-user"
-                    onClick={() => setUserSelectModalOpen(true)}
-                    style={{
-                      marginLeft: "16px",
-                      padding: "8px 16px",
-                      backgroundColor: "#0138C3",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Đổi user
-                  </button>
-                )}
-              {audits.length > 0 && (
-                <div className="audit-date-selector">
-                  <button
-                    type="button"
-                    className="audit-date-button"
-                    onClick={() =>
-                      setAuditDateDropdownOpen(!auditDateDropdownOpen)
-                    }
-                  >
-                    {selectedAudit
-                      ? formatAuditDateTime(selectedAudit.AuditDate)
-                      : "Chưa có lịch sử"}
-                    <span className="chevron">
-                      {auditDateDropdownOpen ? "▲" : "▼"}
-                    </span>
-                  </button>
-                  {auditDateDropdownOpen && (
-                    <div className="audit-date-dropdown">
-                      <input
-                        type="text"
-                        className="audit-date-search"
-                        placeholder="Tìm ngày..."
-                        value={auditDateSearch}
-                        onChange={(e) => setAuditDateSearch(e.target.value)}
-                      />
-                      <div className="audit-date-options">
-                        {filteredAudits.length > 0 ? (
-                          filteredAudits.map((audit) => (
-                            <button
-                              key={audit.AuditId}
-                              className={`audit-date-option ${
-                                selectedAuditId === audit.AuditId
-                                  ? "active"
-                                  : ""
-                              }`}
-                              onClick={() => {
-                                setSelectedAuditId(audit.AuditId);
-                                setAuditDateDropdownOpen(false);
-                                setAuditDateSearch("");
-                              }}
-                            >
-                              {formatAuditDateTime(audit.AuditDate)}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="audit-date-empty">
-                            Không tìm thấy ngày phù hợp
-                          </div>
-                        )}
-                      </div>
-                    </div>
+              <h3>Lịch sử thực hiện</h3>
+              <div className="section-controls-row">
+                {store.userStatuses &&
+                  store.userStatuses.length > 1 &&
+                  selectedUserId && (
+                    <button
+                      className="btn-change-user"
+                      onClick={() => setUserSelectModalOpen(true)}
+                    >
+                      Đổi nhân viên
+                    </button>
                   )}
-                </div>
-              )}
+                {audits.length > 0 && (
+                  <div className="audit-date-selector">
+                    <button
+                      type="button"
+                      className="audit-date-button"
+                      onClick={() =>
+                        setAuditDateDropdownOpen(!auditDateDropdownOpen)
+                      }
+                    >
+                      {selectedAudit
+                        ? formatAuditDateTime(selectedAudit.AuditDate)
+                        : "Chưa có lịch sử"}
+                      <span className="chevron">
+                        {auditDateDropdownOpen ? "▲" : "▼"}
+                      </span>
+                    </button>
+                    {auditDateDropdownOpen && (
+                      <div className="audit-date-dropdown">
+                        <input
+                          type="text"
+                          className="audit-date-search"
+                          placeholder="Tìm ngày..."
+                          value={auditDateSearch}
+                          onChange={(e) => setAuditDateSearch(e.target.value)}
+                        />
+                        <div className="audit-date-options">
+                          {filteredAudits.length > 0 ? (
+                            filteredAudits.map((audit) => (
+                              <button
+                                key={audit.AuditId}
+                                className={`audit-date-option ${
+                                  selectedAuditId === audit.AuditId
+                                    ? "active"
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setSelectedAuditId(audit.AuditId);
+                                  setAuditDateDropdownOpen(false);
+                                  setAuditDateSearch("");
+                                }}
+                              >
+                                {formatAuditDateTime(audit.AuditDate)}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="audit-date-empty">
+                              Không tìm thấy ngày phù hợp
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="status-action-buttons">
               <button

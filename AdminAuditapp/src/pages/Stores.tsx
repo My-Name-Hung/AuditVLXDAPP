@@ -209,9 +209,53 @@ export default function Stores() {
     }
   };
 
+  // Calculate status counts from stores array
+  const calculateStatusCounts = (
+    storesList: Store[]
+  ): Record<StatusFilter, number> => {
+    const counts: Record<StatusFilter, number> = {
+      all: storesList.length,
+      not_audited: 0,
+      audited: 0,
+      passed: 0,
+      failed: 0,
+    };
+
+    storesList.forEach((store) => {
+      if (store.userStatuses && store.userStatuses.length > 0) {
+        // Check each status - if any user has this status, count the store
+        const hasNotAudited = store.userStatuses.some(
+          (us) => us.Status === "not_audited"
+        );
+        const hasAudited = store.userStatuses.some(
+          (us) => us.Status === "audited"
+        );
+        const hasPassed = store.userStatuses.some(
+          (us) => us.Status === "passed"
+        );
+        const hasFailed = store.userStatuses.some(
+          (us) => us.Status === "failed"
+        );
+
+        if (hasNotAudited) counts.not_audited++;
+        if (hasAudited) counts.audited++;
+        if (hasPassed) counts.passed++;
+        if (hasFailed) counts.failed++;
+      } else {
+        // If no userStatuses, use store.Status (backward compatibility)
+        if (store.Status === "not_audited") counts.not_audited++;
+        else if (store.Status === "audited") counts.audited++;
+        else if (store.Status === "passed") counts.passed++;
+        else if (store.Status === "failed") counts.failed++;
+      }
+    });
+
+    return counts;
+  };
+
   const fetchStatusCounts = async () => {
     try {
-      // Fetch all stores to count statuses based on userStatuses
+      // Fetch all stores to count statuses based on userStatuses (only once)
       const params: Record<string, string | number> = {
         page: 1,
         pageSize: 10000, // Get all stores to count accurately
@@ -220,45 +264,8 @@ export default function Stores() {
       const res = await api.get("/stores", { params });
       const allStores: Store[] = res.data.data || [];
 
-      // Count stores based on userStatuses
-      // A store is counted for a status if at least one user has that status
-      const counts: Record<StatusFilter, number> = {
-        all: allStores.length,
-        not_audited: 0,
-        audited: 0,
-        passed: 0,
-        failed: 0,
-      };
-
-      allStores.forEach((store) => {
-        if (store.userStatuses && store.userStatuses.length > 0) {
-          // Check each status - if any user has this status, count the store
-          const hasNotAudited = store.userStatuses.some(
-            (us) => us.Status === "not_audited"
-          );
-          const hasAudited = store.userStatuses.some(
-            (us) => us.Status === "audited"
-          );
-          const hasPassed = store.userStatuses.some(
-            (us) => us.Status === "passed"
-          );
-          const hasFailed = store.userStatuses.some(
-            (us) => us.Status === "failed"
-          );
-
-          if (hasNotAudited) counts.not_audited++;
-          if (hasAudited) counts.audited++;
-          if (hasPassed) counts.passed++;
-          if (hasFailed) counts.failed++;
-        } else {
-          // If no userStatuses, use store.Status (backward compatibility)
-          if (store.Status === "not_audited") counts.not_audited++;
-          else if (store.Status === "audited") counts.audited++;
-          else if (store.Status === "passed") counts.passed++;
-          else if (store.Status === "failed") counts.failed++;
-        }
-      });
-
+      // Calculate counts
+      const counts = calculateStatusCounts(allStores);
       setStatusCounts(counts);
     } catch (error) {
       console.error("Error fetching status counts:", error);
@@ -296,6 +303,18 @@ export default function Stores() {
       if (res.data.pagination) {
         setTotal(res.data.pagination.total);
         setTotalPages(res.data.pagination.totalPages);
+      }
+
+      // Update status counts from fetched stores if we fetched all stores without filters
+      if (
+        statusFilter === "all" &&
+        !selectedTerritory &&
+        !selectedRank &&
+        !selectedUser &&
+        !storeNameFilter.trim()
+      ) {
+        const counts = calculateStatusCounts(fetchedStores);
+        setStatusCounts(counts);
       }
 
       // Reset isFilterChangingRef after fetch completes successfully
@@ -412,11 +431,11 @@ export default function Stores() {
     // If store has userStatuses
     if (store.userStatuses && store.userStatuses.length > 0) {
       const userCount = store.userStatuses.length;
-      
+
       // Check if all users have the same status
-      const uniqueStatuses = new Set(store.userStatuses.map(us => us.Status));
+      const uniqueStatuses = new Set(store.userStatuses.map((us) => us.Status));
       const allSameStatus = uniqueStatuses.size === 1;
-      
+
       if (allSameStatus) {
         // All users have same status: show status + (number of users)
         const status = store.userStatuses[0].Status;
@@ -434,7 +453,9 @@ export default function Stores() {
           <div className="status-multi-user-compact">
             {store.userStatuses.map((us) => (
               <div key={us.UserId} className="status-user-row">
-                <span className="status-user-name-compact">{us.UserFullName}</span>
+                <span className="status-user-name-compact">
+                  {us.UserFullName}
+                </span>
                 <span className="status-separator">:</span>
                 <span className={`status-badge-inline status-${us.Status}`}>
                   {getStatusLabel(us.Status)}
@@ -681,7 +702,10 @@ export default function Stores() {
         <div className="status-filter-tabs">
           <button
             className={`status-tab ${statusFilter === "all" ? "active" : ""}`}
-            onClick={() => setStatusFilter("all")}
+            onClick={() => {
+              setStatusFilter("all");
+              setPage(1);
+            }}
           >
             <span>Tất cả</span>
             <span className="status-count">({statusCounts.all})</span>
@@ -690,7 +714,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "not_audited" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("not_audited")}
+            onClick={() => {
+              setStatusFilter("not_audited");
+              setPage(1);
+            }}
           >
             <span>Chưa thực hiện</span>
             <span className="status-count">({statusCounts.not_audited})</span>
@@ -699,7 +726,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "audited" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("audited")}
+            onClick={() => {
+              setStatusFilter("audited");
+              setPage(1);
+            }}
           >
             <span>Đã thực hiện</span>
             <span className="status-count">({statusCounts.audited})</span>
@@ -708,7 +738,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "passed" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("passed")}
+            onClick={() => {
+              setStatusFilter("passed");
+              setPage(1);
+            }}
           >
             <span>Đạt</span>
             <span className="status-count">({statusCounts.passed})</span>
@@ -717,7 +750,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "failed" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("failed")}
+            onClick={() => {
+              setStatusFilter("failed");
+              setPage(1);
+            }}
           >
             <span>Không đạt</span>
             <span className="status-count">({statusCounts.failed})</span>
@@ -837,7 +873,10 @@ export default function Stores() {
                         // Show view button if:
                         // 1. Single user and status is not "not_audited"
                         // 2. Multiple users and at least one has status not "not_audited"
-                        if (store.userStatuses && store.userStatuses.length > 1) {
+                        if (
+                          store.userStatuses &&
+                          store.userStatuses.length > 1
+                        ) {
                           const hasAuditedUser = store.userStatuses.some(
                             (us) => us.Status !== "not_audited"
                           );

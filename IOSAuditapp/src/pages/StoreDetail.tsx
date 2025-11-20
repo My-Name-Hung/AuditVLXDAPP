@@ -616,7 +616,7 @@ export default function StoreDetail() {
                   className="store-detail-info-label"
                   style={{ color: colors.icon }}
                 >
-                  User Phụ trách:
+                  Nhân viên Phụ trách:
                 </span>
                 <span
                   className="store-detail-info-value"
@@ -663,9 +663,9 @@ export default function StoreDetail() {
         {showNewAuditModal && (
           <div className="store-detail-modal-overlay">
             <div className="store-detail-modal-content">
-              <h2 className="store-detail-modal-title">Audit ngày mới</h2>
+              <h2 className="store-detail-modal-title">Thực thi ngày mới</h2>
               <p className="store-detail-modal-message">
-                Bạn có muốn thực hiện audit cho ngày hôm nay không?
+                Bạn có muốn thực thi cho ngày hôm nay không?
               </p>
               <div className="store-detail-modal-buttons">
                 <button

@@ -160,6 +160,27 @@
   gap: 0.45rem;
 }
 
+.section-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.btn-change-user {
+  padding: 8px 16px;
+  background-color: #0138C3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background-color 0.2s;
+}
+
+.btn-change-user:hover {
+  background-color: #0128a3;
+}
+
 .audit-date-selector {
   position: relative;
   width: 260px;
