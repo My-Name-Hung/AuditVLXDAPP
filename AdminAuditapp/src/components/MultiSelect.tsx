@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import './MultiSelect.css';
+import { useEffect, useRef, useState } from "react";
+import "./MultiSelect.css";
 
 interface Option {
   id: number;
@@ -15,52 +15,52 @@ interface MultiSelectProps {
   searchPlaceholder?: string; // Placeholder for search input
 }
 
-export default function MultiSelect({ 
-  options, 
-  selected, 
-  onChange, 
-  placeholder = 'Chọn địa bàn...',
-  itemLabel = 'địa bàn',
-  searchPlaceholder = 'Tìm kiếm địa bàn...'
+export default function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Chọn địa bàn...",
+  itemLabel = "địa bàn",
+  searchPlaceholder = "Tìm kiếm địa bàn...",
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
         setIsOpen(false);
-        setSearchTerm('');
+        setSearchTerm("");
       }
     }
 
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(option =>
+  const filteredOptions = options.filter((option) =>
     option.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const toggleOption = (id: number) => {
     if (selected.includes(id)) {
-      onChange(selected.filter(s => s !== id));
+      onChange(selected.filter((s) => s !== id));
     } else {
       onChange([...selected, id]);
     }
   };
 
   const selectedNames = options
-    .filter(opt => selected.includes(opt.id))
-    .map(opt => opt.name);
+    .filter((opt) => selected.includes(opt.id))
+    .map((opt) => opt.name);
 
   return (
     <div className="multi-select" ref={dropdownRef}>
-      <div
-        className="multi-select__trigger"
-        onClick={() => setIsOpen(!isOpen)}
-      >
+      <div className="multi-select__trigger" onClick={() => setIsOpen(!isOpen)}>
         <span className="multi-select__value">
           {selected.length === 0
             ? placeholder
@@ -68,7 +68,7 @@ export default function MultiSelect({
             ? selectedNames[0]
             : `Đã chọn ${selected.length} ${itemLabel}`}
         </span>
-        <span className="multi-select__arrow">{isOpen ? '▲' : '▼'}</span>
+        <span className="multi-select__arrow">{isOpen ? "▲" : "▼"}</span>
       </div>
 
       {isOpen && (
@@ -84,7 +84,9 @@ export default function MultiSelect({
           </div>
           <div className="multi-select__options">
             {filteredOptions.length === 0 ? (
-              <div className="multi-select__no-results">Không tìm thấy kết quả</div>
+              <div className="multi-select__no-results">
+                Không tìm thấy kết quả
+              </div>
             ) : (
               filteredOptions.map((option) => (
                 <label
@@ -107,4 +109,3 @@ export default function MultiSelect({
     </div>
   );
 }
-
