@@ -211,43 +211,53 @@ export default function Stores() {
 
   const fetchStatusCounts = async () => {
     try {
-      // Fetch counts for each status (without other filters)
-      const statuses: StatusFilter[] = [
-        "all",
-        "not_audited",
-        "audited",
-        "passed",
-        "failed",
-      ];
+      // Fetch all stores to count statuses based on userStatuses
+      const params: Record<string, string | number> = {
+        page: 1,
+        pageSize: 10000, // Get all stores to count accurately
+      };
+
+      const res = await api.get("/stores", { params });
+      const allStores: Store[] = res.data.data || [];
+
+      // Count stores based on userStatuses
+      // A store is counted for a status if at least one user has that status
       const counts: Record<StatusFilter, number> = {
-        all: 0,
+        all: allStores.length,
         not_audited: 0,
         audited: 0,
         passed: 0,
         failed: 0,
       };
 
-      // Fetch all statuses in parallel
-      await Promise.all(
-        statuses.map(async (status) => {
-          try {
-            const params: Record<string, string | number> = {
-              page: 1,
-              pageSize: 1, // We only need the total count
-            };
+      allStores.forEach((store) => {
+        if (store.userStatuses && store.userStatuses.length > 0) {
+          // Check each status - if any user has this status, count the store
+          const hasNotAudited = store.userStatuses.some(
+            (us) => us.Status === "not_audited"
+          );
+          const hasAudited = store.userStatuses.some(
+            (us) => us.Status === "audited"
+          );
+          const hasPassed = store.userStatuses.some(
+            (us) => us.Status === "passed"
+          );
+          const hasFailed = store.userStatuses.some(
+            (us) => us.Status === "failed"
+          );
 
-            if (status !== "all") {
-              params.status = status;
-            }
-
-            const res = await api.get("/stores", { params });
-            counts[status] = res.data.pagination?.total || 0;
-          } catch (error) {
-            console.error(`Error fetching count for status ${status}:`, error);
-            counts[status] = 0;
-          }
-        })
-      );
+          if (hasNotAudited) counts.not_audited++;
+          if (hasAudited) counts.audited++;
+          if (hasPassed) counts.passed++;
+          if (hasFailed) counts.failed++;
+        } else {
+          // If no userStatuses, use store.Status (backward compatibility)
+          if (store.Status === "not_audited") counts.not_audited++;
+          else if (store.Status === "audited") counts.audited++;
+          else if (store.Status === "passed") counts.passed++;
+          else if (store.Status === "failed") counts.failed++;
+        }
+      });
 
       setStatusCounts(counts);
     } catch (error) {
