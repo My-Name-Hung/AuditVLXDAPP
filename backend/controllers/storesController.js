@@ -38,6 +38,51 @@ const getAllStores = async (req, res) => {
       Store.count(filters),
     ]);
 
+    // Get current user ID from token
+    const currentUserId = req.user?.id || req.user?.userId;
+
+    // Calculate user-specific status for each store
+    if (currentUserId) {
+      const { getPool, sql } = require("../config/database");
+      const pool = await getPool();
+
+      for (let store of stores) {
+        // Get latest audit for this user and store
+        const auditRequest = pool.request();
+        auditRequest.input("StoreId", sql.Int, store.Id);
+        auditRequest.input("UserId", sql.Int, currentUserId);
+
+        const auditResult = await auditRequest.query(`
+          SELECT TOP 1 
+            Result,
+            FailedReason,
+            AuditDate
+          FROM Audits
+          WHERE StoreId = @StoreId AND UserId = @UserId
+          ORDER BY AuditDate DESC, CreatedAt DESC
+        `);
+
+        if (auditResult.recordset.length > 0) {
+          const latestAudit = auditResult.recordset[0];
+          // Map audit result to store status
+          if (latestAudit.Result === "pass") {
+            store.Status = "passed";
+            store.FailedReason = null;
+          } else if (latestAudit.Result === "fail") {
+            store.Status = "failed";
+            store.FailedReason = latestAudit.FailedReason;
+          } else if (latestAudit.Result === "audited") {
+            store.Status = "audited";
+            store.FailedReason = null;
+          }
+        } else {
+          // User hasn't audited this store yet
+          store.Status = "not_audited";
+          store.FailedReason = null;
+        }
+      }
+    }
+
     res.json({
       data: stores,
       pagination: {
@@ -116,20 +161,73 @@ const getStoreById = async (req, res) => {
       };
     });
 
-    // Get store with territory and user info
+    // Get current user ID from token
+    const currentUserId = req.user?.id || req.user?.userId;
+
+    // Get store with territory info
     const storeDetailsResult = await request.query(`
       SELECT 
         s.*,
-        t.TerritoryName,
-        u.FullName as UserFullName,
-        u.UserCode
+        t.TerritoryName
       FROM Stores s
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN Users u ON s.UserId = u.Id
       WHERE s.Id = @StoreId
     `);
 
     const storeDetails = storeDetailsResult.recordset[0];
+
+    // Get current user info if available
+    let currentUserInfo = null;
+    if (currentUserId) {
+      const userRequest = pool.request();
+      userRequest.input("UserId", sql.Int, currentUserId);
+      const userResult = await userRequest.query(`
+        SELECT Id, FullName, UserCode
+        FROM Users
+        WHERE Id = @UserId
+      `);
+      if (userResult.recordset.length > 0) {
+        currentUserInfo = userResult.recordset[0];
+      }
+    }
+
+    // Filter audits by current user
+    const userAudits = currentUserId
+      ? audits.filter((audit) => audit.UserId === currentUserId)
+      : audits;
+
+    // Calculate user-specific status based on latest audit
+    let userStatus = "not_audited";
+    let userFailedReason = null;
+    let userLatitude = storeDetails.Latitude;
+    let userLongitude = storeDetails.Longitude;
+
+    if (currentUserId && userAudits.length > 0) {
+      // Get latest audit for this user
+      const latestAudit = userAudits.sort(
+        (a, b) => new Date(b.AuditDate) - new Date(a.AuditDate)
+      )[0];
+
+      if (latestAudit.Result === "pass") {
+        userStatus = "passed";
+        userFailedReason = null;
+      } else if (latestAudit.Result === "fail") {
+        userStatus = "failed";
+        userFailedReason = latestAudit.FailedReason;
+      } else if (latestAudit.Result === "audited") {
+        userStatus = "audited";
+        userFailedReason = null;
+      }
+
+      // Get latitude/longitude from latest audit's first image
+      if (latestAudit.Images && latestAudit.Images.length > 0) {
+        const firstImage = latestAudit.Images[0];
+        if (firstImage.Latitude && firstImage.Longitude) {
+          userLatitude = firstImage.Latitude;
+          userLongitude = firstImage.Longitude;
+        }
+      }
+    }
 
     // Get assigned users for this store
     const StoreUser = require("../models/StoreUser");
@@ -137,7 +235,14 @@ const getStoreById = async (req, res) => {
 
     res.json({
       ...storeDetails,
-      audits,
+      Status: userStatus, // Override with user-specific status
+      FailedReason: userFailedReason, // Override with user-specific failed reason
+      Latitude: userLatitude, // Override with user-specific latitude
+      Longitude: userLongitude, // Override with user-specific longitude
+      UserFullName:
+        currentUserInfo?.FullName || storeDetails.UserFullName || null,
+      UserCode: currentUserInfo?.UserCode || storeDetails.UserCode || null,
+      audits: userAudits, // Only return audits for current user
       assignedUsers,
     });
   } catch (error) {

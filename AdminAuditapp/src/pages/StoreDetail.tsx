@@ -509,7 +509,7 @@ export default function StoreDetail() {
                 </span>
               </div>
               <div className="info-item">
-                <label>User phụ trách:</label>
+                <label>Nhân viên phụ trách:</label>
                 <span>
                   {store.UserFullName || "-"}{" "}
                   {store.UserCode ? `(${store.UserCode})` : ""}

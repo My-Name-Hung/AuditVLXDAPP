@@ -2,6 +2,40 @@
   min-height: 100vh;
 }
 
+.profile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  border-bottom: 1px solid;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(254, 254, 254, 0.95);
+  backdrop-filter: blur(10px);
+}
+
+.profile-back-button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 8px;
+  font-weight: 500;
+}
+
+.profile-back-button:hover {
+  opacity: 0.7;
+}
+
+.profile-header-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  flex: 1;
+  text-align: center;
+}
+
 .profile-content {
   padding: 20px 16px;
 }

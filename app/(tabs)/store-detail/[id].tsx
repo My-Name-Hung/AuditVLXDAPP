@@ -66,6 +66,8 @@ interface AuditHistory {
   Notes: string;
   AuditDate: string;
   AuditCreatedAt: string;
+  UserId?: number;
+  userId?: number;
   Images: StoreImage[];
 }
 
@@ -186,9 +188,14 @@ export default function StoreDetailScreen() {
     },
   ];
 
-  const sortedAudits = [...audits].sort(
-    (a, b) =>
-      new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+  // Filter audits by current user ID
+  const userAudits = audits.filter((audit) => {
+    // Check if audit has UserId field (from backend) or match with current user
+    return audit.UserId === user?.id || audit.userId === user?.id;
+  });
+
+  const sortedAudits = [...userAudits].sort(
+    (a, b) => new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
   );
   const hasTodayAudit = sortedAudits.some((audit) =>
     isSameDay(audit.AuditDate, new Date())
@@ -203,14 +210,18 @@ export default function StoreDetailScreen() {
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
       setAudits(auditData);
-      setAllowNewAudit(auditData.length === 0);
+      // Filter audits by current user to check if user has any audits
+      const userAuditData = auditData.filter((audit: AuditHistory) => {
+        return audit.UserId === user?.id || audit.userId === user?.id;
+      });
+      setAllowNewAudit(userAuditData.length === 0);
     } catch (error) {
       console.error("Error fetching store:", error);
       Alert.alert("Lỗi", "Không thể tải thông tin cửa hàng");
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user?.id]);
 
   useEffect(() => {
     fetchStore();
@@ -221,16 +232,30 @@ export default function StoreDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (loading) {
+    if (loading || !user?.id) {
       return;
     }
-    if (sortedAudits.length === 0) {
+    // Filter audits by current user
+    const userAudits = audits.filter((audit) => {
+      return audit.UserId === user.id || audit.userId === user.id;
+    });
+    const sortedUserAudits = [...userAudits].sort(
+      (a, b) =>
+        new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+    );
+    const hasUserTodayAudit = sortedUserAudits.some((audit) =>
+      isSameDay(audit.AuditDate, new Date())
+    );
+
+    if (sortedUserAudits.length === 0) {
       setShowNewAuditModal(false);
+      setAllowNewAudit(true);
       return;
     }
-    if (hasTodayAudit) {
+    if (hasUserTodayAudit) {
       setShowNewAuditModal(false);
       promptedDateRef.current = formatDateKey(new Date());
+      setAllowNewAudit(false);
       return;
     }
     if (!allowNewAudit) {
@@ -240,7 +265,7 @@ export default function StoreDetailScreen() {
         promptedDateRef.current = todayKey;
       }
     }
-  }, [sortedAudits, hasTodayAudit, allowNewAudit, loading]);
+  }, [audits, user?.id, allowNewAudit, loading]);
 
   const handleOpenMap = () => {
     if (store?.Latitude && store?.Longitude) {
@@ -460,7 +485,7 @@ export default function StoreDetailScreen() {
         });
       }
 
-    setAllowNewAudit(false);
+      setAllowNewAudit(false);
 
       Alert.alert("Thành công", "Đã hoàn thành audit cửa hàng", [
         {
@@ -637,7 +662,7 @@ export default function StoreDetailScreen() {
               </View>
               <View style={styles.infoRow}>
                 <Text style={[styles.infoLabel, { color: colors.icon }]}>
-                  User Phụ trách:
+                  Nhân viên Phụ trách:
                 </Text>
                 <Text style={[styles.infoValue, { color: colors.text }]}>
                   {store.UserFullName || "-"}{" "}
@@ -657,25 +682,25 @@ export default function StoreDetailScreen() {
                   <Text style={styles.statusText}>
                     {getStatusLabel(store.Status)}
                   </Text>
-          </View>
-        </View>
+                </View>
+              </View>
 
               {/* Failed Reason - show directly under status when store is failed */}
               {store.Status === "failed" && !!store.FailedReason && (
                 <View style={styles.infoRow}>
                   <Text style={[styles.infoLabel, { color: colors.icon }]}>
                     Lý do không đạt:
-            </Text>
+                  </Text>
                   <View style={styles.failedReasonBox}>
                     <Text
                       style={[styles.failedReasonText, { color: colors.text }]}
                     >
                       {store.FailedReason}
                     </Text>
-              </View>
+                  </View>
                 </View>
-            )}
-          </View>
+              )}
+            </View>
           </View>
         </View>
 
@@ -781,7 +806,9 @@ export default function StoreDetailScreen() {
                 <View key={audit.AuditId} style={styles.historyCard}>
                   <View style={styles.historyHeader}>
                     <View>
-                      <Text style={[styles.historyDate, { color: colors.text }]}>
+                      <Text
+                        style={[styles.historyDate, { color: colors.text }]}
+                      >
                         {new Date(audit.AuditDate).toLocaleString("vi-VN", {
                           hour12: false,
                         })}
@@ -813,24 +840,24 @@ export default function StoreDetailScreen() {
                   ) : null}
                   {audit.Images && audit.Images.length > 0 ? (
                     <View style={styles.imagesGrid}>
-                  {audit.Images.map((img) => (
-                    <View key={img.Id} style={styles.imageItem}>
-                      <TouchableOpacity
-                        style={styles.imageContainer}
-                        onPress={() => handleImagePress(img.ImageUrl)}
-                      >
-                        <Image
-                          source={{ uri: img.ImageUrl }}
-                          style={styles.image}
-                        />
-                      </TouchableOpacity>
-                      <Text
-                        style={[styles.imageTime, { color: colors.icon }]}
-                      >
-                        {new Date(img.CapturedAt).toLocaleString("vi-VN")}
-                      </Text>
-                    </View>
-                  ))}
+                      {audit.Images.map((img) => (
+                        <View key={img.Id} style={styles.imageItem}>
+                          <TouchableOpacity
+                            style={styles.imageContainer}
+                            onPress={() => handleImagePress(img.ImageUrl)}
+                          >
+                            <Image
+                              source={{ uri: img.ImageUrl }}
+                              style={styles.image}
+                            />
+                          </TouchableOpacity>
+                          <Text
+                            style={[styles.imageTime, { color: colors.icon }]}
+                          >
+                            {new Date(img.CapturedAt).toLocaleString("vi-VN")}
+                          </Text>
+                        </View>
+                      ))}
                     </View>
                   ) : (
                     <Text style={[styles.emptyText, { color: colors.icon }]}>
@@ -862,17 +889,25 @@ export default function StoreDetailScreen() {
         onRequestClose={() => setShowNewAuditModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
             <Ionicons
               name="calendar-outline"
               size={48}
               color={colors.primary}
             />
-            <Text style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}>
+            <Text
+              style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}
+            >
               Audit ngày mới
             </Text>
             <Text style={[styles.modalSubtitle, { color: colors.icon }]}>
-              Hôm nay cửa hàng chưa được audit. Bạn có muốn bắt đầu chụp ảnh cho ngày hôm nay?
+              Hôm nay cửa hàng chưa được audit. Bạn có muốn bắt đầu chụp ảnh cho
+              ngày hôm nay?
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity
