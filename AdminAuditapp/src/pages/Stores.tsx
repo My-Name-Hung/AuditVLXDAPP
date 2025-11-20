@@ -399,22 +399,43 @@ export default function Stores() {
   };
 
   const formatStatusWithUsers = (store: Store): React.ReactNode => {
-    // If store has userStatuses and more than 1 user, format as multiple lines
-    if (store.userStatuses && store.userStatuses.length > 1) {
-      return (
-        <div className="status-multi-user">
-          {store.userStatuses.map((us, index) => (
-            <div key={us.UserId} className="status-user-item">
-              <span className={`status-badge-inline status-${us.Status}`}>
-                {getStatusLabel(us.Status)}
-              </span>
-              <span className="status-user-name">({us.UserFullName})</span>
-            </div>
-          ))}
-        </div>
-      );
+    // If store has userStatuses
+    if (store.userStatuses && store.userStatuses.length > 0) {
+      const userCount = store.userStatuses.length;
+      
+      // Check if all users have the same status
+      const uniqueStatuses = new Set(store.userStatuses.map(us => us.Status));
+      const allSameStatus = uniqueStatuses.size === 1;
+      
+      if (allSameStatus) {
+        // All users have same status: show status + (number of users)
+        const status = store.userStatuses[0].Status;
+        return (
+          <div className="status-single-compact">
+            <span className={`status-badge-inline status-${status}`}>
+              {getStatusLabel(status)}
+            </span>
+            <span className="status-user-count">({userCount})</span>
+          </div>
+        );
+      } else {
+        // Different statuses: show "User Name : Status" for each user
+        return (
+          <div className="status-multi-user-compact">
+            {store.userStatuses.map((us) => (
+              <div key={us.UserId} className="status-user-row">
+                <span className="status-user-name-compact">{us.UserFullName}</span>
+                <span className="status-separator">:</span>
+                <span className={`status-badge-inline status-${us.Status}`}>
+                  {getStatusLabel(us.Status)}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      }
     }
-    // If only 1 user or no userStatuses, just show status
+    // If no userStatuses, just show status
     return getStatusLabel(store.Status);
   };
 

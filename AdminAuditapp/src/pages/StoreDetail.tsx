@@ -109,6 +109,7 @@ export default function StoreDetail() {
   const [userSelectModalOpen, setUserSelectModalOpen] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
+  const hasSelectedUserRef = useRef(false); // Track if user has already selected
 
   useEffect(() => {
     if (id) {
@@ -116,17 +117,22 @@ export default function StoreDetail() {
         // Initial load
         isInitialMount.current = false;
         previousId.current = id;
+        hasSelectedUserRef.current = false; // Reset when loading new store
         fetchStoreDetail();
       } else if (previousId.current !== id) {
         // Navigate to different store - show loading modal
         previousId.current = id;
+        hasSelectedUserRef.current = false; // Reset when navigating to different store
         fetchStoreDetail(true);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const fetchStoreDetail = async (showLoading = false, userId?: number | null) => {
+  const fetchStoreDetail = async (
+    showLoading = false,
+    userId?: number | null
+  ) => {
     try {
       if (showLoading) {
         setDataLoading(true);
@@ -165,30 +171,61 @@ export default function StoreDetail() {
         assignedUsers: data.assignedUsers || [],
       });
       const auditsData = data.audits || [];
+      // Store all audits (not filtered) so we can filter by selectedUserId later
       setAudits(auditsData);
 
       // Check if we need to show user selection modal
       const userStatuses = data.userStatuses || [];
       if (userStatuses.length > 1) {
-        // Multiple users - show modal
-        setUserSelectModalOpen(true);
-        // Don't set selectedUserId yet - wait for user selection
+        // Multiple users - only show modal if user hasn't selected yet (first load)
+        if (!hasSelectedUserRef.current && !userId) {
+          // First load - show modal
+          setUserSelectModalOpen(true);
+          // Don't set selectedUserId yet - wait for user selection
+          setSelectedAuditId(null); // Reset audit selection
+        } else if (userId) {
+          // User has been selected via handleUserSelect - don't show modal
+          setSelectedUserId(userId);
+          setUserSelectModalOpen(false);
+          // Set selectedAuditId to first audit of selected user
+          const userAudits = auditsData.filter(
+            (audit: Audit) => audit.UserId === userId
+          );
+          setSelectedAuditId(
+            userAudits.length > 0 ? userAudits[0].AuditId : null
+          );
+        } else if (selectedUserId) {
+          // User was already selected before - keep selection, don't show modal
+          setUserSelectModalOpen(false);
+          // Update selectedAuditId to first audit of selected user if current one is invalid
+          const userAudits = auditsData.filter(
+            (audit: Audit) => audit.UserId === selectedUserId
+          );
+          setSelectedAuditId((prev) => {
+            if (
+              prev &&
+              userAudits.some((audit: Audit) => audit.AuditId === prev)
+            ) {
+              return prev;
+            }
+            return userAudits.length > 0 ? userAudits[0].AuditId : null;
+          });
+        }
       } else if (userStatuses.length === 1) {
         // Single user - auto select
         setSelectedUserId(userStatuses[0].UserId);
         setUserSelectModalOpen(false);
+        hasSelectedUserRef.current = true;
+        // Set selectedAuditId to first audit
+        setSelectedAuditId(
+          auditsData.length > 0 ? auditsData[0].AuditId : null
+        );
       } else {
         // No users - don't show modal
         setSelectedUserId(null);
         setUserSelectModalOpen(false);
+        setSelectedAuditId(null);
       }
-
-      setSelectedAuditId((prev) => {
-        if (prev && auditsData.some((audit: Audit) => audit.AuditId === prev)) {
-          return prev;
-        }
-        return auditsData.length > 0 ? auditsData[0].AuditId : null;
-      });
     } catch (error) {
       console.error("Error fetching store detail:", error);
     } finally {
@@ -488,8 +525,9 @@ export default function StoreDetail() {
     : audits;
 
   const selectedAudit =
-    userFilteredAudits.find((audit) => audit.AuditId === selectedAuditId) || null;
-  
+    userFilteredAudits.find((audit) => audit.AuditId === selectedAuditId) ||
+    null;
+
   // Get status, lat/lon from selected user's status or selected audit
   let effectiveStatus = store?.Status || "not_audited";
   let effectiveLatitude = store?.Latitude || null;
@@ -498,7 +536,9 @@ export default function StoreDetail() {
   let effectiveUserCode = store?.UserCode || null;
 
   if (selectedUserId && store?.userStatuses) {
-    const userStatus = store.userStatuses.find((us) => us.UserId === selectedUserId);
+    const userStatus = store.userStatuses.find(
+      (us) => us.UserId === selectedUserId
+    );
     if (userStatus) {
       effectiveStatus = userStatus.Status;
       effectiveUserFullName = userStatus.UserFullName;
@@ -531,6 +571,7 @@ export default function StoreDetail() {
   const handleUserSelect = async (userId: number) => {
     setSelectedUserId(userId);
     setUserSelectModalOpen(false);
+    hasSelectedUserRef.current = true; // Mark that user has selected
     // Fetch store detail with selected userId to get correct data
     await fetchStoreDetail(false, userId);
   };
@@ -631,27 +672,29 @@ export default function StoreDetail() {
           )}
         </div>
 
-          <div className="audits-section">
-            <div className="section-header">
+        <div className="audits-section">
+          <div className="section-header">
             <div className="section-title-group">
               <h3>Lịch sử Audit và Hình ảnh</h3>
-              {store.userStatuses && store.userStatuses.length > 1 && selectedUserId && (
-                <button
-                  className="btn-change-user"
-                  onClick={() => setUserSelectModalOpen(true)}
-                  style={{
-                    marginLeft: "16px",
-                    padding: "8px 16px",
-                    backgroundColor: "#0138C3",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "4px",
-                    cursor: "pointer",
-                  }}
-                >
-                  Đổi user
-                </button>
-              )}
+              {store.userStatuses &&
+                store.userStatuses.length > 1 &&
+                selectedUserId && (
+                  <button
+                    className="btn-change-user"
+                    onClick={() => setUserSelectModalOpen(true)}
+                    style={{
+                      marginLeft: "16px",
+                      padding: "8px 16px",
+                      backgroundColor: "#0138C3",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Đổi user
+                  </button>
+                )}
               {audits.length > 0 && (
                 <div className="audit-date-selector">
                   <button
@@ -707,21 +750,21 @@ export default function StoreDetail() {
                 </div>
               )}
             </div>
-              <div className="status-action-buttons">
-                <button
-                  className="btn-status btn-passed"
-                  onClick={() => handleStatusUpdateClick("passed")}
+            <div className="status-action-buttons">
+              <button
+                className="btn-status btn-passed"
+                onClick={() => handleStatusUpdateClick("passed")}
                 disabled={!selectedAudit}
-                >
-                  Đạt
-                </button>
-                <button
-                  className="btn-status btn-failed"
-                  onClick={() => handleStatusUpdateClick("failed")}
+              >
+                Đạt
+              </button>
+              <button
+                className="btn-status btn-failed"
+                onClick={() => handleStatusUpdateClick("failed")}
                 disabled={!selectedAudit}
-                >
-                  Không đạt
-                </button>
+              >
+                Không đạt
+              </button>
               <button
                 className="btn-status btn-reset"
                 onClick={() => setResetModalOpen(true)}
@@ -730,7 +773,7 @@ export default function StoreDetail() {
                 Làm lại
               </button>
             </div>
-              </div>
+          </div>
 
           {selectedFailedReason && (
             <div className="failed-reason-box">
@@ -741,52 +784,52 @@ export default function StoreDetail() {
 
           {selectedAudit ? (
             selectedImages.length > 0 ? (
-            <div className="images-grid">
+              <div className="images-grid">
                 {selectedImages.map((image, index) => {
-                const coords = getImageCoordinates(image);
-                return (
-                  <div key={`${image.Id}-${index}`} className="image-card">
-                    <img
-                      src={image.ImageUrl}
-                      alt={`Image ${image.Id}`}
-                      onClick={() => handleImageClick(image)}
-                      className="grid-image"
-                    />
-                    <div className="image-info">
-                      <span className="image-time">
-                        {image.CapturedAt
-                          ? new Date(image.CapturedAt).toLocaleString("vi-VN")
-                          : "-"}
-                      </span>
-                      {coords.lat && coords.lon && (
-                        <button
-                          className="btn-view-map"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleViewOnGoogleMaps(coords.lat, coords.lon);
-                          }}
-                        >
-                          Xem trên Google Maps
-                        </button>
-                      )}
+                  const coords = getImageCoordinates(image);
+                  return (
+                    <div key={`${image.Id}-${index}`} className="image-card">
+                      <img
+                        src={image.ImageUrl}
+                        alt={`Image ${image.Id}`}
+                        onClick={() => handleImageClick(image)}
+                        className="grid-image"
+                      />
+                      <div className="image-info">
+                        <span className="image-time">
+                          {image.CapturedAt
+                            ? new Date(image.CapturedAt).toLocaleString("vi-VN")
+                            : "-"}
+                        </span>
+                        {coords.lat && coords.lon && (
+                          <button
+                            className="btn-view-map"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewOnGoogleMaps(coords.lat, coords.lon);
+                            }}
+                          >
+                            Xem trên Google Maps
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
             ) : (
               <div className="no-audits">
                 <p>
                   Chưa có hình ảnh cho ngày{" "}
                   {formatAuditDateTime(selectedAudit.AuditDate)}
                 </p>
-          </div>
+              </div>
             )
           ) : (
-          <div className="no-audits">
-            <p>Chưa có lịch sử audit và hình ảnh cho cửa hàng này</p>
-          </div>
-        )}
+            <div className="no-audits">
+              <p>Chưa có lịch sử audit và hình ảnh cho cửa hàng này</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1022,45 +1065,58 @@ export default function StoreDetail() {
       />
 
       {/* User Selection Modal */}
-      {userSelectModalOpen && store?.userStatuses && store.userStatuses.length > 1 && (
-        <div className="modal-overlay" onClick={() => setUserSelectModalOpen(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Chọn nhân viên để xem</h3>
-            <div className="user-list">
-              {store.userStatuses.map((userStatus) => (
+      {userSelectModalOpen &&
+        store?.userStatuses &&
+        store.userStatuses.length > 1 && (
+          <div
+            className="modal-overlay"
+            onClick={() => setUserSelectModalOpen(false)}
+          >
+            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+              <h3>Chọn nhân viên để xem</h3>
+              <div className="user-list">
+                {store.userStatuses.map((userStatus) => (
+                  <button
+                    key={userStatus.UserId}
+                    className={`user-item ${
+                      selectedUserId === userStatus.UserId ? "selected" : ""
+                    }`}
+                    onClick={() => handleUserSelect(userStatus.UserId)}
+                    style={{
+                      width: "100%",
+                      padding: "12px 16px",
+                      marginBottom: "8px",
+                      textAlign: "left",
+                      border: "1px solid #ddd",
+                      borderRadius: "4px",
+                      backgroundColor:
+                        selectedUserId === userStatus.UserId
+                          ? "#e3f2fd"
+                          : "white",
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div style={{ fontWeight: "bold", color: "#666" }}>
+                      {userStatus.UserFullName}
+                    </div>
+                    <div style={{ fontSize: "12px", color: "#666" }}>
+                      {userStatus.UserCode} -{" "}
+                      {getStatusLabel(userStatus.Status)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+              <div className="modal-actions" style={{ marginTop: "16px" }}>
                 <button
-                  key={userStatus.UserId}
-                  className={`user-item ${selectedUserId === userStatus.UserId ? "selected" : ""}`}
-                  onClick={() => handleUserSelect(userStatus.UserId)}
-                  style={{
-                    width: "100%",
-                    padding: "12px 16px",
-                    marginBottom: "8px",
-                    textAlign: "left",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    backgroundColor: selectedUserId === userStatus.UserId ? "#e3f2fd" : "white",
-                    cursor: "pointer",
-                  }}
+                  className="btn-secondary"
+                  onClick={() => setUserSelectModalOpen(false)}
                 >
-                  <div style={{ fontWeight: "bold" }}>{userStatus.UserFullName}</div>
-                  <div style={{ fontSize: "12px", color: "#666" }}>
-                    {userStatus.UserCode} - {getStatusLabel(userStatus.Status)}
-                  </div>
+                  Hủy
                 </button>
-              ))}
-            </div>
-            <div className="modal-actions" style={{ marginTop: "16px" }}>
-              <button
-                className="btn-secondary"
-                onClick={() => setUserSelectModalOpen(false)}
-              >
-                Hủy
-              </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* Notification Modal */}
       <NotificationModal

@@ -343,7 +343,7 @@ const getStoreById = async (req, res) => {
       UserFullName:
         currentUserInfo?.FullName || storeDetails.UserFullName || null,
       UserCode: currentUserInfo?.UserCode || storeDetails.UserCode || null,
-      audits: userAudits, // Only return audits for current user
+      audits: audits, // Return all audits (frontend will filter by selectedUserId)
       assignedUsers: allAssignedUsers,
       userStatuses, // Status for each assigned user
     });
