@@ -63,7 +63,6 @@ export default function StoreEdit() {
     phone: "",
     email: "",
     territoryId: null as number | null,
-    userId: null as number | null,
     rank: null as number | string | null,
     taxCode: "",
     partnerName: "",
@@ -93,7 +92,6 @@ export default function StoreEdit() {
         phone: data.Phone || "",
         email: data.Email || "",
         territoryId: data.TerritoryId,
-        userId: data.UserId,
         rank: data.Rank,
         taxCode: data.TaxCode || "",
         partnerName: data.PartnerName || "",
@@ -174,14 +172,15 @@ export default function StoreEdit() {
           message: res.data.message || "Đã thêm địa bàn thành công",
         });
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error adding territory:", error);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi thêm địa bàn. Vui lòng thử lại.";
       setNotification({
         isOpen: true,
         type: "error",
-        message:
-          error.response?.data?.error ||
-          "Lỗi khi thêm địa bàn. Vui lòng thử lại.",
+        message: errorMessage,
       });
     } finally {
       setAddTerritoryLoading(false);
@@ -207,8 +206,22 @@ export default function StoreEdit() {
     e.preventDefault();
     if (!id) return;
 
+    // Validate assigned users
+    if (assignedUserIds.length === 0) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng chọn ít nhất một user được gán để audit.",
+      });
+      return;
+    }
+
     try {
       setUpdateLoading(true);
+
+      // Auto-set userId to first assigned user (for backward compatibility)
+      const primaryUserId =
+        assignedUserIds.length > 0 ? assignedUserIds[0] : null;
 
       const payload = {
         storeName: formData.storeName,
@@ -216,7 +229,7 @@ export default function StoreEdit() {
         phone: formData.phone || null,
         email: formData.email || null,
         territoryId: formData.territoryId,
-        userId: formData.userId,
+        userId: primaryUserId, // Auto-set from first assigned user
         rank: formData.rank ? parseInt(formData.rank.toString()) : null,
         taxCode: formData.taxCode || null,
         partnerName: formData.partnerName || null,
@@ -273,13 +286,7 @@ export default function StoreEdit() {
     })),
   ];
 
-  const userOptions = [
-    { id: null, name: "Chọn user..." },
-    ...users.map((u) => ({
-      id: u.Id,
-      name: u.FullName,
-    })),
-  ];
+  // No longer need userOptions for single select - using MultiSelect only
 
   const rankOptions = [
     { id: null, name: "Chọn cấp..." },
@@ -421,24 +428,15 @@ export default function StoreEdit() {
               />
             </div>
             <div className="form-group">
-              <label>User phụ trách</label>
-              <Select
-                options={userOptions}
-                value={formData.userId}
-                onChange={(value) =>
-                  setFormData({ ...formData, userId: value as number | null })
-                }
-                placeholder="Chọn user phụ trách"
-                searchable={true}
-              />
-            </div>
-            <div className="form-group">
-              <label>Users được gán để audit (có thể chọn nhiều)</label>
+              <label>
+                Nhân viên được gán để thực thi (có thể chọn nhiều){" "}
+                <span className="required">*</span>
+              </label>
               <MultiSelect
                 options={users.map((u) => ({ id: u.Id, name: u.FullName }))}
                 selected={assignedUserIds}
                 onChange={setAssignedUserIds}
-                placeholder="Chọn users được gán để audit..."
+                placeholder="Chọn Nhân viên được gán để thực thi..."
               />
               <small
                 style={{
@@ -448,7 +446,7 @@ export default function StoreEdit() {
                   display: "block",
                 }}
               >
-                Chỉ các users được gán mới có quyền audit cửa hàng này
+                Chỉ các nhân viên được gán mới có quyền thực thi cửa hàng này
               </small>
             </div>
           </div>

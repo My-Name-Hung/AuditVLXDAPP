@@ -86,7 +86,7 @@ export default function Login() {
           <ul>
             <li>📊 Thống kê theo thời gian thực</li>
             <li>🏪 Quản lý chuỗi cửa hàng & nhà phân phối</li>
-            <li>⤴️ Import/Export dữ liệu chuẩn Excel</li>
+            <li>⤴️ Tải lên/Xuất báo cáo dữ liệu chuẩn Excel</li>
           </ul>
         </div>
       </div>

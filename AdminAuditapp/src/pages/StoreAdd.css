@@ -6,7 +6,21 @@
 .store-add-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   margin-bottom: 1.5rem;
+  gap: 1rem;
+}
+
+.store-add-header > div {
+  flex: 1;
+}
+
+.page-kicker {
+  font-size: 0.875rem;
+  color: #666;
+  margin: 0 0 0.25rem 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 .btn-back {
@@ -183,5 +197,27 @@
   display: flex;
   gap: 1rem;
   justify-content: flex-end;
+}
+
+.btn-add-territory {
+  padding: 0.75rem 1.5rem;
+  background: #0138c3;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  white-space: nowrap;
+}
+
+.btn-add-territory:hover {
+  background: #0129a0;
+}
+
+.btn-add-territory:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 

@@ -41,7 +41,7 @@ class Store {
       request.input("UserId", sql.Int, UserId);
     }
     // Default status is 'not_audited' if not provided
-    request.input("Status", sql.VarChar(20), Status || 'not_audited');
+    request.input("Status", sql.VarChar(20), Status || "not_audited");
     if (Rank !== undefined && Rank !== null) {
       request.input("Rank", sql.Int, Rank);
     }
@@ -55,7 +55,7 @@ class Store {
     let query = `
       INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
     let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Status`;
-    
+
     // Add Latitude and Longitude only if provided
     if (Latitude !== undefined && Latitude !== null) {
       query += `, Latitude`;
@@ -98,20 +98,20 @@ class Store {
     if (createdStore && createdStore.Id) {
       const link = `https://ximang.netlify.app/stores/${createdStore.Id}`;
       const updateRequest = pool.request();
-      updateRequest.input('Id', sql.Int, createdStore.Id);
-      updateRequest.input('Link', sql.NVarChar(500), link);
-      
+      updateRequest.input("Id", sql.Int, createdStore.Id);
+      updateRequest.input("Link", sql.NVarChar(500), link);
+
       await updateRequest.query(`
         UPDATE Stores 
         SET Link = @Link 
         WHERE Id = @Id
       `);
-      
+
       createdStore.Link = link;
 
       // Auto-sync UserId to StoreUsers for backward compatibility
       if (UserId) {
-        const StoreUser = require('./StoreUser');
+        const StoreUser = require("./StoreUser");
         await StoreUser.syncPrimaryUser(createdStore.Id, UserId);
       }
     }
@@ -125,7 +125,25 @@ class Store {
     request.input("Id", sql.Int, id);
 
     const result = await request.query(`
-      SELECT * FROM Stores WHERE Id = @Id
+      SELECT 
+        Id,
+        StoreCode,
+        StoreName,
+        Address,
+        Phone,
+        Email,
+        Latitude,
+        Longitude,
+        TerritoryId,
+        UserId,
+        Status,
+        Rank,
+        TaxCode,
+        PartnerName,
+        Link,
+        CreatedAt,
+        UpdatedAt
+      FROM Stores WHERE Id = @Id
     `);
 
     return result.recordset[0];
@@ -135,7 +153,23 @@ class Store {
     const pool = await getPool();
     let query = `
       SELECT 
-        s.*,
+        s.Id,
+        s.StoreCode,
+        s.StoreName,
+        s.Address,
+        s.Phone,
+        s.Email,
+        s.Latitude,
+        s.Longitude,
+        s.TerritoryId,
+        s.UserId,
+        s.Status,
+        s.Rank,
+        s.TaxCode,
+        s.PartnerName,
+        s.Link,
+        s.CreatedAt,
+        s.UpdatedAt,
         t.TerritoryName,
         u.FullName as UserFullName,
         u.UserCode
@@ -147,42 +181,43 @@ class Store {
     const request = pool.request();
 
     if (filters.Status) {
-      query += ' AND s.Status = @Status';
-      request.input('Status', sql.VarChar(20), filters.Status);
+      query += " AND s.Status = @Status";
+      request.input("Status", sql.VarChar(20), filters.Status);
     }
 
     if (filters.TerritoryId) {
-      query += ' AND s.TerritoryId = @TerritoryId';
-      request.input('TerritoryId', sql.Int, filters.TerritoryId);
+      query += " AND s.TerritoryId = @TerritoryId";
+      request.input("TerritoryId", sql.Int, filters.TerritoryId);
     }
 
     if (filters.UserId) {
-      query += ' AND s.UserId = @UserId';
-      request.input('UserId', sql.Int, filters.UserId);
+      query += " AND s.UserId = @UserId";
+      request.input("UserId", sql.Int, filters.UserId);
     }
 
     if (filters.Rank !== undefined && filters.Rank !== null) {
-      query += ' AND s.Rank = @Rank';
-      request.input('Rank', sql.Int, filters.Rank);
+      query += " AND s.Rank = @Rank";
+      request.input("Rank", sql.Int, filters.Rank);
     }
 
     if (filters.storeName) {
-      query += ' AND (s.StoreName LIKE @StoreName OR s.StoreCode LIKE @StoreName)';
-      request.input('StoreName', sql.NVarChar(200), `%${filters.storeName}%`);
+      query +=
+        " AND (s.StoreName LIKE @StoreName OR s.StoreCode LIKE @StoreName)";
+      request.input("StoreName", sql.NVarChar(200), `%${filters.storeName}%`);
     }
 
     if (filters.userName) {
-      query += ' AND u.FullName LIKE @UserName';
-      request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
+      query += " AND u.FullName LIKE @UserName";
+      request.input("UserName", sql.NVarChar(200), `%${filters.userName}%`);
     }
 
-    query += ' ORDER BY s.StoreCode ASC';
+    query += " ORDER BY s.StoreCode ASC";
 
     // Add pagination
     if (filters.limit !== undefined && filters.offset !== undefined) {
       query += ` OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
-      request.input('Offset', sql.Int, filters.offset);
-      request.input('Limit', sql.Int, filters.limit);
+      request.input("Offset", sql.Int, filters.offset);
+      request.input("Limit", sql.Int, filters.limit);
     }
 
     // Set timeout to 60 seconds
@@ -203,33 +238,34 @@ class Store {
     const request = pool.request();
 
     if (filters.Status) {
-      query += ' AND s.Status = @Status';
-      request.input('Status', sql.VarChar(20), filters.Status);
+      query += " AND s.Status = @Status";
+      request.input("Status", sql.VarChar(20), filters.Status);
     }
 
     if (filters.TerritoryId) {
-      query += ' AND s.TerritoryId = @TerritoryId';
-      request.input('TerritoryId', sql.Int, filters.TerritoryId);
+      query += " AND s.TerritoryId = @TerritoryId";
+      request.input("TerritoryId", sql.Int, filters.TerritoryId);
     }
 
     if (filters.UserId) {
-      query += ' AND s.UserId = @UserId';
-      request.input('UserId', sql.Int, filters.UserId);
+      query += " AND s.UserId = @UserId";
+      request.input("UserId", sql.Int, filters.UserId);
     }
 
     if (filters.Rank !== undefined && filters.Rank !== null) {
-      query += ' AND s.Rank = @Rank';
-      request.input('Rank', sql.Int, filters.Rank);
+      query += " AND s.Rank = @Rank";
+      request.input("Rank", sql.Int, filters.Rank);
     }
 
     if (filters.storeName) {
-      query += ' AND (s.StoreName LIKE @StoreName OR s.StoreCode LIKE @StoreName)';
-      request.input('StoreName', sql.NVarChar(200), `%${filters.storeName}%`);
+      query +=
+        " AND (s.StoreName LIKE @StoreName OR s.StoreCode LIKE @StoreName)";
+      request.input("StoreName", sql.NVarChar(200), `%${filters.storeName}%`);
     }
 
     if (filters.userName) {
-      query += ' AND u.FullName LIKE @UserName';
-      request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
+      query += " AND u.FullName LIKE @UserName";
+      request.input("UserName", sql.NVarChar(200), `%${filters.userName}%`);
     }
 
     // Set timeout to 60 seconds
@@ -241,23 +277,22 @@ class Store {
   static async updateStatus(storeId, status, failedReason = null) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, storeId);
-    request.input('Status', sql.VarChar(20), status);
-    
-    // If status is not 'failed', set FailedReason to NULL
-    // If status is 'failed', set FailedReason to the provided value (can be null if not provided)
-    if (status === 'failed') {
-      request.input('FailedReason', sql.NVarChar(1000), failedReason || null);
-    } else {
-      request.input('FailedReason', sql.NVarChar(1000), null);
-    }
+    request.input("Id", sql.Int, storeId);
+    request.input("Status", sql.VarChar(20), status);
+
+    // Note: FailedReason is stored in Audits table, not Stores table
+    // This method only updates the Status in Stores table
+    // FailedReason should be retrieved from the latest Audit when needed
 
     const result = await request.query(`
       UPDATE Stores 
       SET Status = @Status, 
-          FailedReason = @FailedReason,
           UpdatedAt = GETDATE()
-      OUTPUT INSERTED.*
+      OUTPUT INSERTED.Id, INSERTED.StoreCode, INSERTED.StoreName, INSERTED.Address, 
+             INSERTED.Phone, INSERTED.Email, INSERTED.Latitude, INSERTED.Longitude,
+             INSERTED.TerritoryId, INSERTED.UserId, INSERTED.Status, INSERTED.Rank,
+             INSERTED.TaxCode, INSERTED.PartnerName, INSERTED.Link, 
+             INSERTED.CreatedAt, INSERTED.UpdatedAt
       WHERE Id = @Id
     `);
 
@@ -297,11 +332,11 @@ class Store {
   static async generateStoreCode() {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
       const request = new sql.Request(transaction);
-      
+
       // Use UPDLOCK to prevent concurrent reads
       const result = await request.query(`
         SELECT TOP 1 StoreCode 
@@ -328,11 +363,11 @@ class Store {
   static async generateMultipleStoreCodes(count) {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
       const request = new sql.Request(transaction);
-      
+
       // Use UPDLOCK to prevent concurrent reads
       const result = await request.query(`
         SELECT TOP 1 StoreCode 

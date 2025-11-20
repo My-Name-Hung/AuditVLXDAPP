@@ -137,7 +137,7 @@ export default function ImportExport() {
           "Mã số thuế",
           "Tên đối tác",
           "Địa bàn phụ trách",
-          "User phụ trách (có thể nhiều, phân cách bằng dấu phẩy: User1, User2, User3)",
+          "Nhân viên phụ trách (có thể nhiều, phân cách bằng dấu phẩy: User1, User2, User3)",
           "Ghi chú",
         ];
 
@@ -152,7 +152,7 @@ export default function ImportExport() {
           "Đối tác ABC",
           "TPHCM",
           "U000001, U000002, username3",
-          "Bắt buộc địa bàn phụ trách phải đúng. User phụ trách: có thể nhập 1 hoặc nhiều users phân cách bằng dấu phẩy. User đầu tiên là user chính. Có thể dùng UserCode (U000001), Username (username1) hoặc FullName (Nguyễn Văn A)",
+          "Bắt buộc địa bàn phụ trách phải đúng. Nhân viên phụ trách: có thể nhập 1 hoặc nhiều users phân cách bằng dấu phẩy. User đầu tiên là user chính. Có thể dùng UserCode (U000001), Username (username1) hoặc FullName (Nguyễn Văn A)",
         ];
       } else {
         // Template for users
@@ -292,7 +292,7 @@ export default function ImportExport() {
       setImportProgress(0);
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
-          ?.error || "Lỗi khi import cửa hàng";
+          ?.error || "Lỗi khi tải lên danh sách cửa hàng";
       setNotification({
         isOpen: true,
         type: "error",
@@ -576,7 +576,7 @@ export default function ImportExport() {
       "Email",
       "Trạng thái",
       "Địa bàn phụ trách",
-      "User phụ trách",
+      "Nhân viên phụ trách",
       "Link chi tiết",
       "Latitude",
       "Longitude",
@@ -653,7 +653,7 @@ export default function ImportExport() {
       { width: 25 }, // Email
       { width: 15 }, // Trạng thái
       { width: 25 }, // Địa bàn phụ trách
-      { width: 30 }, // User phụ trách
+      { width: 30 }, // Nhân viên phụ trách
       { width: 20 }, // Link chi tiết
       { width: 15 }, // Latitude
       { width: 15 }, // Longitude
@@ -893,7 +893,7 @@ export default function ImportExport() {
   return (
     <div className="import-export-container">
       <div className="import-export-header">
-        <h1>Import / Export</h1>
+        <h1>Tải lên danh sách</h1>
       </div>
 
       {/* Tabs */}
@@ -902,13 +902,13 @@ export default function ImportExport() {
           className={`tab ${activeTab === "import-stores" ? "active" : ""}`}
           onClick={() => setActiveTab("import-stores")}
         >
-          <HiArrowUpTray /> Import Cửa hàng
+          <HiArrowUpTray /> Tải lên danh sách Cửa hàng
         </button>
         <button
           className={`tab ${activeTab === "import-users" ? "active" : ""}`}
           onClick={() => setActiveTab("import-users")}
         >
-          <HiArrowUpTray /> Import Nhân viên
+          <HiArrowUpTray /> Tải lên danh sách Nhân viên
         </button>
         <button
           className={`tab ${activeTab === "export-reports" ? "active" : ""}`}
@@ -924,13 +924,13 @@ export default function ImportExport() {
         {activeTab === "import-stores" && (
           <div className="import-tab">
             <div className="import-section">
-              <h2>Import Cửa hàng</h2>
+              <h2>Tải lên Cửa hàng</h2>
               <div className="import-actions">
                 <button
                   className="btn-secondary"
                   onClick={() => downloadTemplate("stores")}
                 >
-                  <HiDocumentText /> Tải template Excel
+                  <HiDocumentText /> Tải file mẫu excel
                 </button>
               </div>
 
@@ -952,7 +952,7 @@ export default function ImportExport() {
                     <strong>
                       {storesFile
                         ? storesFile.name
-                        : "Chọn file Excel để import"}
+                        : "Chọn file Excel để tải lên"}
                     </strong>
                     <p>Chỉ chấp nhận file .xlsx, .xls</p>
                   </div>
@@ -962,13 +962,13 @@ export default function ImportExport() {
                   onClick={handleImportStores}
                   disabled={!storesFile || importLoading}
                 >
-                  Bắt đầu import
+                  Bắt đầu tải lên
                 </button>
               </div>
 
               {importResults && importResults.errors.length > 0 && (
                 <div className="import-errors">
-                  <h3>Lỗi import ({importResults.errors.length} dòng)</h3>
+                  <h3>Lỗi tải lên ({importResults.errors.length} dòng)</h3>
                   <div className="errors-table">
                     <table>
                       <thead>
@@ -1002,7 +1002,7 @@ export default function ImportExport() {
                   storesHistory.map((history) => (
                     <div key={history.Id} className="history-item">
                       <div className="history-info">
-                        <strong>Import cửa hàng</strong>
+                        <strong> Tải lên danh sách cửa hàng</strong>
                         <p>
                           {formatDate(history.CreatedAt)} - {history.Total} bản
                           ghi
@@ -1037,7 +1037,7 @@ export default function ImportExport() {
                   className="btn-secondary"
                   onClick={() => downloadTemplate("users")}
                 >
-                  <HiDocumentText /> Tải template Excel
+                  <HiDocumentText /> Tải file mẫu Excel
                 </button>
               </div>
 
@@ -1057,7 +1057,7 @@ export default function ImportExport() {
                   <HiArrowUpTray className="upload-icon" />
                   <div>
                     <strong>
-                      {usersFile ? usersFile.name : "Chọn file Excel để import"}
+                      {usersFile ? usersFile.name : "Chọn file Excel để tải lên"}
                     </strong>
                     <p>Chỉ chấp nhận file .xlsx, .xls</p>
                   </div>
@@ -1099,15 +1099,15 @@ export default function ImportExport() {
             </div>
 
             <div className="history-section">
-              <h2>Lịch sử import</h2>
+              <h2>Lịch sử tải lên</h2>
               <div className="history-list">
                 {usersHistory.length === 0 ? (
-                  <p className="no-history">Chưa có lịch sử import</p>
+                  <p className="no-history">Chưa có lịch sử tải lên</p>
                 ) : (
                   usersHistory.map((history) => (
                     <div key={history.Id} className="history-item">
                       <div className="history-info">
-                        <strong>Import nhân viên</strong>
+                        <strong>Tải lên nhân viên</strong>
                         <p>
                           {formatDate(history.CreatedAt)} - {history.Total} bản
                           ghi

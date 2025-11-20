@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
+import MultiSelect from "../components/MultiSelect";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
 import api from "../services/api";
@@ -40,11 +41,14 @@ export default function StoreAdd() {
     phone: "",
     email: "",
     territoryId: null as number | null,
-    userId: null as number | null,
     rank: null as number | string | null,
     taxCode: "",
     partnerName: "",
   });
+  const [assignedUserIds, setAssignedUserIds] = useState<number[]>([]);
+  const [addTerritoryModalOpen, setAddTerritoryModalOpen] = useState(false);
+  const [newTerritoryName, setNewTerritoryName] = useState("");
+  const [addTerritoryLoading, setAddTerritoryLoading] = useState(false);
 
   useEffect(() => {
     fetchTerritories();
@@ -86,11 +90,11 @@ export default function StoreAdd() {
       return;
     }
 
-    if (!formData.userId) {
+    if (assignedUserIds.length === 0) {
       setNotification({
         isOpen: true,
         type: "error",
-        message: "Vui lòng chọn user phụ trách.",
+        message: "Vui lòng chọn ít nhất một nhân viên được gán để thực thi.",
       });
       return;
     }
@@ -98,13 +102,17 @@ export default function StoreAdd() {
     try {
       setCreateLoading(true);
 
+      // Auto-set userId to first assigned user (for backward compatibility)
+      const primaryUserId =
+        assignedUserIds.length > 0 ? assignedUserIds[0] : null;
+
       const payload = {
         storeName: formData.storeName,
         address: formData.address,
         phone: formData.phone || null,
         email: formData.email || null,
         territoryId: formData.territoryId,
-        userId: formData.userId,
+        userId: primaryUserId, // Auto-set from first assigned user
         rank: formData.rank ? parseInt(formData.rank.toString()) : null,
         taxCode: formData.taxCode || null,
         partnerName: formData.partnerName || null,
@@ -113,8 +121,14 @@ export default function StoreAdd() {
         longitude: null,
       };
 
-      await api.post("/stores", payload);
-      
+      const res = await api.post("/stores", payload);
+      const createdStore = res.data;
+
+      // Assign users to store
+      await api.put(`/stores/${createdStore.Id}/users`, {
+        userIds: assignedUserIds,
+      });
+
       setCreateLoading(false);
       setNotification({
         isOpen: true,
@@ -143,13 +157,13 @@ export default function StoreAdd() {
 
   const handleCancel = () => {
     // Check if form has any data
-    const hasData = 
+    const hasData =
       formData.storeName ||
       formData.address ||
       formData.phone ||
       formData.email ||
       formData.territoryId ||
-      formData.userId ||
+      assignedUserIds.length > 0 ||
       formData.rank ||
       formData.taxCode ||
       formData.partnerName;
@@ -166,6 +180,54 @@ export default function StoreAdd() {
     navigate("/stores");
   };
 
+  const handleAddTerritory = async () => {
+    if (!newTerritoryName.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng nhập tên địa bàn phụ trách.",
+      });
+      return;
+    }
+
+    try {
+      setAddTerritoryLoading(true);
+      const res = await api.post("/territories", {
+        territoryName: newTerritoryName.trim(),
+      });
+      const newTerritory = res.data.data;
+      setTerritories([...territories, newTerritory]);
+
+      // Close modal and reset form
+      setAddTerritoryModalOpen(false);
+      setNewTerritoryName("");
+
+      // Show success notification
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: `Đã thêm địa bàn "${newTerritory.TerritoryName}" thành công.`,
+      });
+    } catch (error: unknown) {
+      console.error("Error adding territory:", error);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi thêm địa bàn. Vui lòng thử lại.";
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: errorMessage,
+      });
+    } finally {
+      setAddTerritoryLoading(false);
+    }
+  };
+
+  const handleCancelAddTerritory = () => {
+    setAddTerritoryModalOpen(false);
+    setNewTerritoryName("");
+  };
+
   const rankOptions = [
     { id: null, name: "Chọn cấp..." },
     { id: 1, name: "Cấp 1" },
@@ -177,13 +239,7 @@ export default function StoreAdd() {
     name: t.TerritoryName,
   }));
 
-  const userOptions = [
-    { id: null, name: "Chọn user..." },
-    ...users.map((u) => ({
-      id: u.Id,
-      name: `${u.FullName} (${u.UserCode})`,
-    })),
-  ];
+  // No longer need userOptions for single select
 
   return (
     <div className="store-add">
@@ -191,11 +247,18 @@ export default function StoreAdd() {
         <button className="btn-back" onClick={handleCancel}>
           <HiArrowLeft /> Quay lại
         </button>
+        <div>
+          <p className="page-kicker">Thêm cửa hàng mới</p>
+        </div>
+        <button
+          className="btn-add-territory"
+          onClick={() => setAddTerritoryModalOpen(true)}
+        >
+          Thêm địa bàn phụ trách
+        </button>
       </div>
 
       <div className="store-add-content">
-        <h2>Thêm cửa hàng mới</h2>
-
         <form onSubmit={handleSubmit} className="store-form">
           <div className="form-section">
             <h3>Thông tin cơ bản</h3>
@@ -308,17 +371,29 @@ export default function StoreAdd() {
               </div>
               <div className="form-group">
                 <label>
-                  User phụ trách <span className="required">*</span>
+                  Users được gán để audit (có thể chọn nhiều){" "}
+                  <span className="required">*</span>
                 </label>
-                <Select
-                  options={userOptions}
-                  value={formData.userId}
-                  onChange={(value) =>
-                    setFormData({ ...formData, userId: value as number | null })
-                  }
-                  placeholder="Chọn user..."
-                  searchable={true}
+                <MultiSelect
+                  options={users.map((u) => ({
+                    id: u.Id,
+                    name: `${u.FullName} (${u.UserCode})`,
+                  }))}
+                  selected={assignedUserIds}
+                  onChange={setAssignedUserIds}
+                  placeholder="Chọn users được gán để audit..."
                 />
+                <small
+                  style={{
+                    color: "#666",
+                    fontSize: "12px",
+                    marginTop: "4px",
+                    display: "block",
+                  }}
+                >
+                  Chỉ các users được gán mới có quyền audit cửa hàng này. User
+                  đầu tiên sẽ được đặt làm user phụ trách chính.
+                </small>
               </div>
             </div>
           </div>
@@ -346,9 +421,7 @@ export default function StoreAdd() {
         >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Xác nhận hủy</h3>
-            <p>
-              Bạn có chắc chắn muốn hủy? Tất cả thay đổi sẽ không được lưu.
-            </p>
+            <p>Bạn có chắc chắn muốn hủy? Tất cả thay đổi sẽ không được lưu.</p>
             <div className="modal-actions">
               <button
                 className="btn-secondary"
@@ -371,6 +444,44 @@ export default function StoreAdd() {
         progress={0}
       />
 
+      {/* Add Territory Modal */}
+      {addTerritoryModalOpen && (
+        <div className="modal-overlay" onClick={handleCancelAddTerritory}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <h3>Thêm địa bàn phụ trách</h3>
+            <div className="form-group" style={{ marginTop: "20px" }}>
+              <label>
+                Tên địa bàn phụ trách <span className="required">*</span>
+              </label>
+              <input
+                type="text"
+                value={newTerritoryName}
+                onChange={(e) => setNewTerritoryName(e.target.value)}
+                className="form-input"
+                placeholder="Nhập tên địa bàn phụ trách"
+                autoFocus
+              />
+            </div>
+            <div className="modal-actions">
+              <button
+                className="btn-secondary"
+                onClick={handleCancelAddTerritory}
+                disabled={addTerritoryLoading}
+              >
+                Hủy
+              </button>
+              <button
+                className="btn-primary"
+                onClick={handleAddTerritory}
+                disabled={addTerritoryLoading}
+              >
+                {addTerritoryLoading ? "Đang thêm..." : "Thêm"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Notification Modal */}
       <NotificationModal
         isOpen={notification.isOpen}
@@ -382,4 +493,3 @@ export default function StoreAdd() {
     </div>
   );
 }
-

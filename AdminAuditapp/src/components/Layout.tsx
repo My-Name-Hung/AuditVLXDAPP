@@ -5,10 +5,10 @@ import { useAuth } from "../contexts/AuthContext";
 import "./Layout.css";
 
 const navItems = [
-  { path: "/", label: "Dashboard", icon: HiHome },
+  { path: "/", label: "Tổng quan", icon: HiHome },
   { path: "/stores", label: "Danh sách cửa hàng", icon: HiOfficeBuilding },
   { path: "/users", label: "Danh sách nhân viên", icon: HiUsers },
-  { path: "/import-export", label: "Import/Export", icon: HiArrowUpOnSquare },
+  { path: "/import-export", label: "Tải lên danh sách", icon: HiArrowUpOnSquare },
 ];
 
 export default function Layout() {
