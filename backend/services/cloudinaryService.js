@@ -1,23 +1,5 @@
 const cloudinary = require("../config/cloudinary");
 const { getProvinceDistrict } = require("./geocodingService");
-const { Readable } = require("stream");
-
-function streamUpload(buffer, options) {
-  return new Promise((resolve, reject) => {
-    const uploadStream = cloudinary.uploader.upload_stream(
-      options,
-      (error, result) => {
-        if (error) {
-          reject(error);
-        } else {
-          resolve(result);
-        }
-      }
-    );
-
-    Readable.from(buffer).pipe(uploadStream);
-  });
-}
 
 /**
  * Upload image to Cloudinary with watermark containing lat/lon/time
@@ -64,9 +46,14 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
   const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}\n${locationText}`;
 
   try {
+    // Convert buffer to base64
+    const base64Image = `data:image/jpeg;base64,${imageBuffer.toString(
+      "base64"
+    )}`;
+
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
-    const uploadResult = await streamUpload(imageBuffer, {
+    const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
       eager: [
         {
@@ -83,8 +70,6 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
         },
       ],
       eager_async: false, // Wait for transformation to complete
-      resource_type: "image",
-      format: "jpg",
     });
 
     // Return the URL with watermark (use eager transformation URL if available)
@@ -160,8 +145,6 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
         },
       ],
       eager_async: false, // Wait for transformation to complete
-      resource_type: "image",
-      format: "jpg",
     });
 
     // Return the URL with watermark (use eager transformation URL if available)
