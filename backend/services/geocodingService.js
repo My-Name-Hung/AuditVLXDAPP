@@ -5,6 +5,7 @@ const REQUEST_INTERVAL_MS = 1000; // Respect Nominatim rate limit (~1 req/sec)
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const CACHE_VERSION = "v2";
 const cache = new Map();
+const pendingRequests = new Map();
 let lastRequestTime = 0;
 
 const userAgent =
@@ -51,83 +52,98 @@ async function getProvinceDistrict(lat, lon) {
     return cached;
   }
 
-  try {
-    await rateLimit();
-    const params = new URLSearchParams({
-      format: "jsonv2",
-      lat: lat.toString(),
-      lon: lon.toString(),
-      zoom: "12",
-      addressdetails: "1",
-    });
-
-    const response = await fetch(`${NOMINATIM_ENDPOINT}?${params.toString()}`, {
-      headers: {
-        "User-Agent": userAgent,
-        "Accept-Language": "vi,en",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Nominatim error: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    const address = data.address || {};
-
-    const pickField = (fields, exclude) => {
-      for (const field of fields) {
-        const value = address[field];
-        if (value && value !== exclude) {
-          return value;
-        }
-      }
-      return null;
-    };
-
-    const province =
-      pickField(
-        [
-          "state",
-          "region",
-          "province",
-          "state_district",
-          "county",
-          "city",
-          "municipality",
-        ],
-        null
-      ) || null;
-
-    const district =
-      pickField(
-        [
-          "district",
-          "city_district",
-          "borough",
-          "county",
-          "municipality",
-          "town",
-          "city",
-          "suburb",
-          "village",
-        ],
-        province
-      ) || null;
-
-    const normalized = {
-      province: province || null,
-      district: district || null,
-    };
-
-    setCachedLocation(lat, lon, normalized);
-    return normalized;
-  } catch (error) {
-    console.error("Reverse geocoding error:", error.message || error);
-    return { province: null, district: null };
+  const key = getCacheKey(lat, lon);
+  if (pendingRequests.has(key)) {
+    return pendingRequests.get(key);
   }
+
+  const requestPromise = (async () => {
+    try {
+      await rateLimit();
+      const params = new URLSearchParams({
+        format: "jsonv2",
+        lat: lat.toString(),
+        lon: lon.toString(),
+        zoom: "12",
+        addressdetails: "1",
+      });
+
+      const response = await fetch(
+        `${NOMINATIM_ENDPOINT}?${params.toString()}`,
+        {
+          headers: {
+            "User-Agent": userAgent,
+            "Accept-Language": "vi,en",
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(
+          `Nominatim error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      const address = data.address || {};
+
+      const pickField = (fields, exclude) => {
+        for (const field of fields) {
+          const value = address[field];
+          if (value && value !== exclude) {
+            return value;
+          }
+        }
+        return null;
+      };
+
+      const province =
+        pickField(
+          [
+            "state",
+            "region",
+            "province",
+            "state_district",
+            "county",
+            "city",
+            "municipality",
+          ],
+          null
+        ) || null;
+
+      const district =
+        pickField(
+          [
+            "district",
+            "city_district",
+            "borough",
+            "county",
+            "municipality",
+            "town",
+            "city",
+            "suburb",
+            "village",
+          ],
+          province
+        ) || null;
+
+      const normalized = {
+        province: province || null,
+        district: district || null,
+      };
+
+      setCachedLocation(lat, lon, normalized);
+      return normalized;
+    } catch (error) {
+      console.error("Reverse geocoding error:", error.message || error);
+      return { province: null, district: null };
+    } finally {
+      pendingRequests.delete(key);
+    }
+  })();
+
+  pendingRequests.set(key, requestPromise);
+  return requestPromise;
 }
 
 module.exports = {
