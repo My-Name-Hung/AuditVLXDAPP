@@ -371,7 +371,7 @@ export default function StoreAdd() {
               </div>
               <div className="form-group">
                 <label>
-                  Users được gán để audit (có thể chọn nhiều){" "}
+                  Nhân viên được gán để thực thi (có thể chọn nhiều){" "}
                   <span className="required">*</span>
                 </label>
                 <MultiSelect
@@ -381,9 +381,11 @@ export default function StoreAdd() {
                   }))}
                   selected={assignedUserIds}
                   onChange={setAssignedUserIds}
-                  placeholder="Chọn users được gán để audit..."
+                  placeholder="Chọn nhân viên được gán để thực thi..."
                   itemLabel="nhân viên"
                   searchPlaceholder="Tìm kiếm nhân viên..."
+                  enableSelectAll={true}
+                  selectAllLabel="Chọn tất cả nhân viên"
                 />
                 <small
                   style={{
@@ -393,8 +395,8 @@ export default function StoreAdd() {
                     display: "block",
                   }}
                 >
-                  Chỉ các users được gán mới có quyền audit cửa hàng này. User
-                  đầu tiên sẽ được đặt làm user phụ trách chính.
+                  Chỉ các nhân viên được gán mới có quyền thực thi cửa hàng này.
+                  Nhân viên đầu tiên sẽ được đặt làm nhân viên phụ trách chính.
                 </small>
               </div>
             </div>

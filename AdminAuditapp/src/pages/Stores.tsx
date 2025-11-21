@@ -726,8 +726,10 @@ export default function Stores() {
       : []),
   ];
 
+  const showInitialLoading =
+    loading && stores.length === 0 && !hasFetchedRef.current;
   const showSkeleton =
-    (loading && stores.length === 0) || (isFiltering && stores.length === 0);
+    showInitialLoading || (isFiltering && stores.length === 0);
 
   return (
     <div className="stores-page">
@@ -875,7 +877,16 @@ export default function Stores() {
             </tr>
           </thead>
           <tbody>
-            {showSkeleton ? (
+            {showInitialLoading ? (
+              <>
+                <tr>
+                  <td colSpan={8} className="no-data-cell">
+                    Đang cập nhật dữ liệu...
+                  </td>
+                </tr>
+                <StoreSkeletonList count={Math.min(pageSize, 8)} />
+              </>
+            ) : isFiltering && stores.length === 0 ? (
               <StoreSkeletonList count={Math.min(pageSize, 8)} />
             ) : stores.length === 0 ? (
               <tr>

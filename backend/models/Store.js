@@ -96,7 +96,7 @@ class Store {
 
     // Auto-generate and update Link after store is created
     if (createdStore && createdStore.Id) {
-      const link = `https://ximang.netlify.app/stores/${createdStore.Id}`;
+      const link = `https://quanlythuongvu.ximangtaydo.vn/stores/${createdStore.Id}`;
       const updateRequest = pool.request();
       updateRequest.input("Id", sql.Int, createdStore.Id);
       updateRequest.input("Link", sql.NVarChar(500), link);

@@ -211,7 +211,7 @@ export default function StoreEdit() {
       setNotification({
         isOpen: true,
         type: "error",
-        message: "Vui lòng chọn ít nhất một user được gán để audit.",
+        message: "Vui lòng chọn ít nhất một nhân viên được gán để thực thi.",
       });
       return;
     }
@@ -439,6 +439,8 @@ export default function StoreEdit() {
                 placeholder="Chọn Nhân viên được gán để thực thi..."
                 itemLabel="nhân viên"
                 searchPlaceholder="Tìm kiếm nhân viên..."
+                enableSelectAll={true}
+                selectAllLabel="Chọn tất cả nhân viên"
               />
               <small
                 style={{

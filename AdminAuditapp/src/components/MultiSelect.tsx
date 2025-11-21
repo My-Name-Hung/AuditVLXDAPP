@@ -13,15 +13,19 @@ interface MultiSelectProps {
   placeholder?: string;
   itemLabel?: string; // Label for items (e.g., "nhân viên", "địa bàn")
   searchPlaceholder?: string; // Placeholder for search input
+  enableSelectAll?: boolean;
+  selectAllLabel?: string;
 }
 
-export default function MultiSelect({ 
-  options, 
-  selected, 
-  onChange, 
-  placeholder = 'Chọn địa bàn...',
-  itemLabel = 'địa bàn',
-  searchPlaceholder = 'Tìm kiếm địa bàn...'
+export default function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Chọn địa bàn...",
+  itemLabel = "địa bàn",
+  searchPlaceholder = "Tìm kiếm địa bàn...",
+  enableSelectAll = false,
+  selectAllLabel = "Chọn tất cả",
 }: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -48,6 +52,16 @@ export default function MultiSelect({
       onChange(selected.filter(s => s !== id));
     } else {
       onChange([...selected, id]);
+    }
+  };
+
+  const allSelected = options.length > 0 && selected.length === options.length;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      onChange([]);
+    } else {
+      onChange(options.map((option) => option.id));
     }
   };
 
@@ -82,6 +96,19 @@ export default function MultiSelect({
               onClick={(e) => e.stopPropagation()}
             />
           </div>
+          {enableSelectAll && options.length > 0 && (
+            <label
+              className="multi-select__option multi-select__select-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+              />
+              <span>{selectAllLabel}</span>
+            </label>
+          )}
           <div className="multi-select__options">
             {filteredOptions.length === 0 ? (
               <div className="multi-select__no-results">Không tìm thấy kết quả</div>

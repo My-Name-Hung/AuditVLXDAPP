@@ -361,20 +361,20 @@ export default function Dashboard() {
         const userDetails = data.details[detailKey] || [];
 
         userDetails.forEach((detail) => {
-          const checkinDate = new Date(detail.CheckinDate);
-          const checkinTime = detail.CheckinTime
-            ? new Date(detail.CheckinTime)
-            : null;
+        const checkinDate = new Date(detail.CheckinDate);
+        const checkinTime = detail.CheckinTime
+          ? new Date(detail.CheckinTime)
+          : null;
 
-          detailSheet.addRow([
-            checkinDate.toLocaleDateString("vi-VN"),
+        detailSheet.addRow([
+          checkinDate.toLocaleDateString("vi-VN"),
             ++rowIndex,
-            detail.StoreName,
+          detail.StoreName,
             detail.TerritoryName || territoryName || "",
-            detail.Address || "",
-            checkinTime ? checkinTime.toLocaleTimeString("vi-VN") : "",
-            detail.Notes || "",
-          ]);
+          detail.Address || "",
+          checkinTime ? checkinTime.toLocaleTimeString("vi-VN") : "",
+          detail.Notes || "",
+        ]);
         });
       });
 
