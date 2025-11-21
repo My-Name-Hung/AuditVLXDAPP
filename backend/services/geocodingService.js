@@ -3,6 +3,7 @@ const fetch = require("node-fetch");
 const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
 const REQUEST_INTERVAL_MS = 1000; // Respect Nominatim rate limit (~1 req/sec)
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
+const CACHE_VERSION = "v2";
 const cache = new Map();
 let lastRequestTime = 0;
 
@@ -22,8 +23,12 @@ async function rateLimit() {
   lastRequestTime = Date.now();
 }
 
+function getCacheKey(lat, lon) {
+  return `${CACHE_VERSION}|${roundCoordinate(lat)}|${roundCoordinate(lon)}`;
+}
+
 function getCachedLocation(lat, lon) {
-  const key = `${roundCoordinate(lat)}|${roundCoordinate(lon)}`;
+  const key = getCacheKey(lat, lon);
   const cached = cache.get(key);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
     return cached.data;
@@ -32,7 +37,7 @@ function getCachedLocation(lat, lon) {
 }
 
 function setCachedLocation(lat, lon, data) {
-  const key = `${roundCoordinate(lat)}|${roundCoordinate(lon)}`;
+  const key = getCacheKey(lat, lon);
   cache.set(key, { timestamp: Date.now(), data });
 }
 
