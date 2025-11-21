@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
+import { StoreSkeletonList } from "../components/StoreSkeleton";
 import api from "../services/api";
 import "./Stores.css";
 
@@ -71,6 +72,7 @@ export default function Stores() {
   const location = useLocation();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [storeNameFilter, setStoreNameFilter] = useState("");
   const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
@@ -113,6 +115,7 @@ export default function Stores() {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFilterChangingRef = useRef(false);
   const previousStoreNameFilterRef = useRef<string>("");
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     fetchTerritories();
@@ -145,7 +148,7 @@ export default function Stores() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
-  // Debounce store name filter
+  // Debounce store name filter - improved with 800ms delay and search state
   useEffect(() => {
     // Skip if filter hasn't actually changed (e.g., on initial mount)
     if (storeNameFilter === previousStoreNameFilterRef.current) {
@@ -157,33 +160,39 @@ export default function Stores() {
 
     isFilterChangingRef.current = true;
 
+    // Cancel previous debounce timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
+    // Abort previous request if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     // Reset page to 1 when store name filter changes
-    // But don't let the page useEffect trigger fetchStores
     setPage(1);
 
-    // If filter is empty, fetch immediately
+    // If filter is empty, fetch immediately without showing search skeleton
     if (!storeNameFilter.trim()) {
-      // Wait a bit to ensure page state is updated
       setTimeout(() => {
         fetchStores();
       }, 50);
       return;
     }
 
-    // Use debounce for filter input
+    // Show searching state immediately when user types
+    setIsSearching(true);
+
+    // Use debounce for filter input - 800ms delay
     debounceTimerRef.current = setTimeout(() => {
       fetchStores();
-    }, 300);
+    }, 800);
 
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      // Don't reset isFilterChangingRef here to prevent race condition
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeNameFilter]);
@@ -334,6 +343,7 @@ export default function Stores() {
       }, 100);
     } finally {
       setLoading(false);
+      setIsSearching(false);
     }
   }, [
     page,
@@ -841,85 +851,88 @@ export default function Stores() {
             </tr>
           </thead>
           <tbody>
-            {stores.length === 0 ? (
+            {stores.length === 0 && !isSearching ? (
               <tr>
                 <td colSpan={8} className="no-data-cell">
                   Không có dữ liệu
                 </td>
               </tr>
             ) : (
-              stores.map((store) => (
-                <tr key={store.Id}>
-                  <td>
-                    <strong>{store.StoreCode}</strong>
-                  </td>
-                  <td>{store.StoreName}</td>
-                  <td>{getRankLabel(store.Rank)}</td>
-                  <td>{store.Address || "-"}</td>
-                  <td>{store.PartnerName || "-"}</td>
-                  <td>{store.Phone || "-"}</td>
-                  <td className="status-col">
-                    {store.userStatuses && store.userStatuses.length > 1 ? (
-                      formatStatusWithUsers(store)
-                    ) : (
-                      <span className={`status-badge status-${store.Status}`}>
-                        {formatStatusWithUsers(store) as string}
-                      </span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="action-buttons">
-                      {(() => {
-                        // Show view button if:
-                        // 1. Single user and status is not "not_audited"
-                        // 2. Multiple users and at least one has status not "not_audited"
-                        if (
-                          store.userStatuses &&
-                          store.userStatuses.length > 1
-                        ) {
-                          const hasAuditedUser = store.userStatuses.some(
-                            (us) => us.Status !== "not_audited"
-                          );
-                          return hasAuditedUser ? (
-                            <button
-                              className="btn-action btn-view"
-                              onClick={() => handleViewStore(store.Id)}
-                              title="Xem chi tiết"
-                            >
-                              <HiEye />
-                            </button>
-                          ) : null;
-                        } else {
-                          // Single user or no userStatuses
-                          return store.Status !== "not_audited" ? (
-                            <button
-                              className="btn-action btn-view"
-                              onClick={() => handleViewStore(store.Id)}
-                              title="Xem chi tiết"
-                            >
-                              <HiEye />
-                            </button>
-                          ) : null;
-                        }
-                      })()}
-                      <button
-                        className="btn-action btn-edit"
-                        onClick={() => handleEditStore(store.Id)}
-                        title="Chỉnh sửa"
-                      >
-                        <HiPencil />
-                      </button>
-                      <button
-                        className="btn-action btn-delete"
-                        onClick={() => handleDeleteClick(store)}
-                        title="Xóa"
-                      >
-                        <HiTrash />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              <>
+                {isSearching && <StoreSkeletonList count={5} />}
+                {stores.map((store) => (
+                  <tr key={store.Id}>
+                    <td>
+                      <strong>{store.StoreCode}</strong>
+                    </td>
+                    <td>{store.StoreName}</td>
+                    <td>{getRankLabel(store.Rank)}</td>
+                    <td>{store.Address || "-"}</td>
+                    <td>{store.PartnerName || "-"}</td>
+                    <td>{store.Phone || "-"}</td>
+                    <td className="status-col">
+                      {store.userStatuses && store.userStatuses.length > 1 ? (
+                        formatStatusWithUsers(store)
+                      ) : (
+                        <span className={`status-badge status-${store.Status}`}>
+                          {formatStatusWithUsers(store) as string}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <div className="action-buttons">
+                        {(() => {
+                          // Show view button if:
+                          // 1. Single user and status is not "not_audited"
+                          // 2. Multiple users and at least one has status not "not_audited"
+                          if (
+                            store.userStatuses &&
+                            store.userStatuses.length > 1
+                          ) {
+                            const hasAuditedUser = store.userStatuses.some(
+                              (us) => us.Status !== "not_audited"
+                            );
+                            return hasAuditedUser ? (
+                              <button
+                                className="btn-action btn-view"
+                                onClick={() => handleViewStore(store.Id)}
+                                title="Xem chi tiết"
+                              >
+                                <HiEye />
+                              </button>
+                            ) : null;
+                          } else {
+                            // Single user or no userStatuses
+                            return store.Status !== "not_audited" ? (
+                              <button
+                                className="btn-action btn-view"
+                                onClick={() => handleViewStore(store.Id)}
+                                title="Xem chi tiết"
+                              >
+                                <HiEye />
+                              </button>
+                            ) : null;
+                          }
+                        })()}
+                        <button
+                          className="btn-action btn-edit"
+                          onClick={() => handleEditStore(store.Id)}
+                          title="Chỉnh sửa"
+                        >
+                          <HiPencil />
+                        </button>
+                        <button
+                          className="btn-action btn-delete"
+                          onClick={() => handleDeleteClick(store)}
+                          title="Xóa"
+                        >
+                          <HiTrash />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </>
             )}
           </tbody>
         </table>

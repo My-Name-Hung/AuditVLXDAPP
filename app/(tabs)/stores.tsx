@@ -84,6 +84,7 @@ export default function StoresScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Filters
   const [searchText, setSearchText] = useState("");
@@ -98,7 +99,7 @@ export default function StoresScreen() {
     {
       title: "Tìm kiếm nhanh",
       description:
-        "Sử dụng ô tìm kiếm để lọc theo mã hoặc tên cửa hàng. Kết quả cập nhật sau 0.5 giây để tối ưu hiệu suất.",
+        "Sử dụng ô tìm kiếm để lọc theo mã hoặc tên cửa hàng. Kết quả sẽ cập nhật sau khi bạn dừng nhập khoảng 0.8 giây để tối ưu hiệu suất.",
     },
     {
       title: "Bộ lọc nâng cao",
@@ -127,15 +128,19 @@ export default function StoresScreen() {
   }, []);
 
   useEffect(() => {
-    // Debounce search
+    // Debounce search and show searching state
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
+    }
+
+    if (searchText.trim() || selectedTerritory || selectedStatus) {
+      setIsSearching(true);
     }
 
     searchTimeoutRef.current = setTimeout(() => {
       setPage(1);
       fetchStores(true);
-    }, 500);
+    }, 800);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -202,6 +207,7 @@ export default function StoresScreen() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      setIsSearching(false);
     }
   };
 
@@ -538,6 +544,27 @@ export default function StoresScreen() {
           onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          ListHeaderComponent={
+            isSearching ? (
+              <View style={styles.skeletonContainer}>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.storeCard,
+                      styles.skeletonCard,
+                      { borderColor: colors.icon + "10" },
+                    ]}
+                  >
+                    <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+                    <View style={[styles.skeletonLine, styles.skeletonCode]} />
+                    <View style={[styles.skeletonLine, styles.skeletonAddress]} />
+                    <View style={[styles.skeletonLine, styles.skeletonContact]} />
+                  </View>
+                ))}
+              </View>
+            ) : null
           }
           ListFooterComponent={
             loading && stores.length > 0 ? (

@@ -80,6 +80,7 @@ export default function Stores() {
   const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [territorySearch, setTerritorySearch] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
 
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -93,10 +94,15 @@ export default function Stores() {
       clearTimeout(searchTimeoutRef.current);
     }
 
+    // Bật trạng thái đang tìm kiếm để hiển thị skeleton
+    if (searchText.trim() || selectedTerritory || selectedStatus) {
+      setIsSearching(true);
+    }
+
     searchTimeoutRef.current = setTimeout(() => {
       setPage(1);
       fetchStores(true);
-    }, 500);
+    }, 800);
 
     return () => {
       if (searchTimeoutRef.current) {
@@ -154,6 +160,7 @@ export default function Stores() {
       console.error('Error fetching stores:', error);
     } finally {
       setLoading(false);
+      setIsSearching(false);
     }
   };
 
@@ -353,6 +360,18 @@ export default function Stores() {
           </div>
         ) : (
           <div className="stores-list">
+            {isSearching && (
+              <div className="stores-skeleton-list">
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <div key={index} className="stores-store-card stores-store-card-skeleton">
+                    <div className="skeleton-line skeleton-line-title" />
+                    <div className="skeleton-line skeleton-line-code" />
+                    <div className="skeleton-line skeleton-line-address" />
+                    <div className="skeleton-line skeleton-line-contact" />
+                  </div>
+                ))}
+              </div>
+            )}
             {stores.map((item) => (
               <div
                 key={item.Id}

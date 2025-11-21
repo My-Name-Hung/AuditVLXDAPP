@@ -1,6 +1,7 @@
 const Store = require("../models/Store");
 const Audit = require("../models/Audit");
 const { resetStoreAuditById } = require("../utils/auditReset");
+const { getPool, sql } = require("../config/database");
 
 const getAllStores = async (req, res) => {
   try {
@@ -41,88 +42,59 @@ const getAllStores = async (req, res) => {
     // Get current user ID from token
     const currentUserId = req.user?.id || req.user?.userId;
 
-    // Get status for all assigned users for each store
-    const { getPool, sql } = require("../config/database");
+    if (stores.length === 0) {
+      return res.json({
+        data: [],
+        pagination: {
+          page: currentPage,
+          pageSize: limit,
+          total: 0,
+          totalPages: 0,
+        },
+      });
+    }
+
     const pool = await getPool();
-    const StoreUser = require("../models/StoreUser");
 
-    for (let store of stores) {
-      // Get all assigned users for this store
-      const assignedUsers = await StoreUser.getUsersByStoreId(store.Id);
-      
-      // If no assigned users, check primary user (backward compatibility)
+    const storeIds = stores.map((store) => store.Id);
+    const storeUsersMap = await getStoreUsersMap(pool, storeIds);
+    const primaryUsersMap = await getPrimaryUsersMap(pool, stores);
+    const latestAuditMap = await getLatestAuditMap(pool, storeIds);
+
+    for (const store of stores) {
+      let assignedUsers = storeUsersMap.get(store.Id) || [];
+
       if (assignedUsers.length === 0 && store.UserId) {
-        // Get primary user info
-        const userRequest = pool.request();
-        userRequest.input("UserId", sql.Int, store.UserId);
-        const userResult = await userRequest.query(`
-          SELECT Id, FullName, UserCode
-          FROM Users
-          WHERE Id = @UserId
-        `);
-        
-        if (userResult.recordset.length > 0) {
-          assignedUsers.push({
-            UserId: userResult.recordset[0].Id,
-            FullName: userResult.recordset[0].FullName,
-            UserCode: userResult.recordset[0].UserCode,
-          });
+        const fallbackUser = primaryUsersMap.get(store.UserId);
+        if (fallbackUser) {
+          assignedUsers = [fallbackUser];
         }
       }
 
-      // Get status for each assigned user
-      const userStatuses = [];
-      for (const assignedUser of assignedUsers) {
-        const auditRequest = pool.request();
-        auditRequest.input("StoreId", sql.Int, store.Id);
-        auditRequest.input("UserId", sql.Int, assignedUser.UserId);
-
-        const auditResult = await auditRequest.query(`
-          SELECT TOP 1 
-            Result,
-            FailedReason,
-            AuditDate
-          FROM Audits
-          WHERE StoreId = @StoreId AND UserId = @UserId
-          ORDER BY AuditDate DESC, CreatedAt DESC
-        `);
-
-        let userStatus = "not_audited";
-        if (auditResult.recordset.length > 0) {
-          const latestAudit = auditResult.recordset[0];
-          if (latestAudit.Result === "pass") {
-            userStatus = "passed";
-          } else if (latestAudit.Result === "fail") {
-            userStatus = "failed";
-          } else if (latestAudit.Result === "audited") {
-            userStatus = "audited";
-          }
-        }
-
-        userStatuses.push({
+      const userStatuses = assignedUsers.map((assignedUser) => {
+        const latestAuditResult =
+          latestAuditMap.get(`${store.Id}-${assignedUser.UserId}`) || null;
+        return {
           UserId: assignedUser.UserId,
-          UserFullName: assignedUser.FullName,
+          UserFullName: assignedUser.UserFullName,
           UserCode: assignedUser.UserCode,
-          Status: userStatus,
-        });
-      }
+          Status: mapAuditResultToStatus(latestAuditResult),
+        };
+      });
 
-      // Store user statuses array
       store.userStatuses = userStatuses;
 
-      // For backward compatibility: if currentUserId is provided, set store.Status to current user's status
       if (currentUserId) {
         const currentUserStatus = userStatuses.find(
           (us) => us.UserId === currentUserId
         );
-        if (currentUserStatus) {
-          store.Status = currentUserStatus.Status;
-        } else {
-          store.Status = "not_audited";
-        }
-      } else {
-        // If no currentUserId, use the first user's status or default
-        store.Status = userStatuses.length > 0 ? userStatuses[0].Status : "not_audited";
+        store.Status = currentUserStatus
+          ? currentUserStatus.Status
+          : "not_audited";
+      } else if (userStatuses.length > 0) {
+        store.Status = userStatuses[0].Status;
+      } else if (!store.Status) {
+        store.Status = "not_audited";
       }
     }
 
@@ -139,6 +111,127 @@ const getAllStores = async (req, res) => {
     console.error("Get all stores error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
+};
+
+const mapAuditResultToStatus = (result) => {
+  if (!result) return "not_audited";
+  if (result === "pass") return "passed";
+  if (result === "fail") return "failed";
+  if (result === "audited") return "audited";
+  return "not_audited";
+};
+
+const buildInClause = (items, prefix, request) => {
+  return items
+    .map((item, index) => {
+      const paramName = `${prefix}${index}`;
+      request.input(paramName, sql.Int, item);
+      return `@${paramName}`;
+    })
+    .join(", ");
+};
+
+const getStoreUsersMap = async (pool, storeIds) => {
+  const map = new Map();
+  if (storeIds.length === 0) {
+    return map;
+  }
+
+  const usersRequest = pool.request();
+  const inClause = buildInClause(storeIds, "StoreId", usersRequest);
+
+  const result = await usersRequest.query(`
+    SELECT 
+      su.StoreId,
+      u.Id as UserId,
+      u.FullName as UserFullName,
+      u.UserCode
+    FROM StoreUsers su
+    INNER JOIN Users u ON su.UserId = u.Id
+    WHERE su.StoreId IN (${inClause})
+    ORDER BY su.StoreId, su.CreatedAt ASC
+  `);
+
+  result.recordset.forEach((row) => {
+    if (!map.has(row.StoreId)) {
+      map.set(row.StoreId, []);
+    }
+    map.get(row.StoreId).push({
+      UserId: row.UserId,
+      UserFullName: row.UserFullName,
+      UserCode: row.UserCode,
+    });
+  });
+
+  return map;
+};
+
+const getPrimaryUsersMap = async (pool, stores) => {
+  const map = new Map();
+  const primaryUserIds = [
+    ...new Set(
+      stores
+        .filter((store) => !!store.UserId)
+        .map((store) => parseInt(store.UserId, 10))
+    ),
+  ];
+
+  if (primaryUserIds.length === 0) {
+    return map;
+  }
+
+  const usersRequest = pool.request();
+  const inClause = buildInClause(primaryUserIds, "PrimaryUserId", usersRequest);
+
+  const result = await usersRequest.query(`
+    SELECT Id, FullName, UserCode
+    FROM Users
+    WHERE Id IN (${inClause})
+  `);
+
+  result.recordset.forEach((row) => {
+    map.set(row.Id, {
+      UserId: row.Id,
+      UserFullName: row.FullName,
+      UserCode: row.UserCode,
+    });
+  });
+
+  return map;
+};
+
+const getLatestAuditMap = async (pool, storeIds) => {
+  const map = new Map();
+  if (storeIds.length === 0) {
+    return map;
+  }
+
+  const auditRequest = pool.request();
+  const inClause = buildInClause(storeIds, "AuditStoreId", auditRequest);
+
+  const result = await auditRequest.query(`
+    WITH RankedAudits AS (
+      SELECT 
+        StoreId,
+        UserId,
+        Result,
+        ROW_NUMBER() OVER (
+          PARTITION BY StoreId, UserId
+          ORDER BY AuditDate DESC, CreatedAt DESC
+        ) AS RowNum
+      FROM Audits
+      WHERE StoreId IN (${inClause})
+    )
+    SELECT StoreId, UserId, Result
+    FROM RankedAudits
+    WHERE RowNum = 1
+  `);
+
+  result.recordset.forEach((row) => {
+    map.set(`${row.StoreId}-${row.UserId}`, row.Result);
+  });
+
+  return map;
 };
 
 const getStoreById = async (req, res) => {
