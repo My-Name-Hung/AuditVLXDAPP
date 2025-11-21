@@ -122,6 +122,7 @@ async function getUserDetail(req, res) {
         a.Id as AuditId,
         s.StoreName,
         s.Address,
+        s.TerritoryName,
         MIN(img.CapturedAt) as CheckinTime,
         a.Notes
       FROM Audits a
@@ -155,7 +156,12 @@ async function getUserDetail(req, res) {
     }
 
     query += `
-      GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.StoreName, s.Address, a.Notes
+      GROUP BY CAST(a.AuditDate AS DATE),
+               a.Id,
+               s.StoreName,
+               s.Address,
+               s.TerritoryName,
+               a.Notes
       ORDER BY CheckinDate DESC, CheckinTime DESC
     `;
 

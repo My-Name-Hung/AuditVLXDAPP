@@ -9,6 +9,7 @@ interface UserDetailItem {
   AuditId: number;
   StoreName: string;
   Address: string;
+  TerritoryName: string | null;
   CheckinTime: string;
   Notes: string;
 }
@@ -164,11 +165,6 @@ export default function UserDetail() {
         <div>
           <p className="page-kicker">Chi tiết</p>
           <h2>{userInfo?.FullName || "Chi tiết checkin"}</h2>
-          {territoryName && (
-            <p className="user-detail-territory">
-              Địa bàn phụ trách: <strong>{territoryName}</strong>
-            </p>
-          )}
         </div>
       </div>
 
@@ -237,6 +233,7 @@ export default function UserDetail() {
               <th>Ngày</th>
               <th>STT</th>
               <th>NPP/Cửa hàng</th>
+              <th>Địa bàn phụ trách</th>
               <th>Địa chỉ cửa hàng</th>
               <th>Thời Gian Checkin</th>
               <th>Ghi chú</th>
@@ -268,6 +265,7 @@ export default function UserDetail() {
                   <td>{formatUtcDate(item.CheckinDate)}</td>
                   <td>{index + 1}</td>
                   <td>{item.StoreName}</td>
+                  <td>{item.TerritoryName || territoryName || ""}</td>
                   <td>{item.Address || ""}</td>
                   <td>{formatUtcTime(item.CheckinTime)}</td>
                   <td>{item.Notes || ""}</td>

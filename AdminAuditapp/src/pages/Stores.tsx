@@ -726,9 +726,8 @@ export default function Stores() {
       : []),
   ];
 
-  if (loading && stores.length === 0) {
-    return <div className="loading">Đang tải dữ liệu...</div>;
-  }
+  const showSkeleton =
+    isFiltering || (!hasFetchedRef.current && loading && stores.length === 0);
 
   return (
     <div className="stores-page">
@@ -876,7 +875,7 @@ export default function Stores() {
             </tr>
           </thead>
           <tbody>
-            {isFiltering ? (
+            {showSkeleton ? (
               <StoreSkeletonList count={Math.min(pageSize, 8)} />
             ) : stores.length === 0 ? (
               <tr>
