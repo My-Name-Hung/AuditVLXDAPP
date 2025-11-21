@@ -276,7 +276,6 @@ const getLatestAuditMap = async (pool, storeIds) => {
 const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { userId } = req.query; // For admin to view specific user's data
     const store = await Store.findById(id);
 
     if (!store) {
@@ -431,42 +430,42 @@ const getStoreById = async (req, res) => {
       }
     }
 
-    // Get status for each assigned user
-    const userStatuses = [];
-    for (const assignedUser of allAssignedUsers) {
-      const auditRequest = pool.request();
-      auditRequest.input("StoreId", sql.Int, parseInt(id));
-      auditRequest.input("UserId", sql.Int, assignedUser.UserId);
-
-      const auditResult = await auditRequest.query(`
-        SELECT TOP 1 
+    // Compute latest status for each user with a single query
+    const latestStatusRequest = pool.request();
+    latestStatusRequest.input("StoreId", sql.Int, parseInt(id, 10));
+    const latestStatusResult = await latestStatusRequest.query(`
+      WITH RankedAudits AS (
+        SELECT 
+          UserId,
           Result,
           FailedReason,
-          AuditDate
+          ROW_NUMBER() OVER (
+            PARTITION BY UserId
+            ORDER BY AuditDate DESC, CreatedAt DESC
+          ) AS rn
         FROM Audits
-        WHERE StoreId = @StoreId AND UserId = @UserId
-        ORDER BY AuditDate DESC, CreatedAt DESC
-      `);
+        WHERE StoreId = @StoreId
+      )
+      SELECT UserId, Result, FailedReason
+      FROM RankedAudits
+      WHERE rn = 1
+    `);
 
-      let userStatus = "not_audited";
-      if (auditResult.recordset.length > 0) {
-        const latestAudit = auditResult.recordset[0];
-        if (latestAudit.Result === "pass") {
-          userStatus = "passed";
-        } else if (latestAudit.Result === "fail") {
-          userStatus = "failed";
-        } else if (latestAudit.Result === "audited") {
-          userStatus = "audited";
-        }
-      }
+    const latestStatusMap = new Map();
+    latestStatusResult.recordset.forEach((row) => {
+      latestStatusMap.set(row.UserId, row);
+    });
 
-      userStatuses.push({
+    const userStatuses = allAssignedUsers.map((assignedUser) => {
+      const latest = latestStatusMap.get(assignedUser.UserId);
+      return {
         UserId: assignedUser.UserId,
         UserFullName: assignedUser.FullName,
         UserCode: assignedUser.UserCode,
-        Status: userStatus,
-      });
-    }
+        Status: mapAuditResultToStatus(latest?.Result),
+        FailedReason: latest?.FailedReason || null,
+      };
+    });
 
     res.json({
       ...storeDetails,
