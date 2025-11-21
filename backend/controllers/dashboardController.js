@@ -102,7 +102,7 @@ async function getSummary(req, res) {
 async function getUserDetail(req, res) {
   try {
     const { userId } = req.params;
-    const { startDate, endDate, storeName } = req.query;
+    const { startDate, endDate, storeName, territoryId } = req.query;
 
     console.log("getUserDetail called with params:", {
       userId,
@@ -132,16 +132,19 @@ async function getUserDetail(req, res) {
         AND img.ImageUrl != ''
     `;
 
+    if (territoryId) {
+      query += " AND s.TerritoryId = @TerritoryId";
+      request.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
       if (startDate) {
-        query += " AND a.AuditDate >= @startDate";
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
         request.input("startDate", sql.Date, startDate);
-        console.log("Added startDate filter:", startDate);
       }
 
       if (endDate) {
-        query += " AND a.AuditDate <= @endDate";
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
         request.input("endDate", sql.Date, endDate);
-        console.log("Added endDate filter:", endDate);
       }
 
     // Filter by store name
@@ -149,7 +152,6 @@ async function getUserDetail(req, res) {
       const storeNamePattern = `%${storeName.trim()}%`;
       query += " AND s.StoreName LIKE @storeName";
       request.input("storeName", sql.NVarChar(200), storeNamePattern);
-      console.log("Added storeName filter:", storeNamePattern);
     }
 
     query += `

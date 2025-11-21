@@ -314,17 +314,14 @@ export default function UserEdit() {
         </div>
 
         <div className="form-group">
-          <label>
-            Email <span className="required">*</span>
-          </label>
+          <label>Email</label>
           <input
             type="email"
             value={formData.email}
             onChange={(e) =>
               setFormData({ ...formData, email: e.target.value })
             }
-            placeholder="Nhập email"
-            required
+            placeholder="Nhập email (có thể bỏ trống)"
           />
         </div>
 

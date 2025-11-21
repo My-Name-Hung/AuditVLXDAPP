@@ -533,7 +533,13 @@ export default function Dashboard() {
                       <button
                         className="user-name-link"
                         onClick={() =>
-                          navigate(`/dashboard/user/${item.UserId}`)
+                          navigate(
+                            `/dashboard/user/${item.UserId}?territoryId=${
+                              item.TerritoryId
+                            }&territoryName=${encodeURIComponent(
+                              item.TerritoryName || ""
+                            )}`
+                          )
                         }
                       >
                         {item.FullName}

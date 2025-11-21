@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import "./UserDetail.css";
 
@@ -44,11 +44,17 @@ export default function UserDetail() {
   const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
   const [detailData, setDetailData] = useState<UserDetailItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [storeNameInput, setStoreNameInput] = useState<string>("");
   const [storeNameFilter, setStoreNameFilter] = useState<string>("");
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestAbortRef = useRef<AbortController | null>(null);
+  const [searchParams] = useSearchParams();
+  const territoryId = searchParams.get("territoryId") || "";
+  const territoryName = searchParams.get("territoryName") || "";
 
   const fetchUserInfo = useCallback(async () => {
     if (!userId) return;
@@ -62,8 +68,21 @@ export default function UserDetail() {
 
   const fetchUserDetail = useCallback(async () => {
     if (!userId) return;
-    try {
+
+    const isFirstLoad = !hasLoaded;
+    if (isFirstLoad) {
       setLoading(true);
+    } else {
+      setIsFiltering(true);
+    }
+
+    if (requestAbortRef.current) {
+      requestAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    requestAbortRef.current = controller;
+
+    try {
       const params: Record<string, string> = {};
 
       if (startDate) {
@@ -75,15 +94,27 @@ export default function UserDetail() {
       if (storeNameFilter && storeNameFilter.trim()) {
         params.storeName = storeNameFilter.trim();
       }
+      if (territoryId) {
+        params.territoryId = territoryId;
+      }
 
-      const detailRes = await api.get(`/dashboard/user/${userId}`, { params });
+      const detailRes = await api.get(`/dashboard/user/${userId}`, {
+        params,
+        signal: controller.signal,
+      });
       setDetailData((detailRes.data.data as UserDetailItem[]) || []);
-    } catch (error) {
+      setHasLoaded(true);
+    } catch (error: any) {
+      if (error?.name !== "CanceledError" && error?.code !== "ERR_CANCELED") {
       console.error("Error fetching user detail:", error);
+      }
     } finally {
+      if (isFirstLoad) {
       setLoading(false);
+      }
+      setIsFiltering(false);
     }
-  }, [userId, startDate, endDate, storeNameFilter]);
+  }, [userId, startDate, endDate, storeNameFilter, territoryId, hasLoaded]);
 
   useEffect(() => {
     fetchUserInfo();
@@ -120,7 +151,7 @@ export default function UserDetail() {
     setStoreNameFilter("");
   };
 
-  if (loading) {
+  if (loading && !hasLoaded) {
     return <div className="loading">Đang tải dữ liệu...</div>;
   }
 
@@ -133,6 +164,11 @@ export default function UserDetail() {
         <div>
           <p className="page-kicker">Chi tiết</p>
           <h2>{userInfo?.FullName || "Chi tiết checkin"}</h2>
+          {territoryName && (
+            <p className="user-detail-territory">
+              Địa bàn phụ trách: <strong>{territoryName}</strong>
+            </p>
+          )}
         </div>
       </div>
 
@@ -207,7 +243,20 @@ export default function UserDetail() {
             </tr>
           </thead>
           <tbody>
-            {detailData.length === 0 ? (
+            {isFiltering ? (
+              <>
+                {Array.from({ length: 5 }).map((_, index) => (
+                  <tr key={index} className="skeleton-row">
+                    <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
+                  </tr>
+                ))}
+              </>
+            ) : detailData.length === 0 ? (
               <tr>
                 <td colSpan={6} className="no-data-cell">
                   Không có dữ liệu

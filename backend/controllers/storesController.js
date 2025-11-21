@@ -113,6 +113,45 @@ const getAllStores = async (req, res) => {
   }
 };
 
+// Lightweight aggregated status counts for all stores
+const getStatusSummary = async (_req, res) => {
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+
+    const result = await request.query(`
+      SELECT Status, COUNT(*) as Count
+      FROM Stores
+      GROUP BY Status
+    `);
+
+    const counts = {
+      all: 0,
+      not_audited: 0,
+      audited: 0,
+      passed: 0,
+      failed: 0,
+    };
+
+    result.recordset.forEach((row) => {
+      const status = row.Status || "not_audited";
+      const count = Number(row.Count) || 0;
+      counts.all += count;
+      if (status in counts) {
+        counts[status] += count;
+      }
+    });
+
+    res.json({
+      success: true,
+      data: counts,
+    });
+  } catch (error) {
+    console.error("Get status summary error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const mapAuditResultToStatus = (result) => {
   if (!result) return "not_audited";
   if (result === "pass") return "passed";
@@ -380,13 +419,15 @@ const getStoreById = async (req, res) => {
         FROM Users
         WHERE Id = @UserId
       `);
-      
+
       if (userResult.recordset.length > 0) {
-        allAssignedUsers = [{
-          UserId: userResult.recordset[0].Id,
-          FullName: userResult.recordset[0].FullName,
-          UserCode: userResult.recordset[0].UserCode,
-        }];
+        allAssignedUsers = [
+          {
+            UserId: userResult.recordset[0].Id,
+            FullName: userResult.recordset[0].FullName,
+            UserCode: userResult.recordset[0].UserCode,
+          },
+        ];
       }
     }
 
@@ -622,7 +663,7 @@ const updateStore = async (req, res) => {
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
           UpdatedAt = GETDATE()`;
-    
+
     // Handle Rank separately to allow null
     if (rank !== undefined) {
       if (rank === null || rank === "") {
@@ -633,7 +674,7 @@ const updateStore = async (req, res) => {
     } else {
       updateQuery += `, Rank = @Rank`;
     }
-    
+
     updateQuery += `
       OUTPUT INSERTED.*
       WHERE Id = @Id`;
@@ -769,4 +810,5 @@ module.exports = {
   updateStoreStatus,
   resetStoreAuditData,
   deleteStore,
+  getStatusSummary,
 };

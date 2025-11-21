@@ -5,6 +5,11 @@ const storeUsersController = require("../controllers/storeUsersController");
 const { authenticateToken } = require("../middlewares/auth");
 
 router.get("/", authenticateToken, storesController.getAllStores);
+router.get(
+  "/status-summary",
+  authenticateToken,
+  storesController.getStatusSummary
+);
 router.get("/:id", authenticateToken, storesController.getStoreById);
 router.post("/", authenticateToken, storesController.createStore);
 router.put("/:id", authenticateToken, storesController.updateStore);

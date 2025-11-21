@@ -157,6 +157,28 @@
   color: var(--text-primary);
 }
 
+.skeleton-row .skeleton-cell {
+  height: 14px;
+  border-radius: 4px;
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: user-detail-skeleton-loading 1.5s ease-in-out infinite;
+}
+
+@keyframes user-detail-skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .no-data-cell {
   text-align: center;
   color: var(--text-secondary);
