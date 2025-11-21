@@ -72,21 +72,45 @@ async function getProvinceDistrict(lat, lon) {
     const data = await response.json();
     const address = data.address || {};
 
+    const pickField = (fields, exclude) => {
+      for (const field of fields) {
+        const value = address[field];
+        if (value && value !== exclude) {
+          return value;
+        }
+      }
+      return null;
+    };
+
     const province =
-      address.state ||
-      address.region ||
-      address.province ||
-      address.county ||
-      null;
+      pickField(
+        [
+          "state",
+          "region",
+          "province",
+          "state_district",
+          "county",
+          "city",
+          "municipality",
+        ],
+        null
+      ) || null;
 
     const district =
-      address.county ||
-      address.municipality ||
-      address.city_district ||
-      address.town ||
-      address.city ||
-      address.district ||
-      null;
+      pickField(
+        [
+          "district",
+          "city_district",
+          "borough",
+          "county",
+          "municipality",
+          "town",
+          "city",
+          "suburb",
+          "village",
+        ],
+        province
+      ) || null;
 
     const normalized = {
       province: province || null,
