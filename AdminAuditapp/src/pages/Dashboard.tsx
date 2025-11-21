@@ -292,54 +292,61 @@ export default function Dashboard() {
       { width: 25 },
     ];
 
-    // Detail sheets
-    const totalUsers = data.summary.length;
+    // Detail sheets - group by UserId so mỗi user có 1 sheet
+    const userGroupMap = new Map<
+      number,
+      {
+        user: DashboardSummaryItem;
+        territories: Array<{ territoryId: number; territoryName: string }>;
+      }
+    >();
 
-    // Count how many times each FullName appears
-    const nameCountMap = new Map<string, number>();
-    data.summary.forEach((user) => {
-      const count = nameCountMap.get(user.FullName) || 0;
-      nameCountMap.set(user.FullName, count + 1);
+    data.summary.forEach((item) => {
+      const existing = userGroupMap.get(item.UserId);
+      if (existing) {
+        existing.territories.push({
+          territoryId: item.TerritoryId,
+          territoryName: item.TerritoryName,
+        });
+      } else {
+        userGroupMap.set(item.UserId, {
+          user: item,
+          territories: [
+            { territoryId: item.TerritoryId, territoryName: item.TerritoryName },
+          ],
+        });
+      }
     });
 
-    for (let i = 0; i < data.summary.length; i++) {
-      const user = data.summary[i];
-      // If multiple users have the same FullName, include territory name
-      // Otherwise, just use FullName
-      const nameCount = nameCountMap.get(user.FullName) || 0;
-      const sheetName =
-        nameCount > 1
-          ? `Chi tiết ${user.FullName} - ${user.TerritoryName}`
-          : `Chi tiết ${user.FullName}`;
+    const groupedUsers = Array.from(userGroupMap.values());
+
+    groupedUsers.forEach((group, index) => {
+      const { user, territories } = group;
+      const sheetName = `Chi tiết ${user.FullName}`;
 
       const detailSheet = workbook.addWorksheet(sheetName);
-      // Use combination key: UserId-TerritoryId to get correct data
-      const detailKey = `${user.UserId}-${user.TerritoryId}`;
-      const userDetails = data.details[detailKey] || [];
 
-      // Update progress for each user sheet
       if (progressCallback) {
-        const progress = 60 + Math.floor((i / totalUsers) * 30);
+        const progress = 60 + Math.floor((index / groupedUsers.length) * 30);
         progressCallback(progress);
       }
 
-      // Title
-      detailSheet.mergeCells("A1:F1");
+      detailSheet.mergeCells("A1:G1");
       detailSheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
       detailSheet.getCell("A1").font = { bold: true, size: 14 };
       detailSheet.getCell("A1").alignment = { horizontal: "center" };
 
-      detailSheet.mergeCells("A2:F2");
+      detailSheet.mergeCells("A2:G2");
       detailSheet.getCell("A2").value =
         "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
       detailSheet.getCell("A2").font = { bold: true, size: 12 };
       detailSheet.getCell("A2").alignment = { horizontal: "center" };
 
-      // Headers
       detailSheet.getRow(4).values = [
         "Ngày",
         "STT",
         "NPP/Cửa hàng",
+        "Địa bàn phụ trách",
         "Địa chỉ cửa hàng",
         "Thời Gian Checkin",
         "Ghi chú",
@@ -348,36 +355,39 @@ export default function Dashboard() {
         cell.style = headerStyle;
       });
 
-      // Data
-      console.log(
-        `Sheet: ${sheetName}, DetailKey: ${detailKey}, Details count: ${userDetails.length}`
-      );
-      userDetails.forEach((detail, index) => {
-        const checkinDate = new Date(detail.CheckinDate);
-        const checkinTime = detail.CheckinTime
-          ? new Date(detail.CheckinTime)
-          : null;
+      let rowIndex = 0;
+      territories.forEach(({ territoryId, territoryName }) => {
+        const detailKey = `${user.UserId}-${territoryId}`;
+        const userDetails = data.details[detailKey] || [];
 
-        detailSheet.addRow([
-          checkinDate.toLocaleDateString("vi-VN"),
-          index + 1,
-          detail.StoreName,
-          detail.Address || "",
-          checkinTime ? checkinTime.toLocaleTimeString("vi-VN") : "",
-          detail.Notes || "",
-        ]);
+        userDetails.forEach((detail) => {
+          const checkinDate = new Date(detail.CheckinDate);
+          const checkinTime = detail.CheckinTime
+            ? new Date(detail.CheckinTime)
+            : null;
+
+          detailSheet.addRow([
+            checkinDate.toLocaleDateString("vi-VN"),
+            ++rowIndex,
+            detail.StoreName,
+            detail.TerritoryName || territoryName || "",
+            detail.Address || "",
+            checkinTime ? checkinTime.toLocaleTimeString("vi-VN") : "",
+            detail.Notes || "",
+          ]);
+        });
       });
 
-      // Set column widths
       detailSheet.columns = [
         { width: 15 },
         { width: 10 },
         { width: 25 },
+        { width: 30 },
         { width: 40 },
         { width: 20 },
         { width: 30 },
       ];
-    }
+    });
 
     // Download
     const buffer = await workbook.xlsx.writeBuffer();

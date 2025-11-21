@@ -122,11 +122,12 @@ async function getUserDetail(req, res) {
         a.Id as AuditId,
         s.StoreName,
         s.Address,
-        s.TerritoryName,
+        t.TerritoryName,
         MIN(img.CapturedAt) as CheckinTime,
         a.Notes
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       INNER JOIN Images img ON a.Id = img.AuditId
       WHERE a.UserId = @UserId
         AND img.ImageUrl IS NOT NULL
@@ -138,15 +139,15 @@ async function getUserDetail(req, res) {
       request.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
     }
 
-      if (startDate) {
+    if (startDate) {
       query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-        request.input("startDate", sql.Date, startDate);
-      }
+      request.input("startDate", sql.Date, startDate);
+    }
 
-      if (endDate) {
+    if (endDate) {
       query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-        request.input("endDate", sql.Date, endDate);
-      }
+      request.input("endDate", sql.Date, endDate);
+    }
 
     // Filter by store name
     if (storeName && storeName.trim() !== "") {
@@ -160,7 +161,7 @@ async function getUserDetail(req, res) {
                a.Id,
                s.StoreName,
                s.Address,
-               s.TerritoryName,
+               t.TerritoryName,
                a.Notes
       ORDER BY CheckinDate DESC, CheckinTime DESC
     `;
@@ -253,7 +254,7 @@ async function exportReport(req, res) {
         });
         summaryQuery += ")";
       }
-      }
+    }
 
     summaryQuery += `
       GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
@@ -286,10 +287,12 @@ async function exportReport(req, res) {
           a.Id as AuditId,
           s.StoreName,
           s.Address,
+          t.TerritoryName,
           MIN(img.CapturedAt) as CheckinTime,
           a.Notes
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
+        LEFT JOIN Territories t ON s.TerritoryId = t.Id
         INNER JOIN Images img ON a.Id = img.AuditId
         WHERE a.UserId = @UserId
           AND s.TerritoryId = @TerritoryId
@@ -305,7 +308,12 @@ async function exportReport(req, res) {
       }
 
       detailQuery += `
-        GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.StoreName, s.Address, a.Notes
+        GROUP BY CAST(a.AuditDate AS DATE),
+                 a.Id,
+                 s.StoreName,
+                 s.Address,
+                 t.TerritoryName,
+                 a.Notes
         ORDER BY CheckinDate DESC, CheckinTime DESC
       `;
 

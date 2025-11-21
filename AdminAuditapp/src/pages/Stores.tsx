@@ -727,7 +727,7 @@ export default function Stores() {
   ];
 
   const showSkeleton =
-    isFiltering || (!hasFetchedRef.current && loading && stores.length === 0);
+    (loading && stores.length === 0) || (isFiltering && stores.length === 0);
 
   return (
     <div className="stores-page">
