@@ -1,4 +1,5 @@
 const cloudinary = require("../config/cloudinary");
+const { getProvinceDistrict } = require("./geocodingService");
 
 /**
  * Upload image to Cloudinary with watermark containing lat/lon/time
@@ -37,9 +38,12 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
     latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
   const lonValue =
     lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
-  // Format: Compact single line with shorter labels
-  // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
-  const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}`;
+  const { province, district } = await getProvinceDistrict(latNum, lonNum);
+  const locationText = `Tỉnh: ${province || "N/A"}\nQuận/Huyện: ${
+    district || "N/A"
+  }`;
+
+  const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}\n${locationText}`;
 
   try {
     // Convert buffer to base64
@@ -59,7 +63,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
             font_weight: "bold",
             text: watermarkText,
           },
-          color: "#0138C3",
+          color: "#FFFFFF",
           gravity: "north_east",
           x: 20,
           y: 20,
@@ -114,9 +118,12 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
     latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
   const lonValue =
     lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
-  // Format: Compact single line with shorter labels
-  // "L: xxxx Lo: xxxx dd.mm.yyyy hh:mm:ss"
-  const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}`;
+  const { province, district } = await getProvinceDistrict(latNum, lonNum);
+  const locationText = `Tỉnh: ${province || "N/A"}\nQuận/Huyện: ${
+    district || "N/A"
+  }`;
+
+  const watermarkText = `L:${latValue} Lo:${lonValue} ${timeString}\n${locationText}`;
 
   try {
     // Upload image with watermark transformation applied eagerly (stored permanently)
@@ -131,7 +138,7 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
             font_weight: "bold",
             text: watermarkText,
           },
-          color: "#0138C3",
+          color: "#FFFFFF",
           gravity: "north_east",
           x: 20,
           y: 20,

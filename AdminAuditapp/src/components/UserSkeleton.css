@@ -1,0 +1,65 @@
+.user-skeleton-row td {
+  padding: 12px 16px;
+  height: 56px;
+}
+
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #f1f3f5;
+  border-radius: 4px;
+}
+
+.skeleton::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.7),
+    rgba(255, 255, 255, 0)
+  );
+  animation: shimmer 1.4s infinite;
+}
+
+.skeleton-code {
+  width: 120px;
+  height: 16px;
+}
+
+.skeleton-name {
+  width: 160px;
+  height: 16px;
+}
+
+.skeleton-email {
+  width: 220px;
+  height: 16px;
+}
+
+.skeleton-phone {
+  width: 120px;
+  height: 16px;
+}
+
+.skeleton-position {
+  width: 150px;
+  height: 16px;
+}
+
+.skeleton-actions {
+  width: 100px;
+  height: 32px;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+

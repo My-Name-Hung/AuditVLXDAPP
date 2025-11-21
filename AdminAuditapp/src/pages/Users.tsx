@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
+import { UserSkeletonList } from "../components/UserSkeleton";
 import api from "../services/api";
 import "./Users.css";
 
@@ -72,17 +73,42 @@ export default function Users() {
     null
   );
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previousSearchFilterRef = useRef<string>("");
   const isFilterChangingRef = useRef(false);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const hasFetchedRef = useRef(false);
+
+  const resetFilterChangingFlag = useCallback(() => {
+    setTimeout(() => {
+      if (isFilterChangingRef.current) {
+        isFilterChangingRef.current = false;
+      }
+    }, 100);
+  }, []);
 
   const fetchUsers = useCallback(async () => {
-    try {
+    const preserveData = hasFetchedRef.current;
+
+    if (!preserveData) {
       setLoading(true);
+    } else if (isFilterChangingRef.current) {
+      setIsSearching(true);
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
       const params: Record<string, string | number> = {
         page,
         pageSize,
+        _t: Date.now(),
       };
 
       if (positionFilter !== "all") {
@@ -92,25 +118,39 @@ export default function Users() {
         params.search = searchFilter.trim();
       }
 
-      const res = await api.get("/users", { params });
+      const res = await api.get("/users", {
+        params,
+        signal: controller.signal,
+      });
       setUsers(res.data.data || []);
+      hasFetchedRef.current = true;
       if (res.data.pagination) {
         setTotal(res.data.pagination.total);
         setTotalPages(res.data.pagination.totalPages);
       }
 
       // Reset isFilterChangingRef after fetch completes
-      setTimeout(() => {
-        if (isFilterChangingRef.current) {
-          isFilterChangingRef.current = false;
-        }
-      }, 100);
+      resetFilterChangingFlag();
     } catch (error) {
+      const isAborted =
+        (error as { name?: string; code?: string })?.name === "CanceledError" ||
+        (error as { code?: string })?.code === "ERR_CANCELED";
+      if (!isAborted) {
       console.error("Error fetching users:", error);
+      }
     } finally {
+      if (!preserveData) {
       setLoading(false);
     }
-  }, [page, pageSize, positionFilter, searchFilter]);
+      setIsSearching(false);
+    }
+  }, [
+    page,
+    pageSize,
+    positionFilter,
+    searchFilter,
+    resetFilterChangingFlag,
+  ]);
 
   useEffect(() => {
     fetchUsers();
@@ -157,16 +197,19 @@ export default function Users() {
 
     // If filter is empty, fetch immediately
     if (!searchFilter.trim()) {
+      setIsSearching(false);
       setTimeout(() => {
         fetchUsers();
       }, 50);
       return;
     }
 
+    setIsSearching(true);
+
     // Use debounce for filter input
     debounceTimerRef.current = setTimeout(() => {
       fetchUsers();
-    }, 300);
+    }, 800);
 
     return () => {
       if (debounceTimerRef.current) {
@@ -481,13 +524,15 @@ export default function Users() {
     loadPositionOptions();
   }, []);
 
-  if (loading && users.length === 0) {
-    return (
-      <div className="users-container">
-        <div className="loading">Đang tải...</div>
-      </div>
-    );
-  }
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  const showInitialLoading = loading && !hasFetchedRef.current;
 
   return (
     <div className="users-container">
@@ -555,7 +600,18 @@ export default function Users() {
             </tr>
           </thead>
           <tbody>
-            {users.length === 0 ? (
+            {showInitialLoading ? (
+              <>
+                <tr>
+                  <td colSpan={6} className="no-data">
+                    Đang cập nhật dữ liệu...
+                  </td>
+                </tr>
+                <UserSkeletonList count={Math.min(pageSize, 8)} />
+              </>
+            ) : isSearching && users.length === 0 ? (
+              <UserSkeletonList count={Math.min(pageSize, 8)} />
+            ) : users.length === 0 ? (
               <tr>
                 <td colSpan={6} className="no-data">
                   Không có dữ liệu
