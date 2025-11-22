@@ -350,6 +350,7 @@ export default function StoreDetail() {
     }
 
     // Create canvas with exact dimensions matching video source (no extra space)
+    // This ensures no white background padding
     const canvas = document.createElement("canvas");
     canvas.width = videoWidth;
     canvas.height = videoHeight;
@@ -362,27 +363,18 @@ export default function StoreDetail() {
       throw new Error("Cannot get canvas context");
     }
 
-    // Fill canvas with white background first (JPEG requirement)
-    ctx.fillStyle = "#FFFFFF";
+    // Fill canvas with black background first (will be covered by video)
+    // Using black instead of white to avoid white artifacts if video doesn't fill
+    ctx.fillStyle = "#000000";
     ctx.fillRect(0, 0, videoWidth, videoHeight);
 
-    // Draw the video frame directly using its natural dimensions
-    // This captures the full frame without any scaling, cropping, or offset
-    // drawImage will handle the video's native aspect ratio correctly
-    ctx.drawImage(
-      video,
-      0, // source x (start from top-left of video)
-      0, // source y
-      videoWidth, // source width (full video width)
-      videoHeight, // source height (full video height)
-      0, // destination x (start from top-left of canvas)
-      0, // destination y
-      videoWidth, // destination width (same as source)
-      videoHeight // destination height (same as source)
-    );
+    // Draw the video frame directly - this will fill the entire canvas
+    // Using the simplest form of drawImage to ensure full frame capture
+    // This draws the entire video frame to fill the entire canvas
+    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
 
-    // Convert to JPEG - this will have white background only where video doesn't cover
-    // But since we're using exact video dimensions, there should be no extra white space
+    // Convert to JPEG
+    // The video should fill the entire canvas, so no white/black background should be visible
     return canvas.toDataURL("image/jpeg", 0.9);
   };
 
@@ -464,12 +456,35 @@ export default function StoreDetail() {
         try {
           const imageCapture = new ImageCapture(videoTrack);
           const blob = await imageCapture.takePhoto();
-          const reader = new FileReader();
-          dataUrl = await new Promise<string>((resolve, reject) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
+
+          // Convert blob to image to verify dimensions and ensure no padding
+          const img = new Image();
+          const objectUrl = URL.createObjectURL(blob);
+
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              URL.revokeObjectURL(objectUrl);
+              resolve();
+            };
+            img.onerror = reject;
+            img.src = objectUrl;
           });
+
+          // Create canvas with exact image dimensions (no extra space)
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            throw new Error("Cannot get canvas context");
+          }
+
+          // Draw image to canvas - this ensures no padding/background
+          ctx.drawImage(img, 0, 0);
+
+          // Convert to data URL
+          dataUrl = canvas.toDataURL("image/jpeg", 0.9);
         } catch (imageCaptureError) {
           console.warn(
             "ImageCapture API failed, using direct canvas capture:",
