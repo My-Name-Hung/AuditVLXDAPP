@@ -366,13 +366,24 @@ export default function Dashboard() {
           ? new Date(detail.CheckinTime)
           : null;
 
+        // Format date and time using UTC timezone to match UI display
+        const formattedDate = checkinDate.toLocaleDateString("vi-VN", {
+          timeZone: "UTC",
+        });
+        const formattedTime = checkinTime
+          ? checkinTime.toLocaleTimeString("vi-VN", {
+              hour12: false,
+              timeZone: "UTC",
+            })
+          : "";
+
         detailSheet.addRow([
-          checkinDate.toLocaleDateString("vi-VN"),
+          formattedDate,
             ++rowIndex,
           detail.StoreName,
             detail.TerritoryName || territoryName || "",
           detail.Address || "",
-          checkinTime ? checkinTime.toLocaleTimeString("vi-VN") : "",
+          formattedTime,
           detail.Notes || "",
         ]);
         });
