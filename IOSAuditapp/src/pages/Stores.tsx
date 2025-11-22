@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
 import { useTheme } from "../contexts/ThemeContext";
@@ -88,10 +88,80 @@ export default function Stores() {
     undefined
   );
 
-  useEffect(() => {
-    fetchTerritories();
-    fetchStores();
+  const fetchTerritories = useCallback(async () => {
+    try {
+      const response = await api.get("/territories");
+      setTerritories(response.data.data || []);
+    } catch (error) {
+      console.error("Error fetching territories:", error);
+      // Set empty array on error to prevent UI blocking
+      setTerritories([]);
+    }
   }, []);
+
+  const fetchStores = useCallback(
+    async (reset = false) => {
+      try {
+        if (reset) {
+          setLoading(true);
+          setPage(1);
+        }
+
+        const params: Record<string, string | number> = {
+          page: reset ? 1 : page,
+          pageSize: 50,
+        };
+
+        if (searchText.trim()) {
+          params.storeName = searchText.trim();
+        }
+        if (selectedTerritory) {
+          params.territoryId = selectedTerritory;
+        }
+        if (selectedStatus) {
+          params.status = selectedStatus;
+        }
+
+        const response = await api.get("/stores", { params });
+        const data = response.data.data || [];
+        const pagination = response.data.pagination || {};
+
+        const sortedData = sortStoresByStatus(data);
+
+        if (reset) {
+          setStores(sortedData);
+        } else {
+          setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
+        }
+
+        setHasMore(pagination.page < pagination.totalPages);
+        setPage((prev) => (reset ? 2 : prev + 1));
+      } catch (error) {
+        console.error("Error fetching stores:", error);
+        // Set empty array on error to prevent UI blocking
+        if (reset) {
+          setStores([]);
+        }
+      } finally {
+        setLoading(false);
+        setIsSearching(false);
+      }
+    },
+    [page, searchText, selectedTerritory, selectedStatus]
+  );
+
+  useEffect(() => {
+    // Add error handling for initial load
+    const initData = async () => {
+      try {
+        await Promise.all([fetchTerritories(), fetchStores()]);
+      } catch (error) {
+        console.error("Error initializing stores page:", error);
+        // Don't block the UI, just log the error
+      }
+    };
+    initData();
+  }, [fetchTerritories, fetchStores]);
 
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -113,60 +183,7 @@ export default function Stores() {
         clearTimeout(searchTimeoutRef.current);
       }
     };
-  }, [searchText, selectedTerritory, selectedStatus]);
-
-  const fetchTerritories = async () => {
-    try {
-      const response = await api.get("/territories");
-      setTerritories(response.data.data || []);
-    } catch (error) {
-      console.error("Error fetching territories:", error);
-    }
-  };
-
-  const fetchStores = async (reset = false) => {
-    try {
-      if (reset) {
-        setLoading(true);
-        setPage(1);
-      }
-
-      const params: any = {
-        page: reset ? 1 : page,
-        pageSize: 50,
-      };
-
-      if (searchText.trim()) {
-        params.storeName = searchText.trim();
-      }
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
-      }
-      if (selectedStatus) {
-        params.status = selectedStatus;
-      }
-
-      const response = await api.get("/stores", { params });
-      const data = response.data.data || [];
-      const pagination = response.data.pagination || {};
-
-      const sortedData = sortStoresByStatus(data);
-
-      if (reset) {
-        setStores(sortedData);
-      } else {
-        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
-      }
-
-      setHasMore(pagination.page < pagination.totalPages);
-      setPage((prev) => (reset ? 2 : prev + 1));
-    } catch (error) {
-      console.error("Error fetching stores:", error);
-    } finally {
-      setLoading(false);
-      setIsSearching(false);
-    }
-  };
+  }, [searchText, selectedTerritory, selectedStatus, fetchStores]);
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
