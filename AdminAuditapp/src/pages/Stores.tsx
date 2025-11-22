@@ -608,16 +608,16 @@ export default function Stores() {
       if (store.userStatuses && store.userStatuses.length > 0) {
         store.userStatuses.forEach((userStatus) => {
           rowIndex++;
-          const row = sheet.addRow([
+      const row = sheet.addRow([
             rowIndex,
-            store.StoreCode,
-            store.StoreName,
-            getRankLabel(store.Rank),
-            store.Address || "",
-            store.TaxCode || "",
-            store.PartnerName || "",
-            store.Phone || "",
-            store.Email || "",
+        store.StoreCode,
+        store.StoreName,
+        getRankLabel(store.Rank),
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
             getStatusLabel(userStatus.Status), // Trạng thái của user này
             store.TerritoryName || "",
             userStatus.UserFullName
@@ -671,43 +671,43 @@ export default function Stores() {
           store.Phone || "",
           store.Email || "",
           getStatusLabel(store.Status), // Trạng thái
-          store.TerritoryName || "",
-          store.UserFullName
-            ? `${store.UserFullName} (${store.UserCode || ""})`
-            : "",
-          "", // Link chi tiết - will be set as hyperlink
-          store.Latitude || "",
-          store.Longitude || "",
-          "", // Google Maps link - will be set as hyperlink
-        ]);
+        store.TerritoryName || "",
+        store.UserFullName
+          ? `${store.UserFullName} (${store.UserCode || ""})`
+          : "",
+        "", // Link chi tiết - will be set as hyperlink
+        store.Latitude || "",
+        store.Longitude || "",
+        "", // Google Maps link - will be set as hyperlink
+      ]);
 
-        // Set hyperlink for "Link chi tiết"
-        const detailLinkCell = row.getCell(13);
-        detailLinkCell.value = {
-          text: "Link chi tiết",
+      // Set hyperlink for "Link chi tiết"
+      const detailLinkCell = row.getCell(13);
+      detailLinkCell.value = {
+        text: "Link chi tiết",
           hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
+      };
+      detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+
+      // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
+      const mapLinkCell = row.getCell(16);
+      if (store.Latitude && store.Longitude) {
+        mapLinkCell.value = {
+          text: "Xem trên Google Maps",
+          hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
         };
-        detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+        mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+      }
 
-        // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
-        const mapLinkCell = row.getCell(16);
-        if (store.Latitude && store.Longitude) {
-          mapLinkCell.value = {
-            text: "Xem trên Google Maps",
-            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-          };
-          mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-        }
-
-        // Add borders to all cells
-        row.eachCell((cell) => {
-          cell.border = {
-            top: { style: "thin" },
-            bottom: { style: "thin" },
-            left: { style: "thin" },
-            right: { style: "thin" },
-          };
-        });
+      // Add borders to all cells
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
       }
     });
 

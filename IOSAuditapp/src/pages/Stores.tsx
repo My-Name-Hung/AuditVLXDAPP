@@ -101,7 +101,7 @@ export default function Stores() {
   }, []);
 
   const fetchStores = useCallback(
-    async (reset = false) => {
+    async (reset = false, currentPage = 1) => {
       try {
         if (reset) {
           setLoading(true);
@@ -109,7 +109,7 @@ export default function Stores() {
         }
 
         const params: Record<string, string | number> = {
-          page: reset ? 1 : page,
+          page: reset ? 1 : currentPage,
           pageSize: 50,
         };
 
@@ -131,12 +131,13 @@ export default function Stores() {
 
         if (reset) {
           setStores(sortedData);
+          setPage(2); // Set next page for pagination
         } else {
           setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
+          setPage((prev) => prev + 1);
         }
 
         setHasMore(pagination.page < pagination.totalPages);
-        setPage((prev) => (reset ? 2 : prev + 1));
       } catch (error) {
         console.error("Error fetching stores:", error);
         // Set empty array on error to prevent UI blocking
@@ -148,21 +149,22 @@ export default function Stores() {
         setIsSearching(false);
       }
     },
-    [page, searchText, selectedTerritory, selectedStatus]
+    [searchText, selectedTerritory, selectedStatus]
   );
 
   useEffect(() => {
     // Add error handling for initial load
     const initData = async () => {
       try {
-        await Promise.all([fetchTerritories(), fetchStores()]);
+        await Promise.all([fetchTerritories(), fetchStores(true, 1)]);
       } catch (error) {
         console.error("Error initializing stores page:", error);
         // Don't block the UI, just log the error
       }
     };
     initData();
-  }, [fetchTerritories, fetchStores]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -175,8 +177,7 @@ export default function Stores() {
     }
 
     searchTimeoutRef.current = setTimeout(() => {
-      setPage(1);
-      fetchStores(true);
+      fetchStores(true, 1);
     }, 800);
 
     return () => {
@@ -188,7 +189,7 @@ export default function Stores() {
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
-      fetchStores();
+      fetchStores(false, page);
     }
   };
 

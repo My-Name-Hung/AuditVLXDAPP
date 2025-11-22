@@ -330,109 +330,41 @@ export default function StoreDetail() {
     }
   };
 
-  const captureWithHiddenVideo = async (
-    stream: MediaStream,
+  // Direct capture from visible video element - more reliable for iOS
+  const captureDirectFromVideo = async (
+    video: HTMLVideoElement,
     width: number,
     height: number
   ): Promise<string> => {
-    // Create a hidden video element with exact dimensions to avoid CSS scaling issues
-    const hiddenVideo = document.createElement("video");
-    hiddenVideo.style.position = "absolute";
-    hiddenVideo.style.top = "0";
-    hiddenVideo.style.left = "0";
-    hiddenVideo.style.width = `${width}px`;
-    hiddenVideo.style.height = `${height}px`;
-    hiddenVideo.style.objectFit = "fill"; // Use fill instead of none to ensure full frame
-    hiddenVideo.style.opacity = "0";
-    hiddenVideo.style.pointerEvents = "none";
-    hiddenVideo.style.zIndex = "-1";
-    hiddenVideo.autoplay = true;
-    hiddenVideo.playsInline = true;
-    hiddenVideo.muted = true;
-    hiddenVideo.setAttribute("width", width.toString());
-    hiddenVideo.setAttribute("height", height.toString());
-    hiddenVideo.srcObject = stream;
+    // Wait a bit more to ensure current frame is fully rendered
+    await new Promise((resolve) => setTimeout(resolve, 150));
 
-    document.body.appendChild(hiddenVideo);
+    // Get the actual video dimensions (source resolution)
+    const videoWidth = video.videoWidth || width;
+    const videoHeight = video.videoHeight || height;
 
-    try {
-      // Wait for hidden video to be ready
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error("Hidden video timeout"));
-        }, 5000);
+    // Create canvas with exact dimensions matching video source
+    const canvas = document.createElement("canvas");
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    const ctx = canvas.getContext("2d", {
+      willReadFrequently: false,
+      alpha: false, // Disable alpha for better performance
+    });
 
-        const onLoadedMetadata = () => {
-          hiddenVideo.removeEventListener("loadedmetadata", onLoadedMetadata);
-          clearTimeout(timeout);
-          resolve();
-        };
-
-        hiddenVideo.addEventListener("loadedmetadata", onLoadedMetadata);
-        hiddenVideo.play().catch(reject);
-      });
-
-      // Wait for video to have current frame
-      await new Promise<void>((resolve) => {
-        if (hiddenVideo.readyState >= 2) {
-          resolve();
-        } else {
-          const onCanPlay = () => {
-            hiddenVideo.removeEventListener("canplay", onCanPlay);
-            resolve();
-          };
-          hiddenVideo.addEventListener("canplay", onCanPlay);
-          setTimeout(resolve, 500); // Fallback timeout
-        }
-      });
-
-      // Additional wait to ensure frame is fully rendered on iOS
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      // Create canvas with exact dimensions
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d", { willReadFrequently: false });
-      if (!ctx) {
-        throw new Error("Cannot get canvas context");
-      }
-
-      // Draw from hidden video - use natural dimensions
-      // On iOS, we need to ensure we're drawing the full frame
-      const videoWidth = hiddenVideo.videoWidth || width;
-      const videoHeight = hiddenVideo.videoHeight || height;
-
-      // Clear canvas first
-      ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(0, 0, width, height);
-
-      // Draw the full video frame
-      ctx.drawImage(
-        hiddenVideo,
-        0,
-        0,
-        videoWidth,
-        videoHeight,
-        0,
-        0,
-        width,
-        height
-      );
-
-      return canvas.toDataURL("image/jpeg", 0.8);
-    } finally {
-      // Clean up hidden video element
-      if (hiddenVideo.srcObject) {
-        (hiddenVideo.srcObject as MediaStream)
-          .getTracks()
-          .forEach((track) => track.stop());
-      }
-      hiddenVideo.srcObject = null;
-      if (document.body.contains(hiddenVideo)) {
-        document.body.removeChild(hiddenVideo);
-      }
+    if (!ctx) {
+      throw new Error("Cannot get canvas context");
     }
+
+    // Clear canvas with white background first
+    ctx.fillStyle = "#FFFFFF";
+    ctx.fillRect(0, 0, videoWidth, videoHeight);
+
+    // Draw the video frame directly - use natural video dimensions
+    // This captures the full frame regardless of CSS transforms/scaling
+    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+    return canvas.toDataURL("image/jpeg", 0.85);
   };
 
   const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
@@ -490,7 +422,7 @@ export default function StoreDetail() {
         return;
       }
 
-      // Get actual video dimensions from video track settings
+      // Get actual video dimensions from video track settings (this is the source resolution)
       const settings = videoTrack.getSettings();
       const actualWidth = settings.width || video.videoWidth;
       const actualHeight = settings.height || video.videoHeight;
@@ -507,7 +439,8 @@ export default function StoreDetail() {
 
       let dataUrl: string;
 
-      // Try ImageCapture API first (if available)
+      // For iOS Safari, we need a more reliable method
+      // Try ImageCapture API first (if available and working)
       if (typeof ImageCapture !== "undefined") {
         try {
           const imageCapture = new ImageCapture(videoTrack);
@@ -520,15 +453,15 @@ export default function StoreDetail() {
           });
         } catch (imageCaptureError) {
           console.warn(
-            "ImageCapture API failed, falling back to canvas method:",
+            "ImageCapture API failed, using direct canvas capture:",
             imageCaptureError
           );
-          // Fall through to canvas method
-          dataUrl = await captureWithHiddenVideo(stream, width, height);
+          // Fall through to direct canvas capture from visible video
+          dataUrl = await captureDirectFromVideo(video, width, height);
         }
       } else {
-        // Use hidden video element method
-        dataUrl = await captureWithHiddenVideo(stream, width, height);
+        // Use direct canvas capture from visible video element
+        dataUrl = await captureDirectFromVideo(video, width, height);
       }
 
       // Get location
