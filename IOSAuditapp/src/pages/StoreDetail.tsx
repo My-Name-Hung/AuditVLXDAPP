@@ -368,29 +368,31 @@ export default function StoreDetail() {
   };
 
   const capturePhoto = async () => {
-    if (!videoRef.current || currentCameraIndex === null) return;
+    if (!videoRef.current || currentCameraIndex === null || !streamRef.current)
+      return;
 
     try {
       const video = videoRef.current;
+      const stream = streamRef.current;
 
       // Wait for video to be fully ready
       await waitForVideoReady(video);
 
-      // Use naturalWidth/naturalHeight (preferred) or fallback to videoWidth/videoHeight
-      // naturalWidth/naturalHeight are the intrinsic dimensions of the video stream
-      // and are not affected by CSS scaling
-      const videoElement = video as HTMLVideoElement & {
-        naturalWidth?: number;
-        naturalHeight?: number;
-      };
-      const width =
-        (videoElement.naturalWidth && videoElement.naturalWidth > 0
-          ? videoElement.naturalWidth
-          : null) || video.videoWidth;
-      const height =
-        (videoElement.naturalHeight && videoElement.naturalHeight > 0
-          ? videoElement.naturalHeight
-          : null) || video.videoHeight;
+      // Get video track from stream to get actual video dimensions
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        alert("Không tìm thấy video track từ camera.");
+        return;
+      }
+
+      // Get actual video dimensions from video track settings
+      const settings = videoTrack.getSettings();
+      const actualWidth = settings.width || video.videoWidth;
+      const actualHeight = settings.height || video.videoHeight;
+
+      // Fallback to video element dimensions if settings don't have width/height
+      const width = actualWidth > 0 ? actualWidth : video.videoWidth;
+      const height = actualHeight > 0 ? actualHeight : video.videoHeight;
 
       // Ensure video has valid dimensions
       if (width === 0 || height === 0) {
@@ -398,20 +400,57 @@ export default function StoreDetail() {
         return;
       }
 
-      // Create canvas with natural/intrinsic dimensions of the video
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        alert("Không thể tạo canvas để chụp ảnh.");
-        return;
-      }
+      // Store original video element styles to restore later
+      const originalWidth = video.style.width;
+      const originalHeight = video.style.height;
+      const originalObjectFit = video.style.objectFit;
+      const originalMaxHeight = video.style.maxHeight;
 
-      // Draw the full video frame to canvas using natural dimensions
-      // This ensures we capture the entire video frame, not just the visible portion
-      ctx.drawImage(video, 0, 0, width, height);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      let dataUrl: string;
+
+      try {
+        // Temporarily set video element to natural dimensions to ensure full frame capture
+        // This prevents CSS scaling from affecting the capture
+        video.style.width = `${width}px`;
+        video.style.height = `${height}px`;
+        video.style.objectFit = "none";
+        video.style.maxHeight = "none";
+
+        // Wait a bit for the style changes to take effect
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // Create canvas with actual video dimensions
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          alert("Không thể tạo canvas để chụp ảnh.");
+          return;
+        }
+
+        // Draw the full video frame to canvas
+        // Use sourceWidth and sourceHeight to ensure we capture the entire frame
+        ctx.drawImage(
+          video,
+          0, // source x
+          0, // source y
+          width, // source width
+          height, // source height
+          0, // destination x
+          0, // destination y
+          width, // destination width
+          height // destination height
+        );
+
+        dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      } finally {
+        // Always restore original video element styles even if there's an error
+        video.style.width = originalWidth;
+        video.style.height = originalHeight;
+        video.style.objectFit = originalObjectFit;
+        video.style.maxHeight = originalMaxHeight;
+      }
 
       // Get location
       let latitude = 0;
