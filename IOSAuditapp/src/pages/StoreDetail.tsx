@@ -216,6 +216,11 @@ export default function StoreDetail() {
   const showCameraSection = allowNewAudit || sortedAudits.length === 0;
 
   const fetchStore = useCallback(async () => {
+    if (!id || id.trim() === "") {
+      console.error("Invalid store ID");
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       const response = await api.get(`/stores/${id}`);
@@ -529,7 +534,7 @@ export default function StoreDetail() {
       await Promise.all(uploadPromises);
 
       // Update store latitude/longitude from first image
-      if (imagesToUpload[0]) {
+      if (imagesToUpload[0] && store?.Id) {
         await api.put(`/stores/${store.Id}`, {
           latitude: imagesToUpload[0].latitude,
           longitude: imagesToUpload[0].longitude,

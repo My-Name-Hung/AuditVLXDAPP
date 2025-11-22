@@ -1,7 +1,25 @@
 import axios from "axios";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || "https://auditvlxdapp.onrender.com/api";
+// Get API base URL with validation
+const getApiBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+
+  // Validate URL format
+  if (envUrl && typeof envUrl === "string" && envUrl.trim() !== "") {
+    try {
+      // Validate URL format
+      new URL(envUrl);
+      return envUrl;
+    } catch (error) {
+      console.warn("Invalid VITE_API_BASE_URL format, using default:", envUrl);
+    }
+  }
+
+  // Default fallback
+  return "https://auditvlxdapp.onrender.com/api";
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 // Log API URL in development
 if (import.meta.env.DEV) {
@@ -41,7 +59,16 @@ api.interceptors.response.use(
         localStorage.removeItem("user");
         // Redirect to login if not already there
         if (window.location.pathname !== "/login") {
-          window.location.href = "/login";
+          // Use relative path to avoid URL construction issues
+          const loginPath = "/login";
+          try {
+            // Try to use current origin to construct valid URL
+            const loginUrl = new URL(loginPath, window.location.origin);
+            window.location.href = loginUrl.pathname;
+          } catch (error) {
+            // Fallback to simple pathname change
+            window.location.pathname = loginPath;
+          }
         }
       }
     }

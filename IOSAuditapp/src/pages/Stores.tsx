@@ -151,7 +151,14 @@ export default function Stores() {
       if (reset) {
         setStores(sortedData);
       } else {
-        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
+        // Remove duplicates by Id before merging to prevent duplicate keys
+        setStores((prev) => {
+          const existingIds = new Set(prev.map((store) => store.Id));
+          const newStores = sortedData.filter(
+            (store) => !existingIds.has(store.Id)
+          );
+          return sortStoresByStatus([...prev, ...newStores]);
+        });
       }
 
       setHasMore(pagination.page < pagination.totalPages);
@@ -372,42 +379,46 @@ export default function Stores() {
                 ))}
               </div>
             )}
-            {stores.map((item) => (
-              <div
-                key={item.Id}
-                className="stores-store-card"
-                onClick={() => navigate(`/stores/${item.Id}`)}
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.icon + '20',
-                }}
-              >
-                <div className="stores-store-card-header">
-                  <div className="stores-store-card-title-container">
-                    <h3 className="stores-store-name" style={{ color: colors.text }}>
-                      {item.StoreName}
-                    </h3>
-                    <span
-                      className="stores-status-badge"
-                      style={{ backgroundColor: getStatusColor(item.Status) }}
-                    >
-                      {getStatusLabel(item.Status)}
-                    </span>
+            {stores.map((item, index) => {
+              // Ensure unique key by combining Id with index as fallback
+              const uniqueKey = item.Id ? `store-${item.Id}` : `store-${index}`;
+              return (
+                <div
+                  key={uniqueKey}
+                  className="stores-store-card"
+                  onClick={() => navigate(`/stores/${item.Id}`)}
+                  style={{
+                    backgroundColor: colors.background,
+                    borderColor: colors.icon + '20',
+                  }}
+                >
+                  <div className="stores-store-card-header">
+                    <div className="stores-store-card-title-container">
+                      <h3 className="stores-store-name" style={{ color: colors.text }}>
+                        {item.StoreName}
+                      </h3>
+                      <span
+                        className="stores-status-badge"
+                        style={{ backgroundColor: getStatusColor(item.Status) }}
+                      >
+                        {getStatusLabel(item.Status)}
+                      </span>
+                    </div>
+                    <span style={{ color: colors.icon }}>→</span>
                   </div>
-                  <span style={{ color: colors.icon }}>→</span>
-                </div>
 
-                <p className="stores-store-code" style={{ color: colors.icon }}>
-                  {item.StoreCode}
-                </p>
-                <p className="stores-store-address" style={{ color: colors.icon }}>
-                  {item.Address}
-                </p>
-                <p className="stores-store-contact" style={{ color: colors.icon }}>
-                  {item.PartnerName || 'N/A'} | {item.Phone || 'N/A'}
-                </p>
-              </div>
-            ))}
+                  <p className="stores-store-code" style={{ color: colors.icon }}>
+                    {item.StoreCode}
+                  </p>
+                  <p className="stores-store-address" style={{ color: colors.icon }}>
+                    {item.Address}
+                  </p>
+                  <p className="stores-store-contact" style={{ color: colors.icon }}>
+                    {item.PartnerName || 'N/A'} | {item.Phone || 'N/A'}
+                  </p>
+                </div>
+              );
+            })}
             {hasMore && (
               <button
                 className="stores-load-more-button"
