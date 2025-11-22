@@ -330,6 +330,67 @@ export default function StoreDetail() {
     }
   };
 
+  const captureWithHiddenVideo = async (
+    stream: MediaStream,
+    width: number,
+    height: number
+  ): Promise<string> => {
+    // Create a hidden video element with exact dimensions to avoid CSS scaling issues
+    const hiddenVideo = document.createElement("video");
+    hiddenVideo.style.position = "fixed";
+    hiddenVideo.style.top = "-9999px";
+    hiddenVideo.style.left = "-9999px";
+    hiddenVideo.style.width = `${width}px`;
+    hiddenVideo.style.height = `${height}px`;
+    hiddenVideo.style.objectFit = "none";
+    hiddenVideo.style.opacity = "0";
+    hiddenVideo.autoplay = true;
+    hiddenVideo.playsInline = true;
+    hiddenVideo.muted = true;
+    hiddenVideo.srcObject = stream;
+
+    document.body.appendChild(hiddenVideo);
+
+    try {
+      // Wait for hidden video to be ready
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error("Hidden video timeout"));
+        }, 5000);
+
+        const onLoadedMetadata = () => {
+          hiddenVideo.removeEventListener("loadedmetadata", onLoadedMetadata);
+          clearTimeout(timeout);
+          resolve();
+        };
+
+        hiddenVideo.addEventListener("loadedmetadata", onLoadedMetadata);
+        hiddenVideo.play().catch(reject);
+      });
+
+      // Wait a bit more to ensure frame is rendered
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Create canvas with exact dimensions
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        throw new Error("Cannot get canvas context");
+      }
+
+      // Draw from hidden video - this should capture the full frame
+      ctx.drawImage(hiddenVideo, 0, 0, width, height);
+
+      return canvas.toDataURL("image/jpeg", 0.8);
+    } finally {
+      // Clean up hidden video element
+      hiddenVideo.srcObject = null;
+      document.body.removeChild(hiddenVideo);
+    }
+  };
+
   const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
     // Wait for video to have metadata and data
     if (video.readyState < 2) {
@@ -378,7 +439,7 @@ export default function StoreDetail() {
       // Wait for video to be fully ready
       await waitForVideoReady(video);
 
-      // Get video track from stream to get actual video dimensions
+      // Get video track from stream
       const videoTrack = stream.getVideoTracks()[0];
       if (!videoTrack) {
         alert("Không tìm thấy video track từ camera.");
@@ -400,56 +461,30 @@ export default function StoreDetail() {
         return;
       }
 
-      // Store original video element styles to restore later
-      const originalWidth = video.style.width;
-      const originalHeight = video.style.height;
-      const originalObjectFit = video.style.objectFit;
-      const originalMaxHeight = video.style.maxHeight;
-
       let dataUrl: string;
 
-      try {
-        // Temporarily set video element to natural dimensions to ensure full frame capture
-        // This prevents CSS scaling from affecting the capture
-        video.style.width = `${width}px`;
-        video.style.height = `${height}px`;
-        video.style.objectFit = "none";
-        video.style.maxHeight = "none";
-
-        // Wait a bit for the style changes to take effect
-        await new Promise((resolve) => setTimeout(resolve, 50));
-
-        // Create canvas with actual video dimensions
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) {
-          alert("Không thể tạo canvas để chụp ảnh.");
-          return;
+      // Try ImageCapture API first (if available)
+      if (typeof ImageCapture !== "undefined") {
+        try {
+          const imageCapture = new ImageCapture(videoTrack);
+          const blob = await imageCapture.takePhoto();
+          const reader = new FileReader();
+          dataUrl = await new Promise<string>((resolve, reject) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+        } catch (imageCaptureError) {
+          console.warn(
+            "ImageCapture API failed, falling back to canvas method:",
+            imageCaptureError
+          );
+          // Fall through to canvas method
+          dataUrl = await captureWithHiddenVideo(stream, width, height);
         }
-
-        // Draw the full video frame to canvas
-        // Use sourceWidth and sourceHeight to ensure we capture the entire frame
-        ctx.drawImage(
-          video,
-          0, // source x
-          0, // source y
-          width, // source width
-          height, // source height
-          0, // destination x
-          0, // destination y
-          width, // destination width
-          height // destination height
-        );
-
-        dataUrl = canvas.toDataURL("image/jpeg", 0.8);
-      } finally {
-        // Always restore original video element styles even if there's an error
-        video.style.width = originalWidth;
-        video.style.height = originalHeight;
-        video.style.objectFit = originalObjectFit;
-        video.style.maxHeight = originalMaxHeight;
+      } else {
+        // Use hidden video element method
+        dataUrl = await captureWithHiddenVideo(stream, width, height);
       }
 
       // Get location

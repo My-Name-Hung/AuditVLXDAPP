@@ -60,18 +60,18 @@ function AppRoutes() {
 
       // Check camera permission
       try {
-        const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
-        cameraStream.getTracks().forEach((track) => track.stop());
-        setPermissions((prev) => ({ ...prev, camera: true }));
+      const cameraStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setPermissions((prev) => ({ ...prev, camera: true }));
       } catch (error) {
         console.warn('Camera permission denied or not available:', error);
-        setPermissions((prev) => ({ ...prev, camera: false }));
-      }
+      setPermissions((prev) => ({ ...prev, camera: false }));
+    }
 
-      // Check location permission
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-          () => setPermissions((prev) => ({ ...prev, location: true })),
+    // Check location permission
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        () => setPermissions((prev) => ({ ...prev, location: true })),
           (error) => {
             console.warn('Location permission denied or not available:', error);
             setPermissions((prev) => ({ ...prev, location: false }));
@@ -153,15 +153,15 @@ function AppRoutes() {
 function App() {
   return (
     <ErrorBoundary>
-      <DeviceCheck>
-        <ThemeProvider>
-          <AuthProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </AuthProvider>
-        </ThemeProvider>
-      </DeviceCheck>
+    <DeviceCheck>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </DeviceCheck>
     </ErrorBoundary>
   );
 }
