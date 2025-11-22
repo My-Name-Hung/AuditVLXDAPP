@@ -337,16 +337,20 @@ export default function StoreDetail() {
   ): Promise<string> => {
     // Create a hidden video element with exact dimensions to avoid CSS scaling issues
     const hiddenVideo = document.createElement("video");
-    hiddenVideo.style.position = "fixed";
-    hiddenVideo.style.top = "-9999px";
-    hiddenVideo.style.left = "-9999px";
+    hiddenVideo.style.position = "absolute";
+    hiddenVideo.style.top = "0";
+    hiddenVideo.style.left = "0";
     hiddenVideo.style.width = `${width}px`;
     hiddenVideo.style.height = `${height}px`;
-    hiddenVideo.style.objectFit = "none";
+    hiddenVideo.style.objectFit = "fill"; // Use fill instead of none to ensure full frame
     hiddenVideo.style.opacity = "0";
+    hiddenVideo.style.pointerEvents = "none";
+    hiddenVideo.style.zIndex = "-1";
     hiddenVideo.autoplay = true;
     hiddenVideo.playsInline = true;
     hiddenVideo.muted = true;
+    hiddenVideo.setAttribute("width", width.toString());
+    hiddenVideo.setAttribute("height", height.toString());
     hiddenVideo.srcObject = stream;
 
     document.body.appendChild(hiddenVideo);
@@ -368,26 +372,66 @@ export default function StoreDetail() {
         hiddenVideo.play().catch(reject);
       });
 
-      // Wait a bit more to ensure frame is rendered
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      // Wait for video to have current frame
+      await new Promise<void>((resolve) => {
+        if (hiddenVideo.readyState >= 2) {
+          resolve();
+        } else {
+          const onCanPlay = () => {
+            hiddenVideo.removeEventListener("canplay", onCanPlay);
+            resolve();
+          };
+          hiddenVideo.addEventListener("canplay", onCanPlay);
+          setTimeout(resolve, 500); // Fallback timeout
+        }
+      });
+
+      // Additional wait to ensure frame is fully rendered on iOS
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       // Create canvas with exact dimensions
       const canvas = document.createElement("canvas");
       canvas.width = width;
       canvas.height = height;
-      const ctx = canvas.getContext("2d");
+      const ctx = canvas.getContext("2d", { willReadFrequently: false });
       if (!ctx) {
         throw new Error("Cannot get canvas context");
       }
 
-      // Draw from hidden video - this should capture the full frame
-      ctx.drawImage(hiddenVideo, 0, 0, width, height);
+      // Draw from hidden video - use natural dimensions
+      // On iOS, we need to ensure we're drawing the full frame
+      const videoWidth = hiddenVideo.videoWidth || width;
+      const videoHeight = hiddenVideo.videoHeight || height;
+
+      // Clear canvas first
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(0, 0, width, height);
+
+      // Draw the full video frame
+      ctx.drawImage(
+        hiddenVideo,
+        0,
+        0,
+        videoWidth,
+        videoHeight,
+        0,
+        0,
+        width,
+        height
+      );
 
       return canvas.toDataURL("image/jpeg", 0.8);
     } finally {
       // Clean up hidden video element
+      if (hiddenVideo.srcObject) {
+        (hiddenVideo.srcObject as MediaStream)
+          .getTracks()
+          .forEach((track) => track.stop());
+      }
       hiddenVideo.srcObject = null;
-      document.body.removeChild(hiddenVideo);
+      if (document.body.contains(hiddenVideo)) {
+        document.body.removeChild(hiddenVideo);
+      }
     }
   };
 

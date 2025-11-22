@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "../components/Header";
+import { StoreSkeletonList } from "../components/StoreSkeleton";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
 import "./Stores.css";
@@ -409,6 +410,10 @@ export default function Stores() {
               className="stores-loading-spinner"
               style={{ borderTopColor: colors.primary }}
             />
+          </div>
+        ) : isSearching ? (
+          <div className="stores-list">
+            <StoreSkeletonList count={5} />
           </div>
         ) : stores.length === 0 ? (
           <div className="stores-empty-container">
