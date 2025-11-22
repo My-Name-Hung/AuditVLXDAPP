@@ -53,13 +53,14 @@ async function uploadImageWithWatermark(imageBuffer, metadata) {
 
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
+    // Font size 10 for web iosauditapp to prevent watermark overflow
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
       eager: [
         {
           overlay: {
             font_family: "Arial",
-            font_size: 36,
+            font_size: 10,
             font_weight: "bold",
             text: watermarkText,
           },
