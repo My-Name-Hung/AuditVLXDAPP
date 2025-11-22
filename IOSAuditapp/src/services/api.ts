@@ -10,7 +10,7 @@ const getApiBaseUrl = () => {
       // Validate URL format
       new URL(envUrl);
       return envUrl;
-    } catch (error) {
+    } catch {
       console.warn("Invalid VITE_API_BASE_URL format, using default:", envUrl);
     }
   }
@@ -65,7 +65,7 @@ api.interceptors.response.use(
             // Try to use current origin to construct valid URL
             const loginUrl = new URL(loginPath, window.location.origin);
             window.location.href = loginUrl.pathname;
-          } catch (error) {
+          } catch {
             // Fallback to simple pathname change
             window.location.pathname = loginPath;
           }
