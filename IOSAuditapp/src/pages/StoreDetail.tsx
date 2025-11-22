@@ -337,34 +337,53 @@ export default function StoreDetail() {
     height: number
   ): Promise<string> => {
     // Wait a bit more to ensure current frame is fully rendered
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    await new Promise((resolve) => setTimeout(resolve, 200));
 
-    // Get the actual video dimensions (source resolution)
+    // Get the actual video dimensions (source resolution) - this is the true video size
+    // These are the native dimensions of the video stream, not the CSS-scaled element
     const videoWidth = video.videoWidth || width;
     const videoHeight = video.videoHeight || height;
 
-    // Create canvas with exact dimensions matching video source
+    // Ensure we have valid dimensions
+    if (videoWidth === 0 || videoHeight === 0) {
+      throw new Error("Invalid video dimensions");
+    }
+
+    // Create canvas with exact dimensions matching video source (no extra space)
     const canvas = document.createElement("canvas");
     canvas.width = videoWidth;
     canvas.height = videoHeight;
     const ctx = canvas.getContext("2d", {
       willReadFrequently: false,
-      alpha: false, // Disable alpha for better performance
+      alpha: false, // No alpha for JPEG
     });
 
     if (!ctx) {
       throw new Error("Cannot get canvas context");
     }
 
-    // Clear canvas with white background first
+    // Fill canvas with white background first (JPEG requirement)
     ctx.fillStyle = "#FFFFFF";
     ctx.fillRect(0, 0, videoWidth, videoHeight);
 
-    // Draw the video frame directly - use natural video dimensions
-    // This captures the full frame regardless of CSS transforms/scaling
-    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+    // Draw the video frame directly using its natural dimensions
+    // This captures the full frame without any scaling, cropping, or offset
+    // drawImage will handle the video's native aspect ratio correctly
+    ctx.drawImage(
+      video,
+      0, // source x (start from top-left of video)
+      0, // source y
+      videoWidth, // source width (full video width)
+      videoHeight, // source height (full video height)
+      0, // destination x (start from top-left of canvas)
+      0, // destination y
+      videoWidth, // destination width (same as source)
+      videoHeight // destination height (same as source)
+    );
 
-    return canvas.toDataURL("image/jpeg", 0.85);
+    // Convert to JPEG - this will have white background only where video doesn't cover
+    // But since we're using exact video dimensions, there should be no extra white space
+    return canvas.toDataURL("image/jpeg", 0.9);
   };
 
   const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
