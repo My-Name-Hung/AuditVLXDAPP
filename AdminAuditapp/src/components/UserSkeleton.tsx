@@ -1,4 +1,3 @@
-import React from "react";
 import "./UserSkeleton.css";
 
 function UserSkeletonRow() {

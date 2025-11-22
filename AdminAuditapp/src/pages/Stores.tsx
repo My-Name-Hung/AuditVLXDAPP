@@ -728,8 +728,6 @@ export default function Stores() {
 
   const showInitialLoading =
     loading && stores.length === 0 && !hasFetchedRef.current;
-  const showSkeleton =
-    showInitialLoading || (isFiltering && stores.length === 0);
 
   return (
     <div className="stores-page">

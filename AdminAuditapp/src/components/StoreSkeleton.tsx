@@ -1,4 +1,3 @@
-import React from "react";
 import "./StoreSkeleton.css";
 
 export default function StoreSkeleton() {
