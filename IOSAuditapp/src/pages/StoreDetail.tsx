@@ -114,6 +114,66 @@ const getAuditStatusStyle = (result: string) => {
   }
 };
 
+/**
+ * Compress and convert image to WebP format for faster upload
+ * @param dataUrl - Image data URL
+ * @param maxWidth - Maximum width (default: 1024px)
+ * @param quality - WebP quality 0-1 (default: 0.6)
+ * @returns Promise<Blob> - Compressed WebP image blob
+ */
+const compressImageToWebP = (
+  dataUrl: string,
+  maxWidth: number = 1024,
+  quality: number = 0.6
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        // Calculate new dimensions maintaining aspect ratio
+        let width = img.width;
+        let height = img.height;
+
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        // Create canvas and draw resized image
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+
+        if (!ctx) {
+          reject(new Error("Failed to get canvas context"));
+          return;
+        }
+
+        // Draw image with high quality
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Convert to WebP blob
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Failed to convert image to WebP"));
+            }
+          },
+          "image/webp",
+          quality
+        );
+      } catch (error) {
+        reject(error);
+      }
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = dataUrl;
+  });
+};
+
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -366,12 +426,15 @@ export default function StoreDetail() {
       );
 
       const uploadPromises = imagesToUpload.map(async (img, index) => {
-        // Convert data URL to blob
-        const response = await fetch(img.dataUrl);
-        const blob = await response.blob();
+        // Compress and convert to WebP for faster upload (60-80% smaller file size)
+        const compressedBlob = await compressImageToWebP(
+          img.dataUrl,
+          1024, // Max width 1024px
+          0.6 // Quality 60%
+        );
 
         const formData = new FormData();
-        formData.append("image", blob, `image_${index + 1}.jpg`);
+        formData.append("image", compressedBlob, `image_${index + 1}.webp`);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
         formData.append("longitude", img.longitude.toString());
