@@ -143,8 +143,24 @@ export default function Stores() {
       }
 
       const response = await api.get('/stores', { params });
+      
+      // Validate response structure
+      if (!response || !response.data) {
+        throw new Error('Invalid API response');
+      }
+
       const data = response.data.data || [];
       const pagination = response.data.pagination || {};
+
+      // Validate data is an array
+      if (!Array.isArray(data)) {
+        console.warn('Stores data is not an array:', data);
+        if (reset) {
+          setStores([]);
+        }
+        setHasMore(false);
+        return;
+      }
 
       const sortedData = sortStoresByStatus(data);
 
@@ -161,10 +177,19 @@ export default function Stores() {
         });
       }
 
-      setHasMore(pagination.page < pagination.totalPages);
+      setHasMore(
+        pagination.page && pagination.totalPages
+          ? pagination.page < pagination.totalPages
+          : false
+      );
       setPage((prev) => (reset ? 2 : prev + 1));
     } catch (error) {
       console.error('Error fetching stores:', error);
+      // Set empty stores on error to prevent white screen
+      if (reset) {
+        setStores([]);
+      }
+      setHasMore(false);
     } finally {
       setLoading(false);
       setIsSearching(false);

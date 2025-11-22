@@ -1,11 +1,19 @@
-import React from 'react';
-import { isIOSDevice } from '../utils/deviceDetection';
-import './DeviceCheck.css';
+import React from "react";
+import { isIOSDevice } from "../utils/deviceDetection";
+import "./DeviceCheck.css";
 
-export default function DeviceCheck({ children }: { children: React.ReactNode }) {
+export default function DeviceCheck({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const isIOS = isIOSDevice();
 
-  if (!isIOS) {
+  // TEMPORARY: Disable device check for testing on laptop
+  // TODO: Re-enable device check after testing
+  const ENABLE_DEVICE_CHECK = false; // Set to true to re-enable iOS check
+
+  if (ENABLE_DEVICE_CHECK && !isIOS) {
     return (
       <div className="device-check-container">
         <div className="device-check-content">
@@ -21,4 +29,3 @@ export default function DeviceCheck({ children }: { children: React.ReactNode })
 
   return <>{children}</>;
 }
-
