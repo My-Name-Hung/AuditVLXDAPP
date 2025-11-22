@@ -330,42 +330,87 @@ export default function StoreDetail() {
     }
   };
 
+  const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
+    // Wait for video to have metadata and data
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onLoadedMetadata = () => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          resolve();
+        };
+        video.addEventListener("loadedmetadata", onLoadedMetadata);
+        // Timeout after 3 seconds
+        setTimeout(() => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          resolve();
+        }, 3000);
+      });
+    }
+
+    // Wait for video to have current data
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onLoadedData = () => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          resolve();
+        };
+        video.addEventListener("loadeddata", onLoadedData);
+        // Timeout after 2 seconds
+        setTimeout(() => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          resolve();
+        }, 2000);
+      });
+    }
+
+    // Small delay to ensure video frame is fully rendered
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  };
+
   const capturePhoto = async () => {
     if (!videoRef.current || currentCameraIndex === null) return;
 
     try {
-      // Wait for video to be ready and have valid dimensions
       const video = videoRef.current;
-      if (video.readyState < 2) {
-        // Wait for video metadata to load
-        await new Promise<void>((resolve) => {
-          const onLoadedMetadata = () => {
-            video.removeEventListener("loadedmetadata", onLoadedMetadata);
-            resolve();
-          };
-          video.addEventListener("loadedmetadata", onLoadedMetadata);
-          // Timeout after 2 seconds
-          setTimeout(() => {
-            video.removeEventListener("loadedmetadata", onLoadedMetadata);
-            resolve();
-          }, 2000);
-        });
-      }
+
+      // Wait for video to be fully ready
+      await waitForVideoReady(video);
+
+      // Use naturalWidth/naturalHeight (preferred) or fallback to videoWidth/videoHeight
+      // naturalWidth/naturalHeight are the intrinsic dimensions of the video stream
+      // and are not affected by CSS scaling
+      const videoElement = video as HTMLVideoElement & {
+        naturalWidth?: number;
+        naturalHeight?: number;
+      };
+      const width =
+        (videoElement.naturalWidth && videoElement.naturalWidth > 0
+          ? videoElement.naturalWidth
+          : null) || video.videoWidth;
+      const height =
+        (videoElement.naturalHeight && videoElement.naturalHeight > 0
+          ? videoElement.naturalHeight
+          : null) || video.videoHeight;
 
       // Ensure video has valid dimensions
-      if (video.videoWidth === 0 || video.videoHeight === 0) {
+      if (width === 0 || height === 0) {
         alert("Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.");
         return;
       }
 
+      // Create canvas with natural/intrinsic dimensions of the video
       const canvas = document.createElement("canvas");
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      if (!ctx) {
+        alert("Không thể tạo canvas để chụp ảnh.");
+        return;
+      }
 
-      // Draw the full video frame to canvas
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      // Draw the full video frame to canvas using natural dimensions
+      // This ensures we capture the entire video frame, not just the visible portion
+      ctx.drawImage(video, 0, 0, width, height);
       const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
 
       // Get location
