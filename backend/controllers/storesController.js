@@ -80,7 +80,7 @@ const getAllStores = async (req, res) => {
           UserCode: assignedUser.UserCode,
           Status: mapAuditResultToStatus(latestAuditResult),
         };
-      });
+        });
 
       store.userStatuses = userStatuses;
 
@@ -94,7 +94,7 @@ const getAllStores = async (req, res) => {
       } else if (userStatuses.length > 0) {
         store.Status = userStatuses[0].Status;
       } else if (!store.Status) {
-        store.Status = "not_audited";
+          store.Status = "not_audited";
       }
     }
 
@@ -418,13 +418,13 @@ const getStoreById = async (req, res) => {
         FROM Users
         WHERE Id = @UserId
       `);
-
+      
       if (userResult.recordset.length > 0) {
         allAssignedUsers = [
           {
-            UserId: userResult.recordset[0].Id,
-            FullName: userResult.recordset[0].FullName,
-            UserCode: userResult.recordset[0].UserCode,
+          UserId: userResult.recordset[0].Id,
+          FullName: userResult.recordset[0].FullName,
+          UserCode: userResult.recordset[0].UserCode,
           },
         ];
       }
@@ -465,7 +465,7 @@ const getStoreById = async (req, res) => {
         Status: mapAuditResultToStatus(latest?.Result),
         FailedReason: latest?.FailedReason || null,
       };
-    });
+      });
 
     res.json({
       ...storeDetails,
@@ -662,7 +662,7 @@ const updateStore = async (req, res) => {
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
           UpdatedAt = GETDATE()`;
-
+    
     // Handle Rank separately to allow null
     if (rank !== undefined) {
       if (rank === null || rank === "") {
@@ -673,7 +673,7 @@ const updateStore = async (req, res) => {
     } else {
       updateQuery += `, Rank = @Rank`;
     }
-
+    
     updateQuery += `
       OUTPUT INSERTED.*
       WHERE Id = @Id`;

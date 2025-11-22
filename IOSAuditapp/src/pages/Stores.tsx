@@ -1,9 +1,9 @@
-import { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useTheme } from '../contexts/ThemeContext';
-import api from '../services/api';
-import Header from '../components/Header';
-import './Stores.css';
+import { useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import Header from "../components/Header";
+import { useTheme } from "../contexts/ThemeContext";
+import api from "../services/api";
+import "./Stores.css";
 
 interface Territory {
   Id: number;
@@ -28,22 +28,22 @@ interface Store {
 
 const getStatusLabel = (status: string) => {
   const statusMap: Record<string, string> = {
-    not_audited: 'Chưa thực hiện',
-    audited: 'Đã thực hiện',
-    passed: 'Đạt',
-    failed: 'Không đạt',
+    not_audited: "Chưa thực hiện",
+    audited: "Đã thực hiện",
+    passed: "Đạt",
+    failed: "Không đạt",
   };
   return statusMap[status] || status;
 };
 
 const getStatusColor = (status: string) => {
   const colorMap: Record<string, string> = {
-    not_audited: '#FF9800',
-    audited: '#2196F3',
-    passed: '#4CAF50',
-    failed: '#F44336',
+    not_audited: "#FF9800",
+    audited: "#2196F3",
+    passed: "#4CAF50",
+    failed: "#F44336",
   };
-  return colorMap[status] || '#999';
+  return colorMap[status] || "#999";
 };
 
 const getStatusPriority = (status: string): number => {
@@ -74,15 +74,19 @@ export default function Stores() {
   const [hasMore, setHasMore] = useState(true);
 
   // Filters
-  const [searchText, setSearchText] = useState('');
-  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
+    null
+  );
   const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
   const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
-  const [territorySearch, setTerritorySearch] = useState('');
+  const [territorySearch, setTerritorySearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
 
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined
+  );
 
   useEffect(() => {
     fetchTerritories();
@@ -113,10 +117,10 @@ export default function Stores() {
 
   const fetchTerritories = async () => {
     try {
-      const response = await api.get('/territories');
+      const response = await api.get("/territories");
       setTerritories(response.data.data || []);
     } catch (error) {
-      console.error('Error fetching territories:', error);
+      console.error("Error fetching territories:", error);
     }
   };
 
@@ -142,54 +146,22 @@ export default function Stores() {
         params.status = selectedStatus;
       }
 
-      const response = await api.get('/stores', { params });
-      
-      // Validate response structure
-      if (!response || !response.data) {
-        throw new Error('Invalid API response');
-      }
-
+      const response = await api.get("/stores", { params });
       const data = response.data.data || [];
       const pagination = response.data.pagination || {};
-
-      // Validate data is an array
-      if (!Array.isArray(data)) {
-        console.warn('Stores data is not an array:', data);
-        if (reset) {
-          setStores([]);
-        }
-        setHasMore(false);
-        return;
-      }
 
       const sortedData = sortStoresByStatus(data);
 
       if (reset) {
         setStores(sortedData);
       } else {
-        // Remove duplicates by Id before merging to prevent duplicate keys
-        setStores((prev) => {
-          const existingIds = new Set(prev.map((store) => store.Id));
-          const newStores = sortedData.filter(
-            (store) => !existingIds.has(store.Id)
-          );
-          return sortStoresByStatus([...prev, ...newStores]);
-        });
+        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
       }
 
-      setHasMore(
-        pagination.page && pagination.totalPages
-          ? pagination.page < pagination.totalPages
-          : false
-      );
+      setHasMore(pagination.page < pagination.totalPages);
       setPage((prev) => (reset ? 2 : prev + 1));
     } catch (error) {
-      console.error('Error fetching stores:', error);
-      // Set empty stores on error to prevent white screen
-      if (reset) {
-        setStores([]);
-      }
-      setHasMore(false);
+      console.error("Error fetching stores:", error);
     } finally {
       setLoading(false);
       setIsSearching(false);
@@ -207,7 +179,10 @@ export default function Stores() {
   );
 
   return (
-    <div className="stores-container" style={{ backgroundColor: colors.secondary }}>
+    <div
+      className="stores-container"
+      style={{ backgroundColor: colors.secondary }}
+    >
       <Header />
 
       {/* Filters */}
@@ -215,7 +190,7 @@ export default function Stores() {
         className="stores-filters-container"
         style={{
           backgroundColor: colors.background,
-          borderBottomColor: colors.icon + '20',
+          borderBottomColor: colors.icon + "20",
         }}
       >
         <div className="stores-filter-row">
@@ -223,7 +198,7 @@ export default function Stores() {
             className="stores-search-container"
             style={{
               backgroundColor:
-                colors.background === '#fefefe' ? '#f5f5f5' : colors.secondary,
+                colors.background === "#fefefe" ? "#f5f5f5" : colors.secondary,
             }}
           >
             <span className="stores-search-icon">🔍</span>
@@ -245,23 +220,26 @@ export default function Stores() {
               onClick={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
               style={{
                 backgroundColor:
-                  colors.background === '#fefefe' ? '#f5f5f5' : colors.secondary,
+                  colors.background === "#fefefe"
+                    ? "#f5f5f5"
+                    : colors.secondary,
                 color: colors.text,
               }}
             >
               <span>
                 {selectedTerritory
-                  ? territories.find((t) => t.Id === selectedTerritory)?.TerritoryName
-                  : 'Địa bàn phụ trách'}
+                  ? territories.find((t) => t.Id === selectedTerritory)
+                      ?.TerritoryName
+                  : "Địa bàn phụ trách"}
               </span>
-              <span>{showTerritoryDropdown ? '▲' : '▼'}</span>
+              <span>{showTerritoryDropdown ? "▲" : "▼"}</span>
             </button>
             {showTerritoryDropdown && (
               <div
                 className="stores-dropdown-menu"
                 style={{
                   backgroundColor: colors.background,
-                  borderColor: colors.icon + '20',
+                  borderColor: colors.icon + "20",
                 }}
               >
                 <input
@@ -270,16 +248,22 @@ export default function Stores() {
                   placeholder="Tìm địa bàn..."
                   value={territorySearch}
                   onChange={(e) => setTerritorySearch(e.target.value)}
-                  style={{ color: colors.text, borderBottomColor: colors.icon + '20' }}
+                  style={{
+                    color: colors.text,
+                    borderBottomColor: colors.icon + "20",
+                  }}
                 />
                 <button
                   className="stores-dropdown-item"
                   onClick={() => {
                     setSelectedTerritory(null);
                     setShowTerritoryDropdown(false);
-                    setTerritorySearch('');
+                    setTerritorySearch("");
                   }}
-                  style={{ borderBottomColor: colors.secondary, color: colors.primary }}
+                  style={{
+                    borderBottomColor: colors.secondary,
+                    color: colors.primary,
+                  }}
                 >
                   Tất cả
                 </button>
@@ -290,9 +274,12 @@ export default function Stores() {
                     onClick={() => {
                       setSelectedTerritory(item.Id);
                       setShowTerritoryDropdown(false);
-                      setTerritorySearch('');
+                      setTerritorySearch("");
                     }}
-                    style={{ borderBottomColor: colors.secondary, color: colors.text }}
+                    style={{
+                      borderBottomColor: colors.secondary,
+                      color: colors.text,
+                    }}
                   >
                     {item.TerritoryName}
                   </button>
@@ -307,19 +294,23 @@ export default function Stores() {
               onClick={() => setShowStatusDropdown(!showStatusDropdown)}
               style={{
                 backgroundColor:
-                  colors.background === '#fefefe' ? '#f5f5f5' : colors.secondary,
+                  colors.background === "#fefefe"
+                    ? "#f5f5f5"
+                    : colors.secondary,
                 color: colors.text,
               }}
             >
-              <span>{selectedStatus ? getStatusLabel(selectedStatus) : 'Trạng thái'}</span>
-              <span>{showStatusDropdown ? '▲' : '▼'}</span>
+              <span>
+                {selectedStatus ? getStatusLabel(selectedStatus) : "Trạng thái"}
+              </span>
+              <span>{showStatusDropdown ? "▲" : "▼"}</span>
             </button>
             {showStatusDropdown && (
               <div
                 className="stores-dropdown-menu"
                 style={{
                   backgroundColor: colors.background,
-                  borderColor: colors.icon + '20',
+                  borderColor: colors.icon + "20",
                 }}
               >
                 <button
@@ -328,47 +319,62 @@ export default function Stores() {
                     setSelectedStatus(null);
                     setShowStatusDropdown(false);
                   }}
-                  style={{ borderBottomColor: colors.secondary, color: colors.primary }}
+                  style={{
+                    borderBottomColor: colors.secondary,
+                    color: colors.primary,
+                  }}
                 >
                   Tất cả
                 </button>
                 <button
                   className="stores-dropdown-item"
                   onClick={() => {
-                    setSelectedStatus('not_audited');
+                    setSelectedStatus("not_audited");
                     setShowStatusDropdown(false);
                   }}
-                  style={{ borderBottomColor: colors.secondary, color: colors.text }}
+                  style={{
+                    borderBottomColor: colors.secondary,
+                    color: colors.text,
+                  }}
                 >
                   Chưa thực hiện
                 </button>
                 <button
                   className="stores-dropdown-item"
                   onClick={() => {
-                    setSelectedStatus('audited');
+                    setSelectedStatus("audited");
                     setShowStatusDropdown(false);
                   }}
-                  style={{ borderBottomColor: colors.secondary, color: colors.text }}
+                  style={{
+                    borderBottomColor: colors.secondary,
+                    color: colors.text,
+                  }}
                 >
                   Đã thực hiện
                 </button>
                 <button
                   className="stores-dropdown-item"
                   onClick={() => {
-                    setSelectedStatus('passed');
+                    setSelectedStatus("passed");
                     setShowStatusDropdown(false);
                   }}
-                  style={{ borderBottomColor: colors.secondary, color: colors.text }}
+                  style={{
+                    borderBottomColor: colors.secondary,
+                    color: colors.text,
+                  }}
                 >
                   Đạt
                 </button>
                 <button
                   className="stores-dropdown-item"
                   onClick={() => {
-                    setSelectedStatus('failed');
+                    setSelectedStatus("failed");
                     setShowStatusDropdown(false);
                   }}
-                  style={{ borderBottomColor: colors.secondary, color: colors.text }}
+                  style={{
+                    borderBottomColor: colors.secondary,
+                    color: colors.text,
+                  }}
                 >
                   Không đạt
                 </button>
@@ -382,7 +388,10 @@ export default function Stores() {
       <div className="stores-list-container">
         {loading && stores.length === 0 ? (
           <div className="stores-loading-container">
-            <div className="stores-loading-spinner" style={{ borderTopColor: colors.primary }} />
+            <div
+              className="stores-loading-spinner"
+              style={{ borderTopColor: colors.primary }}
+            />
           </div>
         ) : stores.length === 0 ? (
           <div className="stores-empty-container">
@@ -395,7 +404,10 @@ export default function Stores() {
             {isSearching && (
               <div className="stores-skeleton-list">
                 {Array.from({ length: 5 }).map((_, index) => (
-                  <div key={index} className="stores-store-card stores-store-card-skeleton">
+                  <div
+                    key={index}
+                    className="stores-store-card stores-store-card-skeleton"
+                  >
                     <div className="skeleton-line skeleton-line-title" />
                     <div className="skeleton-line skeleton-line-code" />
                     <div className="skeleton-line skeleton-line-address" />
@@ -404,46 +416,51 @@ export default function Stores() {
                 ))}
               </div>
             )}
-            {stores.map((item, index) => {
-              // Ensure unique key by combining Id with index as fallback
-              const uniqueKey = item.Id ? `store-${item.Id}` : `store-${index}`;
-              return (
-                <div
-                  key={uniqueKey}
-                  className="stores-store-card"
-                  onClick={() => navigate(`/stores/${item.Id}`)}
-                  style={{
-                    backgroundColor: colors.background,
-                    borderColor: colors.icon + '20',
-                  }}
-                >
-                  <div className="stores-store-card-header">
-                    <div className="stores-store-card-title-container">
-                      <h3 className="stores-store-name" style={{ color: colors.text }}>
-                        {item.StoreName}
-                      </h3>
-                      <span
-                        className="stores-status-badge"
-                        style={{ backgroundColor: getStatusColor(item.Status) }}
-                      >
-                        {getStatusLabel(item.Status)}
-                      </span>
-                    </div>
-                    <span style={{ color: colors.icon }}>→</span>
+            {stores.map((item) => (
+              <div
+                key={item.Id}
+                className="stores-store-card"
+                onClick={() => navigate(`/stores/${item.Id}`)}
+                style={{
+                  backgroundColor: colors.background,
+                  borderColor: colors.icon + "20",
+                }}
+              >
+                <div className="stores-store-card-header">
+                  <div className="stores-store-card-title-container">
+                    <h3
+                      className="stores-store-name"
+                      style={{ color: colors.text }}
+                    >
+                      {item.StoreName}
+                    </h3>
+                    <span
+                      className="stores-status-badge"
+                      style={{ backgroundColor: getStatusColor(item.Status) }}
+                    >
+                      {getStatusLabel(item.Status)}
+                    </span>
                   </div>
-
-                  <p className="stores-store-code" style={{ color: colors.icon }}>
-                    {item.StoreCode}
-                  </p>
-                  <p className="stores-store-address" style={{ color: colors.icon }}>
-                    {item.Address}
-                  </p>
-                  <p className="stores-store-contact" style={{ color: colors.icon }}>
-                    {item.PartnerName || 'N/A'} | {item.Phone || 'N/A'}
-                  </p>
+                  <span style={{ color: colors.icon }}>→</span>
                 </div>
-              );
-            })}
+
+                <p className="stores-store-code" style={{ color: colors.icon }}>
+                  {item.StoreCode}
+                </p>
+                <p
+                  className="stores-store-address"
+                  style={{ color: colors.icon }}
+                >
+                  {item.Address}
+                </p>
+                <p
+                  className="stores-store-contact"
+                  style={{ color: colors.icon }}
+                >
+                  {item.PartnerName || "N/A"} | {item.Phone || "N/A"}
+                </p>
+              </div>
+            ))}
             {hasMore && (
               <button
                 className="stores-load-more-button"
@@ -451,7 +468,7 @@ export default function Stores() {
                 disabled={loading}
                 style={{ color: colors.primary }}
               >
-                {loading ? 'Đang tải...' : 'Tải thêm'}
+                {loading ? "Đang tải..." : "Tải thêm"}
               </button>
             )}
           </div>
@@ -460,4 +477,3 @@ export default function Stores() {
     </div>
   );
 }
-

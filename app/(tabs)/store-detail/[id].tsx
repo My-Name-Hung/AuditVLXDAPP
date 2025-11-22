@@ -447,21 +447,20 @@ export default function StoreDetailScreen() {
       );
       const uploadPromises = imagesToUpload.map(async (img, index) => {
         // Resize and compress image before upload for faster upload speed
-        // Using WebP format for 25-35% smaller file size
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           img.uri,
-          [{ resize: { width: 1024 } }], // Resize to max width 1024px (maintains aspect ratio)
+          [{ resize: { width: 1280 } }], // Resize to max width 1280px (maintains aspect ratio)
           {
-            compress: 0.6, // Compress to 60% quality (optimized for speed while maintaining good quality)
-            format: ImageManipulator.SaveFormat.WEBP,
+            compress: 0.7, // Compress to 70% quality (good balance between quality and size)
+            format: ImageManipulator.SaveFormat.JPEG,
           }
         );
 
         const formData = new FormData();
         formData.append("image", {
           uri: manipulatedImage.uri,
-          type: "image/webp",
-          name: `image_${index + 1}.webp`,
+          type: "image/jpeg",
+          name: `image_${index + 1}.jpg`,
         } as any);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());

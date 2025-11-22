@@ -363,36 +363,6 @@
   width: 100%;
   max-width: 500px;
   padding: 20px;
-  position: relative;
-}
-
-.store-detail-camera-switch-button {
-  position: absolute;
-  top: 20px;
-  right: 20px;
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.9);
-  border: none;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  z-index: 10;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: all 0.2s ease;
-  color: #333;
-}
-
-.store-detail-camera-switch-button:hover {
-  background: rgba(255, 255, 255, 1);
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-}
-
-.store-detail-camera-switch-button:active {
-  transform: scale(0.95);
 }
 
 .store-detail-camera-video {
@@ -420,11 +390,45 @@
   cursor: pointer;
   background: #f5f5f5;
   color: #666;
+  transition: all 0.2s ease;
+}
+
+.store-detail-camera-modal-button:hover {
+  background: #e0e0e0;
+}
+
+.store-detail-camera-modal-button-switch {
+  flex: 0 0 auto;
+  width: 60px;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  padding: 12px;
+}
+
+.store-detail-camera-modal-button-switch:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.camera-switch-icon {
+  display: inline-block;
+  transform: rotate(90deg);
+  font-weight: bold;
+  line-height: 1;
 }
 
 .store-detail-camera-modal-button-capture {
   background: #0138C3;
   color: #fff;
+}
+
+.store-detail-camera-modal-button-capture:hover {
+  background: #0129a0;
 }
 
 .store-detail-image-modal-content {

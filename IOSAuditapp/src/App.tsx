@@ -4,7 +4,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import DeviceCheck from './components/DeviceCheck';
 import PermissionModal from './components/PermissionModal';
-import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import Stores from './pages/Stores';
@@ -123,17 +122,15 @@ function AppRoutes() {
 
 function App() {
   return (
-    <ErrorBoundary>
-      <DeviceCheck>
-        <ThemeProvider>
-          <AuthProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </AuthProvider>
-        </ThemeProvider>
-      </DeviceCheck>
-    </ErrorBoundary>
+    <DeviceCheck>
+      <ThemeProvider>
+        <AuthProvider>
+          <BrowserRouter>
+            <AppRoutes />
+          </BrowserRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </DeviceCheck>
   );
 }
 

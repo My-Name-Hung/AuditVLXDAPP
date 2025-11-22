@@ -1,8 +1,8 @@
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { useTheme } from '../contexts/ThemeContext';
-import iconImage from '../assets/icon.jpg';
-import './Header.css';
+import { useNavigate } from "react-router-dom";
+import iconImage from "../assets/icon.jpg";
+import { useAuth } from "../contexts/AuthContext";
+import { useTheme } from "../contexts/ThemeContext";
+import "./Header.css";
 
 interface HeaderProps {
   title?: string;
@@ -14,16 +14,25 @@ export default function Header({ title }: HeaderProps) {
   const { colors } = useTheme();
 
   return (
-    <header className="header" style={{ backgroundColor: colors.background, borderBottomColor: colors.icon + '20' }}>
+    <header
+      className="header"
+      style={{
+        backgroundColor: colors.background,
+        borderBottomColor: colors.icon + "20",
+      }}
+    >
       <div
         className="header-user-section"
-        onClick={() => navigate('/profile')}
-        style={{ cursor: 'pointer' }}
+        onClick={() => navigate("/profile")}
+        style={{ cursor: "pointer" }}
       >
         {user?.avatar ? (
           <img src={user.avatar} alt="Avatar" className="header-avatar" />
         ) : (
-          <div className="header-avatar-placeholder" style={{ color: colors.primary }}>
+          <div
+            className="header-avatar-placeholder"
+            style={{ color: colors.primary }}
+          >
             👤
           </div>
         )}
@@ -46,4 +55,3 @@ export default function Header({ title }: HeaderProps) {
     </header>
   );
 }
-

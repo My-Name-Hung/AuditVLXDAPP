@@ -9,11 +9,7 @@ export default function DeviceCheck({
 }) {
   const isIOS = isIOSDevice();
 
-  // TEMPORARY: Disable device check for testing on laptop
-  // TODO: Re-enable device check after testing
-  const ENABLE_DEVICE_CHECK = false; // Set to true to re-enable iOS check
-
-  if (ENABLE_DEVICE_CHECK && !isIOS) {
+  if (!isIOS) {
     return (
       <div className="device-check-container">
         <div className="device-check-content">

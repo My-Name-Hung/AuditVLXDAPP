@@ -10,10 +10,9 @@ const { getProvinceDistrict } = require("./geocodingService");
  *
  * @param {Buffer} imageBuffer - Image file buffer from mobile app
  * @param {Object} metadata - Metadata containing latitude, longitude, timestamp
- * @param {string} mimeType - MIME type of the image (default: "image/jpeg", supports "image/webp", "image/png")
  * @returns {Promise<Object>} Cloudinary upload result
  */
-async function uploadImageWithWatermark(imageBuffer, metadata, mimeType = "image/jpeg") {
+async function uploadImageWithWatermark(imageBuffer, metadata) {
   const { latitude, longitude, timestamp } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
@@ -47,8 +46,8 @@ async function uploadImageWithWatermark(imageBuffer, metadata, mimeType = "image
   const watermarkText = `Lat:${latValue} Long:${lonValue} ${timeString}\n${locationText}`;
 
   try {
-    // Convert buffer to base64 with correct MIME type (supports JPEG, PNG, WebP)
-    const base64Image = `data:${mimeType};base64,${imageBuffer.toString(
+    // Convert buffer to base64
+    const base64Image = `data:image/jpeg;base64,${imageBuffer.toString(
       "base64"
     )}`;
 

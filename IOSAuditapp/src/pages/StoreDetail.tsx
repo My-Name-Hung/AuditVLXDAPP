@@ -114,66 +114,6 @@ const getAuditStatusStyle = (result: string) => {
   }
 };
 
-/**
- * Compress and convert image to WebP format for faster upload
- * @param dataUrl - Image data URL
- * @param maxWidth - Maximum width (default: 1024px)
- * @param quality - WebP quality 0-1 (default: 0.6)
- * @returns Promise<Blob> - Compressed WebP image blob
- */
-const compressImageToWebP = (
-  dataUrl: string,
-  maxWidth: number = 1024,
-  quality: number = 0.6
-): Promise<Blob> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      try {
-        // Calculate new dimensions maintaining aspect ratio
-        let width = img.width;
-        let height = img.height;
-
-        if (width > maxWidth) {
-          height = (height * maxWidth) / width;
-          width = maxWidth;
-        }
-
-        // Create canvas and draw resized image
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) {
-          reject(new Error("Failed to get canvas context"));
-          return;
-        }
-
-        // Draw image with high quality
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Convert to WebP blob
-        canvas.toBlob(
-          (blob) => {
-            if (blob) {
-              resolve(blob);
-            } else {
-              reject(new Error("Failed to convert image to WebP"));
-            }
-          },
-          "image/webp",
-          quality
-        );
-      } catch (error) {
-        reject(error);
-      }
-    };
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = dataUrl;
-  });
-};
-
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -200,7 +140,7 @@ export default function StoreDetail() {
   );
   const [facingMode, setFacingMode] = useState<"environment" | "user">(
     "environment"
-  ); // Default to rear camera
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -216,11 +156,6 @@ export default function StoreDetail() {
   const showCameraSection = allowNewAudit || sortedAudits.length === 0;
 
   const fetchStore = useCallback(async () => {
-    if (!id || id.trim() === "") {
-      console.error("Invalid store ID");
-      setLoading(false);
-      return;
-    }
     try {
       setLoading(true);
       const response = await api.get(`/stores/${id}`);
@@ -319,33 +254,26 @@ export default function StoreDetail() {
 
   const openCamera = async (index: number) => {
     try {
-      // Use facingMode state (default: rear camera)
+      // Reset to rear camera (environment) when opening camera
+      setFacingMode("environment");
+      // Use rear camera (environment) instead of front camera (user)
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: facingMode,
+          facingMode: "environment", // Use rear camera
         },
       });
       streamRef.current = stream;
       setCurrentCameraIndex(index);
       setCameraModalVisible(true);
 
-      // Wait for video element to be ready and set srcObject
+      // Wait for video element to be ready and set stream
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
-          // Wait for video metadata to be loaded (dimensions available)
-          videoRef.current.addEventListener(
-            "loadedmetadata",
-            () => {
-              if (videoRef.current) {
-                // Ensure video plays
-                videoRef.current.play().catch((err) => {
-                  console.warn("Video play error:", err);
-                });
-              }
-            },
-            { once: true }
-          );
+          // Ensure video plays and loads metadata
+          videoRef.current.play().catch((err) => {
+            console.warn("Video play error:", err);
+          });
         }
       }, 100);
     } catch (error) {
@@ -356,49 +284,6 @@ export default function StoreDetail() {
     }
   };
 
-  const switchCamera = async () => {
-    if (!streamRef.current || currentCameraIndex === null) return;
-
-    try {
-      // Stop current stream
-      streamRef.current.getTracks().forEach((track) => track.stop());
-
-      // Switch facing mode
-      const newFacingMode =
-        facingMode === "environment" ? "user" : "environment";
-      setFacingMode(newFacingMode);
-
-      // Get new stream with switched camera
-      const newStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: newFacingMode,
-        },
-      });
-
-      streamRef.current = newStream;
-
-      // Update video element
-      if (videoRef.current) {
-        videoRef.current.srcObject = newStream;
-        // Wait for video metadata to be loaded
-        videoRef.current.addEventListener(
-          "loadedmetadata",
-          () => {
-            if (videoRef.current) {
-              videoRef.current.play().catch((err) => {
-                console.warn("Video play error:", err);
-              });
-            }
-          },
-          { once: true }
-        );
-      }
-    } catch (error) {
-      console.error("Error switching camera:", error);
-      alert("Không thể chuyển đổi camera. Vui lòng thử lại.");
-    }
-  };
-
   const closeCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
@@ -406,8 +291,43 @@ export default function StoreDetail() {
     }
     setCameraModalVisible(false);
     setCurrentCameraIndex(null);
-    // Reset to rear camera when closing
-    setFacingMode("environment");
+    setFacingMode("environment"); // Reset to rear camera when closing
+  };
+
+  const switchCamera = async () => {
+    if (!videoRef.current || currentCameraIndex === null) return;
+
+    try {
+      // Stop current stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      // Switch facing mode
+      const newFacingMode =
+        facingMode === "environment" ? "user" : "environment";
+      setFacingMode(newFacingMode);
+
+      // Get new stream with switched camera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: newFacingMode,
+        },
+      });
+      streamRef.current = stream;
+
+      // Update video element
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Ensure video plays
+        videoRef.current.play().catch((err) => {
+          console.warn("Video play error:", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error switching camera:", error);
+      alert("Không thể chuyển đổi camera. Vui lòng thử lại.");
+    }
   };
 
   const capturePhoto = async () => {
@@ -416,28 +336,36 @@ export default function StoreDetail() {
     try {
       // Wait for video to be ready and have valid dimensions
       const video = videoRef.current;
-      if (
-        !video.videoWidth ||
-        !video.videoHeight ||
-        video.videoWidth === 0 ||
-        video.videoHeight === 0
-      ) {
-        alert("Video chưa sẵn sàng. Vui lòng đợi một chút và thử lại.");
+      if (video.readyState < 2) {
+        // Wait for video metadata to load
+        await new Promise<void>((resolve) => {
+          const onLoadedMetadata = () => {
+            video.removeEventListener("loadedmetadata", onLoadedMetadata);
+            resolve();
+          };
+          video.addEventListener("loadedmetadata", onLoadedMetadata);
+          // Timeout after 2 seconds
+          setTimeout(() => {
+            video.removeEventListener("loadedmetadata", onLoadedMetadata);
+            resolve();
+          }, 2000);
+        });
+      }
+
+      // Ensure video has valid dimensions
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        alert("Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.");
         return;
       }
 
-      // Create canvas with exact video stream dimensions
       const canvas = document.createElement("canvas");
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
 
-      // Draw the full video frame to canvas (no cropping)
-      // Using videoWidth and videoHeight ensures we capture the complete image
-      // from the video stream, not the displayed/cropped version
+      // Draw the full video frame to canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
       const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
 
       // Get location
@@ -509,15 +437,12 @@ export default function StoreDetail() {
       );
 
       const uploadPromises = imagesToUpload.map(async (img, index) => {
-        // Compress and convert to WebP for faster upload (60-80% smaller file size)
-        const compressedBlob = await compressImageToWebP(
-          img.dataUrl,
-          1024, // Max width 1024px
-          0.6 // Quality 60%
-        );
+        // Convert data URL to blob
+        const response = await fetch(img.dataUrl);
+        const blob = await response.blob();
 
         const formData = new FormData();
-        formData.append("image", compressedBlob, `image_${index + 1}.webp`);
+        formData.append("image", blob, `image_${index + 1}.jpg`);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
         formData.append("longitude", img.longitude.toString());
@@ -534,7 +459,7 @@ export default function StoreDetail() {
       await Promise.all(uploadPromises);
 
       // Update store latitude/longitude from first image
-      if (imagesToUpload[0] && store?.Id) {
+      if (imagesToUpload[0]) {
         await api.put(`/stores/${store.Id}`, {
           latitude: imagesToUpload[0].latitude,
           longitude: imagesToUpload[0].longitude,
@@ -996,45 +921,6 @@ export default function StoreDetail() {
       {cameraModalVisible && (
         <div className="store-detail-camera-modal-overlay">
           <div className="store-detail-camera-modal-content">
-            <button
-              className="store-detail-camera-switch-button"
-              onClick={switchCamera}
-              title={
-                facingMode === "environment"
-                  ? "Chuyển sang camera trước"
-                  : "Chuyển sang camera sau"
-              }
-            >
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <path
-                  d="M17 7H22V17H17V19C17 19.5304 16.7893 20.0391 16.4142 20.4142C16.0391 20.7893 15.5304 21 15 21H9C8.46957 21 7.96086 20.7893 7.58579 20.4142C7.21071 20.0391 7 19.5304 7 19V5C7 4.46957 7.21071 3.96086 7.58579 3.58579C7.96086 3.21071 8.46957 3 9 3H15C15.5304 3 16.0391 3.21071 16.4142 3.58579C16.7893 3.96086 17 4.46957 17 5V7Z"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M22 7H17C16.4696 7 15.9609 7.21071 15.5858 7.58579C15.2107 7.96086 15 8.46957 15 9V15C15 15.5304 15.2107 16.0391 15.5858 16.4142C15.9609 16.7893 16.4696 17 17 17H22"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-                <path
-                  d="M12 11L10 9L12 7M12 13L14 15L12 17"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            </button>
             <video
               ref={videoRef}
               autoPlay
@@ -1047,6 +933,19 @@ export default function StoreDetail() {
                 onClick={closeCamera}
               >
                 Hủy
+              </button>
+              <button
+                className="store-detail-camera-modal-button store-detail-camera-modal-button-switch"
+                onClick={switchCamera}
+                title={
+                  facingMode === "environment"
+                    ? "Chuyển sang camera trước"
+                    : "Chuyển sang camera sau"
+                }
+              >
+                <span className="camera-switch-icon">
+                  {facingMode === "environment" ? "⇄" : "⇄"}
+                </span>
               </button>
               <button
                 className="store-detail-camera-modal-button store-detail-camera-modal-button-capture"

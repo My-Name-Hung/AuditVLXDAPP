@@ -45,13 +45,9 @@ const uploadImage = async (req, res) => {
       timestamp: adjustedTimestamp.toISOString(),
     };
 
-    // Get MIME type from uploaded file (supports JPEG, PNG, WebP)
-    const mimeType = req.file.mimetype || "image/jpeg";
-
     const uploadResult = await uploadImageWithWatermark(
       req.file.buffer,
-      metadata,
-      mimeType
+      metadata
     );
 
     // Save to database
