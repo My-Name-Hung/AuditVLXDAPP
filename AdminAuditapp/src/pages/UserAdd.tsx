@@ -119,15 +119,6 @@ export default function UserAdd() {
       return;
     }
 
-    if (!formData.email.trim()) {
-      setNotification({
-        isOpen: true,
-        type: "error",
-        message: "Vui lòng nhập email.",
-      });
-      return;
-    }
-
     if (!formData.phone.trim()) {
       setNotification({
         isOpen: true,
@@ -165,7 +156,7 @@ export default function UserAdd() {
         username: formData.username.trim(),
         password: resolvedPassword,
         fullName: formData.fullName.trim(),
-        email: formData.email.trim(),
+        email: formData.email.trim() || null,
         phone: formData.phone.trim(),
         role: formData.role,
         position: formData.position.trim(),
