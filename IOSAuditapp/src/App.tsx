@@ -12,8 +12,9 @@ import StoreDetail from './pages/StoreDetail';
 import Profile from './pages/Profile';
 import './App.css';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+function ProtectedRoute({ children, allowPasswordChange = false }: { children: React.ReactNode; allowPasswordChange?: boolean }) {
   const { isAuthenticated, loading, user } = useAuth();
+  const location = window.location.pathname;
 
   if (loading) {
     return (
@@ -27,8 +28,13 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/login" replace />;
   }
 
-  // Check if user needs to change password
-  if (user?.isChangePassword) {
+  // If this route allows password change (like /change-password), don't redirect
+  if (allowPasswordChange) {
+    return <>{children}</>;
+  }
+
+  // Check if user needs to change password (only redirect if not already on change-password page)
+  if (user?.isChangePassword && location !== '/change-password') {
     return <Navigate to="/change-password" replace />;
   }
 
@@ -115,7 +121,7 @@ function AppRoutes() {
         <Route
           path="/change-password"
           element={
-            <ProtectedRoute>
+            <ProtectedRoute allowPasswordChange={true}>
               <ChangePassword />
             </ProtectedRoute>
           }
