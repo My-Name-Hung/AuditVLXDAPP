@@ -55,7 +55,13 @@ function enqueueGeocode(lat, lon) {
   }
 
   const promise = new Promise((resolve) => {
-    requestQueue.push({ lat, lon, cacheKey, resolve });
+    requestQueue.push({
+      lat,
+      lon,
+      cacheKey,
+      resolve,
+      enqueuedAt: Date.now(),
+    });
     processQueue();
   }).finally(() => {
     pendingRequests.delete(cacheKey);
@@ -71,8 +77,17 @@ async function processQueue() {
 
   while (requestQueue.length > 0) {
     const job = requestQueue.shift();
+    const waitedMs = Date.now() - job.enqueuedAt;
+    console.info("[Geocode] processing job", {
+      lat: job.lat,
+      lon: job.lon,
+      waitedMs,
+      remainingQueue: requestQueue.length,
+    });
     const result = await fetchProvinceDistrict(job.lat, job.lon);
-    setCachedLocation(job.lat, job.lon, result);
+    if (result?.province || result?.district) {
+      setCachedLocation(job.lat, job.lon, result);
+    }
     job.resolve(result);
   }
 
@@ -161,13 +176,18 @@ async function fetchProvinceDistrict(lat, lon) {
       };
     } catch (error) {
       attempt += 1;
+      console.warn("[Geocode] attempt failed", {
+        attempt,
+        maxRetries: MAX_RETRIES,
+        lat,
+        lon,
+        message: error.message || error,
+        type: error.type,
+        code: error.code,
+        stack: error.stack,
+        url,
+      });
       if (attempt >= MAX_RETRIES) {
-        console.error("Reverse geocoding error:", {
-          message: error.message || error,
-          lat,
-          lon,
-          url,
-        });
         return { province: null, district: null };
       }
       await sleep(REQUEST_INTERVAL_MS * attempt);
