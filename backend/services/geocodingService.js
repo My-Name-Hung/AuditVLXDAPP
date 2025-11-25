@@ -1,12 +1,10 @@
 const fetch = require("node-fetch");
+const https = require("https");
 
 const VN2000_ENDPOINT =
-  process.env.VN2000_ENDPOINT ||
-  "https://vn2000.vn/api/thongtindiachinh";
+  process.env.VN2000_ENDPOINT || "https://vn2000.vn/api/thongtindiachinh";
 const REQUEST_INTERVAL_MS = 500; // basic rate limit to avoid hammering the API
-const REQUEST_TIMEOUT_MS = Number(
-  process.env.VN2000_TIMEOUT_MS || 8000
-); // Fail fast if provider is unreachable
+const REQUEST_TIMEOUT_MS = Number(process.env.VN2000_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
 const MAX_RETRIES = Number(process.env.VN2000_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const CACHE_VERSION = "v4";
@@ -16,6 +14,13 @@ const pendingRequests = new Map();
 const requestQueue = [];
 let lastRequestTime = 0;
 let isProcessingQueue = false;
+
+// Optional: allow disabling TLS verification for VN2000 endpoint.
+// ONLY enable this via env VN2000_INSECURE_TLS=true nếu bạn chấp nhận rủi ro bảo mật.
+const insecureTlsAgent =
+  process.env.VN2000_INSECURE_TLS === "true"
+    ? new https.Agent({ rejectUnauthorized: false })
+    : undefined;
 
 const userAgent =
   process.env.VN2000_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)";
@@ -113,6 +118,8 @@ async function fetchProvinceDistrict(lat, lon) {
         headers: {
           "User-Agent": userAgent,
         },
+        // Use insecure agent only when explicitly enabled for VN2000
+        agent: insecureTlsAgent,
         timeout: REQUEST_TIMEOUT_MS,
       });
 
