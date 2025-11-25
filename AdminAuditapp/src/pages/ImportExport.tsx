@@ -727,7 +727,7 @@ export default function ImportExport() {
       "Stt",
       "Họ tên",
       "Địa bàn phụ trách",
-      "Tổng số ngày checkin",
+      "Tổng số lượt checkin",
       "Tổng số cửa hàng checkin",
     ];
     summarySheet.getRow(4).eachCell((cell) => {

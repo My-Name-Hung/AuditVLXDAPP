@@ -10,7 +10,7 @@ async function getSummary(req, res) {
     // Optimized query - use CTE to improve performance
     let query = `
       WITH AuditsWithImages AS (
-        SELECT DISTINCT
+        SELECT
           a.UserId,
           a.StoreId,
           CAST(a.AuditDate AS DATE) as AuditDate,
@@ -44,7 +44,7 @@ async function getSummary(req, res) {
         u.FullName,
         a.TerritoryId,
         t.TerritoryName,
-        COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
+        COUNT(*) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM AuditsWithImages a
       INNER JOIN Users u ON a.UserId = u.Id
@@ -194,7 +194,7 @@ async function exportReport(req, res) {
     // Align export summary with dashboard summary logic
     let summaryQuery = `
       WITH AuditsWithImages AS (
-        SELECT DISTINCT
+        SELECT
           a.UserId,
           a.StoreId,
           CAST(a.AuditDate AS DATE) as AuditDate,
@@ -227,7 +227,7 @@ async function exportReport(req, res) {
         u.FullName,
         a.TerritoryId,
         t.TerritoryName,
-        COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
+        COUNT(*) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM AuditsWithImages a
       INNER JOIN Users u ON a.UserId = u.Id
