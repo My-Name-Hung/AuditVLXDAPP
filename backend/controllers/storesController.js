@@ -241,9 +241,24 @@ const exportStores = async (_req, res) => {
 };
 
 const exportStoresExcel = async (_req, res) => {
+  let workbook;
   try {
     const stores = await fetchStoresForExport();
-    const workbook = new ExcelJS.Workbook();
+    const fileName = `DanhSachCuaHang_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: res,
+      useSharedStrings: true,
+      useStyles: true,
+    });
     const sheet = workbook.addWorksheet("Danh sách cửa hàng");
 
     const headerStyle = {
@@ -262,15 +277,38 @@ const exportStoresExcel = async (_req, res) => {
       },
     };
 
+    sheet.columns = [
+      { width: 10 },
+      { width: 15 },
+      { width: 30 },
+      { width: 20 },
+      { width: 40 },
+      { width: 15 },
+      { width: 25 },
+      { width: 15 },
+      { width: 25 },
+      { width: 20 },
+      { width: 25 },
+      { width: 30 },
+      { width: 25 },
+      { width: 15 },
+      { width: 15 },
+      { width: 25 },
+    ];
+
     sheet.mergeCells("A1:P1");
     sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     sheet.getCell("A1").font = { bold: true, size: 14 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
+    sheet.getRow(1).commit();
 
     sheet.mergeCells("A2:P2");
     sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
+    sheet.getRow(2).commit();
+
+    sheet.getRow(3).commit(); // keep empty spacer row
 
     sheet.getRow(4).values = [
       "STT",
@@ -293,6 +331,7 @@ const exportStoresExcel = async (_req, res) => {
     sheet.getRow(4).eachCell((cell) => {
       cell.style = headerStyle;
     });
+    sheet.getRow(4).commit();
 
     let rowIndex = 0;
     stores.forEach((store) => {
@@ -360,41 +399,26 @@ const exportStoresExcel = async (_req, res) => {
             right: { style: "thin" },
           };
         });
+        row.commit();
       });
     });
 
-    sheet.columns = [
-      { width: 10 },
-      { width: 15 },
-      { width: 30 },
-      { width: 20 },
-      { width: 40 },
-      { width: 15 },
-      { width: 25 },
-      { width: 15 },
-      { width: 25 },
-      { width: 20 },
-      { width: 25 },
-      { width: 30 },
-      { width: 25 },
-      { width: 15 },
-      { width: 15 },
-      { width: 25 },
-    ];
-
-    const buffer = await workbook.xlsx.writeBuffer();
-    const fileName = `DanhSachCuaHang_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`;
-    res.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    );
-    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
-    res.send(buffer);
+    await sheet.commit();
+    await workbook.commit();
   } catch (error) {
     console.error("Export stores excel error:", error);
-    res.status(500).json({ error: "Không thể tạo file Excel" });
+    if (workbook) {
+      try {
+        await workbook.commit();
+      } catch (_err) {
+        // ignore double commit errors
+      }
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Không thể tạo file Excel" });
+    } else {
+      res.end();
+    }
   }
 };
 

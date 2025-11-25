@@ -124,22 +124,27 @@ export default function StoreDetail() {
   const hasSelectedUserRef = useRef(false); // Track if user has already selected
 
   useEffect(() => {
-    if (id) {
-      if (isInitialMount.current) {
-        // Initial load
-        isInitialMount.current = false;
-        previousId.current = id;
-        hasSelectedUserRef.current = false; // Reset when loading new store
-        fetchStoreDetail();
-      } else if (previousId.current !== id) {
-        // Navigate to different store - show loading modal
-        previousId.current = id;
-        hasSelectedUserRef.current = false; // Reset when navigating to different store
-        fetchStoreDetail(true);
-      }
+    if (!id) {
+      return;
+    }
+
+    const shouldShowModal =
+      isInitialMount.current && hasPreloadedStore ? true : false;
+
+    if (isInitialMount.current) {
+      // Initial load
+      isInitialMount.current = false;
+      previousId.current = id;
+      hasSelectedUserRef.current = false; // Reset when loading new store
+      fetchStoreDetail(shouldShowModal);
+    } else if (previousId.current !== id) {
+      // Navigate to different store - always show loading modal
+      previousId.current = id;
+      hasSelectedUserRef.current = false; // Reset when navigating to different store
+      fetchStoreDetail(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, hasPreloadedStore]);
 
   const fetchStoreDetail = async (
     showLoading = false,
