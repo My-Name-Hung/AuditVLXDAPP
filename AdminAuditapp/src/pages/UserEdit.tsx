@@ -171,11 +171,7 @@ export default function UserEdit() {
         password?: string;
       } = {
         fullName: formData.fullName.trim(),
-<<<<<<< HEAD
-        email: formData.email.trim() || null,
-=======
         email: formData.email?.trim() || null,
->>>>>>> bc48dd57cf707e9862e6fa5b2b12339ef1c5cb87
         phone: formData.phone.trim(),
         role: formData.role,
         position: formData.position.trim(),

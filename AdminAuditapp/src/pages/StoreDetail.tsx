@@ -262,14 +262,14 @@ export default function StoreDetail() {
     return "-";
   };
 
-  const formatAuditDateTime = (value: string) => {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString("vi-VN", {
-      hour12: false,
-    });
-  };
+const formatAuditDateTime = (value: string) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("vi-VN", {
+    hour12: false,
+  });
+};
 
   const mapAuditResultToStoreStatus = (result?: string | null) => {
     if (!result) return "audited";
@@ -824,7 +824,7 @@ export default function StoreDetail() {
                       <div className="image-info">
                         <span className="image-time">
                           {image.CapturedAt
-                            ? new Date(image.CapturedAt).toLocaleString("vi-VN")
+                            ? formatAuditDateTime(image.CapturedAt)
                             : "-"}
                         </span>
                         {coords.lat && coords.lon && (

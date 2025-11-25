@@ -10,7 +10,7 @@ async function getSummary(req, res) {
     // Optimized query - use CTE to improve performance
     let query = `
       WITH AuditsWithImages AS (
-        SELECT DISTINCT
+        SELECT
           a.UserId,
           a.StoreId,
           CAST(a.AuditDate AS DATE) as AuditDate,
@@ -194,7 +194,7 @@ async function exportReport(req, res) {
     // Align export summary with dashboard summary logic
     let summaryQuery = `
       WITH AuditsWithImages AS (
-        SELECT DISTINCT
+        SELECT
           a.UserId,
           a.StoreId,
           CAST(a.AuditDate AS DATE) as AuditDate,

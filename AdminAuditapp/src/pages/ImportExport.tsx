@@ -1068,7 +1068,9 @@ export default function ImportExport() {
                   <HiArrowUpTray className="upload-icon" />
                   <div>
                     <strong>
-                      {usersFile ? usersFile.name : "Chọn file Excel để tải lên"}
+                      {usersFile
+                        ? usersFile.name
+                        : "Chọn file Excel để tải lên"}
                     </strong>
                     <p>Chỉ chấp nhận file .xlsx, .xls</p>
                   </div>

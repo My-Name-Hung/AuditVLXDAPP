@@ -1,14 +1,24 @@
 const fetch = require("node-fetch");
 
-const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
-const REQUEST_INTERVAL_MS = 1000; // Respect Nominatim rate limit (~1 req/sec)
+const VN2000_ENDPOINT =
+  process.env.VN2000_ENDPOINT ||
+  "https://vn2000.vn/api/thongtindiachinh";
+const REQUEST_INTERVAL_MS = 500; // basic rate limit to avoid hammering the API
+const REQUEST_TIMEOUT_MS = Number(
+  process.env.VN2000_TIMEOUT_MS || 8000
+); // Fail fast if provider is unreachable
+const MAX_RETRIES = Number(process.env.VN2000_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v4";
+
 const cache = new Map();
+const pendingRequests = new Map();
+const requestQueue = [];
 let lastRequestTime = 0;
+let isProcessingQueue = false;
 
 const userAgent =
-  process.env.NOMINATIM_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)"; // Required by Nominatim
+  process.env.VN2000_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -41,6 +51,135 @@ function setCachedLocation(lat, lon, data) {
   cache.set(key, { timestamp: Date.now(), data });
 }
 
+function enqueueGeocode(lat, lon) {
+  const cacheKey = getCacheKey(lat, lon);
+  if (pendingRequests.has(cacheKey)) {
+    return pendingRequests.get(cacheKey);
+  }
+
+  const promise = new Promise((resolve) => {
+    requestQueue.push({
+      lat,
+      lon,
+      cacheKey,
+      resolve,
+      enqueuedAt: Date.now(),
+    });
+    processQueue();
+  }).finally(() => {
+    pendingRequests.delete(cacheKey);
+  });
+
+  pendingRequests.set(cacheKey, promise);
+  return promise;
+}
+
+async function processQueue() {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+
+  while (requestQueue.length > 0) {
+    const job = requestQueue.shift();
+    const waitedMs = Date.now() - job.enqueuedAt;
+    console.info("[Geocode] processing job", {
+      lat: job.lat,
+      lon: job.lon,
+      waitedMs,
+      remainingQueue: requestQueue.length,
+    });
+    const result = await fetchProvinceDistrict(job.lat, job.lon);
+    if (result?.province || result?.district) {
+      setCachedLocation(job.lat, job.lon, result);
+    }
+    job.resolve(result);
+  }
+
+  isProcessingQueue = false;
+}
+
+async function fetchProvinceDistrict(lat, lon) {
+  const params = new URLSearchParams({
+    vido: lat.toString(),
+    kinhdo: lon.toString(),
+  });
+
+  const url = `${VN2000_ENDPOINT}?${params.toString()}`;
+  let attempt = 0;
+
+  while (attempt < MAX_RETRIES) {
+    try {
+      await rateLimit();
+      const response = await fetch(url, {
+        headers: {
+          "User-Agent": userAgent,
+        },
+        timeout: REQUEST_TIMEOUT_MS,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `VN2000 error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      const data = await response.json();
+      if (!data?.success || !data?.data) {
+        throw new Error(
+          `VN2000 invalid response: ${JSON.stringify(data).slice(0, 200)}`
+        );
+      }
+
+      const propsAfter =
+        data.data.diachinh_sausapnhap?.properties ||
+        data.data.diachinh_truocsapnhap?.properties ||
+        {};
+
+      const propsBefore =
+        data.data.diachinh_truocsapnhap?.properties ||
+        data.data.diachinh_sausapnhap?.properties ||
+        {};
+
+      const province =
+        propsAfter.ten_tinh ||
+        propsBefore.ten_tinh ||
+        propsAfter.ten_huyen ||
+        propsBefore.ten_huyen ||
+        null;
+
+      const district =
+        propsAfter.ten_xa ||
+        propsBefore.ten_xa ||
+        propsAfter.ten_huyen ||
+        propsBefore.ten_huyen ||
+        null;
+
+      return {
+        province: province || null,
+        district: district || null,
+      };
+    } catch (error) {
+      attempt += 1;
+      console.warn("[Geocode] attempt failed", {
+        attempt,
+        maxRetries: MAX_RETRIES,
+        lat,
+        lon,
+        message: error.message || error,
+        type: error.type,
+        code: error.code,
+        stack: error.stack,
+        url,
+      });
+      if (attempt >= MAX_RETRIES) {
+        return { province: null, district: null };
+      }
+      await sleep(REQUEST_INTERVAL_MS * attempt);
+    }
+  }
+
+  return { province: null, district: null };
+}
+
 async function getProvinceDistrict(lat, lon) {
   if (lat === null || lon === null || Number.isNaN(lat) || Number.isNaN(lon)) {
     return { province: null, district: null };
@@ -51,83 +190,7 @@ async function getProvinceDistrict(lat, lon) {
     return cached;
   }
 
-  try {
-    await rateLimit();
-    const params = new URLSearchParams({
-      format: "jsonv2",
-      lat: lat.toString(),
-      lon: lon.toString(),
-      zoom: "12",
-      addressdetails: "1",
-    });
-
-    const response = await fetch(`${NOMINATIM_ENDPOINT}?${params.toString()}`, {
-      headers: {
-        "User-Agent": userAgent,
-        "Accept-Language": "vi,en",
-      },
-    });
-
-    if (!response.ok) {
-      throw new Error(
-        `Nominatim error: ${response.status} ${response.statusText}`
-      );
-    }
-
-    const data = await response.json();
-    const address = data.address || {};
-
-    const pickField = (fields, exclude) => {
-      for (const field of fields) {
-        const value = address[field];
-        if (value && value !== exclude) {
-          return value;
-        }
-      }
-      return null;
-    };
-
-    const province =
-      pickField(
-        [
-          "state",
-          "region",
-          "province",
-          "state_district",
-          "county",
-          "city",
-          "municipality",
-        ],
-        null
-      ) || null;
-
-    const district =
-      pickField(
-        [
-          "district",
-          "city_district",
-          "borough",
-          "county",
-          "municipality",
-          "town",
-          "city",
-          "suburb",
-          "village",
-        ],
-        province
-      ) || null;
-
-    const normalized = {
-      province: province || null,
-      district: district || null,
-    };
-
-    setCachedLocation(lat, lon, normalized);
-    return normalized;
-  } catch (error) {
-    console.error("Reverse geocoding error:", error.message || error);
-    return { province: null, district: null };
-  }
+  return enqueueGeocode(lat, lon);
 }
 
 module.exports = {

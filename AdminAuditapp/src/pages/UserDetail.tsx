@@ -20,22 +20,19 @@ interface UserInfo {
   [key: string]: unknown;
 }
 
-const formatUtcDate = (value: string) => {
+const formatLocalDate = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("vi-VN", {
-    timeZone: "UTC",
-  });
+  return date.toLocaleDateString("vi-VN");
 };
 
-const formatUtcTime = (value: string) => {
+const formatLocalTime = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString("vi-VN", {
     hour12: false,
-    timeZone: "UTC",
   });
 };
 
@@ -105,13 +102,17 @@ export default function UserDetail() {
       });
       setDetailData((detailRes.data.data as UserDetailItem[]) || []);
       setHasLoaded(true);
-    } catch (error: any) {
-      if (error?.name !== "CanceledError" && error?.code !== "ERR_CANCELED") {
-      console.error("Error fetching user detail:", error);
+    } catch (error: unknown) {
+      const typedError = error as { name?: string; code?: string };
+      if (
+        typedError?.name !== "CanceledError" &&
+        typedError?.code !== "ERR_CANCELED"
+      ) {
+        console.error("Error fetching user detail:", error);
       }
     } finally {
       if (isFirstLoad) {
-      setLoading(false);
+        setLoading(false);
       }
       setIsFiltering(false);
     }
@@ -262,12 +263,12 @@ export default function UserDetail() {
             ) : (
               detailData.map((item, index) => (
                 <tr key={item.AuditId}>
-                  <td>{formatUtcDate(item.CheckinDate)}</td>
+                  <td>{formatLocalDate(item.CheckinDate)}</td>
                   <td>{index + 1}</td>
                   <td>{item.StoreName}</td>
                   <td>{item.TerritoryName || territoryName || ""}</td>
                   <td>{item.Address || ""}</td>
-                  <td>{formatUtcTime(item.CheckinTime)}</td>
+                  <td>{formatLocalTime(item.CheckinTime)}</td>
                   <td>{item.Notes || ""}</td>
                 </tr>
               ))
