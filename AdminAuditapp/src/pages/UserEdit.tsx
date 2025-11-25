@@ -35,7 +35,8 @@ export default function UserEdit() {
   const [updateLoading, setUpdateLoading] = useState(false);
 
   const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
-  const [positionOptions, setPositionOptions] = useState<string[]>(DEFAULT_POSITIONS);
+  const [positionOptions, setPositionOptions] =
+    useState<string[]>(DEFAULT_POSITIONS);
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
 
@@ -89,7 +90,8 @@ export default function UserEdit() {
   };
 
   const getDefaultPositionForRole = (role: string) => {
-    const expected = role === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường";
+    const expected =
+      role === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường";
     ensurePositionOption(expected);
     return expected;
   };
@@ -434,4 +436,3 @@ export default function UserEdit() {
     </div>
   );
 }
-
