@@ -20,14 +20,11 @@ interface UserInfo {
   [key: string]: unknown;
 }
 
-const VIET_TIMEZONE = "Asia/Ho_Chi_Minh";
-
 const formatLocalDate = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleDateString("vi-VN", {
-    timeZone: VIET_TIMEZONE,
   });
 };
 
@@ -37,7 +34,6 @@ const formatLocalTime = (value: string) => {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString("vi-VN", {
     hour12: false,
-    timeZone: VIET_TIMEZONE,
   });
 };
 

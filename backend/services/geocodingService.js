@@ -2,13 +2,16 @@ const fetch = require("node-fetch");
 
 const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
 const REQUEST_INTERVAL_MS = 1000; // Respect Nominatim rate limit (~1 req/sec)
+const REQUEST_TIMEOUT_MS = Number(process.env.NOMINATIM_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
+const MAX_RETRIES = Number(process.env.NOMINATIM_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CACHE_VERSION = "v2";
+const CACHE_VERSION = "v3";
 const cache = new Map();
 let lastRequestTime = 0;
 
 const userAgent =
   process.env.NOMINATIM_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)"; // Required by Nominatim
+const contactEmail = process.env.NOMINATIM_EMAIL || "contact@ximangtaydo.vn"; // Recommended by Nominatim
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -51,31 +54,52 @@ async function getProvinceDistrict(lat, lon) {
     return cached;
   }
 
+  const params = new URLSearchParams({
+    format: "jsonv2",
+    lat: lat.toString(),
+    lon: lon.toString(),
+    zoom: "12",
+    addressdetails: "1",
+  });
+
+  if (contactEmail) {
+    params.set("email", contactEmail);
+  }
+
+  const url = `${NOMINATIM_ENDPOINT}?${params.toString()}`;
+
   try {
-    await rateLimit();
-    const params = new URLSearchParams({
-      format: "jsonv2",
-      lat: lat.toString(),
-      lon: lon.toString(),
-      zoom: "12",
-      addressdetails: "1",
-    });
+    let attempt = 0;
+    let responseData = null;
+    while (attempt < MAX_RETRIES) {
+      try {
+        await rateLimit();
+        const response = await fetch(url, {
+          headers: {
+            "User-Agent": userAgent,
+            "Accept-Language": "vi,en",
+          },
+          timeout: REQUEST_TIMEOUT_MS,
+        });
 
-    const response = await fetch(`${NOMINATIM_ENDPOINT}?${params.toString()}`, {
-      headers: {
-        "User-Agent": userAgent,
-        "Accept-Language": "vi,en",
-      },
-    });
+        if (!response.ok) {
+          throw new Error(
+            `Nominatim error: ${response.status} ${response.statusText}`
+          );
+        }
 
-    if (!response.ok) {
-      throw new Error(
-        `Nominatim error: ${response.status} ${response.statusText}`
-      );
+        responseData = await response.json();
+        break;
+      } catch (error) {
+        attempt += 1;
+        if (attempt >= MAX_RETRIES) {
+          throw error;
+        }
+        await sleep(REQUEST_INTERVAL_MS * attempt);
+      }
     }
 
-    const data = await response.json();
-    const address = data.address || {};
+    const address = responseData?.address || {};
 
     const pickField = (fields, exclude) => {
       for (const field of fields) {
@@ -125,7 +149,10 @@ async function getProvinceDistrict(lat, lon) {
     setCachedLocation(lat, lon, normalized);
     return normalized;
   } catch (error) {
-    console.error("Reverse geocoding error:", error.message || error);
+    console.error("Reverse geocoding error:", {
+      message: error.message || error,
+      url,
+    });
     return { province: null, district: null };
   }
 }
