@@ -239,7 +239,7 @@ export default function Dashboard() {
       "Stt",
       "Họ tên",
       "Địa bàn phụ trách",
-      "Tổng số lượt checkin",
+      "Tổng số ngày checkin",
       "Tổng số cửa hàng checkin",
     ];
     summarySheet.getRow(4).eachCell((cell) => {
@@ -434,7 +434,7 @@ export default function Dashboard() {
     labels: chartLabels,
     datasets: [
       {
-        label: "Số lượt checkin",
+        label: "Số ngày checkin",
         data: summaryData.map((item) => item.TotalCheckinDays),
         backgroundColor: "rgba(1, 56, 195, 0.8)",
       },
@@ -542,7 +542,7 @@ export default function Dashboard() {
                   <th>Stt</th>
                   <th>Họ tên</th>
                   <th>Địa bàn phụ trách</th>
-                  <th>Tổng số lượt checkin</th>
+                  <th>Tổng số ngày checkin</th>
                   <th>Tổng số cửa hàng checkin</th>
                 </tr>
               </thead>

@@ -727,7 +727,7 @@ export default function ImportExport() {
       "Stt",
       "Họ tên",
       "Địa bàn phụ trách",
-      "Tổng số lượt checkin",
+      "Tổng số ngày checkin",
       "Tổng số cửa hàng checkin",
     ];
     summarySheet.getRow(4).eachCell((cell) => {
@@ -1068,7 +1068,9 @@ export default function ImportExport() {
                   <HiArrowUpTray className="upload-icon" />
                   <div>
                     <strong>
-                      {usersFile ? usersFile.name : "Chọn file Excel để tải lên"}
+                      {usersFile
+                        ? usersFile.name
+                        : "Chọn file Excel để tải lên"}
                     </strong>
                     <p>Chỉ chấp nhận file .xlsx, .xls</p>
                   </div>

@@ -44,7 +44,7 @@ async function getSummary(req, res) {
         u.FullName,
         a.TerritoryId,
         t.TerritoryName,
-        COUNT(*) as TotalCheckinDays,
+        COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM AuditsWithImages a
       INNER JOIN Users u ON a.UserId = u.Id
@@ -227,7 +227,7 @@ async function exportReport(req, res) {
         u.FullName,
         a.TerritoryId,
         t.TerritoryName,
-        COUNT(*) as TotalCheckinDays,
+        COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM AuditsWithImages a
       INNER JOIN Users u ON a.UserId = u.Id

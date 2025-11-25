@@ -262,17 +262,11 @@ export default function StoreDetail() {
     return "-";
   };
 
-const normalizeServerUtc = (value: string) => {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
-};
-
 const formatAuditDateTime = (value: string) => {
-  const normalized = normalizeServerUtc(value);
-  if (!normalized) return value || "-";
-  return normalized.toLocaleString("vi-VN", {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("vi-VN", {
     hour12: false,
     timeZone: "UTC",
   });
