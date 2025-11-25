@@ -367,7 +367,6 @@ export default function ImportExport() {
     }
   };
 
-  // Helper functions for stores export
   const getRankLabel = (rank: number | null) => {
     if (rank === 1) return "Đơn vị, tổ chức";
     if (rank === 2) return "Cá nhân";
@@ -397,14 +396,37 @@ export default function ImportExport() {
         await generateDashboardExcel(res.data.data, setExportProgress);
         setExportProgress(100);
       } else if (type === "stores") {
-        // Export stores list - use same logic as Stores.tsx
         setExportProgress(20);
-        const res = await api.get("/stores", {
-          params: { page: 1, pageSize: 10000 },
-        });
-        setExportProgress(50);
-        await generateStoresExcel(res.data.data || [], setExportProgress);
-        setExportProgress(100);
+        try {
+          const res = await api.get("/stores/export/file", {
+            responseType: "blob",
+          });
+          setExportProgress(80);
+          const blob = new Blob([res.data], {
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `DanhSachCuaHang_${
+            new Date().toISOString().split("T")[0]
+          }.xlsx`;
+          link.click();
+          window.URL.revokeObjectURL(url);
+          setExportProgress(100);
+        } catch (downloadError) {
+          console.warn(
+            "Backend export failed, falling back to client-side generation",
+            downloadError
+          );
+          setExportProgress(40);
+          const res = await api.get("/stores", {
+            params: { page: 1, pageSize: 10000 },
+          });
+          setExportProgress(60);
+          await generateStoresExcel(res.data.data || [], setExportProgress);
+          setExportProgress(100);
+        }
       } else {
         // Export users list
         setExportProgress(20);

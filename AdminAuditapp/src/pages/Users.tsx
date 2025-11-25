@@ -301,8 +301,8 @@ export default function Users() {
     }
   };
 
-  const handleEditUser = (userId: number) => {
-    navigate(`/users/${userId}/edit`);
+  const handleEditUser = (user: User) => {
+    navigate(`/users/${user.Id}/edit`, { state: { user } });
   };
 
   const handleResetPassword = (user: User) => {
@@ -631,7 +631,7 @@ export default function Users() {
                     <div className="action-buttons">
                       <button
                         className="btn-edit"
-                        onClick={() => handleEditUser(user.Id)}
+                        onClick={() => handleEditUser(user)}
                         title="Chỉnh sửa"
                       >
                         <HiPencil />

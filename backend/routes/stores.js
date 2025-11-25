@@ -11,6 +11,11 @@ router.get(
   storesController.exportStores
 );
 router.get(
+  "/export/file",
+  authenticateToken,
+  storesController.exportStoresExcel
+);
+router.get(
   "/status-summary",
   authenticateToken,
   storesController.getStatusSummary

@@ -2,6 +2,17 @@ const Store = require("../models/Store");
 const Audit = require("../models/Audit");
 const { resetStoreAuditById } = require("../utils/auditReset");
 const { getPool, sql } = require("../config/database");
+const ExcelJS = require("exceljs");
+
+const getStatusLabel = (status) => {
+  const labels = {
+    not_audited: "Chưa thực hiện",
+    audited: "Đã thực hiện",
+    passed: "Đạt",
+    failed: "Không đạt",
+  };
+  return labels[status] || status || "";
+};
 
 const getAllStores = async (req, res) => {
   try {
@@ -113,109 +124,112 @@ const getAllStores = async (req, res) => {
   }
 };
 
+const fetchStoresForExport = async () => {
+  const pool = await getPool();
+  const request = pool.request();
+  request.timeout = 60000;
+
+  const result = await request.query(`
+    SELECT 
+      s.Id,
+      s.StoreCode,
+      s.StoreName,
+      s.Address,
+      s.Phone,
+      s.Email,
+      s.Status,
+      s.Rank,
+      s.TaxCode,
+      s.PartnerName,
+      s.Latitude,
+      s.Longitude,
+      s.TerritoryId,
+      t.TerritoryName,
+      s.UserId,
+      u.FullName as UserFullName,
+      u.UserCode,
+      (
+        SELECT 
+          su.UserId,
+          usr.FullName,
+          usr.UserCode,
+          latest.Result
+        FROM StoreUsers su
+        INNER JOIN Users usr ON su.UserId = usr.Id
+        OUTER APPLY (
+          SELECT TOP 1 Result
+          FROM Audits a
+          WHERE a.StoreId = s.Id AND a.UserId = su.UserId
+          ORDER BY a.AuditDate DESC, a.CreatedAt DESC
+        ) latest
+        WHERE su.StoreId = s.Id
+        ORDER BY su.CreatedAt ASC
+        FOR JSON PATH
+      ) as AssignedUsersJson,
+      (
+        SELECT TOP 1 Result
+        FROM Audits aPrimary
+        WHERE aPrimary.StoreId = s.Id AND aPrimary.UserId = s.UserId
+        ORDER BY aPrimary.AuditDate DESC, aPrimary.CreatedAt DESC
+      ) as PrimaryLatestResult
+    FROM Stores s
+    LEFT JOIN Territories t ON s.TerritoryId = t.Id
+    LEFT JOIN Users u ON s.UserId = u.Id
+    ORDER BY s.StoreCode ASC
+  `);
+
+  return result.recordset.map((row) => {
+    let assignedUsers = [];
+    if (row.AssignedUsersJson) {
+      try {
+        assignedUsers = JSON.parse(row.AssignedUsersJson);
+      } catch (_error) {
+        assignedUsers = [];
+      }
+    }
+
+    if (assignedUsers.length === 0 && row.UserId && row.UserFullName) {
+      assignedUsers = [
+        {
+          UserId: row.UserId,
+          FullName: row.UserFullName,
+          UserCode: row.UserCode,
+          Result: row.PrimaryLatestResult || null,
+        },
+      ];
+    }
+
+    const userStatuses = assignedUsers.map((user) => ({
+      UserId: user.UserId,
+      UserFullName: user.FullName,
+      UserCode: user.UserCode,
+      Status: mapAuditResultToStatus(user.Result),
+    }));
+
+    return {
+      Id: row.Id,
+      StoreCode: row.StoreCode,
+      StoreName: row.StoreName,
+      Address: row.Address,
+      Phone: row.Phone,
+      Email: row.Email,
+      Status: row.Status,
+      Rank: row.Rank,
+      TaxCode: row.TaxCode,
+      PartnerName: row.PartnerName,
+      Latitude: row.Latitude,
+      Longitude: row.Longitude,
+      TerritoryName: row.TerritoryName,
+      UserFullName: row.UserFullName,
+      UserCode: row.UserCode,
+      userStatuses,
+    };
+  });
+};
+
 const exportStores = async (_req, res) => {
   try {
-    const pool = await getPool();
-    const request = pool.request();
-    request.timeout = 60000;
-
-    const result = await request.query(`
-      SELECT 
-        s.Id,
-        s.StoreCode,
-        s.StoreName,
-        s.Address,
-        s.Phone,
-        s.Email,
-        s.Status,
-        s.Rank,
-        s.TaxCode,
-        s.PartnerName,
-        s.Latitude,
-        s.Longitude,
-        s.TerritoryId,
-        t.TerritoryName,
-        s.UserId,
-        u.FullName as UserFullName,
-        u.UserCode,
-        (
-          SELECT 
-            su.UserId,
-            usr.FullName,
-            usr.UserCode,
-            latest.Result
-          FROM StoreUsers su
-          INNER JOIN Users usr ON su.UserId = usr.Id
-          OUTER APPLY (
-            SELECT TOP 1 Result
-            FROM Audits a
-            WHERE a.StoreId = s.Id AND a.UserId = su.UserId
-            ORDER BY a.AuditDate DESC, a.CreatedAt DESC
-          ) latest
-          WHERE su.StoreId = s.Id
-          ORDER BY su.CreatedAt ASC
-          FOR JSON PATH
-        ) as AssignedUsersJson,
-        (
-          SELECT TOP 1 Result
-          FROM Audits aPrimary
-          WHERE aPrimary.StoreId = s.Id AND aPrimary.UserId = s.UserId
-          ORDER BY aPrimary.AuditDate DESC, aPrimary.CreatedAt DESC
-        ) as PrimaryLatestResult
-      FROM Stores s
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN Users u ON s.UserId = u.Id
-      ORDER BY s.StoreCode ASC
-    `);
-
-    const stores = result.recordset.map((row) => {
-      let assignedUsers = [];
-      if (row.AssignedUsersJson) {
-        try {
-          assignedUsers = JSON.parse(row.AssignedUsersJson);
-        } catch (_error) {
-          assignedUsers = [];
-        }
-      }
-
-      if (assignedUsers.length === 0 && row.UserId && row.UserFullName) {
-        assignedUsers = [
-          {
-            UserId: row.UserId,
-            FullName: row.UserFullName,
-            UserCode: row.UserCode,
-            Result: row.PrimaryLatestResult || null,
-          },
-        ];
-      }
-
-      const userStatuses = assignedUsers.map((user) => ({
-        UserId: user.UserId,
-        UserFullName: user.FullName,
-        UserCode: user.UserCode,
-        Status: mapAuditResultToStatus(user.Result),
-      }));
-
-      return {
-        Id: row.Id,
-        StoreCode: row.StoreCode,
-        StoreName: row.StoreName,
-        Address: row.Address,
-        Phone: row.Phone,
-        Email: row.Email,
-        Status: row.Status,
-        Rank: row.Rank,
-        TaxCode: row.TaxCode,
-        PartnerName: row.PartnerName,
-        Latitude: row.Latitude,
-        Longitude: row.Longitude,
-        TerritoryName: row.TerritoryName,
-        UserFullName: row.UserFullName,
-        UserCode: row.UserCode,
-        userStatuses,
-      };
-    });
-
+    const stores = await fetchStoresForExport();
     res.json({
       success: true,
       data: stores,
@@ -223,6 +237,164 @@ const exportStores = async (_req, res) => {
   } catch (error) {
     console.error("Export stores error:", error);
     res.status(500).json({ error: "Không thể xuất danh sách cửa hàng" });
+  }
+};
+
+const exportStoresExcel = async (_req, res) => {
+  try {
+    const stores = await fetchStoresForExport();
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
+
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center", vertical: "middle" },
+      border: {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      },
+    };
+
+    sheet.mergeCells("A1:P1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+
+    sheet.mergeCells("A2:P2");
+    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+
+    sheet.getRow(4).values = [
+      "STT",
+      "Mã cửa hàng",
+      "Tên cửa hàng",
+      "Loại đối tượng",
+      "Địa chỉ",
+      "Mã số thuế",
+      "Tên đối tác",
+      "Số điện thoại",
+      "Email",
+      "Trạng thái",
+      "Địa bàn phụ trách",
+      "User phụ trách",
+      "Link chi tiết",
+      "Latitude",
+      "Longitude",
+      "Xem trên Google Maps",
+    ];
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+
+    let rowIndex = 0;
+    stores.forEach((store) => {
+      const statuses =
+        store.userStatuses && store.userStatuses.length > 0
+          ? store.userStatuses
+          : [
+              {
+                UserFullName: store.UserFullName || "",
+                UserCode: store.UserCode || "",
+                Status: store.Status,
+              },
+            ];
+
+      statuses.forEach((userStatus) => {
+        rowIndex++;
+        const row = sheet.addRow([
+          rowIndex,
+          store.StoreCode,
+          store.StoreName,
+          store.Rank === 1
+            ? "Đơn vị, tổ chức"
+            : store.Rank === 2
+            ? "Cá nhân"
+            : "-",
+          store.Address || "",
+          store.TaxCode || "",
+          store.PartnerName || "",
+          store.Phone || "",
+          store.Email || "",
+          getStatusLabel(userStatus.Status),
+          store.TerritoryName || "",
+          userStatus.UserFullName
+            ? `${userStatus.UserFullName}${
+                userStatus.UserCode ? ` (${userStatus.UserCode})` : ""
+              }`
+            : "",
+          "",
+          store.Latitude || "",
+          store.Longitude || "",
+          "",
+        ]);
+
+        const detailCell = row.getCell(13);
+        detailCell.value = {
+          text: "Link chi tiết",
+          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
+        };
+        detailCell.font = { color: { argb: "FF0000FF" }, underline: true };
+
+        const mapCell = row.getCell(16);
+        if (store.Latitude && store.Longitude) {
+          mapCell.value = {
+            text: "Xem trên Google Maps",
+            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
+          };
+          mapCell.font = { color: { argb: "FF0000FF" }, underline: true };
+        }
+
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+      });
+    });
+
+    sheet.columns = [
+      { width: 10 },
+      { width: 15 },
+      { width: 30 },
+      { width: 20 },
+      { width: 40 },
+      { width: 15 },
+      { width: 25 },
+      { width: 15 },
+      { width: 25 },
+      { width: 20 },
+      { width: 25 },
+      { width: 30 },
+      { width: 25 },
+      { width: 15 },
+      { width: 15 },
+      { width: 25 },
+    ];
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    const fileName = `DanhSachCuaHang_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    res.send(buffer);
+  } catch (error) {
+    console.error("Export stores excel error:", error);
+    res.status(500).json({ error: "Không thể tạo file Excel" });
   }
 };
 
@@ -931,6 +1103,7 @@ const deleteStore = async (req, res) => {
 module.exports = {
   getAllStores,
   exportStores,
+  exportStoresExcel,
   getStoreById,
   createStore,
   updateStore,

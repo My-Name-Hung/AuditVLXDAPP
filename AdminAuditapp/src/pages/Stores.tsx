@@ -294,6 +294,14 @@ export default function Stores() {
   );
 
   useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     fetchTerritories();
     fetchUsers();
     fetchStores();
@@ -421,8 +429,8 @@ export default function Stores() {
     }
   };
 
-  const handleViewStore = (storeId: number) => {
-    navigate(`/stores/${storeId}`);
+  const handleViewStore = (store: Store) => {
+    navigate(`/stores/${store.Id}`, { state: { store } });
   };
 
   const handleEditStore = (storeId: number) => {
@@ -497,240 +505,37 @@ export default function Stores() {
   const handleExportStores = async () => {
     try {
       setExportLoading(true);
-      setExportProgress(0);
+      setExportProgress(10);
 
-      setExportProgress(30);
-      const res = await api.get("/stores/export/data");
-      setExportProgress(70);
+      const res = await api.get("/stores/export/file", {
+        responseType: "blob",
+      });
 
-      await generateStoresExcel(res.data.data || [], setExportProgress);
+      setExportProgress(90);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `DanhSachCuaHang_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
       setExportProgress(100);
-
-      // Delay a bit to show 100% before closing
-      setTimeout(() => {
-        setExportLoading(false);
-        setExportProgress(0);
-      }, 500);
     } catch (error) {
       console.error("Error exporting stores:", error);
       setExportLoading(false);
       setExportProgress(0);
       alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
+      return;
     }
-  };
 
-  const generateStoresExcel = async (
-    storesData: Store[],
-    progressCallback?: (progress: number) => void
-  ) => {
-    const ExcelJS = (await import("exceljs")).default;
-    const workbook = new ExcelJS.Workbook();
-
-    if (progressCallback) progressCallback(60);
-
-    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
-
-    // Header style
-    const headerStyle = {
-      font: { bold: true, color: { argb: "FFFFFFFF" } },
-      fill: {
-        type: "pattern" as const,
-        pattern: "solid" as const,
-        fgColor: { argb: "FF0138C3" },
-      },
-      alignment: { horizontal: "center" as const, vertical: "middle" as const },
-      border: {
-        top: { style: "thin" as const },
-        bottom: { style: "thin" as const },
-        left: { style: "thin" as const },
-        right: { style: "thin" as const },
-      },
-    };
-
-    // Title
-    sheet.mergeCells("A1:P1");
-    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
-    sheet.getCell("A1").font = { bold: true, size: 14 };
-    sheet.getCell("A1").alignment = { horizontal: "center" };
-
-    sheet.mergeCells("A2:P2");
-    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
-    sheet.getCell("A2").font = { bold: true, size: 12 };
-    sheet.getCell("A2").alignment = { horizontal: "center" };
-
-    // Headers
-    const headers = [
-      "STT",
-      "Mã cửa hàng",
-      "Tên cửa hàng",
-      "Loại đối tượng",
-      "Địa chỉ",
-      "Mã số thuế",
-      "Tên đối tác",
-      "Số điện thoại",
-      "Email",
-      "Trạng thái",
-      "Địa bàn phụ trách",
-      "User phụ trách",
-      "Link chi tiết",
-      "Latitude",
-      "Longitude",
-      "Xem trên Google Maps",
-    ];
-    sheet.getRow(4).values = headers;
-    sheet.getRow(4).eachCell((cell) => {
-      cell.style = headerStyle;
-    });
-
-    // Data
-    if (progressCallback) progressCallback(70);
-    let rowIndex = 0;
-    storesData.forEach((store) => {
-      // If store has multiple users with different statuses, create one row per user
-      if (store.userStatuses && store.userStatuses.length > 0) {
-        store.userStatuses.forEach((userStatus) => {
-          rowIndex++;
-          const row = sheet.addRow([
-            rowIndex,
-            store.StoreCode,
-            store.StoreName,
-            getRankLabel(store.Rank),
-            store.Address || "",
-            store.TaxCode || "",
-            store.PartnerName || "",
-            store.Phone || "",
-            store.Email || "",
-            getStatusLabel(userStatus.Status), // Trạng thái của user này
-            store.TerritoryName || "",
-            userStatus.UserFullName
-              ? `${userStatus.UserFullName} (${userStatus.UserCode || ""})`
-              : "",
-            "", // Link chi tiết - will be set as hyperlink
-            store.Latitude || "",
-            store.Longitude || "",
-            "", // Google Maps link - will be set as hyperlink
-          ]);
-
-          // Set hyperlink for "Link chi tiết"
-          const detailLinkCell = row.getCell(13);
-          detailLinkCell.value = {
-            text: "Link chi tiết",
-            hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-          };
-          detailLinkCell.font = {
-            color: { argb: "FF0000FF" },
-            underline: true,
-          };
-
-          // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
-          const mapLinkCell = row.getCell(16);
-          if (store.Latitude && store.Longitude) {
-            mapLinkCell.value = {
-              text: "Xem trên Google Maps",
-              hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-            };
-            mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-          }
-
-          // Add borders to all cells
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        });
-      } else {
-        // Single row for store without userStatuses or with single status
-        rowIndex++;
-        const row = sheet.addRow([
-          rowIndex,
-          store.StoreCode,
-          store.StoreName,
-          getRankLabel(store.Rank),
-          store.Address || "",
-          store.TaxCode || "",
-          store.PartnerName || "",
-          store.Phone || "",
-          store.Email || "",
-          getStatusLabel(store.Status), // Trạng thái
-          store.TerritoryName || "",
-          store.UserFullName
-            ? `${store.UserFullName} (${store.UserCode || ""})`
-            : "",
-          "", // Link chi tiết - will be set as hyperlink
-          store.Latitude || "",
-          store.Longitude || "",
-          "", // Google Maps link - will be set as hyperlink
-        ]);
-
-        // Set hyperlink for "Link chi tiết"
-        const detailLinkCell = row.getCell(13);
-        detailLinkCell.value = {
-          text: "Link chi tiết",
-          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-        };
-        detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-
-        // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
-        const mapLinkCell = row.getCell(16);
-        if (store.Latitude && store.Longitude) {
-          mapLinkCell.value = {
-            text: "Xem trên Google Maps",
-            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-          };
-          mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-        }
-
-        // Add borders to all cells
-        row.eachCell((cell) => {
-          cell.border = {
-            top: { style: "thin" },
-            bottom: { style: "thin" },
-            left: { style: "thin" },
-            right: { style: "thin" },
-          };
-        });
-      }
-    });
-
-    // Set column widths
-    sheet.columns = [
-      { width: 10 }, // STT
-      { width: 15 }, // Mã cửa hàng
-      { width: 30 }, // Tên cửa hàng
-      { width: 20 }, // Loại đối tượng
-      { width: 40 }, // Địa chỉ
-      { width: 15 }, // Mã số thuế
-      { width: 25 }, // Tên đối tác
-      { width: 15 }, // Số điện thoại
-      { width: 25 }, // Email
-      { width: 20 }, // Trạng thái
-      { width: 25 }, // Địa bàn phụ trách
-      { width: 30 }, // User phụ trách
-      { width: 20 }, // Link chi tiết
-      { width: 15 }, // Latitude
-      { width: 15 }, // Longitude
-      { width: 25 }, // Xem trên Google Maps
-    ];
-
-    if (progressCallback) progressCallback(90);
-
-    // Generate Excel file
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `DanhSachCuaHang_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    setTimeout(() => {
+      setExportLoading(false);
+      setExportProgress(0);
+    }, 500);
   };
 
   const rankOptions = [
@@ -913,7 +718,7 @@ export default function Stores() {
                       {canViewStore(store) && (
                         <button
                           className="btn-action btn-view"
-                          onClick={() => handleViewStore(store.Id)}
+                          onClick={() => handleViewStore(store)}
                           title="Xem chi tiết"
                         >
                           <HiEye />

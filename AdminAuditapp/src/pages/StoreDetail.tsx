@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HiDownload } from "react-icons/hi";
 import { HiArrowLeft, HiArrowPath } from "react-icons/hi2";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import api from "../services/api";
@@ -66,12 +66,23 @@ interface Audit {
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [store, setStore] = useState<Store | null>(null);
+  const location = useLocation();
+  const preloadedStore = (location.state as { store?: Store } | null)?.store;
+  const sanitizedPreloadedStore = preloadedStore
+    ? {
+        ...preloadedStore,
+        userStatuses: (preloadedStore.userStatuses || []).filter(
+          (status: UserStatus) => status.Status !== "not_audited"
+        ),
+      }
+    : null;
+  const hasPreloadedStore = Boolean(sanitizedPreloadedStore);
+  const [store, setStore] = useState<Store | null>(sanitizedPreloadedStore);
   const [audits, setAudits] = useState<Audit[]>([]);
   const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
   const [auditDateDropdownOpen, setAuditDateDropdownOpen] = useState(false);
   const [auditDateSearch, setAuditDateSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasPreloadedStore);
   const [dataLoading, setDataLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{
     url: string;
@@ -137,7 +148,7 @@ export default function StoreDetail() {
     try {
       if (showLoading) {
         setDataLoading(true);
-      } else {
+      } else if (!hasPreloadedStore) {
         setLoading(true);
       }
 

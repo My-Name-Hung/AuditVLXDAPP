@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
@@ -18,11 +18,22 @@ interface User {
   Position?: string | null;
 }
 
+const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
+
+const mergePositionOptions = (current: string[], incoming: string[]) => {
+  const normalized = [...current];
+  incoming.forEach((item) => {
+    const trimmed = item?.trim();
+    if (trimmed && !normalized.includes(trimmed)) {
+      normalized.push(trimmed);
+    }
+  });
+  return normalized;
+};
+
 export default function UserEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{
     isOpen: boolean;
     type: "success" | "error";
@@ -34,24 +45,33 @@ export default function UserEdit() {
   });
   const [updateLoading, setUpdateLoading] = useState(false);
 
-  const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
-  const [positionOptions, setPositionOptions] =
-    useState<string[]>(DEFAULT_POSITIONS);
+  const location = useLocation();
+  const preloadedUser =
+    (location.state as { user?: User } | null)?.user || null;
+  const initialRole = preloadedUser?.Role || "sales";
+  const initialPosition =
+    (preloadedUser?.Position && preloadedUser.Position.trim()) ||
+    (initialRole === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường");
+
+  const [positionOptions, setPositionOptions] = useState<string[]>(
+    mergePositionOptions(DEFAULT_POSITIONS, [initialPosition])
+  );
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
 
   const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    role: "sales" as "admin" | "sales",
-    position: "",
+    fullName: preloadedUser?.FullName || "",
+    email: preloadedUser?.Email || "",
+    phone: preloadedUser?.Phone || "",
+    role: (initialRole as "admin" | "sales") || "sales",
+    position: initialPosition,
     password: "",
   });
+  const [user, setUser] = useState<User | null>(preloadedUser);
+  const [loading, setLoading] = useState(!preloadedUser);
 
   useEffect(() => {
     fetchPositions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -60,17 +80,6 @@ export default function UserEdit() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
-
-  const mergePositionOptions = (current: string[], incoming: string[]) => {
-    const normalized = [...current];
-    incoming.forEach((item) => {
-      const trimmed = item?.trim();
-      if (trimmed && !normalized.includes(trimmed)) {
-        normalized.push(trimmed);
-      }
-    });
-    return normalized;
-  };
 
   const fetchPositions = async () => {
     try {
@@ -99,7 +108,9 @@ export default function UserEdit() {
 
   const fetchUser = async () => {
     try {
-      setLoading(true);
+      if (!preloadedUser) {
+        setLoading(true);
+      }
       const res = await api.get(`/users/${id}`);
       const data = res.data;
       setUser(data);
