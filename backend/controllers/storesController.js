@@ -170,37 +170,51 @@ const buildInClause = (items, prefix, request) => {
     .join(", ");
 };
 
+const CHUNK_SIZE = 2000;
+
+const chunkArray = (arr, size) => {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
 const getStoreUsersMap = async (pool, storeIds) => {
   const map = new Map();
   if (storeIds.length === 0) {
     return map;
   }
 
-  const usersRequest = pool.request();
-  const inClause = buildInClause(storeIds, "StoreId", usersRequest);
+  const chunks = chunkArray(storeIds, CHUNK_SIZE);
 
-  const result = await usersRequest.query(`
-    SELECT 
-      su.StoreId,
-      u.Id as UserId,
-      u.FullName as UserFullName,
-      u.UserCode
-    FROM StoreUsers su
-    INNER JOIN Users u ON su.UserId = u.Id
-    WHERE su.StoreId IN (${inClause})
-    ORDER BY su.StoreId, su.CreatedAt ASC
-  `);
+  for (const chunk of chunks) {
+    const usersRequest = pool.request();
+    const inClause = buildInClause(chunk, "StoreId", usersRequest);
 
-  result.recordset.forEach((row) => {
-    if (!map.has(row.StoreId)) {
-      map.set(row.StoreId, []);
-    }
-    map.get(row.StoreId).push({
-      UserId: row.UserId,
-      UserFullName: row.UserFullName,
-      UserCode: row.UserCode,
+    const result = await usersRequest.query(`
+      SELECT 
+        su.StoreId,
+        u.Id as UserId,
+        u.FullName as UserFullName,
+        u.UserCode
+      FROM StoreUsers su
+      INNER JOIN Users u ON su.UserId = u.Id
+      WHERE su.StoreId IN (${inClause})
+      ORDER BY su.StoreId, su.CreatedAt ASC
+    `);
+
+    result.recordset.forEach((row) => {
+      if (!map.has(row.StoreId)) {
+        map.set(row.StoreId, []);
+      }
+      map.get(row.StoreId).push({
+        UserId: row.UserId,
+        UserFullName: row.UserFullName,
+        UserCode: row.UserCode,
+      });
     });
-  });
+  }
 
   return map;
 };
@@ -219,22 +233,26 @@ const getPrimaryUsersMap = async (pool, stores) => {
     return map;
   }
 
-  const usersRequest = pool.request();
-  const inClause = buildInClause(primaryUserIds, "PrimaryUserId", usersRequest);
+  const chunks = chunkArray(primaryUserIds, CHUNK_SIZE);
 
-  const result = await usersRequest.query(`
-    SELECT Id, FullName, UserCode
-    FROM Users
-    WHERE Id IN (${inClause})
-  `);
+  for (const chunk of chunks) {
+    const usersRequest = pool.request();
+    const inClause = buildInClause(chunk, "PrimaryUserId", usersRequest);
 
-  result.recordset.forEach((row) => {
-    map.set(row.Id, {
-      UserId: row.Id,
-      UserFullName: row.FullName,
-      UserCode: row.UserCode,
+    const result = await usersRequest.query(`
+      SELECT Id, FullName, UserCode
+      FROM Users
+      WHERE Id IN (${inClause})
+    `);
+
+    result.recordset.forEach((row) => {
+      map.set(row.Id, {
+        UserId: row.Id,
+        UserFullName: row.FullName,
+        UserCode: row.UserCode,
+      });
     });
-  });
+  }
 
   return map;
 };
@@ -245,30 +263,34 @@ const getLatestAuditMap = async (pool, storeIds) => {
     return map;
   }
 
-  const auditRequest = pool.request();
-  const inClause = buildInClause(storeIds, "AuditStoreId", auditRequest);
+  const chunks = chunkArray(storeIds, CHUNK_SIZE);
 
-  const result = await auditRequest.query(`
-    WITH RankedAudits AS (
-      SELECT 
-        StoreId,
-        UserId,
-        Result,
-        ROW_NUMBER() OVER (
-          PARTITION BY StoreId, UserId
-          ORDER BY AuditDate DESC, CreatedAt DESC
-        ) AS RowNum
-      FROM Audits
-      WHERE StoreId IN (${inClause})
-    )
-    SELECT StoreId, UserId, Result
-    FROM RankedAudits
-    WHERE RowNum = 1
-  `);
+  for (const chunk of chunks) {
+    const auditRequest = pool.request();
+    const inClause = buildInClause(chunk, "AuditStoreId", auditRequest);
 
-  result.recordset.forEach((row) => {
-    map.set(`${row.StoreId}-${row.UserId}`, row.Result);
-  });
+    const result = await auditRequest.query(`
+      WITH RankedAudits AS (
+        SELECT 
+          StoreId,
+          UserId,
+          Result,
+          ROW_NUMBER() OVER (
+            PARTITION BY StoreId, UserId
+            ORDER BY AuditDate DESC, CreatedAt DESC
+          ) AS RowNum
+        FROM Audits
+        WHERE StoreId IN (${inClause})
+      )
+      SELECT StoreId, UserId, Result
+      FROM RankedAudits
+      WHERE RowNum = 1
+    `);
+
+    result.recordset.forEach((row) => {
+      map.set(`${row.StoreId}-${row.UserId}`, row.Result);
+    });
+  }
 
   return map;
 };

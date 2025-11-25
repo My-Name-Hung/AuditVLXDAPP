@@ -811,30 +811,6 @@ export default function Stores() {
             <span>Đã thực hiện</span>
             <span className="status-count">({statusCounts.audited})</span>
           </button>
-          <button
-            className={`status-tab ${
-              statusFilter === "passed" ? "active" : ""
-            }`}
-            onClick={() => {
-              setStatusFilter("passed");
-              setPage(1);
-            }}
-          >
-            <span>Đạt</span>
-            <span className="status-count">({statusCounts.passed})</span>
-          </button>
-          <button
-            className={`status-tab ${
-              statusFilter === "failed" ? "active" : ""
-            }`}
-            onClick={() => {
-              setStatusFilter("failed");
-              setPage(1);
-            }}
-          >
-            <span>Không đạt</span>
-            <span className="status-count">({statusCounts.failed})</span>
-          </button>
         </div>
         <div className="stores-actions">
           <button className="btn-add" onClick={() => navigate("/stores/new")}>
