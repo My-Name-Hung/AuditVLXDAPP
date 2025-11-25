@@ -7,7 +7,7 @@ import './ChangePassword.css';
 
 export default function ChangePassword() {
   const navigate = useNavigate();
-  const { updateUser } = useAuth();
+  const { updateUser, user, loading: authLoading } = useAuth();
   const { colors } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -17,6 +17,21 @@ export default function ChangePassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Show loading if auth is still loading
+  if (authLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+        <div style={{ width: '40px', height: '40px', border: '4px solid #f3f3f3', borderTop: '4px solid #0138C3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+      </div>
+    );
+  }
+
+  // Redirect to login if not authenticated
+  if (!user) {
+    navigate('/login', { replace: true });
+    return null;
+  }
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();

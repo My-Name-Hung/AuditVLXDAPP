@@ -102,7 +102,7 @@ async function getSummary(req, res) {
 async function getUserDetail(req, res) {
   try {
     const { userId } = req.params;
-    const { startDate, endDate, storeName } = req.query;
+    const { startDate, endDate, storeName, territoryId } = req.query;
 
     console.log("getUserDetail called with params:", {
       userId,
@@ -122,38 +122,47 @@ async function getUserDetail(req, res) {
         a.Id as AuditId,
         s.StoreName,
         s.Address,
+        t.TerritoryName,
         MIN(img.CapturedAt) as CheckinTime,
         a.Notes
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       INNER JOIN Images img ON a.Id = img.AuditId
       WHERE a.UserId = @UserId
         AND img.ImageUrl IS NOT NULL
         AND img.ImageUrl != ''
     `;
 
-      if (startDate) {
-        query += " AND a.AuditDate >= @startDate";
-        request.input("startDate", sql.Date, startDate);
-        console.log("Added startDate filter:", startDate);
-      }
+    if (territoryId) {
+      query += " AND s.TerritoryId = @TerritoryId";
+      request.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+    }
 
-      if (endDate) {
-        query += " AND a.AuditDate <= @endDate";
-        request.input("endDate", sql.Date, endDate);
-        console.log("Added endDate filter:", endDate);
-      }
+    if (startDate) {
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
 
     // Filter by store name
     if (storeName && storeName.trim() !== "") {
       const storeNamePattern = `%${storeName.trim()}%`;
       query += " AND s.StoreName LIKE @storeName";
       request.input("storeName", sql.NVarChar(200), storeNamePattern);
-      console.log("Added storeName filter:", storeNamePattern);
     }
 
     query += `
-      GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.StoreName, s.Address, a.Notes
+      GROUP BY CAST(a.AuditDate AS DATE),
+               a.Id,
+               s.StoreName,
+               s.Address,
+               t.TerritoryName,
+               a.Notes
       ORDER BY CheckinDate DESC, CheckinTime DESC
     `;
 
@@ -245,7 +254,7 @@ async function exportReport(req, res) {
         });
         summaryQuery += ")";
       }
-      }
+    }
 
     summaryQuery += `
       GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
@@ -278,10 +287,12 @@ async function exportReport(req, res) {
           a.Id as AuditId,
           s.StoreName,
           s.Address,
+          t.TerritoryName,
           MIN(img.CapturedAt) as CheckinTime,
           a.Notes
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
+        LEFT JOIN Territories t ON s.TerritoryId = t.Id
         INNER JOIN Images img ON a.Id = img.AuditId
         WHERE a.UserId = @UserId
           AND s.TerritoryId = @TerritoryId
@@ -297,7 +308,12 @@ async function exportReport(req, res) {
       }
 
       detailQuery += `
-        GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.StoreName, s.Address, a.Notes
+        GROUP BY CAST(a.AuditDate AS DATE),
+                 a.Id,
+                 s.StoreName,
+                 s.Address,
+                 t.TerritoryName,
+                 a.Notes
         ORDER BY CheckinDate DESC, CheckinTime DESC
       `;
 

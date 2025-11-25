@@ -1,8 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, saveCredentials, getSavedCredentials, clearSavedCredentials } from '../contexts/AuthContext';
 import { Colors } from '../constants/theme';
-import api from '../services/api';
 import iconImage from '../assets/icon.jpg';
 import './Login.css';
 

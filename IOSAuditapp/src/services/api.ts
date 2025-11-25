@@ -17,9 +17,13 @@ const api = axios.create({
 
 // Add token to requests
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem("token");
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  try {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  } catch (e) {
+    console.warn("Failed to get token from localStorage:", e);
   }
   return config;
 });
@@ -37,8 +41,12 @@ api.interceptors.response.use(
         errorMessage.includes("Token") ||
         errorMessage.includes("truy cập")
       ) {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
+        try {
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+        } catch (e) {
+          console.warn("Failed to clear localStorage on 401:", e);
+        }
         // Redirect to login if not already there
         if (window.location.pathname !== "/login") {
           window.location.href = "/login";

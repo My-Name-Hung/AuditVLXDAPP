@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import api from '../services/api';
 
 interface User {
@@ -41,12 +42,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadStoredAuth = async () => {
     try {
-      const storedToken = localStorage.getItem('token');
-      const storedUser = localStorage.getItem('user');
+      // Check if localStorage is available (may fail in private browsing on Safari iOS)
+      let storedToken: string | null = null;
+      let storedUser: string | null = null;
+      
+      try {
+        storedToken = localStorage.getItem('token');
+        storedUser = localStorage.getItem('user');
+      } catch (storageError) {
+        console.warn('localStorage not available (possibly private browsing):', storageError);
+        setToken(null);
+        setUser(null);
+        setLoading(false);
+        return;
+      }
 
       if (!storedToken || !storedUser) {
+        try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        } catch (e) {
+          // Ignore localStorage errors
+        }
         setToken(null);
         setUser(null);
         setLoading(false);
@@ -56,10 +73,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       let parsedUser: User | null = null;
       try {
         parsedUser = JSON.parse(storedUser);
-      } catch {
-        console.warn('Invalid user data in storage, clearing auth state');
+      } catch (parseError) {
+        console.warn('Invalid user data in storage, clearing auth state:', parseError);
+        try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        } catch (e) {
+          // Ignore localStorage errors
+        }
         setToken(null);
         setUser(null);
         setLoading(false);
@@ -67,6 +88,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Validate token by fetching current user profile
+      if (!parsedUser) {
+        setLoading(false);
+        return;
+      }
+
       try {
         const response = await api.get(`/users/${parsedUser.id}`);
         if (response.status >= 200 && response.status < 300 && response.data) {
@@ -92,21 +118,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
           setToken(storedToken);
           setUser(mergedUser);
+          try {
           localStorage.setItem('user', JSON.stringify(mergedUser));
+          } catch (e) {
+            console.warn('Failed to save user to localStorage:', e);
+          }
         } else {
           throw new Error('Invalid API response');
         }
       } catch (error: any) {
         console.warn('Stored token invalid or API error, clearing auth state', error);
+        try {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
+        } catch (e) {
+          // Ignore localStorage errors
+        }
         setToken(null);
         setUser(null);
       }
     } catch (error) {
       console.error('Error loading stored auth:', error);
+      try {
       localStorage.removeItem('token');
       localStorage.removeItem('user');
+      } catch (e) {
+        // Ignore localStorage errors
+      }
       setToken(null);
       setUser(null);
     } finally {
@@ -121,8 +159,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setToken(newToken);
       setUser(userData);
+      
+      try {
       localStorage.setItem('token', newToken);
       localStorage.setItem('user', JSON.stringify(userData));
+      } catch (storageError) {
+        console.warn('Failed to save auth to localStorage (possibly private browsing):', storageError);
+        // Continue even if localStorage fails - user can still use the app in this session
+      }
 
       return { user: userData, token: newToken };
     } catch (error: any) {
@@ -133,18 +177,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     setToken(null);
     setUser(null);
+    try {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
     localStorage.removeItem(REMEMBER_PASSWORD_KEY);
     localStorage.removeItem(SAVED_USERNAME_KEY);
     localStorage.removeItem(SAVED_PASSWORD_KEY);
+    } catch (e) {
+      // Ignore localStorage errors
+      console.warn('Failed to clear localStorage on logout:', e);
+    }
   };
 
   const updateUser = (userData: Partial<User>) => {
     if (user) {
       const updatedUser = { ...user, ...userData };
       setUser(updatedUser);
+      try {
       localStorage.setItem('user', JSON.stringify(updatedUser));
+      } catch (e) {
+        console.warn('Failed to update user in localStorage:', e);
+      }
     }
   };
 

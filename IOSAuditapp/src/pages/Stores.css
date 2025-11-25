@@ -127,6 +127,51 @@
   transition: transform 0.2s, box-shadow 0.2s;
 }
 
+/* Skeleton loading for search */
+.stores-store-card-skeleton {
+  position: relative;
+  overflow: hidden;
+}
+
+.stores-store-card-skeleton .skeleton-line {
+  height: 14px;
+  border-radius: 4px;
+  margin-bottom: 8px;
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: stores-skeleton-loading 1.5s ease-in-out infinite;
+}
+
+.skeleton-line-title {
+  width: 60%;
+}
+
+.skeleton-line-code {
+  width: 40%;
+}
+
+.skeleton-line-address {
+  width: 80%;
+}
+
+.skeleton-line-contact {
+  width: 70%;
+}
+
+@keyframes stores-skeleton-loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
 .stores-store-card:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);

@@ -113,7 +113,7 @@ export default function Profile() {
       }
 
       // Update user info
-      const response = await api.put(`/users/${user?.id}`, {
+      await api.put(`/users/${user?.id}`, {
         fullName: formData.fullName.trim(),
         email: formData.email.trim(),
         phone: formData.phone.trim(),

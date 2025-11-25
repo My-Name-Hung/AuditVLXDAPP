@@ -5,6 +5,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
+import { StoreSkeletonList } from "../components/StoreSkeleton";
 import api from "../services/api";
 import "./Stores.css";
 
@@ -71,6 +72,7 @@ export default function Stores() {
   const location = useLocation();
   const [stores, setStores] = useState<Store[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isFiltering, setIsFiltering] = useState(false);
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [storeNameFilter, setStoreNameFilter] = useState("");
   const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
@@ -113,6 +115,16 @@ export default function Stores() {
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isFilterChangingRef = useRef(false);
   const previousStoreNameFilterRef = useRef<string>("");
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const hasFetchedRef = useRef(false);
+
+  const resetFilterChangingFlag = useCallback(() => {
+    setTimeout(() => {
+      if (isFilterChangingRef.current) {
+        isFilterChangingRef.current = false;
+      }
+    }, 100);
+  }, []);
 
   useEffect(() => {
     fetchTerritories();
@@ -145,7 +157,7 @@ export default function Stores() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, pageSize]);
 
-  // Debounce store name filter
+  // Debounce store name filter - improved with 800ms delay and search state
   useEffect(() => {
     // Skip if filter hasn't actually changed (e.g., on initial mount)
     if (storeNameFilter === previousStoreNameFilterRef.current) {
@@ -157,33 +169,38 @@ export default function Stores() {
 
     isFilterChangingRef.current = true;
 
+    // Cancel previous debounce timer
     if (debounceTimerRef.current) {
       clearTimeout(debounceTimerRef.current);
     }
 
+    // Abort previous request if exists
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     // Reset page to 1 when store name filter changes
-    // But don't let the page useEffect trigger fetchStores
     setPage(1);
 
-    // If filter is empty, fetch immediately
     if (!storeNameFilter.trim()) {
-      // Wait a bit to ensure page state is updated
       setTimeout(() => {
         fetchStores();
       }, 50);
       return;
     }
 
-    // Use debounce for filter input
+    // Show skeleton while waiting for debounce
+    setIsFiltering(true);
+
+    // Use debounce for filter input - 800ms delay
     debounceTimerRef.current = setTimeout(() => {
       fetchStores();
-    }, 300);
+    }, 800);
 
     return () => {
       if (debounceTimerRef.current) {
         clearTimeout(debounceTimerRef.current);
       }
-      // Don't reset isFilterChangingRef here to prevent race condition
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeNameFilter]);
@@ -209,59 +226,88 @@ export default function Stores() {
     }
   };
 
+  // Calculate status counts from stores array
+  const calculateStatusCounts = (
+    storesList: Store[]
+  ): Record<StatusFilter, number> => {
+    const counts: Record<StatusFilter, number> = {
+      all: storesList.length,
+      not_audited: 0,
+      audited: 0,
+      passed: 0,
+      failed: 0,
+    };
+
+    storesList.forEach((store) => {
+      if (store.userStatuses && store.userStatuses.length > 0) {
+        // Check each status - if any user has this status, count the store
+        const hasNotAudited = store.userStatuses.some(
+          (us) => us.Status === "not_audited"
+        );
+        const hasAudited = store.userStatuses.some(
+          (us) => us.Status === "audited"
+        );
+        const hasPassed = store.userStatuses.some(
+          (us) => us.Status === "passed"
+        );
+        const hasFailed = store.userStatuses.some(
+          (us) => us.Status === "failed"
+        );
+
+        if (hasNotAudited) counts.not_audited++;
+        if (hasAudited) counts.audited++;
+        if (hasPassed) counts.passed++;
+        if (hasFailed) counts.failed++;
+      } else {
+        // If no userStatuses, use store.Status (backward compatibility)
+        if (store.Status === "not_audited") counts.not_audited++;
+        else if (store.Status === "audited") counts.audited++;
+        else if (store.Status === "passed") counts.passed++;
+        else if (store.Status === "failed") counts.failed++;
+      }
+    });
+
+    return counts;
+  };
+
   const fetchStatusCounts = async () => {
     try {
-      // Fetch counts for each status (without other filters)
-      const statuses: StatusFilter[] = [
-        "all",
-        "not_audited",
-        "audited",
-        "passed",
-        "failed",
-      ];
-      const counts: Record<StatusFilter, number> = {
-        all: 0,
-        not_audited: 0,
-        audited: 0,
-        passed: 0,
-        failed: 0,
-      };
-
-      // Fetch all statuses in parallel
-      await Promise.all(
-        statuses.map(async (status) => {
-          try {
-            const params: Record<string, string | number> = {
-              page: 1,
-              pageSize: 1, // We only need the total count
-            };
-
-            if (status !== "all") {
-              params.status = status;
-            }
-
-            const res = await api.get("/stores", { params });
-            counts[status] = res.data.pagination?.total || 0;
-          } catch (error) {
-            console.error(`Error fetching count for status ${status}:`, error);
-            counts[status] = 0;
-          }
-        })
-      );
-
-      setStatusCounts(counts);
+      const res = await api.get("/stores/status-summary");
+      const data =
+        (res.data && (res.data.data as Partial<Record<StatusFilter, number>>)) ||
+        {};
+      setStatusCounts((prev) => ({
+        all: data.all ?? prev.all,
+        not_audited: data.not_audited ?? prev.not_audited,
+        audited: data.audited ?? prev.audited,
+        passed: data.passed ?? prev.passed,
+        failed: data.failed ?? prev.failed,
+      }));
     } catch (error) {
       console.error("Error fetching status counts:", error);
     }
   };
 
   const fetchStores = useCallback(async () => {
-    try {
+    const preserveData = hasFetchedRef.current;
+
+    if (preserveData) {
+      setIsFiltering(true);
+    } else {
       setLoading(true);
+    }
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
+    try {
       const params: Record<string, string | number> = {
         page,
         pageSize,
-        _t: Date.now(), // Add timestamp to prevent caching
+        _t: Date.now(), // bust cache
       };
 
       if (statusFilter !== "all") {
@@ -280,31 +326,42 @@ export default function Stores() {
         params.storeName = storeNameFilter.trim();
       }
 
-      const res = await api.get("/stores", { params });
+      const res = await api.get("/stores", {
+        params,
+        signal: controller.signal,
+      });
       const fetchedStores: Store[] = res.data.data || [];
       setStores(sortStoresByStatus(fetchedStores));
+      hasFetchedRef.current = true;
+
       if (res.data.pagination) {
         setTotal(res.data.pagination.total);
         setTotalPages(res.data.pagination.totalPages);
       }
 
-      // Reset isFilterChangingRef after fetch completes successfully
-      // Use setTimeout to ensure this happens after any pending useEffect runs
-      setTimeout(() => {
-        if (isFilterChangingRef.current) {
-          isFilterChangingRef.current = false;
-        }
-      }, 100);
+      if (
+        statusFilter === "all" &&
+        !selectedTerritory &&
+        !selectedRank &&
+        !selectedUser &&
+        !storeNameFilter.trim()
+      ) {
+        const counts = calculateStatusCounts(fetchedStores);
+        setStatusCounts(counts);
+      }
     } catch (error) {
+      const isAborted =
+        (error as { name?: string; code?: string })?.name === "CanceledError" ||
+        (error as { code?: string })?.code === "ERR_CANCELED";
+      if (!isAborted) {
       console.error("Error fetching stores:", error);
-      // Reset isFilterChangingRef even on error
-      setTimeout(() => {
-        if (isFilterChangingRef.current) {
-          isFilterChangingRef.current = false;
         }
-      }, 100);
     } finally {
+      if (!preserveData) {
       setLoading(false);
+      }
+      setIsFiltering(false);
+      resetFilterChangingFlag();
     }
   }, [
     page,
@@ -314,6 +371,7 @@ export default function Stores() {
     selectedRank,
     selectedUser,
     storeNameFilter,
+    resetFilterChangingFlag,
   ]);
 
   const hasActiveFilters = () => {
@@ -399,32 +457,30 @@ export default function Stores() {
   };
 
   const formatStatusWithUsers = (store: Store): React.ReactNode => {
-    // If store has userStatuses
     if (store.userStatuses && store.userStatuses.length > 0) {
       const userCount = store.userStatuses.length;
-      
-      // Check if all users have the same status
-      const uniqueStatuses = new Set(store.userStatuses.map(us => us.Status));
+      const uniqueStatuses = new Set(store.userStatuses.map((us) => us.Status));
       const allSameStatus = uniqueStatuses.size === 1;
-      
+
       if (allSameStatus) {
-        // All users have same status: show status + (number of users)
         const status = store.userStatuses[0].Status;
         return (
           <div className="status-single-compact">
-            <span className={`status-badge-inline status-${status}`}>
+            <span className={`status-badge status-${status}`}>
               {getStatusLabel(status)}
             </span>
             <span className="status-user-count">({userCount})</span>
           </div>
         );
-      } else {
-        // Different statuses: show "User Name : Status" for each user
+      }
+
         return (
           <div className="status-multi-user-compact">
             {store.userStatuses.map((us) => (
               <div key={us.UserId} className="status-user-row">
-                <span className="status-user-name-compact">{us.UserFullName}</span>
+                <span className="status-user-name-compact">
+                  {us.UserFullName}
+                </span>
                 <span className="status-separator">:</span>
                 <span className={`status-badge-inline status-${us.Status}`}>
                   {getStatusLabel(us.Status)}
@@ -434,9 +490,19 @@ export default function Stores() {
           </div>
         );
       }
+
+    return (
+      <span className={`status-badge status-${store.Status}`}>
+        {getStatusLabel(store.Status)}
+      </span>
+    );
+  };
+
+  const canViewStore = (store: Store) => {
+    if (store.userStatuses && store.userStatuses.length > 0) {
+      return store.userStatuses.some((us) => us.Status !== "not_audited");
     }
-    // If no userStatuses, just show status
-    return getStatusLabel(store.Status);
+    return store.Status !== "not_audited";
   };
 
   const handleExportStores = async () => {
@@ -444,29 +510,14 @@ export default function Stores() {
       setExportLoading(true);
       setExportProgress(0);
 
-      // Fetch all stores with current filters
+      // Fetch ALL stores without any filters to get complete data
       setExportProgress(20);
       const params: Record<string, string | number> = {
         page: 1,
         pageSize: 10000, // Get all stores
       };
 
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
-      }
-      if (selectedRank) {
-        params.rank = selectedRank;
-      }
-      if (selectedUser) {
-        params.userId = selectedUser;
-      }
-      if (storeNameFilter) {
-        params.storeName = storeNameFilter;
-      }
-
+      // Don't apply any filters - export all stores
       const res = await api.get("/stores", { params });
       setExportProgress(50);
 
@@ -551,9 +602,14 @@ export default function Stores() {
 
     // Data
     if (progressCallback) progressCallback(70);
-    storesData.forEach((store, index) => {
+    let rowIndex = 0;
+    storesData.forEach((store) => {
+      // If store has multiple users with different statuses, create one row per user
+      if (store.userStatuses && store.userStatuses.length > 0) {
+        store.userStatuses.forEach((userStatus) => {
+          rowIndex++;
       const row = sheet.addRow([
-        index + 1,
+            rowIndex,
         store.StoreCode,
         store.StoreName,
         getRankLabel(store.Rank),
@@ -562,7 +618,59 @@ export default function Stores() {
         store.PartnerName || "",
         store.Phone || "",
         store.Email || "",
-        getStatusLabel(store.Status),
+            getStatusLabel(userStatus.Status), // Trạng thái của user này
+            store.TerritoryName || "",
+            userStatus.UserFullName
+              ? `${userStatus.UserFullName} (${userStatus.UserCode || ""})`
+              : "",
+            "", // Link chi tiết - will be set as hyperlink
+            store.Latitude || "",
+            store.Longitude || "",
+            "", // Google Maps link - will be set as hyperlink
+          ]);
+
+          // Set hyperlink for "Link chi tiết"
+          const detailLinkCell = row.getCell(13);
+          detailLinkCell.value = {
+            text: "Link chi tiết",
+            hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
+          };
+          detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+
+          // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
+          const mapLinkCell = row.getCell(16);
+          if (store.Latitude && store.Longitude) {
+            mapLinkCell.value = {
+              text: "Xem trên Google Maps",
+              hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
+            };
+            mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+          }
+
+          // Add borders to all cells
+          row.eachCell((cell) => {
+            cell.border = {
+              top: { style: "thin" },
+              bottom: { style: "thin" },
+              left: { style: "thin" },
+              right: { style: "thin" },
+            };
+          });
+        });
+      } else {
+        // Single row for store without userStatuses or with single status
+        rowIndex++;
+        const row = sheet.addRow([
+          rowIndex,
+          store.StoreCode,
+          store.StoreName,
+          getRankLabel(store.Rank),
+          store.Address || "",
+          store.TaxCode || "",
+          store.PartnerName || "",
+          store.Phone || "",
+          store.Email || "",
+          getStatusLabel(store.Status), // Trạng thái
         store.TerritoryName || "",
         store.UserFullName
           ? `${store.UserFullName} (${store.UserCode || ""})`
@@ -577,7 +685,7 @@ export default function Stores() {
       const detailLinkCell = row.getCell(13);
       detailLinkCell.value = {
         text: "Link chi tiết",
-        hyperlink: `https://ximang.netlify.app/stores/${store.Id}`,
+          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
       };
       detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
 
@@ -600,6 +708,7 @@ export default function Stores() {
           right: { style: "thin" },
         };
       });
+      }
     });
 
     // Set column widths
@@ -613,7 +722,7 @@ export default function Stores() {
       { width: 25 }, // Tên đối tác
       { width: 15 }, // Số điện thoại
       { width: 25 }, // Email
-      { width: 15 }, // Trạng thái
+      { width: 20 }, // Trạng thái
       { width: 25 }, // Địa bàn phụ trách
       { width: 30 }, // User phụ trách
       { width: 20 }, // Link chi tiết
@@ -660,9 +769,8 @@ export default function Stores() {
       : []),
   ];
 
-  if (loading && stores.length === 0) {
-    return <div className="loading">Đang tải dữ liệu...</div>;
-  }
+  const showInitialLoading =
+    loading && stores.length === 0 && !hasFetchedRef.current;
 
   return (
     <div className="stores-page">
@@ -671,7 +779,10 @@ export default function Stores() {
         <div className="status-filter-tabs">
           <button
             className={`status-tab ${statusFilter === "all" ? "active" : ""}`}
-            onClick={() => setStatusFilter("all")}
+            onClick={() => {
+              setStatusFilter("all");
+              setPage(1);
+            }}
           >
             <span>Tất cả</span>
             <span className="status-count">({statusCounts.all})</span>
@@ -680,7 +791,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "not_audited" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("not_audited")}
+            onClick={() => {
+              setStatusFilter("not_audited");
+              setPage(1);
+            }}
           >
             <span>Chưa thực hiện</span>
             <span className="status-count">({statusCounts.not_audited})</span>
@@ -689,7 +803,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "audited" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("audited")}
+            onClick={() => {
+              setStatusFilter("audited");
+              setPage(1);
+            }}
           >
             <span>Đã thực hiện</span>
             <span className="status-count">({statusCounts.audited})</span>
@@ -698,7 +815,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "passed" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("passed")}
+            onClick={() => {
+              setStatusFilter("passed");
+              setPage(1);
+            }}
           >
             <span>Đạt</span>
             <span className="status-count">({statusCounts.passed})</span>
@@ -707,7 +827,10 @@ export default function Stores() {
             className={`status-tab ${
               statusFilter === "failed" ? "active" : ""
             }`}
-            onClick={() => setStatusFilter("failed")}
+            onClick={() => {
+              setStatusFilter("failed");
+              setPage(1);
+            }}
           >
             <span>Không đạt</span>
             <span className="status-count">({statusCounts.failed})</span>
@@ -759,12 +882,12 @@ export default function Stores() {
         </div>
 
         <div className="filter-group">
-          <label>Tên user phụ trách</label>
+          <label>Tên nhân viên phụ trách</label>
           <Select
             options={userOptions}
             value={selectedUser}
             onChange={(value) => setSelectedUser(value as number | null)}
-            placeholder="Chọn user phụ trách"
+            placeholder="Chọn nhân viên phụ trách"
             searchable={true}
           />
         </div>
@@ -795,7 +918,18 @@ export default function Stores() {
             </tr>
           </thead>
           <tbody>
-            {stores.length === 0 ? (
+            {showInitialLoading ? (
+              <>
+                <tr>
+                  <td colSpan={8} className="no-data-cell">
+                    Đang cập nhật dữ liệu...
+                  </td>
+                </tr>
+                <StoreSkeletonList count={Math.min(pageSize, 8)} />
+              </>
+            ) : isFiltering && stores.length === 0 ? (
+              <StoreSkeletonList count={Math.min(pageSize, 8)} />
+            ) : stores.length === 0 ? (
               <tr>
                 <td colSpan={8} className="no-data-cell">
                   Không có dữ liệu
@@ -812,26 +946,10 @@ export default function Stores() {
                   <td>{store.Address || "-"}</td>
                   <td>{store.PartnerName || "-"}</td>
                   <td>{store.Phone || "-"}</td>
-                  <td className="status-col">
-                    {store.userStatuses && store.userStatuses.length > 1 ? (
-                      formatStatusWithUsers(store)
-                    ) : (
-                      <span className={`status-badge status-${store.Status}`}>
-                        {formatStatusWithUsers(store) as string}
-                      </span>
-                    )}
-                  </td>
+                  <td className="status-col">{formatStatusWithUsers(store)}</td>
                   <td>
                     <div className="action-buttons">
-                      {(() => {
-                        // Show view button if:
-                        // 1. Single user and status is not "not_audited"
-                        // 2. Multiple users and at least one has status not "not_audited"
-                        if (store.userStatuses && store.userStatuses.length > 1) {
-                          const hasAuditedUser = store.userStatuses.some(
-                            (us) => us.Status !== "not_audited"
-                          );
-                          return hasAuditedUser ? (
+                      {canViewStore(store) && (
                             <button
                               className="btn-action btn-view"
                               onClick={() => handleViewStore(store.Id)}
@@ -839,20 +957,7 @@ export default function Stores() {
                             >
                               <HiEye />
                             </button>
-                          ) : null;
-                        } else {
-                          // Single user or no userStatuses
-                          return store.Status !== "not_audited" ? (
-                            <button
-                              className="btn-action btn-view"
-                              onClick={() => handleViewStore(store.Id)}
-                              title="Xem chi tiết"
-                            >
-                              <HiEye />
-                            </button>
-                          ) : null;
-                        }
-                      })()}
+                      )}
                       <button
                         className="btn-action btn-edit"
                         onClick={() => handleEditStore(store.Id)}

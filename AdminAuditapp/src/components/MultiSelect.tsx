@@ -11,9 +11,22 @@ interface MultiSelectProps {
   selected: number[];
   onChange: (selected: number[]) => void;
   placeholder?: string;
+  itemLabel?: string; // Label for items (e.g., "nhân viên", "địa bàn")
+  searchPlaceholder?: string; // Placeholder for search input
+  enableSelectAll?: boolean;
+  selectAllLabel?: string;
 }
 
-export default function MultiSelect({ options, selected, onChange, placeholder = 'Chọn địa bàn...' }: MultiSelectProps) {
+export default function MultiSelect({
+  options,
+  selected,
+  onChange,
+  placeholder = "Chọn địa bàn...",
+  itemLabel = "địa bàn",
+  searchPlaceholder = "Tìm kiếm địa bàn...",
+  enableSelectAll = false,
+  selectAllLabel = "Chọn tất cả",
+}: MultiSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -42,6 +55,16 @@ export default function MultiSelect({ options, selected, onChange, placeholder =
     }
   };
 
+  const allSelected = options.length > 0 && selected.length === options.length;
+
+  const toggleAll = () => {
+    if (allSelected) {
+      onChange([]);
+    } else {
+      onChange(options.map((option) => option.id));
+    }
+  };
+
   const selectedNames = options
     .filter(opt => selected.includes(opt.id))
     .map(opt => opt.name);
@@ -57,7 +80,7 @@ export default function MultiSelect({ options, selected, onChange, placeholder =
             ? placeholder
             : selected.length === 1
             ? selectedNames[0]
-            : `Đã chọn ${selected.length} địa bàn`}
+            : `Đã chọn ${selected.length} ${itemLabel}`}
         </span>
         <span className="multi-select__arrow">{isOpen ? '▲' : '▼'}</span>
       </div>
@@ -67,12 +90,25 @@ export default function MultiSelect({ options, selected, onChange, placeholder =
           <div className="multi-select__search">
             <input
               type="text"
-              placeholder="Tìm kiếm địa bàn..."
+              placeholder={searchPlaceholder}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               onClick={(e) => e.stopPropagation()}
             />
           </div>
+          {enableSelectAll && options.length > 0 && (
+            <label
+              className="multi-select__option multi-select__select-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={toggleAll}
+              />
+              <span>{selectAllLabel}</span>
+            </label>
+          )}
           <div className="multi-select__options">
             {filteredOptions.length === 0 ? (
               <div className="multi-select__no-results">Không tìm thấy kết quả</div>

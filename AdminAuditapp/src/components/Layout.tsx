@@ -7,7 +7,7 @@ import "./Layout.css";
 const navItems = [
   { path: "/", label: "Tổng quan", icon: HiHome },
   { path: "/stores", label: "Danh sách cửa hàng", icon: HiOfficeBuilding },
-  { path: "/users", label: "Danh sách nhân viên", icon: HiUsers },
+  { path: "/users", label: "Danh sách tài khoản", icon: HiUsers },
   { path: "/import-export", label: "Tải lên danh sách", icon: HiArrowUpOnSquare },
 ];
 

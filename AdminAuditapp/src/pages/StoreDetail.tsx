@@ -78,6 +78,7 @@ export default function StoreDetail() {
     lat: number | null;
     lon: number | null;
   } | null>(null);
+  const [selectedImageIndex, setSelectedImageIndex] = useState<number>(0);
   const [imageZoom, setImageZoom] = useState(100);
   const [imagePosition, setImagePosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -237,6 +238,14 @@ export default function StoreDetail() {
     }
   };
 
+  const userFilteredAudits = selectedUserId
+    ? audits.filter((audit) => audit.UserId === selectedUserId)
+    : audits;
+
+  const selectedAudit =
+    userFilteredAudits.find((audit) => audit.AuditId === selectedAuditId) ||
+    null;
+
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       not_audited: "Chưa thực hiện",
@@ -284,15 +293,29 @@ export default function StoreDetail() {
     return { lat: null, lon: null };
   };
 
-  const handleImageClick = (image: Image) => {
+  const handleImageClick = (image: Image, index: number) => {
     const coords = getImageCoordinates(image);
     setSelectedImage({
       url: image.ImageUrl,
       lat: coords.lat,
       lon: coords.lon,
     });
+    setSelectedImageIndex(index);
     setImageZoom(100);
     setImagePosition({ x: 0, y: 0 });
+  };
+  const handleShowImageByIndex = (nextIndex: number) => {
+    const currentAudit = userFilteredAudits.find(
+      (a) => a.AuditId === selectedAuditId
+    );
+    const images = currentAudit?.Images || [];
+    if (images.length === 0) return;
+
+    let index = nextIndex;
+    if (index < 0) index = images.length - 1;
+    if (index >= images.length) index = 0;
+
+    handleImageClick(images[index], index);
   };
 
   const handleZoomIn = () => {
@@ -309,13 +332,32 @@ export default function StoreDetail() {
   const handleZoomOut = () => {
     setImageZoom((prev) => {
       const newZoom = Math.max(prev - 25, 50);
-      // Reset position when zooming out to 100% or less
       if (newZoom <= 100) {
         setImagePosition({ x: 0, y: 0 });
       }
       return newZoom;
     });
   };
+
+  useEffect(() => {
+    if (!selectedImage) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowRight") {
+        handleShowImageByIndex(selectedImageIndex + 1);
+      } else if (event.key === "ArrowLeft") {
+        handleShowImageByIndex(selectedImageIndex - 1);
+      } else if (event.key === "Escape") {
+        setSelectedImage(null);
+        setImageZoom(100);
+        setImagePosition({ x: 0, y: 0 });
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedImage, selectedImageIndex, selectedAudit]);
 
   const handleResetZoom = () => {
     setImageZoom(100);
@@ -519,15 +561,6 @@ export default function StoreDetail() {
     }
   };
 
-  // Filter audits by selectedUserId if provided
-  const userFilteredAudits = selectedUserId
-    ? audits.filter((audit) => audit.UserId === selectedUserId)
-    : audits;
-
-  const selectedAudit =
-    userFilteredAudits.find((audit) => audit.AuditId === selectedAuditId) ||
-    null;
-
   // Get status, lat/lon from selected user's status or selected audit
   let effectiveStatus = store?.Status || "not_audited";
   let effectiveLatitude = store?.Latitude || null;
@@ -675,80 +708,73 @@ export default function StoreDetail() {
         <div className="audits-section">
           <div className="section-header">
             <div className="section-title-group">
-              <h3>Lịch sử Audit và Hình ảnh</h3>
-              {store.userStatuses &&
-                store.userStatuses.length > 1 &&
-                selectedUserId && (
-                  <button
-                    className="btn-change-user"
-                    onClick={() => setUserSelectModalOpen(true)}
-                    style={{
-                      marginLeft: "16px",
-                      padding: "8px 16px",
-                      backgroundColor: "#0138C3",
-                      color: "white",
-                      border: "none",
-                      borderRadius: "4px",
-                      cursor: "pointer",
-                    }}
-                  >
-                    Đổi user
-                  </button>
-                )}
-              {audits.length > 0 && (
-                <div className="audit-date-selector">
-                  <button
-                    type="button"
-                    className="audit-date-button"
-                    onClick={() =>
-                      setAuditDateDropdownOpen(!auditDateDropdownOpen)
-                    }
-                  >
-                    {selectedAudit
-                      ? formatAuditDateTime(selectedAudit.AuditDate)
-                      : "Chưa có lịch sử"}
-                    <span className="chevron">
-                      {auditDateDropdownOpen ? "▲" : "▼"}
-                    </span>
-                  </button>
-                  {auditDateDropdownOpen && (
-                    <div className="audit-date-dropdown">
-                      <input
-                        type="text"
-                        className="audit-date-search"
-                        placeholder="Tìm ngày..."
-                        value={auditDateSearch}
-                        onChange={(e) => setAuditDateSearch(e.target.value)}
-                      />
-                      <div className="audit-date-options">
-                        {filteredAudits.length > 0 ? (
-                          filteredAudits.map((audit) => (
-                            <button
-                              key={audit.AuditId}
-                              className={`audit-date-option ${
-                                selectedAuditId === audit.AuditId
-                                  ? "active"
-                                  : ""
-                              }`}
-                              onClick={() => {
-                                setSelectedAuditId(audit.AuditId);
-                                setAuditDateDropdownOpen(false);
-                                setAuditDateSearch("");
-                              }}
-                            >
-                              {formatAuditDateTime(audit.AuditDate)}
-                            </button>
-                          ))
-                        ) : (
-                          <div className="audit-date-empty">
-                            Không tìm thấy ngày phù hợp
-                          </div>
-                        )}
-                      </div>
-                    </div>
+              <h3>Lịch sử thực hiện</h3>
+              <div className="section-controls-row">
+                {store.userStatuses &&
+                  store.userStatuses.length > 1 &&
+                  selectedUserId && (
+                    <button
+                      className="btn-change-user"
+                      onClick={() => setUserSelectModalOpen(true)}
+                    >
+                      Đổi nhân viên
+                    </button>
                   )}
-                </div>
-              )}
+                {audits.length > 0 && (
+                  <div className="audit-date-selector">
+                    <button
+                      type="button"
+                      className="audit-date-button"
+                      onClick={() =>
+                        setAuditDateDropdownOpen(!auditDateDropdownOpen)
+                      }
+                    >
+                      {selectedAudit
+                        ? formatAuditDateTime(selectedAudit.AuditDate)
+                        : "Chưa có lịch sử"}
+                      <span className="chevron">
+                        {auditDateDropdownOpen ? "▲" : "▼"}
+                      </span>
+                    </button>
+                    {auditDateDropdownOpen && (
+                      <div className="audit-date-dropdown">
+                        <input
+                          type="text"
+                          className="audit-date-search"
+                          placeholder="Tìm ngày..."
+                          value={auditDateSearch}
+                          onChange={(e) => setAuditDateSearch(e.target.value)}
+                        />
+                        <div className="audit-date-options">
+                          {filteredAudits.length > 0 ? (
+                            filteredAudits.map((audit) => (
+                              <button
+                                key={audit.AuditId}
+                                className={`audit-date-option ${
+                                  selectedAuditId === audit.AuditId
+                                    ? "active"
+                                    : ""
+                                }`}
+                                onClick={() => {
+                                  setSelectedAuditId(audit.AuditId);
+                                  setAuditDateDropdownOpen(false);
+                                  setAuditDateSearch("");
+                                }}
+                              >
+                                {formatAuditDateTime(audit.AuditDate)}
+                              </button>
+                            ))
+                          ) : (
+                            <div className="audit-date-empty">
+                              Không tìm thấy ngày phù hợp
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="status-action-buttons">
               <button
@@ -792,7 +818,7 @@ export default function StoreDetail() {
                       <img
                         src={image.ImageUrl}
                         alt={`Image ${image.Id}`}
-                        onClick={() => handleImageClick(image)}
+                        onClick={() => handleImageClick(image, index)}
                         className="grid-image"
                       />
                       <div className="image-info">
@@ -905,6 +931,16 @@ export default function StoreDetail() {
                     : "default",
               }}
             >
+              <button
+                className="image-modal-nav image-modal-nav-left"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShowImageByIndex(selectedImageIndex - 1);
+                }}
+                title="Ảnh trước"
+              >
+                ❮
+              </button>
               <div
                 className="image-modal-image-wrapper"
                 style={{
@@ -921,6 +957,16 @@ export default function StoreDetail() {
                   draggable={false}
                 />
               </div>
+              <button
+                className="image-modal-nav image-modal-nav-right"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleShowImageByIndex(selectedImageIndex + 1);
+                }}
+                title="Ảnh kế tiếp"
+              >
+                ❯
+              </button>
             </div>
 
             {/* Bottom Toolbar */}

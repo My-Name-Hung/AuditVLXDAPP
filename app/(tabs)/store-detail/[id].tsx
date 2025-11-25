@@ -783,7 +783,7 @@ export default function StoreDetailScreen() {
                 onPress={() => setShowNewAuditModal(true)}
               >
                 <Text style={styles.startTodayText}>
-                  Bắt đầu audit cho hôm nay
+                  Bắt đầu thực thi cho hôm nay
                 </Text>
               </TouchableOpacity>
             )}
@@ -906,7 +906,7 @@ export default function StoreDetailScreen() {
               Audit ngày mới
             </Text>
             <Text style={[styles.modalSubtitle, { color: colors.icon }]}>
-              Hôm nay cửa hàng chưa được audit. Bạn có muốn bắt đầu chụp ảnh cho
+              Hôm nay cửa hàng chưa được thực thi. Bạn có muốn bắt đầu chụp ảnh cho
               ngày hôm nay?
             </Text>
             <View style={styles.modalButtons}>

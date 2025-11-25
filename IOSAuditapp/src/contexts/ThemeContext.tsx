@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { Colors } from '../constants/theme';
 
 const DARK_MODE_KEY = 'dark_mode_enabled';

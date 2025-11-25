@@ -1,0 +1,80 @@
+.store-skeleton-row {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.store-skeleton-row td {
+  padding: 12px;
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    #f0f0f0 25%,
+    #e0e0e0 50%,
+    #f0f0f0 75%
+  );
+  background-size: 200% 100%;
+  animation: loading 1.5s ease-in-out infinite;
+  border-radius: 4px;
+  height: 20px;
+}
+
+.skeleton-code {
+  width: 120px;
+  max-width: 100%;
+}
+
+.skeleton-name {
+  width: 200px;
+  max-width: 100%;
+}
+
+.skeleton-rank {
+  width: 100px;
+  max-width: 100%;
+}
+
+.skeleton-address {
+  width: 250px;
+  max-width: 100%;
+}
+
+.skeleton-partner {
+  width: 150px;
+  max-width: 100%;
+}
+
+.skeleton-phone {
+  width: 120px;
+  max-width: 100%;
+}
+
+.skeleton-status {
+  width: 100px;
+  max-width: 100%;
+}
+
+.skeleton-actions {
+  width: 100px;
+  max-width: 100%;
+}
+
+@keyframes loading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+

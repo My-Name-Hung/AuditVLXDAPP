@@ -138,6 +138,9 @@ export default function StoreDetail() {
   const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(
     null
   );
+  const [facingMode, setFacingMode] = useState<"environment" | "user">(
+    "environment"
+  );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
@@ -251,15 +254,26 @@ export default function StoreDetail() {
 
   const openCamera = async (index: number) => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      // Reset to rear camera (environment) when opening camera
+      setFacingMode("environment");
+      // Use rear camera (environment) instead of front camera (user)
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment", // Use rear camera
+        },
+      });
       streamRef.current = stream;
       setCurrentCameraIndex(index);
       setCameraModalVisible(true);
 
-      // Wait for video element to be ready
+      // Wait for video element to be ready and set stream
       setTimeout(() => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          // Ensure video plays and loads metadata
+          videoRef.current.play().catch((err) => {
+            console.warn("Video play error:", err);
+          });
         }
       }, 100);
     } catch (error) {
@@ -277,20 +291,212 @@ export default function StoreDetail() {
     }
     setCameraModalVisible(false);
     setCurrentCameraIndex(null);
+    setFacingMode("environment"); // Reset to rear camera when closing
   };
 
-  const capturePhoto = async () => {
+  const switchCamera = async () => {
     if (!videoRef.current || currentCameraIndex === null) return;
 
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = videoRef.current.videoWidth;
-      canvas.height = videoRef.current.videoHeight;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
+      // Stop current stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
 
-      ctx.drawImage(videoRef.current, 0, 0);
-      const dataUrl = canvas.toDataURL("image/jpeg", 0.8);
+      // Switch facing mode
+      const newFacingMode =
+        facingMode === "environment" ? "user" : "environment";
+      setFacingMode(newFacingMode);
+
+      // Get new stream with switched camera
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: newFacingMode,
+        },
+      });
+      streamRef.current = stream;
+
+      // Update video element
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Ensure video plays
+        videoRef.current.play().catch((err) => {
+          console.warn("Video play error:", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error switching camera:", error);
+      alert("Không thể chuyển đổi camera. Vui lòng thử lại.");
+    }
+  };
+
+  // Direct capture from visible video element - more reliable for iOS
+  const captureDirectFromVideo = async (
+    video: HTMLVideoElement,
+    width: number,
+    height: number
+  ): Promise<string> => {
+    // Wait a bit more to ensure current frame is fully rendered
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    // Get the actual video dimensions (source resolution) - this is the true video size
+    // These are the native dimensions of the video stream, not the CSS-scaled element
+    const videoWidth = video.videoWidth || width;
+    const videoHeight = video.videoHeight || height;
+
+    // Ensure we have valid dimensions
+    if (videoWidth === 0 || videoHeight === 0) {
+      throw new Error("Invalid video dimensions");
+    }
+
+    // Create canvas with exact dimensions matching video source (no extra space)
+    // This ensures no white background padding
+    const canvas = document.createElement("canvas");
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    const ctx = canvas.getContext("2d", {
+      willReadFrequently: false,
+      alpha: false, // No alpha for JPEG
+    });
+
+    if (!ctx) {
+      throw new Error("Cannot get canvas context");
+    }
+
+    // Fill canvas with black background first (will be covered by video)
+    // Using black instead of white to avoid white artifacts if video doesn't fill
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, videoWidth, videoHeight);
+
+    // Draw the video frame directly - this will fill the entire canvas
+    // Using the simplest form of drawImage to ensure full frame capture
+    // This draws the entire video frame to fill the entire canvas
+    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+    // Convert to JPEG
+    // The video should fill the entire canvas, so no white/black background should be visible
+    return canvas.toDataURL("image/jpeg", 0.9);
+  };
+
+  const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
+    // Wait for video to have metadata and data
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onLoadedMetadata = () => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          resolve();
+        };
+        video.addEventListener("loadedmetadata", onLoadedMetadata);
+        // Timeout after 3 seconds
+        setTimeout(() => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          resolve();
+        }, 3000);
+      });
+    }
+
+    // Wait for video to have current data
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onLoadedData = () => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          resolve();
+        };
+        video.addEventListener("loadeddata", onLoadedData);
+        // Timeout after 2 seconds
+        setTimeout(() => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          resolve();
+        }, 2000);
+      });
+    }
+
+    // Small delay to ensure video frame is fully rendered
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || currentCameraIndex === null || !streamRef.current)
+      return;
+
+    try {
+      const video = videoRef.current;
+      const stream = streamRef.current;
+
+      // Wait for video to be fully ready
+      await waitForVideoReady(video);
+
+      // Get video track from stream
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        alert("Không tìm thấy video track từ camera.");
+        return;
+      }
+
+      // Get actual video dimensions from video track settings (this is the source resolution)
+      const settings = videoTrack.getSettings();
+      const actualWidth = settings.width || video.videoWidth;
+      const actualHeight = settings.height || video.videoHeight;
+
+      // Fallback to video element dimensions if settings don't have width/height
+      const width = actualWidth > 0 ? actualWidth : video.videoWidth;
+      const height = actualHeight > 0 ? actualHeight : video.videoHeight;
+
+      // Ensure video has valid dimensions
+      if (width === 0 || height === 0) {
+        alert("Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.");
+        return;
+      }
+
+      let dataUrl: string;
+
+      // For iOS Safari, we need a more reliable method
+      // Try ImageCapture API first (if available and working)
+      if (typeof ImageCapture !== "undefined") {
+        try {
+          const imageCapture = new ImageCapture(videoTrack);
+          const blob = await imageCapture.takePhoto();
+
+          // Convert blob to image to verify dimensions and ensure no padding
+          const img = new Image();
+          const objectUrl = URL.createObjectURL(blob);
+
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              URL.revokeObjectURL(objectUrl);
+              resolve();
+            };
+            img.onerror = reject;
+            img.src = objectUrl;
+          });
+
+          // Create canvas with exact image dimensions (no extra space)
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            throw new Error("Cannot get canvas context");
+          }
+
+          // Draw image to canvas - this ensures no padding/background
+          ctx.drawImage(img, 0, 0);
+
+          // Convert to data URL
+          dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        } catch (imageCaptureError) {
+          console.warn(
+            "ImageCapture API failed, using direct canvas capture:",
+            imageCaptureError
+          );
+          // Fall through to direct canvas capture from visible video
+          dataUrl = await captureDirectFromVideo(video, width, height);
+        }
+      } else {
+        // Use direct canvas capture from visible video element
+        dataUrl = await captureDirectFromVideo(video, width, height);
+      }
 
       // Get location
       let latitude = 0;
@@ -616,7 +822,7 @@ export default function StoreDetail() {
                   className="store-detail-info-label"
                   style={{ color: colors.icon }}
                 >
-                  User Phụ trách:
+                  Nhân viên Phụ trách:
                 </span>
                 <span
                   className="store-detail-info-value"
@@ -663,9 +869,9 @@ export default function StoreDetail() {
         {showNewAuditModal && (
           <div className="store-detail-modal-overlay">
             <div className="store-detail-modal-content">
-              <h2 className="store-detail-modal-title">Audit ngày mới</h2>
+              <h2 className="store-detail-modal-title">Thực thi ngày mới</h2>
               <p className="store-detail-modal-message">
-                Bạn có muốn thực hiện audit cho ngày hôm nay không?
+                Bạn có muốn thực thi cho ngày hôm nay không?
               </p>
               <div className="store-detail-modal-buttons">
                 <button
@@ -857,6 +1063,19 @@ export default function StoreDetail() {
                 onClick={closeCamera}
               >
                 Hủy
+              </button>
+              <button
+                className="store-detail-camera-modal-button store-detail-camera-modal-button-switch"
+                onClick={switchCamera}
+                title={
+                  facingMode === "environment"
+                    ? "Chuyển sang camera trước"
+                    : "Chuyển sang camera sau"
+                }
+              >
+                <span className="camera-switch-icon">
+                  {facingMode === "environment" ? "⇄" : "⇄"}
+                </span>
               </button>
               <button
                 className="store-detail-camera-modal-button store-detail-camera-modal-button-capture"
