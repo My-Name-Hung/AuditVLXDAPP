@@ -192,6 +192,34 @@
   background: #0129a0;
 }
 
+.store-assignment-options {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.store-assignment-option {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-weight: 500;
+  color: #333;
+}
+
+.store-assignment-helper {
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.store-assignment-selector {
+  margin-top: 0.5rem;
+}
+
+.store-assignment-error {
+  color: #dc2626;
+  font-weight: 500;
+}
+
 /* Modal */
 .modal-overlay {
   position: fixed;

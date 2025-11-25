@@ -626,7 +626,15 @@ export default function StoreDetail() {
   };
 
   if (loading) {
-    return <div className="loading">Đang tải dữ liệu...</div>;
+    return (
+      <div className="store-detail">
+        <LoadingModal
+          isOpen={true}
+          message="Đang tải dữ liệu cửa hàng..."
+          progress={0}
+        />
+      </div>
+    );
   }
 
   if (!store) {

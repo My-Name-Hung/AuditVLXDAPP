@@ -256,6 +256,24 @@ class Store {
     return result.recordset[0].Total;
   }
 
+  static async getAllStoreIds() {
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT Id FROM Stores
+    `);
+    return result.recordset.map((row) => row.Id);
+  }
+
+  static async getStoreOptions() {
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT Id, StoreCode, StoreName
+      FROM Stores
+      ORDER BY StoreName ASC
+    `);
+    return result.recordset;
+  }
+
   static async countByStatus(filters = {}) {
     const pool = await getPool();
     let query = `

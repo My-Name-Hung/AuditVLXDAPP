@@ -271,7 +271,15 @@ export default function StoreEdit() {
   };
 
   if (loading) {
-    return <div className="loading">Đang tải dữ liệu...</div>;
+    return (
+      <div className="store-edit">
+        <LoadingModal
+          isOpen={true}
+          message="Đang tải dữ liệu cửa hàng..."
+          progress={0}
+        />
+      </div>
+    );
   }
 
   if (!store) {

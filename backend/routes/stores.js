@@ -20,6 +20,11 @@ router.get(
   authenticateToken,
   storesController.getStatusSummary
 );
+router.get(
+  "/options",
+  authenticateToken,
+  storesController.getStoreOptions
+);
 router.get("/:id", authenticateToken, storesController.getStoreById);
 router.post("/", authenticateToken, storesController.createStore);
 router.put("/:id", authenticateToken, storesController.updateStore);

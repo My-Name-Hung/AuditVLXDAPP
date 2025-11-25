@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
+import MultiSelect from "../components/MultiSelect";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
 import api from "../services/api";
@@ -26,6 +27,15 @@ export default function UserAdd() {
     useState<string[]>(DEFAULT_POSITIONS);
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
+  const [storeOptions, setStoreOptions] = useState<
+    { id: number; name: string }[]
+  >([]);
+  const [storeOptionsLoading, setStoreOptionsLoading] = useState(false);
+  const [storeAssignmentMode, setStoreAssignmentMode] = useState<
+    "none" | "all" | "custom"
+  >("none");
+  const [selectedStoreIds, setSelectedStoreIds] = useState<number[]>([]);
+  const [storeAssignmentError, setStoreAssignmentError] = useState("");
 
   const [formData, setFormData] = useState({
     username: "",
@@ -49,6 +59,30 @@ export default function UserAdd() {
       }
     };
     fetchPositions();
+  }, []);
+
+  useEffect(() => {
+    const fetchStoreOptions = async () => {
+      try {
+        setStoreOptionsLoading(true);
+        const res = await api.get("/stores/options");
+        const data = res.data?.data || res.data || [];
+        if (Array.isArray(data)) {
+          setStoreOptions(
+            data.map((item: { Id: number; StoreName: string; StoreCode: string }) => ({
+              id: item.Id,
+              name: `${item.StoreName} (${item.StoreCode})`,
+            }))
+          );
+        }
+      } catch (error) {
+        console.error("Không thể tải danh sách cửa hàng:", error);
+        setStoreOptions([]);
+      } finally {
+        setStoreOptionsLoading(false);
+      }
+    };
+    fetchStoreOptions();
   }, []);
 
   useEffect(() => {
@@ -146,6 +180,12 @@ export default function UserAdd() {
       return;
     }
 
+    if (storeAssignmentMode === "custom" && selectedStoreIds.length === 0) {
+      setStoreAssignmentError("Vui lòng chọn ít nhất một cửa hàng.");
+      return;
+    }
+    setStoreAssignmentError("");
+
     try {
       setCreateLoading(true);
 
@@ -161,6 +201,16 @@ export default function UserAdd() {
         role: formData.role,
         position: formData.position.trim(),
       };
+
+    if (storeAssignmentMode === "all") {
+      Object.assign(payload, {
+        storeAssignment: { mode: "all" },
+      });
+    } else if (storeAssignmentMode === "custom") {
+      Object.assign(payload, {
+        storeAssignment: { mode: "custom", storeIds: selectedStoreIds },
+      });
+    }
 
       await api.post("/users", payload);
 
@@ -369,6 +419,87 @@ export default function UserAdd() {
             placeholder="Chọn vai trò"
             searchable={false}
           />
+        </div>
+
+        <div className="form-group">
+          <label>Phân công cửa hàng</label>
+          <div className="store-assignment-options">
+            <label className="store-assignment-option">
+              <input
+                type="radio"
+                name="storeAssignmentMode"
+                value="none"
+                checked={storeAssignmentMode === "none"}
+                onChange={() => {
+                  setStoreAssignmentMode("none");
+                  setSelectedStoreIds([]);
+                  setStoreAssignmentError("");
+                }}
+              />
+              <span>Chưa gán</span>
+            </label>
+            <label className="store-assignment-option">
+              <input
+                type="radio"
+                name="storeAssignmentMode"
+                value="all"
+                checked={storeAssignmentMode === "all"}
+                onChange={() => {
+                  setStoreAssignmentMode("all");
+                  setSelectedStoreIds([]);
+                  setStoreAssignmentError("");
+                }}
+              />
+              <span>Gán cho tất cả cửa hàng</span>
+            </label>
+            <label className="store-assignment-option">
+              <input
+                type="radio"
+                name="storeAssignmentMode"
+                value="custom"
+                checked={storeAssignmentMode === "custom"}
+                onChange={() => {
+                  setStoreAssignmentMode("custom");
+                  setStoreAssignmentError("");
+                }}
+              />
+              <span>Chọn cửa hàng cụ thể</span>
+            </label>
+          </div>
+          <small className="store-assignment-helper">
+            Nhân viên mới sẽ tự động được phân quyền kiểm tra tại những cửa hàng
+            bạn chọn ở đây.
+          </small>
+          {storeAssignmentMode === "custom" && (
+            <div className="store-assignment-selector">
+              {storeOptionsLoading ? (
+                <p className="store-assignment-helper">
+                  Đang tải danh sách cửa hàng...
+                </p>
+              ) : (
+                <MultiSelect
+                  options={storeOptions}
+                  selected={selectedStoreIds}
+                  onChange={setSelectedStoreIds}
+                  placeholder="Chọn cửa hàng cần phân công"
+                  itemLabel="cửa hàng"
+                  searchPlaceholder="Tìm cửa hàng theo mã hoặc tên..."
+                  enableSelectAll
+                  selectAllLabel="Chọn toàn bộ trong danh sách"
+                />
+              )}
+              {selectedStoreIds.length > 0 && (
+                <small className="store-assignment-helper">
+                  Đã chọn {selectedStoreIds.length} cửa hàng.
+                </small>
+              )}
+              {storeAssignmentError && (
+                <small className="store-assignment-error">
+                  {storeAssignmentError}
+                </small>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="form-group">

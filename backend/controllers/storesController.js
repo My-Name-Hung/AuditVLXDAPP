@@ -1100,10 +1100,24 @@ const deleteStore = async (req, res) => {
   }
 };
 
+const getStoreOptions = async (_req, res) => {
+  try {
+    const options = await Store.getStoreOptions();
+    res.json({
+      success: true,
+      data: options,
+    });
+  } catch (error) {
+    console.error("Get store options error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   getAllStores,
   exportStores,
   exportStoresExcel,
+  getStoreOptions,
   getStoreById,
   createStore,
   updateStore,

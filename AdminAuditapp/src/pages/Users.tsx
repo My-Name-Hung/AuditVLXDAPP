@@ -27,6 +27,11 @@ interface User {
   IsChangePassword: boolean;
   CreatedAt: string;
   UpdatedAt: string;
+  AssignedStores?: {
+    StoreId: number;
+    StoreName: string;
+    StoreCode: string;
+  }[];
 }
 
 type PositionFilter = "all" | string;

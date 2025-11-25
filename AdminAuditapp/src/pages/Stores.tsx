@@ -185,9 +185,13 @@ export default function Stores() {
     }
   }, [statusSummaryParams]);
 
+  const activeRequestIdRef = useRef(0);
+
   const fetchStores = useCallback(
     async (options?: { clearExisting?: boolean }) => {
       const preserveData = hasFetchedRef.current;
+      const requestId = activeRequestIdRef.current + 1;
+      activeRequestIdRef.current = requestId;
 
       if (options?.clearExisting) {
         setStores([]);
@@ -252,15 +256,17 @@ export default function Stores() {
             );
         }
 
-        setStores(sortStoresByStatus(processedStores));
-        hasFetchedRef.current = true;
+        if (requestId === activeRequestIdRef.current) {
+          setStores(sortStoresByStatus(processedStores));
+          hasFetchedRef.current = true;
 
-        if (res.data.pagination) {
-          setTotal(res.data.pagination.total);
-          setTotalPages(res.data.pagination.totalPages);
+          if (res.data.pagination) {
+            setTotal(res.data.pagination.total);
+            setTotalPages(res.data.pagination.totalPages);
+          }
+
+          fetchStatusCounts();
         }
-
-        fetchStatusCounts();
       } catch (error) {
         const isAborted =
           (error as { name?: string; code?: string })?.name ===
@@ -270,14 +276,16 @@ export default function Stores() {
           console.error("Error fetching stores:", error);
         }
       } finally {
-        if (!options?.clearExisting && !preserveData) {
-          setLoading(false);
-        } else if (!options?.clearExisting && preserveData) {
-          setIsFiltering(false);
-        } else {
-          setIsFiltering(false);
+        if (requestId === activeRequestIdRef.current) {
+          if (!options?.clearExisting && !preserveData) {
+            setLoading(false);
+          } else if (!options?.clearExisting && preserveData) {
+            setIsFiltering(false);
+          } else {
+            setIsFiltering(false);
+          }
+          resetFilterChangingFlag();
         }
-        resetFilterChangingFlag();
       }
     },
     [
