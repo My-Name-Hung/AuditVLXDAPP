@@ -227,33 +227,25 @@ const exportStores = async (_req, res) => {
 };
 
 // Lightweight aggregated status counts for all stores
-const getStatusSummary = async (_req, res) => {
+const getStatusSummary = async (req, res) => {
   try {
-    const pool = await getPool();
-    const request = pool.request();
+    const { territoryId, userId, rank, storeName } = req.query;
+    const filters = {};
 
-    const result = await request.query(`
-      SELECT Status, COUNT(*) as Count
-      FROM Stores
-      GROUP BY Status
-    `);
+    if (territoryId) {
+      filters.TerritoryId = parseInt(territoryId);
+    }
+    if (userId) {
+      filters.UserId = parseInt(userId);
+    }
+    if (rank !== undefined && rank !== null && rank !== "") {
+      filters.Rank = parseInt(rank);
+    }
+    if (storeName) {
+      filters.storeName = storeName;
+    }
 
-    const counts = {
-      all: 0,
-      not_audited: 0,
-      audited: 0,
-      passed: 0,
-      failed: 0,
-    };
-
-    result.recordset.forEach((row) => {
-      const status = row.Status || "not_audited";
-      const count = Number(row.Count) || 0;
-      counts.all += count;
-      if (status in counts) {
-        counts[status] += count;
-      }
-    });
+    const counts = await Store.countByStatus(filters);
 
     res.json({
       success: true,

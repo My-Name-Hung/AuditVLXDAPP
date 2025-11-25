@@ -126,85 +126,6 @@ export default function Stores() {
     }, 100);
   }, []);
 
-  useEffect(() => {
-    fetchTerritories();
-    fetchUsers();
-    fetchStores();
-    fetchStatusCounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Refresh stores when navigating back from add/edit page
-  useEffect(() => {
-    if (location.pathname === "/stores" && !isFilterChangingRef.current) {
-      fetchStores();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
-
-  useEffect(() => {
-    setPage(1); // Reset to first page when filters change
-    fetchStores();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
-
-  useEffect(() => {
-    // Skip fetch if filter is changing to avoid race condition
-    if (isFilterChangingRef.current) {
-      return;
-    }
-    fetchStores();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
-
-  // Debounce store name filter - improved with 800ms delay and search state
-  useEffect(() => {
-    // Skip if filter hasn't actually changed (e.g., on initial mount)
-    if (storeNameFilter === previousStoreNameFilterRef.current) {
-      return;
-    }
-
-    // Update previous value
-    previousStoreNameFilterRef.current = storeNameFilter;
-
-    isFilterChangingRef.current = true;
-
-    // Cancel previous debounce timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Abort previous request if exists
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // Reset page to 1 when store name filter changes
-    setPage(1);
-
-    if (!storeNameFilter.trim()) {
-      setTimeout(() => {
-        fetchStores();
-      }, 50);
-      return;
-    }
-
-    // Show skeleton while waiting for debounce
-    setIsFiltering(true);
-
-    // Use debounce for filter input - 800ms delay
-    debounceTimerRef.current = setTimeout(() => {
-      fetchStores();
-    }, 800);
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeNameFilter]);
-
   const fetchTerritories = async () => {
     try {
       const res = await api.get("/territories");
@@ -226,174 +147,221 @@ export default function Stores() {
     }
   };
 
-  // Calculate status counts from stores array
-  const calculateStatusCounts = (
-    storesList: Store[]
-  ): Record<StatusFilter, number> => {
-    const counts: Record<StatusFilter, number> = {
-      all: storesList.length,
-      not_audited: 0,
-      audited: 0,
-      passed: 0,
-      failed: 0,
-    };
+  const statusSummaryParams = useCallback(() => {
+    const params: Record<string, string | number> = {};
+    if (selectedTerritory) {
+      params.territoryId = selectedTerritory;
+    }
+    if (selectedRank !== null && selectedRank !== "") {
+      params.rank = selectedRank;
+    }
+    if (selectedUser) {
+      params.userId = selectedUser;
+    }
+    if (storeNameFilter.trim()) {
+      params.storeName = storeNameFilter.trim();
+    }
+    return params;
+  }, [selectedTerritory, selectedRank, selectedUser, storeNameFilter]);
 
-    storesList.forEach((store) => {
-      if (store.userStatuses && store.userStatuses.length > 0) {
-        // Check each status - if any user has this status, count the store
-        const hasNotAudited = store.userStatuses.some(
-          (us) => us.Status === "not_audited"
-        );
-        const hasAudited = store.userStatuses.some(
-          (us) => us.Status === "audited"
-        );
-        const hasPassed = store.userStatuses.some(
-          (us) => us.Status === "passed"
-        );
-        const hasFailed = store.userStatuses.some(
-          (us) => us.Status === "failed"
-        );
-
-        if (hasNotAudited) counts.not_audited++;
-        if (hasAudited) counts.audited++;
-        if (hasPassed) counts.passed++;
-        if (hasFailed) counts.failed++;
-      } else {
-        // If no userStatuses, use store.Status (backward compatibility)
-        if (store.Status === "not_audited") counts.not_audited++;
-        else if (store.Status === "audited") counts.audited++;
-        else if (store.Status === "passed") counts.passed++;
-        else if (store.Status === "failed") counts.failed++;
-      }
-    });
-
-    return counts;
-  };
-
-  const fetchStatusCounts = async () => {
+  const fetchStatusCounts = useCallback(async () => {
     try {
-      const res = await api.get("/stores/status-summary");
+      const res = await api.get("/stores/status-summary", {
+        params: statusSummaryParams(),
+      });
       const data =
         (res.data &&
           (res.data.data as Partial<Record<StatusFilter, number>>)) ||
         {};
-      setStatusCounts((prev) => ({
-        all: data.all ?? prev.all,
-        not_audited: data.not_audited ?? prev.not_audited,
-        audited: data.audited ?? prev.audited,
-        passed: data.passed ?? prev.passed,
-        failed: data.failed ?? prev.failed,
-      }));
+      setStatusCounts({
+        all: data.all ?? 0,
+        not_audited: data.not_audited ?? 0,
+        audited: data.audited ?? 0,
+        passed: data.passed ?? 0,
+        failed: data.failed ?? 0,
+      });
     } catch (error) {
       console.error("Error fetching status counts:", error);
     }
-  };
+  }, [statusSummaryParams]);
 
-  const fetchStores = useCallback(async () => {
-    const preserveData = hasFetchedRef.current;
+  const fetchStores = useCallback(
+    async (options?: { clearExisting?: boolean }) => {
+      const preserveData = hasFetchedRef.current;
 
-    if (preserveData) {
-      setIsFiltering(true);
-    } else {
-      setLoading(true);
+      if (options?.clearExisting) {
+        setStores([]);
+        setIsFiltering(true);
+      } else if (preserveData) {
+        setIsFiltering(true);
+      } else {
+        setLoading(true);
+      }
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      try {
+        const params: Record<string, string | number> = {
+          page,
+          pageSize,
+          _t: Date.now(), // bust cache
+        };
+
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+        if (selectedTerritory) {
+          params.territoryId = selectedTerritory;
+        }
+        if (selectedRank !== null && selectedRank !== "") {
+          params.rank = selectedRank;
+        }
+        if (selectedUser) {
+          params.userId = selectedUser;
+        }
+        if (storeNameFilter.trim()) {
+          params.storeName = storeNameFilter.trim();
+        }
+
+        const res = await api.get("/stores", {
+          params,
+          signal: controller.signal,
+        });
+        const fetchedStores: Store[] = res.data.data || [];
+        let processedStores = fetchedStores;
+
+        if (statusFilter === "audited") {
+          processedStores = fetchedStores
+            .map((store) => {
+              const filteredStatuses = (store.userStatuses || []).filter(
+                (userStatus) => userStatus.Status !== "not_audited"
+              );
+              return {
+                ...store,
+                userStatuses: filteredStatuses,
+              };
+            })
+            .filter(
+              (store) =>
+                (store.userStatuses && store.userStatuses.length > 0) ||
+                store.Status !== "not_audited"
+            );
+        }
+
+        setStores(sortStoresByStatus(processedStores));
+        hasFetchedRef.current = true;
+
+        if (res.data.pagination) {
+          setTotal(res.data.pagination.total);
+          setTotalPages(res.data.pagination.totalPages);
+        }
+
+        fetchStatusCounts();
+      } catch (error) {
+        const isAborted =
+          (error as { name?: string; code?: string })?.name ===
+            "CanceledError" ||
+          (error as { code?: string })?.code === "ERR_CANCELED";
+        if (!isAborted) {
+          console.error("Error fetching stores:", error);
+        }
+      } finally {
+        if (!options?.clearExisting && !preserveData) {
+          setLoading(false);
+        } else if (!options?.clearExisting && preserveData) {
+          setIsFiltering(false);
+        } else {
+          setIsFiltering(false);
+        }
+        resetFilterChangingFlag();
+      }
+    },
+    [
+      page,
+      pageSize,
+      statusFilter,
+      selectedTerritory,
+      selectedRank,
+      selectedUser,
+      storeNameFilter,
+      resetFilterChangingFlag,
+      fetchStatusCounts,
+    ]
+  );
+
+  useEffect(() => {
+    fetchTerritories();
+    fetchUsers();
+    fetchStores();
+    fetchStatusCounts();
+  }, [fetchStores, fetchStatusCounts]);
+
+  useEffect(() => {
+    if (location.pathname === "/stores" && !isFilterChangingRef.current) {
+      fetchStores();
+    }
+  }, [location.pathname, fetchStores]);
+
+  useEffect(() => {
+    setPage(1);
+    fetchStores({ clearExisting: true });
+  }, [
+    statusFilter,
+    selectedTerritory,
+    selectedRank,
+    selectedUser,
+    fetchStores,
+  ]);
+
+  useEffect(() => {
+    if (isFilterChangingRef.current) {
+      return;
+    }
+    fetchStores();
+  }, [page, pageSize, fetchStores]);
+
+  useEffect(() => {
+    if (storeNameFilter === previousStoreNameFilterRef.current) {
+      return;
+    }
+
+    previousStoreNameFilterRef.current = storeNameFilter;
+    isFilterChangingRef.current = true;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
 
-    try {
-      const params: Record<string, string | number> = {
-        page,
-        pageSize,
-        _t: Date.now(), // bust cache
-      };
+    setPage(1);
 
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
-      }
-      if (selectedRank !== null && selectedRank !== "") {
-        params.rank = selectedRank;
-      }
-      if (selectedUser) {
-        params.userId = selectedUser;
-      }
-      if (storeNameFilter.trim()) {
-        params.storeName = storeNameFilter.trim();
-      }
-
-      const res = await api.get("/stores", {
-        params,
-        signal: controller.signal,
-      });
-      const fetchedStores: Store[] = res.data.data || [];
-      let processedStores = fetchedStores;
-
-      if (statusFilter === "audited") {
-        processedStores = fetchedStores
-          .map((store) => {
-            const filteredStatuses = (store.userStatuses || []).filter(
-              (userStatus) => userStatus.Status !== "not_audited"
-            );
-            return {
-              ...store,
-              userStatuses: filteredStatuses,
-            };
-          })
-          .filter(
-            (store) =>
-              (store.userStatuses && store.userStatuses.length > 0) ||
-              store.Status !== "not_audited"
-          );
-      }
-
-      setStores(sortStoresByStatus(processedStores));
-      hasFetchedRef.current = true;
-
-      if (res.data.pagination) {
-        setTotal(res.data.pagination.total);
-        setTotalPages(res.data.pagination.totalPages);
-      }
-
-      if (
-        statusFilter === "all" &&
-        !selectedTerritory &&
-        !selectedRank &&
-        !selectedUser &&
-        !storeNameFilter.trim()
-      ) {
-        const counts = calculateStatusCounts(fetchedStores);
-        setStatusCounts(counts);
-      }
-    } catch (error) {
-      const isAborted =
-        (error as { name?: string; code?: string })?.name === "CanceledError" ||
-        (error as { code?: string })?.code === "ERR_CANCELED";
-      if (!isAborted) {
-        console.error("Error fetching stores:", error);
-      }
-    } finally {
-      if (!preserveData) {
-        setLoading(false);
-      }
-      setIsFiltering(false);
-      resetFilterChangingFlag();
+    if (!storeNameFilter.trim()) {
+      setTimeout(() => {
+        fetchStores({ clearExisting: true });
+      }, 50);
+      return;
     }
-  }, [
-    page,
-    pageSize,
-    statusFilter,
-    selectedTerritory,
-    selectedRank,
-    selectedUser,
-    storeNameFilter,
-    resetFilterChangingFlag,
-  ]);
+
+    setIsFiltering(true);
+    setStores([]);
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchStores({ clearExisting: true });
+    }, 800);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [storeNameFilter, fetchStores]);
 
   const hasActiveFilters = () => {
     return (
