@@ -262,14 +262,21 @@ export default function StoreDetail() {
     return "-";
   };
 
-  const formatAuditDateTime = (value: string) => {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString("vi-VN", {
-      hour12: false,
-    });
-  };
+const normalizeServerUtc = (value: string) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+};
+
+const formatAuditDateTime = (value: string) => {
+  const normalized = normalizeServerUtc(value);
+  if (!normalized) return value || "-";
+  return normalized.toLocaleString("vi-VN", {
+    hour12: false,
+    timeZone: "UTC",
+  });
+};
 
   const mapAuditResultToStoreStatus = (result?: string | null) => {
     if (!result) return "audited";
@@ -824,7 +831,7 @@ export default function StoreDetail() {
                       <div className="image-info">
                         <span className="image-time">
                           {image.CapturedAt
-                            ? new Date(image.CapturedAt).toLocaleString("vi-VN")
+                            ? formatAuditDateTime(image.CapturedAt)
                             : "-"}
                         </span>
                         {coords.lat && coords.lon && (

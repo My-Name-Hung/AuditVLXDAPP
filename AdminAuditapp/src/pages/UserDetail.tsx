@@ -20,20 +20,25 @@ interface UserInfo {
   [key: string]: unknown;
 }
 
-const formatLocalDate = (value: string) => {
-  if (!value) return "";
+const normalizeServerUtc = (value: string) => {
+  if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("vi-VN", {
-  });
+  if (Number.isNaN(date.getTime())) return null;
+  return new Date(date.getTime() + date.getTimezoneOffset() * 60000);
+};
+
+const formatLocalDate = (value: string) => {
+  const normalized = normalizeServerUtc(value);
+  if (!normalized) return value;
+  return normalized.toLocaleDateString("vi-VN", { timeZone: "UTC" });
 };
 
 const formatLocalTime = (value: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleTimeString("vi-VN", {
+  const normalized = normalizeServerUtc(value);
+  if (!normalized) return value;
+  return normalized.toLocaleTimeString("vi-VN", {
     hour12: false,
+    timeZone: "UTC",
   });
 };
 
