@@ -1,7 +1,7 @@
 const fetch = require("node-fetch");
 
 const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
-const REQUEST_INTERVAL_MS = 1000; // Respect Nominatim rate limit (~1 req/sec)
+const REQUEST_INTERVAL_MS = 500; // Respect Nominatim rate limit (~1 req/sec)
 const REQUEST_TIMEOUT_MS = Number(process.env.NOMINATIM_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
 const MAX_RETRIES = Number(process.env.NOMINATIM_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
