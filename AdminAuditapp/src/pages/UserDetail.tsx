@@ -24,7 +24,7 @@ const formatLocalDate = (value: string) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleDateString("vi-VN", { timeZone: "UTC" });
+  return date.toLocaleDateString("vi-VN");
 };
 
 const formatLocalTime = (value: string) => {
@@ -33,7 +33,6 @@ const formatLocalTime = (value: string) => {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString("vi-VN", {
     hour12: false,
-    timeZone: "UTC",
   });
 };
 
@@ -103,13 +102,17 @@ export default function UserDetail() {
       });
       setDetailData((detailRes.data.data as UserDetailItem[]) || []);
       setHasLoaded(true);
-    } catch (error: any) {
-      if (error?.name !== "CanceledError" && error?.code !== "ERR_CANCELED") {
-      console.error("Error fetching user detail:", error);
+    } catch (error: unknown) {
+      const typedError = error as { name?: string; code?: string };
+      if (
+        typedError?.name !== "CanceledError" &&
+        typedError?.code !== "ERR_CANCELED"
+      ) {
+        console.error("Error fetching user detail:", error);
       }
     } finally {
       if (isFirstLoad) {
-      setLoading(false);
+        setLoading(false);
       }
       setIsFiltering(false);
     }
