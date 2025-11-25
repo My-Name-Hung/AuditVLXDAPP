@@ -51,6 +51,7 @@ export default function UserEdit() {
 
   useEffect(() => {
     fetchPositions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -161,9 +162,16 @@ export default function UserEdit() {
     try {
       setUpdateLoading(true);
 
-      const payload: any = {
+      const payload: {
+        fullName: string;
+        email: string | null;
+        phone: string;
+        role: string;
+        position: string;
+        password?: string;
+      } = {
         fullName: formData.fullName.trim(),
-        email: formData.email.trim() || null,
+        email: formData.email?.trim() || null,
         phone: formData.phone.trim(),
         role: formData.role,
         position: formData.position.trim(),
@@ -187,15 +195,16 @@ export default function UserEdit() {
       setTimeout(() => {
         navigate("/users");
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error updating user:", error);
       setUpdateLoading(false);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error || "Lỗi khi cập nhật nhân viên. Vui lòng thử lại.";
       setNotification({
         isOpen: true,
         type: "error",
-        message:
-          error.response?.data?.error ||
-          "Lỗi khi cập nhật nhân viên. Vui lòng thử lại.",
+        message: errorMessage,
       });
     }
   };
