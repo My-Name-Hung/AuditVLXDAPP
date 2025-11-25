@@ -1,9 +1,13 @@
 const fetch = require("node-fetch");
 
-const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
-const REQUEST_INTERVAL_MS = 500; // Respect Nominatim rate limit (~1 req/sec)
-const REQUEST_TIMEOUT_MS = Number(process.env.NOMINATIM_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
-const MAX_RETRIES = Number(process.env.NOMINATIM_MAX_RETRIES || 3);
+const VN2000_ENDPOINT =
+  process.env.VN2000_ENDPOINT ||
+  "https://vn2000.vn/api/thongtindiachinh";
+const REQUEST_INTERVAL_MS = 500; // basic rate limit to avoid hammering the API
+const REQUEST_TIMEOUT_MS = Number(
+  process.env.VN2000_TIMEOUT_MS || 8000
+); // Fail fast if provider is unreachable
+const MAX_RETRIES = Number(process.env.VN2000_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
 const CACHE_VERSION = "v4";
 
@@ -14,8 +18,7 @@ let lastRequestTime = 0;
 let isProcessingQueue = false;
 
 const userAgent =
-  process.env.NOMINATIM_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)"; // Required by Nominatim
-const contactEmail = process.env.NOMINATIM_EMAIL || "contact@ximangtaydo.vn"; // Recommended by Nominatim
+  process.env.VN2000_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -96,18 +99,11 @@ async function processQueue() {
 
 async function fetchProvinceDistrict(lat, lon) {
   const params = new URLSearchParams({
-    format: "jsonv2",
-    lat: lat.toString(),
-    lon: lon.toString(),
-    zoom: "12",
-    addressdetails: "1",
+    vido: lat.toString(),
+    kinhdo: lon.toString(),
   });
 
-  if (contactEmail) {
-    params.set("email", contactEmail);
-  }
-
-  const url = `${NOMINATIM_ENDPOINT}?${params.toString()}`;
+  const url = `${VN2000_ENDPOINT}?${params.toString()}`;
   let attempt = 0;
 
   while (attempt < MAX_RETRIES) {
@@ -116,59 +112,46 @@ async function fetchProvinceDistrict(lat, lon) {
       const response = await fetch(url, {
         headers: {
           "User-Agent": userAgent,
-          "Accept-Language": "vi,en",
         },
         timeout: REQUEST_TIMEOUT_MS,
       });
 
       if (!response.ok) {
         throw new Error(
-          `Nominatim error: ${response.status} ${response.statusText}`
+          `VN2000 error: ${response.status} ${response.statusText}`
         );
       }
 
       const data = await response.json();
-      const address = data.address || {};
+      if (!data?.success || !data?.data) {
+        throw new Error(
+          `VN2000 invalid response: ${JSON.stringify(data).slice(0, 200)}`
+        );
+      }
 
-      const pickField = (fields, exclude) => {
-        for (const field of fields) {
-          const value = address[field];
-          if (value && value !== exclude) {
-            return value;
-          }
-        }
-        return null;
-      };
+      const propsAfter =
+        data.data.diachinh_sausapnhap?.properties ||
+        data.data.diachinh_truocsapnhap?.properties ||
+        {};
+
+      const propsBefore =
+        data.data.diachinh_truocsapnhap?.properties ||
+        data.data.diachinh_sausapnhap?.properties ||
+        {};
 
       const province =
-        pickField(
-          [
-            "state",
-            "region",
-            "province",
-            "state_district",
-            "county",
-            "city",
-            "municipality",
-          ],
-          null
-        ) || null;
+        propsAfter.ten_tinh ||
+        propsBefore.ten_tinh ||
+        propsAfter.ten_huyen ||
+        propsBefore.ten_huyen ||
+        null;
 
       const district =
-        pickField(
-          [
-            "district",
-            "city_district",
-            "borough",
-            "county",
-            "municipality",
-            "town",
-            "city",
-            "suburb",
-            "village",
-          ],
-          province
-        ) || null;
+        propsAfter.ten_xa ||
+        propsBefore.ten_xa ||
+        propsAfter.ten_huyen ||
+        propsBefore.ten_huyen ||
+        null;
 
       return {
         province: province || null,
