@@ -80,7 +80,7 @@ const getAllStores = async (req, res) => {
           UserCode: assignedUser.UserCode,
           Status: mapAuditResultToStatus(latestAuditResult),
         };
-        });
+      });
 
       store.userStatuses = userStatuses;
 
@@ -94,7 +94,7 @@ const getAllStores = async (req, res) => {
       } else if (userStatuses.length > 0) {
         store.Status = userStatuses[0].Status;
       } else if (!store.Status) {
-          store.Status = "not_audited";
+        store.Status = "not_audited";
       }
     }
 
@@ -110,6 +110,119 @@ const getAllStores = async (req, res) => {
   } catch (error) {
     console.error("Get all stores error:", error);
     res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const exportStores = async (_req, res) => {
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+    request.timeout = 60000;
+
+    const result = await request.query(`
+      SELECT 
+        s.Id,
+        s.StoreCode,
+        s.StoreName,
+        s.Address,
+        s.Phone,
+        s.Email,
+        s.Status,
+        s.Rank,
+        s.TaxCode,
+        s.PartnerName,
+        s.Latitude,
+        s.Longitude,
+        s.TerritoryId,
+        t.TerritoryName,
+        s.UserId,
+        u.FullName as UserFullName,
+        u.UserCode,
+        (
+          SELECT 
+            su.UserId,
+            usr.FullName,
+            usr.UserCode,
+            latest.Result
+          FROM StoreUsers su
+          INNER JOIN Users usr ON su.UserId = usr.Id
+          OUTER APPLY (
+            SELECT TOP 1 Result
+            FROM Audits a
+            WHERE a.StoreId = s.Id AND a.UserId = su.UserId
+            ORDER BY a.AuditDate DESC, a.CreatedAt DESC
+          ) latest
+          WHERE su.StoreId = s.Id
+          ORDER BY su.CreatedAt ASC
+          FOR JSON PATH
+        ) as AssignedUsersJson,
+        (
+          SELECT TOP 1 Result
+          FROM Audits aPrimary
+          WHERE aPrimary.StoreId = s.Id AND aPrimary.UserId = s.UserId
+          ORDER BY aPrimary.AuditDate DESC, aPrimary.CreatedAt DESC
+        ) as PrimaryLatestResult
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      LEFT JOIN Users u ON s.UserId = u.Id
+      ORDER BY s.StoreCode ASC
+    `);
+
+    const stores = result.recordset.map((row) => {
+      let assignedUsers = [];
+      if (row.AssignedUsersJson) {
+        try {
+          assignedUsers = JSON.parse(row.AssignedUsersJson);
+        } catch (_error) {
+          assignedUsers = [];
+        }
+      }
+
+      if (assignedUsers.length === 0 && row.UserId && row.UserFullName) {
+        assignedUsers = [
+          {
+            UserId: row.UserId,
+            FullName: row.UserFullName,
+            UserCode: row.UserCode,
+            Result: row.PrimaryLatestResult || null,
+          },
+        ];
+      }
+
+      const userStatuses = assignedUsers.map((user) => ({
+        UserId: user.UserId,
+        UserFullName: user.FullName,
+        UserCode: user.UserCode,
+        Status: mapAuditResultToStatus(user.Result),
+      }));
+
+      return {
+        Id: row.Id,
+        StoreCode: row.StoreCode,
+        StoreName: row.StoreName,
+        Address: row.Address,
+        Phone: row.Phone,
+        Email: row.Email,
+        Status: row.Status,
+        Rank: row.Rank,
+        TaxCode: row.TaxCode,
+        PartnerName: row.PartnerName,
+        Latitude: row.Latitude,
+        Longitude: row.Longitude,
+        TerritoryName: row.TerritoryName,
+        UserFullName: row.UserFullName,
+        UserCode: row.UserCode,
+        userStatuses,
+      };
+    });
+
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error("Export stores error:", error);
+    res.status(500).json({ error: "Không thể xuất danh sách cửa hàng" });
   }
 };
 
@@ -440,13 +553,13 @@ const getStoreById = async (req, res) => {
         FROM Users
         WHERE Id = @UserId
       `);
-      
+
       if (userResult.recordset.length > 0) {
         allAssignedUsers = [
           {
-          UserId: userResult.recordset[0].Id,
-          FullName: userResult.recordset[0].FullName,
-          UserCode: userResult.recordset[0].UserCode,
+            UserId: userResult.recordset[0].Id,
+            FullName: userResult.recordset[0].FullName,
+            UserCode: userResult.recordset[0].UserCode,
           },
         ];
       }
@@ -487,7 +600,7 @@ const getStoreById = async (req, res) => {
         Status: mapAuditResultToStatus(latest?.Result),
         FailedReason: latest?.FailedReason || null,
       };
-      });
+    });
 
     res.json({
       ...storeDetails,
@@ -684,7 +797,7 @@ const updateStore = async (req, res) => {
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
           UpdatedAt = GETDATE()`;
-    
+
     // Handle Rank separately to allow null
     if (rank !== undefined) {
       if (rank === null || rank === "") {
@@ -695,7 +808,7 @@ const updateStore = async (req, res) => {
     } else {
       updateQuery += `, Rank = @Rank`;
     }
-    
+
     updateQuery += `
       OUTPUT INSERTED.*
       WHERE Id = @Id`;
@@ -825,6 +938,7 @@ const deleteStore = async (req, res) => {
 
 module.exports = {
   getAllStores,
+  exportStores,
   getStoreById,
   createStore,
   updateStore,

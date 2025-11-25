@@ -6,6 +6,11 @@ const { authenticateToken } = require("../middlewares/auth");
 
 router.get("/", authenticateToken, storesController.getAllStores);
 router.get(
+  "/export/data",
+  authenticateToken,
+  storesController.exportStores
+);
+router.get(
   "/status-summary",
   authenticateToken,
   storesController.getStatusSummary

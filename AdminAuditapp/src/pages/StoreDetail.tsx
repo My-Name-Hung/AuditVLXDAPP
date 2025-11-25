@@ -149,6 +149,9 @@ export default function StoreDetail() {
 
       const res = await api.get(`/stores/${id}`, { params });
       const data = res.data;
+      const filteredUserStatuses = (data.userStatuses || []).filter(
+        (status: UserStatus) => status.Status !== "not_audited"
+      );
       setStore({
         Id: data.Id,
         StoreCode: data.StoreCode,
@@ -168,7 +171,7 @@ export default function StoreDetail() {
         Latitude: data.Latitude,
         Longitude: data.Longitude,
         FailedReason: data.FailedReason || null,
-        userStatuses: data.userStatuses || [],
+        userStatuses: filteredUserStatuses,
         assignedUsers: data.assignedUsers || [],
       });
       const auditsData = data.audits || [];
@@ -176,7 +179,7 @@ export default function StoreDetail() {
       setAudits(auditsData);
 
       // Check if we need to show user selection modal
-      const userStatuses = data.userStatuses || [];
+      const userStatuses = filteredUserStatuses;
       if (userStatuses.length > 1) {
         // Multiple users - only show modal if user hasn't selected yet (first load)
         if (!hasSelectedUserRef.current && !userId) {
@@ -262,14 +265,14 @@ export default function StoreDetail() {
     return "-";
   };
 
-const formatAuditDateTime = (value: string) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("vi-VN", {
-    hour12: false,
-  });
-};
+  const formatAuditDateTime = (value: string) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("vi-VN", {
+      hour12: false,
+    });
+  };
 
   const mapAuditResultToStoreStatus = (result?: string | null) => {
     if (!result) return "audited";
@@ -526,6 +529,8 @@ const formatAuditDateTime = (value: string) => {
       });
     }
   };
+  // Keep handler for potential future use (buttons currently hidden)
+  void handleStatusUpdateClick;
 
   const handleResetStoreConfirm = async () => {
     if (!store || !selectedAudit) {
@@ -777,20 +782,6 @@ const formatAuditDateTime = (value: string) => {
               </div>
             </div>
             <div className="status-action-buttons">
-              <button
-                className="btn-status btn-passed"
-                onClick={() => handleStatusUpdateClick("passed")}
-                disabled={!selectedAudit}
-              >
-                Đạt
-              </button>
-              <button
-                className="btn-status btn-failed"
-                onClick={() => handleStatusUpdateClick("failed")}
-                disabled={!selectedAudit}
-              >
-                Không đạt
-              </button>
               <button
                 className="btn-status btn-reset"
                 onClick={() => setResetModalOpen(true)}

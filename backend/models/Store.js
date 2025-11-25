@@ -157,7 +157,15 @@ class Store {
     }
 
     if (filters.UserId) {
-      query += " AND s.UserId = @UserId";
+      query += `
+        AND (
+          s.UserId = @UserId
+          OR EXISTS (
+            SELECT 1 FROM StoreUsers su
+            WHERE su.StoreId = s.Id AND su.UserId = @UserId
+          )
+        )
+      `;
       request.input("UserId", sql.Int, filters.UserId);
     }
 
@@ -214,7 +222,15 @@ class Store {
     }
 
     if (filters.UserId) {
-      query += " AND s.UserId = @UserId";
+      query += `
+        AND (
+          s.UserId = @UserId
+          OR EXISTS (
+            SELECT 1 FROM StoreUsers su
+            WHERE su.StoreId = s.Id AND su.UserId = @UserId
+          )
+        )
+      `;
       request.input("UserId", sql.Int, filters.UserId);
     }
 

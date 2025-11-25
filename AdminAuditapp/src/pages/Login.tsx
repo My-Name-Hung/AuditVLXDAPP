@@ -77,16 +77,13 @@ export default function Login() {
     <div className="auth-wrapper">
       <div className="auth-illustration">
         <div className="illustration-content">
-          <p className="kicker">Quản lý thương vụ XMTĐ</p>
-          <h1>Nền tảng điều phối chương trình và cửa hàng toàn quốc</h1>
-          <p>
-            Theo dõi tiến độ, quản lý người dùng và đồng bộ dữ liệu từ hiện
-            trường trong một giao diện duy nhất.
-          </p>
+          <p className="kicker">ĐƯỢC THỰC HIỆN BỞI ĐỘI NGŨ IT GROUP XMTĐ</p>
+          <h1>QUẢN LÝ SALE XMTĐ</h1>
           <ul>
-            <li>📊 Thống kê theo thời gian thực</li>
-            <li>🏪 Quản lý chuỗi cửa hàng & nhà phân phối</li>
-            <li>⤴️ Tải lên/Xuất báo cáo dữ liệu chuẩn Excel</li>
+            <li>SĐT: (+84.292) 3862077</li>
+            <li>Email: ximangtaydo@xmtd.vn</li>
+            <li>Mã số thuế: 1800561359</li>
+            <li>Địa chỉ: Km14, QL91, P.Phước Thới, TP.Cần Thơ</li>
           </ul>
         </div>
       </div>

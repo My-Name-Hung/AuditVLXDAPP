@@ -274,7 +274,8 @@ export default function Stores() {
     try {
       const res = await api.get("/stores/status-summary");
       const data =
-        (res.data && (res.data.data as Partial<Record<StatusFilter, number>>)) ||
+        (res.data &&
+          (res.data.data as Partial<Record<StatusFilter, number>>)) ||
         {};
       setStatusCounts((prev) => ({
         all: data.all ?? prev.all,
@@ -331,7 +332,27 @@ export default function Stores() {
         signal: controller.signal,
       });
       const fetchedStores: Store[] = res.data.data || [];
-      setStores(sortStoresByStatus(fetchedStores));
+      let processedStores = fetchedStores;
+
+      if (statusFilter === "audited") {
+        processedStores = fetchedStores
+          .map((store) => {
+            const filteredStatuses = (store.userStatuses || []).filter(
+              (userStatus) => userStatus.Status !== "not_audited"
+            );
+            return {
+              ...store,
+              userStatuses: filteredStatuses,
+            };
+          })
+          .filter(
+            (store) =>
+              (store.userStatuses && store.userStatuses.length > 0) ||
+              store.Status !== "not_audited"
+          );
+      }
+
+      setStores(sortStoresByStatus(processedStores));
       hasFetchedRef.current = true;
 
       if (res.data.pagination) {
@@ -354,11 +375,11 @@ export default function Stores() {
         (error as { name?: string; code?: string })?.name === "CanceledError" ||
         (error as { code?: string })?.code === "ERR_CANCELED";
       if (!isAborted) {
-      console.error("Error fetching stores:", error);
-        }
+        console.error("Error fetching stores:", error);
+      }
     } finally {
       if (!preserveData) {
-      setLoading(false);
+        setLoading(false);
       }
       setIsFiltering(false);
       resetFilterChangingFlag();
@@ -474,22 +495,22 @@ export default function Stores() {
         );
       }
 
-        return (
-          <div className="status-multi-user-compact">
-            {store.userStatuses.map((us) => (
-              <div key={us.UserId} className="status-user-row">
-                <span className="status-user-name-compact">
-                  {us.UserFullName}
-                </span>
-                <span className="status-separator">:</span>
-                <span className={`status-badge-inline status-${us.Status}`}>
-                  {getStatusLabel(us.Status)}
-                </span>
-              </div>
-            ))}
-          </div>
-        );
-      }
+      return (
+        <div className="status-multi-user-compact">
+          {store.userStatuses.map((us) => (
+            <div key={us.UserId} className="status-user-row">
+              <span className="status-user-name-compact">
+                {us.UserFullName}
+              </span>
+              <span className="status-separator">:</span>
+              <span className={`status-badge-inline status-${us.Status}`}>
+                {getStatusLabel(us.Status)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
 
     return (
       <span className={`status-badge status-${store.Status}`}>
@@ -510,16 +531,9 @@ export default function Stores() {
       setExportLoading(true);
       setExportProgress(0);
 
-      // Fetch ALL stores without any filters to get complete data
-      setExportProgress(20);
-      const params: Record<string, string | number> = {
-        page: 1,
-        pageSize: 10000, // Get all stores
-      };
-
-      // Don't apply any filters - export all stores
-      const res = await api.get("/stores", { params });
-      setExportProgress(50);
+      setExportProgress(30);
+      const res = await api.get("/stores/export/data");
+      setExportProgress(70);
 
       await generateStoresExcel(res.data.data || [], setExportProgress);
       setExportProgress(100);
@@ -608,16 +622,16 @@ export default function Stores() {
       if (store.userStatuses && store.userStatuses.length > 0) {
         store.userStatuses.forEach((userStatus) => {
           rowIndex++;
-      const row = sheet.addRow([
+          const row = sheet.addRow([
             rowIndex,
-        store.StoreCode,
-        store.StoreName,
-        getRankLabel(store.Rank),
-        store.Address || "",
-        store.TaxCode || "",
-        store.PartnerName || "",
-        store.Phone || "",
-        store.Email || "",
+            store.StoreCode,
+            store.StoreName,
+            getRankLabel(store.Rank),
+            store.Address || "",
+            store.TaxCode || "",
+            store.PartnerName || "",
+            store.Phone || "",
+            store.Email || "",
             getStatusLabel(userStatus.Status), // Trạng thái của user này
             store.TerritoryName || "",
             userStatus.UserFullName
@@ -635,7 +649,10 @@ export default function Stores() {
             text: "Link chi tiết",
             hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
           };
-          detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+          detailLinkCell.font = {
+            color: { argb: "FF0000FF" },
+            underline: true,
+          };
 
           // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
           const mapLinkCell = row.getCell(16);
@@ -671,43 +688,43 @@ export default function Stores() {
           store.Phone || "",
           store.Email || "",
           getStatusLabel(store.Status), // Trạng thái
-        store.TerritoryName || "",
-        store.UserFullName
-          ? `${store.UserFullName} (${store.UserCode || ""})`
-          : "",
-        "", // Link chi tiết - will be set as hyperlink
-        store.Latitude || "",
-        store.Longitude || "",
-        "", // Google Maps link - will be set as hyperlink
-      ]);
+          store.TerritoryName || "",
+          store.UserFullName
+            ? `${store.UserFullName} (${store.UserCode || ""})`
+            : "",
+          "", // Link chi tiết - will be set as hyperlink
+          store.Latitude || "",
+          store.Longitude || "",
+          "", // Google Maps link - will be set as hyperlink
+        ]);
 
-      // Set hyperlink for "Link chi tiết"
-      const detailLinkCell = row.getCell(13);
-      detailLinkCell.value = {
-        text: "Link chi tiết",
+        // Set hyperlink for "Link chi tiết"
+        const detailLinkCell = row.getCell(13);
+        detailLinkCell.value = {
+          text: "Link chi tiết",
           hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-      };
-      detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-
-      // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
-      const mapLinkCell = row.getCell(16);
-      if (store.Latitude && store.Longitude) {
-        mapLinkCell.value = {
-          text: "Xem trên Google Maps",
-          hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
         };
-        mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-      }
+        detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
 
-      // Add borders to all cells
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
+        // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
+        const mapLinkCell = row.getCell(16);
+        if (store.Latitude && store.Longitude) {
+          mapLinkCell.value = {
+            text: "Xem trên Google Maps",
+            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
+          };
+          mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
+        }
+
+        // Add borders to all cells
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
       }
     });
 
@@ -858,7 +875,7 @@ export default function Stores() {
         </div>
 
         <div className="filter-group">
-          <label>Tên user phụ trách</label>
+          <label>Tên nhân viên phụ trách</label>
           <Select
             options={userOptions}
             value={selectedUser}
@@ -926,13 +943,13 @@ export default function Stores() {
                   <td>
                     <div className="action-buttons">
                       {canViewStore(store) && (
-                            <button
-                              className="btn-action btn-view"
-                              onClick={() => handleViewStore(store.Id)}
-                              title="Xem chi tiết"
-                            >
-                              <HiEye />
-                            </button>
+                        <button
+                          className="btn-action btn-view"
+                          onClick={() => handleViewStore(store.Id)}
+                          title="Xem chi tiết"
+                        >
+                          <HiEye />
+                        </button>
                       )}
                       <button
                         className="btn-action btn-edit"
