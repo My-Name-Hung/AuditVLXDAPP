@@ -463,6 +463,26 @@ export default function Stores() {
 
   const formatStatusWithUsers = (store: Store): React.ReactNode => {
     if (store.userStatuses && store.userStatuses.length > 0) {
+      // When filtering by status, always show "user name: status" format
+      if (statusFilter !== "all") {
+        return (
+          <div className="status-multi-user-compact">
+            {store.userStatuses.map((us) => (
+              <div key={us.UserId} className="status-user-row">
+                <span className="status-user-name-compact">
+                  {us.UserFullName}
+                </span>
+                <span className="status-separator">:</span>
+                <span className={`status-badge-inline status-${us.Status}`}>
+                  {getStatusLabel(us.Status)}
+                </span>
+              </div>
+            ))}
+          </div>
+        );
+      }
+
+      // When showing "all", use compact format if all users have same status
       const userCount = store.userStatuses.length;
       const uniqueStatuses = new Set(store.userStatuses.map((us) => us.Status));
       const allSameStatus = uniqueStatuses.size === 1;
@@ -479,6 +499,7 @@ export default function Stores() {
         );
       }
 
+      // Multiple different statuses - show "user name: status" format
       return (
         <div className="status-multi-user-compact">
           {store.userStatuses.map((us) => (
