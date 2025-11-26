@@ -8,6 +8,11 @@
     "scheme": "auditapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+     "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
+    },
     "ios": {
       "supportsTablet": true
     },

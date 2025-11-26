@@ -114,6 +114,53 @@ const getAuditStatusStyle = (result: string) => {
   }
 };
 
+// Helper function to compress image using canvas
+const compressImage = (
+  dataUrl: string,
+  maxWidth: number,
+  quality: number
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // Calculate new dimensions
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      // Create canvas and draw resized image
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Cannot get canvas context"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to blob with compression
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Failed to compress image"));
+          }
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+};
+
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -130,6 +177,11 @@ export default function StoreDetail() {
   const [showNewAuditModal, setShowNewAuditModal] = useState(false);
   const promptedDateRef = useRef<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+    message: "",
+  });
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -544,14 +596,89 @@ export default function StoreDetail() {
     setNotesModalVisible(true);
   };
 
+  // Helper function to upload single image with retry
+  const uploadImageWithRetry = async (
+    img: CapturedImage,
+    auditId: number,
+    index: number,
+    maxRetries = 2
+  ): Promise<void> => {
+    let lastError: any = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Update progress: processing image (only if not in batch mode)
+        if (index >= 2) {
+          setUploadProgress({
+            current: index,
+            total: 3,
+            message: attempt > 0 
+              ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${attempt + 1})...`
+              : `Đang xử lý ảnh ${index + 1}/3...`,
+          });
+        }
+
+        // Resize and compress image for faster upload
+        const compressedBlob = await compressImage(img.dataUrl, 800, 0.5);
+
+        // Update progress: uploading image (only if not in batch mode)
+        if (index >= 2) {
+          setUploadProgress({
+            current: index,
+            total: 3,
+            message: `Đang tải ảnh ${index + 1}/3...`,
+          });
+        }
+
+        const formData = new FormData();
+        formData.append("image", compressedBlob, `image_${index + 1}.jpg`);
+        formData.append("auditId", auditId.toString());
+        formData.append("latitude", img.latitude.toString());
+        formData.append("longitude", img.longitude.toString());
+        formData.append("timestamp", img.timestamp);
+        formData.append("timezoneOffset", img.timezoneOffset.toString());
+
+        await api.post("/images/upload", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        });
+
+        // Success - update progress (only if not in batch mode)
+        if (index >= 2) {
+          setUploadProgress({
+            current: index + 1,
+            total: 3,
+            message: `Đã tải xong ảnh ${index + 1}/3`,
+          });
+        }
+
+        return; // Success, exit retry loop
+      } catch (error: any) {
+        lastError = error;
+        console.error(`Upload attempt ${attempt + 1} failed for image ${index + 1}:`, error);
+        
+        if (attempt < maxRetries) {
+          // Wait before retry (exponential backoff)
+          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+        }
+      }
+    }
+
+    // All retries failed
+    throw lastError || new Error(`Failed to upload image ${index + 1} after ${maxRetries + 1} attempts`);
+  };
+
   const handleConfirmUpload = async () => {
     if (!user || !store) return;
 
     setUploading(true);
     setNotesModalVisible(false);
+    setUploadProgress({ current: 0, total: 3, message: "Đang tạo audit..." });
 
     try {
       // Create audit first
+      setUploadProgress({ current: 0, total: 3, message: "Đang tạo audit..." });
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: store.Id,
@@ -561,34 +688,63 @@ export default function StoreDetail() {
 
       const auditId = auditResponse.data.Id;
 
-      // Upload 3 images
+      // Filter out undefined images
       const imagesToUpload = capturedImages.filter(
         (img): img is CapturedImage => img !== undefined
       );
 
-      const uploadPromises = imagesToUpload.map(async (img, index) => {
-        // Convert data URL to blob
-        const response = await fetch(img.dataUrl);
-        const blob = await response.blob();
+      if (imagesToUpload.length !== 3) {
+        throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
+      }
 
-        const formData = new FormData();
-        formData.append("image", blob, `image_${index + 1}.jpg`);
-        formData.append("auditId", auditId.toString());
-        formData.append("latitude", img.latitude.toString());
-        formData.append("longitude", img.longitude.toString());
-        formData.append("timestamp", img.timestamp);
-        formData.append("timezoneOffset", img.timezoneOffset.toString());
-
-        return api.post("/images/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
+      // Upload images in parallel batches: 2 images at once for speed
+      // Upload first 2 images in parallel
+      setUploadProgress({
+        current: 0,
+        total: 3,
+        message: "Đang tải ảnh 1 và 2...",
       });
 
-      await Promise.all(uploadPromises);
+      // Track completed uploads
+      let completedCount = 0;
+      const updateBatchProgress = () => {
+        completedCount++;
+        setUploadProgress({
+          current: completedCount,
+          total: 3,
+          message: completedCount === 2 
+            ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+            : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
+        });
+      };
+
+      const [upload1Result, upload2Result] = await Promise.allSettled([
+        uploadImageWithRetry(imagesToUpload[0], auditId, 0).then(() => {
+          updateBatchProgress();
+        }),
+        uploadImageWithRetry(imagesToUpload[1], auditId, 1).then(() => {
+          updateBatchProgress();
+        }),
+      ]);
+
+      // Check if any upload failed
+      if (upload1Result.status === "rejected") {
+        throw upload1Result.reason;
+      }
+      if (upload2Result.status === "rejected") {
+        throw upload2Result.reason;
+      }
+
+      // Upload third image
+      await uploadImageWithRetry(imagesToUpload[2], auditId, 2);
 
       // Update store latitude/longitude from first image
+      setUploadProgress({
+        current: 3,
+        total: 3,
+        message: "Đang cập nhật thông tin cửa hàng...",
+      });
+
       if (imagesToUpload[0]) {
         await api.put(`/stores/${store.Id}`, {
           latitude: imagesToUpload[0].latitude,
@@ -596,20 +752,51 @@ export default function StoreDetail() {
         });
       }
 
+      // Optimistic update: Update UI immediately without full reload
       setAllowNewAudit(false);
-
-      alert("Đã hoàn thành audit cửa hàng");
       setCapturedImages([undefined, undefined, undefined]);
       setNotes("");
-      fetchStore();
+
+      // Create optimistic audit entry for immediate UI update
+      const optimisticAudit: AuditHistory = {
+        AuditId: auditId,
+        Result: "audited",
+        FailedReason: null,
+        Notes: notes.trim() || "",
+        AuditDate: new Date().toISOString(),
+        AuditCreatedAt: new Date().toISOString(),
+        UserId: user.id,
+        userId: user.id,
+        Images: imagesToUpload.map((img, idx) => ({
+          Id: 0, // Temporary ID
+          ImageUrl: img.dataUrl, // Use local dataUrl temporarily
+          CapturedAt: img.timestamp,
+          Latitude: img.latitude,
+          Longitude: img.longitude,
+        })),
+      };
+
+      // Add to audits list optimistically
+      setAudits((prev) => [optimisticAudit, ...prev]);
+
+      // Debounce fetchStore: reload after 2 seconds in background
+      setTimeout(() => {
+        fetchStore().catch((error) => {
+          console.error("Background fetch error:", error);
+          // Silent fail - optimistic update already shown
+        });
+      }, 2000);
+
+      alert("Đã hoàn thành audit cửa hàng");
     } catch (error: unknown) {
       console.error("Error uploading images:", error);
       const errorMessage =
-        (error as { response?: { data?: { error?: string } } })?.response?.data
-          ?.error || "Upload ảnh thất bại";
+        (error as { response?: { data?: { error?: string }; message?: string })?.response?.data
+          ?.error || (error as Error)?.message || "Upload ảnh thất bại";
       alert(errorMessage);
     } finally {
       setUploading(false);
+      setUploadProgress({ current: 0, total: 0, message: "" });
     }
   };
 
@@ -1116,6 +1303,60 @@ export default function StoreDetail() {
               >
                 {uploading ? "Đang tải..." : "Xác nhận"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Progress Modal */}
+      {uploading && (
+        <div className="store-detail-modal-overlay">
+          <div className="store-detail-modal-content">
+            <div style={{ textAlign: "center" }}>
+              <div
+                className="store-detail-spinner"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  border: `4px solid ${colors.icon}20`,
+                  borderTop: `4px solid ${colors.primary}`,
+                  borderRadius: "50%",
+                  margin: "0 auto 16px",
+                }}
+              />
+              <h2
+                className="store-detail-modal-title"
+                style={{ color: colors.text, marginBottom: "8px" }}
+              >
+                {uploadProgress.message || "Đang xử lý..."}
+              </h2>
+              {uploadProgress.total > 0 && (
+                <div style={{ marginTop: "16px" }}>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "8px",
+                      backgroundColor: colors.icon + "20",
+                      borderRadius: "4px",
+                      overflow: "hidden",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                        height: "100%",
+                        backgroundColor: colors.primary,
+                        borderRadius: "4px",
+                        transition: "width 0.3s ease",
+                      }}
+                    />
+                  </div>
+                  <p style={{ color: colors.icon, fontSize: "14px", margin: 0 }}>
+                    {uploadProgress.current}/{uploadProgress.total} ảnh
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>

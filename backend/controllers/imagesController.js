@@ -72,13 +72,8 @@ const uploadImage = async (req, res) => {
       CapturedAt: adjustedTimestamp,
     });
 
-    // Refresh store status based on latest audit after successful upload
-    const Audit = require("../models/Audit");
-    const audit = await Audit.findById(auditId);
-    if (audit && audit.StoreId) {
-      const Store = require("../models/Store");
-      await Store.refreshStatusFromLatest(audit.StoreId);
-    }
+    // Note: Store status refresh is now done once after all images are uploaded
+    // to improve performance. See auditsController for batch refresh logic.
 
     res.status(201).json({
       ...image,
