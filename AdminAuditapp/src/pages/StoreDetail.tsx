@@ -81,6 +81,9 @@ export default function StoreDetail() {
     | null;
   const preloadedStore = locationState?.store;
   const navigationSource = locationState?.from;
+  const userIdFromState = locationState?.userId
+    ? parseInt(locationState.userId, 10)
+    : null;
   const sanitizedPreloadedStore = preloadedStore
     ? {
         ...preloadedStore,
@@ -130,11 +133,13 @@ export default function StoreDetail() {
   });
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(
+    userIdFromState
+  );
   const [userSelectModalOpen, setUserSelectModalOpen] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
-  const hasSelectedUserRef = useRef(false); // Track if user has already selected
+  const hasSelectedUserRef = useRef(Boolean(userIdFromState)); // Track if user has already selected
 
   useEffect(() => {
     if (!id) {
@@ -148,16 +153,28 @@ export default function StoreDetail() {
       // Initial load
       isInitialMount.current = false;
       previousId.current = id;
-      hasSelectedUserRef.current = false; // Reset when loading new store
-      fetchStoreDetail(shouldShowModal);
+      // If userId is provided from navigation state, auto-select it
+      if (userIdFromState) {
+        hasSelectedUserRef.current = true;
+        fetchStoreDetail(shouldShowModal, userIdFromState);
+      } else {
+        hasSelectedUserRef.current = false; // Reset when loading new store
+        fetchStoreDetail(shouldShowModal);
+      }
     } else if (previousId.current !== id) {
       // Navigate to different store - always show loading modal
       previousId.current = id;
-      hasSelectedUserRef.current = false; // Reset when navigating to different store
-      fetchStoreDetail(true);
+      // If userId is provided from navigation state, auto-select it
+      if (userIdFromState) {
+        hasSelectedUserRef.current = true;
+        fetchStoreDetail(true, userIdFromState);
+      } else {
+        hasSelectedUserRef.current = false; // Reset when navigating to different store
+        fetchStoreDetail(true);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, hasPreloadedStore]);
+  }, [id, hasPreloadedStore, userIdFromState]);
 
   const fetchStoreDetail = async (
     showLoading = false,
