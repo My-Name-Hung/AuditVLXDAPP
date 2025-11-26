@@ -124,7 +124,7 @@ const getAllStores = async (req, res) => {
   }
 };
 
-const fetchStoresForExport = async (offset = 0, limit = null) => {
+const fetchStoresForExport = async (offset = 0, limit = null, onlyAudited = false) => {
   const pool = await getPool();
   const request = pool.request();
   request.timeout = 60000;
@@ -175,8 +175,21 @@ const fetchStoresForExport = async (offset = 0, limit = null) => {
     FROM Stores s
     LEFT JOIN Territories t ON s.TerritoryId = t.Id
     LEFT JOIN Users u ON s.UserId = u.Id
-    ORDER BY s.StoreCode ASC
+    WHERE 1=1
   `;
+
+  // Filter: only stores that have been audited (have at least one audit record)
+  if (onlyAudited) {
+    query += `
+      AND EXISTS (
+        SELECT 1
+        FROM Audits a
+        WHERE a.StoreId = s.Id
+      )
+    `;
+  }
+
+  query += ` ORDER BY s.StoreCode ASC`;
 
   if (limit !== null) {
     request.input("Offset", sql.Int, offset);
@@ -251,7 +264,8 @@ const exportStores = async (_req, res) => {
 const exportStoresExcel = async (_req, res) => {
   let workbook;
   try {
-    const stores = await fetchStoresForExport();
+    // Only export stores that have been audited (have at least one audit record)
+    const stores = await fetchStoresForExport(0, null, true);
     const fileName = `DanhSachCuaHang_${
       new Date().toISOString().split("T")[0]
     }.xlsx`;
@@ -534,7 +548,7 @@ const exportStoresExcelBatch = async (req, res) => {
     sheet.getRow(1).commit();
 
     sheet.mergeCells("A2:P2");
-    sheet.getCell("A2").value = `DANH SÁCH CỬA HÀNG - BATCH ${batchNumber}`;
+    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
     sheet.getRow(2).commit();
@@ -830,7 +844,14 @@ const getLatestAuditMap = async (pool, storeIds) => {
 const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
-    const store = await Store.findById(id);
+    
+    // Validate and parse id
+    const storeId = parseInt(id, 10);
+    if (Number.isNaN(storeId) || storeId <= 0) {
+      return res.status(400).json({ error: "Invalid store ID" });
+    }
+
+    const store = await Store.findById(storeId);
 
     if (!store) {
       return res.status(404).json({ error: "Store not found" });
@@ -840,7 +861,7 @@ const getStoreById = async (req, res) => {
     const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
-    request.input("StoreId", sql.Int, id);
+    request.input("StoreId", sql.Int, storeId);
 
     // Set timeout to 60 seconds
     request.timeout = 60000;
@@ -960,7 +981,7 @@ const getStoreById = async (req, res) => {
 
     // Get assigned users for this store
     const StoreUser = require("../models/StoreUser");
-    const assignedUsers = await StoreUser.getUsersByStoreId(parseInt(id));
+    const assignedUsers = await StoreUser.getUsersByStoreId(storeId);
 
     // If no assigned users, check primary user (backward compatibility)
     let allAssignedUsers = assignedUsers;

@@ -513,80 +513,37 @@ export default function Stores() {
   const handleExportStores = async () => {
     try {
       setExportLoading(true);
-      setExportProgress(0);
+      setExportProgress(10);
 
-      // Get total count of stores
-      const countRes = await api.get("/stores/export/count");
-      const totalCount = countRes.data.data?.totalCount || 0;
+      const res = await api.get("/stores/export/file", {
+        responseType: "blob",
+      });
 
-      if (totalCount === 0) {
-        alert("Không có dữ liệu để xuất.");
-        setExportLoading(false);
-        setExportProgress(0);
-        return;
-      }
-
-      const BATCH_SIZE = 500;
-      const totalBatches = Math.ceil(totalCount / BATCH_SIZE);
-
-      // Export each batch
-      for (let batchNumber = 1; batchNumber <= totalBatches; batchNumber++) {
-        const offset = (batchNumber - 1) * BATCH_SIZE;
-        const progressPercent = Math.round(
-          ((batchNumber - 1) / totalBatches) * 100
-        );
-        setExportProgress(progressPercent);
-
-        try {
-          const res = await api.get("/stores/export/batch", {
-            params: {
-              offset: offset,
-              limit: BATCH_SIZE,
-              batchNumber: batchNumber,
-            },
-            responseType: "blob",
-          });
-
-          const blob = new Blob([res.data], {
-            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          });
-          const url = window.URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `DanhSachCuaHang_Batch${batchNumber}_${
-            new Date().toISOString().split("T")[0]
-          }.xlsx`;
-          link.click();
-          window.URL.revokeObjectURL(url);
-
-          // Small delay between downloads to avoid browser blocking
-          if (batchNumber < totalBatches) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-        } catch (batchError) {
-          console.error(`Error exporting batch ${batchNumber}:`, batchError);
-          alert(
-            `Lỗi khi xuất batch ${batchNumber}/${totalBatches}. Vui lòng thử lại.`
-          );
-          setExportLoading(false);
-          setExportProgress(0);
-          return;
-        }
-      }
-
+      setExportProgress(90);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `DanhSachCuaHang_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
       setExportProgress(100);
-      alert(
-        `Đã xuất thành công ${totalBatches} file Excel (${totalCount} cửa hàng).`
-      );
     } catch (error) {
       console.error("Error exporting stores:", error);
+      setExportLoading(false);
+      setExportProgress(0);
       alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
-    } finally {
-      setTimeout(() => {
-        setExportLoading(false);
-        setExportProgress(0);
-      }, 500);
+      return;
     }
+
+    setTimeout(() => {
+      setExportLoading(false);
+      setExportProgress(0);
+    }, 500);
   };
 
   const rankOptions = [

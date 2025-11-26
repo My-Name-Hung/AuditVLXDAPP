@@ -408,7 +408,7 @@ export default function Users() {
 
     if (progressCallback) progressCallback(60);
 
-    const sheet = workbook.addWorksheet("Danh sách nhân viên");
+    const sheet = workbook.addWorksheet("Danh sách tài khoản");
 
     // Header style
     const headerStyle = {
@@ -434,7 +434,7 @@ export default function Users() {
     sheet.getCell("A1").alignment = { horizontal: "center" };
 
     sheet.mergeCells("A2:F2");
-    sheet.getCell("A2").value = "DANH SÁCH NHÂN VIÊN";
+    sheet.getCell("A2").value = "Danh sách tài khoản";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
 
@@ -542,10 +542,10 @@ export default function Users() {
   return (
     <div className="users-container">
       <div className="users-header">
-        <h1>Danh sách nhân viên</h1>
+        <h1>Danh sách tài khoản</h1>
         <div className="users-actions">
           <button className="btn-add" onClick={() => navigate("/users/new")}>
-            <HiPlus /> Thêm nhân viên
+            <HiPlus /> Thêm tài khoản
           </button>
           <button className="btn-download" onClick={handleExportUsers}>
             <HiArrowDownTray /> Xuất Excel
