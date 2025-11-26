@@ -4,16 +4,6 @@ const { resetStoreAuditById } = require("../utils/auditReset");
 const { getPool, sql } = require("../config/database");
 const ExcelJS = require("exceljs");
 
-const getStatusLabel = (status) => {
-  const labels = {
-    not_audited: "Chưa thực hiện",
-    audited: "Đã thực hiện",
-    passed: "Đạt",
-    failed: "Không đạt",
-  };
-  return labels[status] || status || "";
-};
-
 const getAllStores = async (req, res) => {
   try {
     const {
@@ -124,11 +114,7 @@ const getAllStores = async (req, res) => {
   }
 };
 
-const fetchStoresForExport = async (
-  offset = 0,
-  limit = null,
-  onlyAudited = false
-) => {
+const fetchStoresForExport = async (offset = 0, limit = null) => {
   const pool = await getPool();
   const request = pool.request();
   request.timeout = 60000;
@@ -181,17 +167,6 @@ const fetchStoresForExport = async (
     LEFT JOIN Users u ON s.UserId = u.Id
     WHERE 1=1
   `;
-
-  // Filter: only stores that have been audited (have at least one audit record)
-  if (onlyAudited) {
-    query += `
-      AND EXISTS (
-        SELECT 1
-        FROM Audits a
-        WHERE a.StoreId = s.Id
-      )
-    `;
-  }
 
   query += ` ORDER BY s.StoreCode ASC`;
 
@@ -266,21 +241,10 @@ const buildUserAssignmentSummary = (store) => {
 
   return (
     statuses
-      .map((userStatus) => {
-        const identityParts = [];
-        if (userStatus.UserFullName) {
-          identityParts.push(userStatus.UserFullName.trim());
-        }
-        if (userStatus.UserCode) {
-          identityParts.push(`(${userStatus.UserCode})`);
-        }
-        const identity =
-          identityParts.length > 0 ? identityParts.join(" ") : "Không xác định";
-        const statusLabel = getStatusLabel(userStatus.Status);
-        return statusLabel ? `${identity} - ${statusLabel}` : identity;
-      })
+      .map((userStatus) => userStatus.UserFullName?.trim())
       .filter(Boolean)
-      .join("; ") || ""
+      .filter((name, index, self) => self.indexOf(name) === index)
+      .join("; ") || "Không xác định"
   );
 };
 
@@ -301,7 +265,7 @@ const exportStoresExcel = async (_req, res) => {
   let workbook;
   try {
     // Only export stores that have been audited (have at least one audit record)
-    const stores = await fetchStoresForExport(0, null, true);
+    const stores = await fetchStoresForExport(0, null);
     const fileName = `DanhSachCuaHang_${
       new Date().toISOString().split("T")[0]
     }.xlsx`;
