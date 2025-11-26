@@ -216,7 +216,24 @@ export default function StoreDetailScreen() {
       const storeData = response.data;
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
-      setAudits(auditData);
+
+      // Merge with existing audits to avoid duplicates and preserve optimistic updates
+      setAudits((prev) => {
+        // Create a map of existing audits by AuditId
+        const existingMap = new Map(prev.map((a) => [a.AuditId, a]));
+
+        // Update or add audits from server
+        auditData.forEach((audit: AuditHistory) => {
+          existingMap.set(audit.AuditId, audit);
+        });
+
+        // Convert back to array and sort by date
+        return Array.from(existingMap.values()).sort(
+          (a, b) =>
+            new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+        );
+      });
+
       // Filter audits by current user to check if user has any audits
       const userAuditData = auditData.filter((audit: AuditHistory) => {
         return audit.UserId === user?.id || audit.userId === user?.id;
@@ -631,7 +648,7 @@ export default function StoreDetailScreen() {
         UserId: user.id,
         userId: user.id,
         Images: imagesToUpload.map((img, idx) => ({
-          Id: 0, // Temporary ID
+          Id: -(idx + 1), // Use negative ID to avoid conflicts with real IDs
           ImageUrl: img.uri, // Use local URI temporarily
           CapturedAt: img.timestamp,
           Latitude: img.latitude,
@@ -639,8 +656,15 @@ export default function StoreDetailScreen() {
         })),
       };
 
-      // Add to audits list optimistically
-      setAudits((prev) => [optimisticAudit, ...prev]);
+      // Add to audits list optimistically (avoid duplicates)
+      setAudits((prev) => {
+        // Check if audit already exists to avoid duplicates
+        const exists = prev.some((a) => a.AuditId === auditId);
+        if (exists) {
+          return prev; // Don't add if already exists
+        }
+        return [optimisticAudit, ...prev];
+      });
 
       // Debounce fetchStore: reload after 2 seconds in background
       setTimeout(() => {
@@ -965,10 +989,13 @@ export default function StoreDetailScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Lịch sử các ngày trước
             </Text>
-            {sortedAudits.map((audit) => {
+            {sortedAudits.map((audit, auditIdx) => {
               const badgeStyle = getAuditStatusStyle(audit.Result);
               return (
-                <View key={audit.AuditId} style={styles.historyCard}>
+                <View
+                  key={`audit-${audit.AuditId}-${auditIdx}`}
+                  style={styles.historyCard}
+                >
                   <View style={styles.historyHeader}>
                     <View>
                       <Text
@@ -1005,8 +1032,11 @@ export default function StoreDetailScreen() {
                   ) : null}
                   {audit.Images && audit.Images.length > 0 ? (
                     <View style={styles.imagesGrid}>
-                      {audit.Images.map((img) => (
-                        <View key={img.Id} style={styles.imageItem}>
+                      {audit.Images.map((img, imgIdx) => (
+                        <View
+                          key={`${audit.AuditId}-${img.Id || imgIdx}`}
+                          style={styles.imageItem}
+                        >
                           <TouchableOpacity
                             style={styles.imageContainer}
                             onPress={() => handleImagePress(img.ImageUrl)}
