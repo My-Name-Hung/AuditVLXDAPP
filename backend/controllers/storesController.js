@@ -124,7 +124,11 @@ const getAllStores = async (req, res) => {
   }
 };
 
-const fetchStoresForExport = async (offset = 0, limit = null, onlyAudited = false) => {
+const fetchStoresForExport = async (
+  offset = 0,
+  limit = null,
+  onlyAudited = false
+) => {
   const pool = await getPool();
   const request = pool.request();
   request.timeout = 60000;
@@ -312,19 +316,15 @@ const exportStoresExcel = async (_req, res) => {
       { width: 20 },
       { width: 25 },
       { width: 30 },
-      { width: 25 },
-      { width: 15 },
-      { width: 15 },
-      { width: 25 },
     ];
 
-    sheet.mergeCells("A1:P1");
+    sheet.mergeCells("A1:L1");
     sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     sheet.getCell("A1").font = { bold: true, size: 14 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
     sheet.getRow(1).commit();
 
-    sheet.mergeCells("A2:P2");
+    sheet.mergeCells("A2:L2");
     sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
@@ -345,10 +345,6 @@ const exportStoresExcel = async (_req, res) => {
       "Trạng thái",
       "Địa bàn phụ trách",
       "User phụ trách",
-      "Link chi tiết",
-      "Latitude",
-      "Longitude",
-      "Xem trên Google Maps",
     ];
     sheet.getRow(4).eachCell((cell) => {
       cell.style = headerStyle;
@@ -391,27 +387,7 @@ const exportStoresExcel = async (_req, res) => {
                 userStatus.UserCode ? ` (${userStatus.UserCode})` : ""
               }`
             : "",
-          "",
-          store.Latitude || "",
-          store.Longitude || "",
-          "",
         ]);
-
-        const detailCell = row.getCell(13);
-        detailCell.value = {
-          text: "Link chi tiết",
-          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-        };
-        detailCell.font = { color: { argb: "FF0000FF" }, underline: true };
-
-        const mapCell = row.getCell(16);
-        if (store.Latitude && store.Longitude) {
-          mapCell.value = {
-            text: "Xem trên Google Maps",
-            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-          };
-          mapCell.font = { color: { argb: "FF0000FF" }, underline: true };
-        }
 
         row.eachCell((cell) => {
           cell.border = {
@@ -535,19 +511,15 @@ const exportStoresExcelBatch = async (req, res) => {
       { width: 20 },
       { width: 25 },
       { width: 30 },
-      { width: 25 },
-      { width: 15 },
-      { width: 15 },
-      { width: 25 },
     ];
 
-    sheet.mergeCells("A1:P1");
+    sheet.mergeCells("A1:L1");
     sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     sheet.getCell("A1").font = { bold: true, size: 14 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
     sheet.getRow(1).commit();
 
-    sheet.mergeCells("A2:P2");
+    sheet.mergeCells("A2:L2");
     sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
@@ -568,10 +540,6 @@ const exportStoresExcelBatch = async (req, res) => {
       "Trạng thái",
       "Địa bàn phụ trách",
       "User phụ trách",
-      "Link chi tiết",
-      "Latitude",
-      "Longitude",
-      "Xem trên Google Maps",
     ];
     sheet.getRow(4).eachCell((cell) => {
       cell.style = headerStyle;
@@ -614,27 +582,7 @@ const exportStoresExcelBatch = async (req, res) => {
                 userStatus.UserCode ? ` (${userStatus.UserCode})` : ""
               }`
             : "",
-          "",
-          store.Latitude || "",
-          store.Longitude || "",
-          "",
         ]);
-
-        const detailCell = row.getCell(13);
-        detailCell.value = {
-          text: "Link chi tiết",
-          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-        };
-        detailCell.font = { color: { argb: "FF0000FF" }, underline: true };
-
-        const mapCell = row.getCell(16);
-        if (store.Latitude && store.Longitude) {
-          mapCell.value = {
-            text: "Xem trên Google Maps",
-            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-          };
-          mapCell.font = { color: { argb: "FF0000FF" }, underline: true };
-        }
 
         row.eachCell((cell) => {
           cell.border = {
@@ -844,7 +792,7 @@ const getLatestAuditMap = async (pool, storeIds) => {
 const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
-    
+
     // Validate and parse id
     const storeId = parseInt(id, 10);
     if (Number.isNaN(storeId) || storeId <= 0) {

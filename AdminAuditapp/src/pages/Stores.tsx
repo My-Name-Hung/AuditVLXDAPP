@@ -322,23 +322,43 @@ export default function Stores() {
     }
   }, [location.pathname, fetchStores]);
 
-  useEffect(() => {
-    setPage(1);
-    fetchStores({ clearExisting: true });
-  }, [
+  // Track previous filter values to detect actual changes
+  const prevFiltersRef = useRef({
     statusFilter,
     selectedTerritory,
     selectedRank,
     selectedUser,
-    fetchStores,
-  ]);
+  });
+
+  useEffect(() => {
+    const prevFilters = prevFiltersRef.current;
+    const filtersChanged =
+      prevFilters.statusFilter !== statusFilter ||
+      prevFilters.selectedTerritory !== selectedTerritory ||
+      prevFilters.selectedRank !== selectedRank ||
+      prevFilters.selectedUser !== selectedUser;
+
+    if (filtersChanged) {
+      prevFiltersRef.current = {
+        statusFilter,
+        selectedTerritory,
+        selectedRank,
+        selectedUser,
+      };
+      setPage(1);
+      fetchStores({ clearExisting: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
 
   useEffect(() => {
     if (isFilterChangingRef.current) {
       return;
     }
+    // Only fetch when page or pageSize changes, not when fetchStores is recreated
     fetchStores();
-  }, [page, pageSize, fetchStores]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
 
   useEffect(() => {
     if (storeNameFilter === previousStoreNameFilterRef.current) {
