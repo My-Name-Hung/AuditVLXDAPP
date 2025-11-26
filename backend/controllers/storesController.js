@@ -252,6 +252,38 @@ const fetchStoresForExport = async (
   });
 };
 
+const buildUserAssignmentSummary = (store) => {
+  const statuses =
+    store.userStatuses && store.userStatuses.length > 0
+      ? store.userStatuses
+      : [
+          {
+            UserFullName: store.UserFullName || "",
+            UserCode: store.UserCode || "",
+            Status: store.Status,
+          },
+        ];
+
+  return (
+    statuses
+      .map((userStatus) => {
+        const identityParts = [];
+        if (userStatus.UserFullName) {
+          identityParts.push(userStatus.UserFullName.trim());
+        }
+        if (userStatus.UserCode) {
+          identityParts.push(`(${userStatus.UserCode})`);
+        }
+        const identity =
+          identityParts.length > 0 ? identityParts.join(" ") : "Không xác định";
+        const statusLabel = getStatusLabel(userStatus.Status);
+        return statusLabel ? `${identity} - ${statusLabel}` : identity;
+      })
+      .filter(Boolean)
+      .join("; ") || ""
+  );
+};
+
 const exportStores = async (_req, res) => {
   try {
     const stores = await fetchStoresForExport();
@@ -313,18 +345,17 @@ const exportStoresExcel = async (_req, res) => {
       { width: 25 },
       { width: 15 },
       { width: 25 },
-      { width: 20 },
       { width: 25 },
-      { width: 30 },
+      { width: 40 },
     ];
 
-    sheet.mergeCells("A1:L1");
+    sheet.mergeCells("A1:K1");
     sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     sheet.getCell("A1").font = { bold: true, size: 14 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
     sheet.getRow(1).commit();
 
-    sheet.mergeCells("A2:L2");
+    sheet.mergeCells("A2:K2");
     sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
@@ -342,7 +373,6 @@ const exportStoresExcel = async (_req, res) => {
       "Tên đối tác",
       "Số điện thoại",
       "Email",
-      "Trạng thái",
       "Địa bàn phụ trách",
       "User phụ trách",
     ];
@@ -353,52 +383,34 @@ const exportStoresExcel = async (_req, res) => {
 
     let rowIndex = 0;
     stores.forEach((store) => {
-      const statuses =
-        store.userStatuses && store.userStatuses.length > 0
-          ? store.userStatuses
-          : [
-              {
-                UserFullName: store.UserFullName || "",
-                UserCode: store.UserCode || "",
-                Status: store.Status,
-              },
-            ];
+      rowIndex++;
+      const row = sheet.addRow([
+        rowIndex,
+        store.StoreCode,
+        store.StoreName,
+        store.Rank === 1
+          ? "Đơn vị, tổ chức"
+          : store.Rank === 2
+          ? "Cá nhân"
+          : "-",
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
+        store.TerritoryName || "",
+        buildUserAssignmentSummary(store),
+      ]);
 
-      statuses.forEach((userStatus) => {
-        rowIndex++;
-        const row = sheet.addRow([
-          rowIndex,
-          store.StoreCode,
-          store.StoreName,
-          store.Rank === 1
-            ? "Đơn vị, tổ chức"
-            : store.Rank === 2
-            ? "Cá nhân"
-            : "-",
-          store.Address || "",
-          store.TaxCode || "",
-          store.PartnerName || "",
-          store.Phone || "",
-          store.Email || "",
-          getStatusLabel(userStatus.Status),
-          store.TerritoryName || "",
-          userStatus.UserFullName
-            ? `${userStatus.UserFullName}${
-                userStatus.UserCode ? ` (${userStatus.UserCode})` : ""
-              }`
-            : "",
-        ]);
-
-        row.eachCell((cell) => {
-          cell.border = {
-            top: { style: "thin" },
-            bottom: { style: "thin" },
-            left: { style: "thin" },
-            right: { style: "thin" },
-          };
-        });
-        row.commit();
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
       });
+      row.commit();
     });
 
     await sheet.commit();
@@ -508,18 +520,17 @@ const exportStoresExcelBatch = async (req, res) => {
       { width: 25 },
       { width: 15 },
       { width: 25 },
-      { width: 20 },
       { width: 25 },
-      { width: 30 },
+      { width: 40 },
     ];
 
-    sheet.mergeCells("A1:L1");
+    sheet.mergeCells("A1:K1");
     sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     sheet.getCell("A1").font = { bold: true, size: 14 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
     sheet.getRow(1).commit();
 
-    sheet.mergeCells("A2:L2");
+    sheet.mergeCells("A2:K2");
     sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
@@ -537,7 +548,6 @@ const exportStoresExcelBatch = async (req, res) => {
       "Tên đối tác",
       "Số điện thoại",
       "Email",
-      "Trạng thái",
       "Địa bàn phụ trách",
       "User phụ trách",
     ];
@@ -548,52 +558,34 @@ const exportStoresExcelBatch = async (req, res) => {
 
     let rowIndex = offset; // Start from offset to maintain global numbering
     stores.forEach((store) => {
-      const statuses =
-        store.userStatuses && store.userStatuses.length > 0
-          ? store.userStatuses
-          : [
-              {
-                UserFullName: store.UserFullName || "",
-                UserCode: store.UserCode || "",
-                Status: store.Status,
-              },
-            ];
+      rowIndex++;
+      const row = sheet.addRow([
+        rowIndex,
+        store.StoreCode,
+        store.StoreName,
+        store.Rank === 1
+          ? "Đơn vị, tổ chức"
+          : store.Rank === 2
+          ? "Cá nhân"
+          : "-",
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
+        store.TerritoryName || "",
+        buildUserAssignmentSummary(store),
+      ]);
 
-      statuses.forEach((userStatus) => {
-        rowIndex++;
-        const row = sheet.addRow([
-          rowIndex,
-          store.StoreCode,
-          store.StoreName,
-          store.Rank === 1
-            ? "Đơn vị, tổ chức"
-            : store.Rank === 2
-            ? "Cá nhân"
-            : "-",
-          store.Address || "",
-          store.TaxCode || "",
-          store.PartnerName || "",
-          store.Phone || "",
-          store.Email || "",
-          getStatusLabel(userStatus.Status),
-          store.TerritoryName || "",
-          userStatus.UserFullName
-            ? `${userStatus.UserFullName}${
-                userStatus.UserCode ? ` (${userStatus.UserCode})` : ""
-              }`
-            : "",
-        ]);
-
-        row.eachCell((cell) => {
-          cell.border = {
-            top: { style: "thin" },
-            bottom: { style: "thin" },
-            left: { style: "thin" },
-            right: { style: "thin" },
-          };
-        });
-        row.commit();
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
       });
+      row.commit();
     });
 
     await sheet.commit();
