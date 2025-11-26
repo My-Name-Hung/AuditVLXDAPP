@@ -120,6 +120,7 @@ async function getUserDetail(req, res) {
       SELECT 
         CAST(a.AuditDate AS DATE) as CheckinDate,
         a.Id as AuditId,
+        s.Id as StoreId,
         s.StoreName,
         s.Address,
         t.TerritoryName,
@@ -159,6 +160,7 @@ async function getUserDetail(req, res) {
     query += `
       GROUP BY CAST(a.AuditDate AS DATE),
                a.Id,
+               s.Id,
                s.StoreName,
                s.Address,
                t.TerritoryName,

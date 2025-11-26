@@ -16,6 +16,16 @@ router.get(
   storesController.exportStoresExcel
 );
 router.get(
+  "/export/count",
+  authenticateToken,
+  storesController.getStoresExportCount
+);
+router.get(
+  "/export/batch",
+  authenticateToken,
+  storesController.exportStoresExcelBatch
+);
+router.get(
   "/status-summary",
   authenticateToken,
   storesController.getStatusSummary

@@ -67,7 +67,20 @@ export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const preloadedStore = (location.state as { store?: Store } | null)?.store;
+  const locationState = location.state as
+    | {
+        store?: Store;
+        from?: string;
+        userId?: string;
+        startDate?: string;
+        endDate?: string;
+        storeName?: string;
+        territoryId?: string;
+        territoryName?: string;
+      }
+    | null;
+  const preloadedStore = locationState?.store;
+  const navigationSource = locationState?.from;
   const sanitizedPreloadedStore = preloadedStore
     ? {
         ...preloadedStore,
@@ -654,7 +667,30 @@ export default function StoreDetail() {
         progress={0}
       />
       <div className="store-detail-header">
-        <button className="btn-back" onClick={() => navigate("/stores")}>
+        <button
+          className="btn-back"
+          onClick={() => {
+            if (navigationSource === "userDetail" && locationState?.userId) {
+              // Navigate back to UserDetail with filters
+              const params = new URLSearchParams();
+              if (locationState.territoryId) {
+                params.set("territoryId", locationState.territoryId);
+                if (locationState.territoryName) {
+                  params.set("territoryName", locationState.territoryName);
+                }
+              }
+              const queryString = params.toString();
+              navigate(
+                `/dashboard/user/${locationState.userId}${
+                  queryString ? `?${queryString}` : ""
+                }`
+              );
+            } else {
+              // Navigate back to Stores list
+              navigate("/stores");
+            }
+          }}
+        >
           <HiArrowLeft /> Quay lại
         </button>
       </div>

@@ -124,12 +124,12 @@ const getAllStores = async (req, res) => {
   }
 };
 
-const fetchStoresForExport = async () => {
+const fetchStoresForExport = async (offset = 0, limit = null) => {
   const pool = await getPool();
   const request = pool.request();
   request.timeout = 60000;
 
-  const result = await request.query(`
+  let query = `
     SELECT 
       s.Id,
       s.StoreCode,
@@ -176,7 +176,15 @@ const fetchStoresForExport = async () => {
     LEFT JOIN Territories t ON s.TerritoryId = t.Id
     LEFT JOIN Users u ON s.UserId = u.Id
     ORDER BY s.StoreCode ASC
-  `);
+  `;
+
+  if (limit !== null) {
+    request.input("Offset", sql.Int, offset);
+    request.input("Limit", sql.Int, limit);
+    query += ` OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
+  }
+
+  const result = await request.query(query);
 
   return result.recordset.map((row) => {
     let assignedUsers = [];
@@ -407,6 +415,229 @@ const exportStoresExcel = async (_req, res) => {
     await workbook.commit();
   } catch (error) {
     console.error("Export stores excel error:", error);
+    if (workbook) {
+      try {
+        await workbook.commit();
+      } catch (_err) {
+        // ignore double commit errors
+      }
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Không thể tạo file Excel" });
+    } else {
+      res.end();
+    }
+  }
+};
+
+// Get total count of stores for batch export
+const getStoresExportCount = async (_req, res) => {
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+    request.timeout = 30000;
+
+    const result = await request.query(`
+      SELECT COUNT(*) as TotalCount
+      FROM Stores s
+    `);
+
+    const totalCount = result.recordset[0]?.TotalCount || 0;
+    res.json({
+      success: true,
+      data: {
+        totalCount: totalCount,
+      },
+    });
+  } catch (error) {
+    console.error("Get stores export count error:", error);
+    res.status(500).json({ error: "Không thể lấy số lượng cửa hàng" });
+  }
+};
+
+// Export stores Excel by batch
+const exportStoresExcelBatch = async (req, res) => {
+  let workbook;
+  try {
+    const offset = parseInt(req.query.offset || "0", 10);
+    const limit = parseInt(req.query.limit || "500", 10);
+    const batchNumber = parseInt(req.query.batchNumber || "1", 10);
+
+    if (offset < 0 || limit <= 0 || limit > 500) {
+      return res.status(400).json({
+        error: "Invalid offset or limit. Limit must be between 1 and 500.",
+      });
+    }
+
+    const stores = await fetchStoresForExport(offset, limit);
+
+    if (stores.length === 0) {
+      return res.status(404).json({ error: "Không có dữ liệu để xuất" });
+    }
+
+    const fileName = `DanhSachCuaHang_Batch${batchNumber}_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: res,
+      useSharedStrings: true,
+      useStyles: true,
+    });
+    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
+
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center", vertical: "middle" },
+      border: {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      },
+    };
+
+    sheet.columns = [
+      { width: 10 },
+      { width: 15 },
+      { width: 30 },
+      { width: 20 },
+      { width: 40 },
+      { width: 15 },
+      { width: 25 },
+      { width: 15 },
+      { width: 25 },
+      { width: 20 },
+      { width: 25 },
+      { width: 30 },
+      { width: 25 },
+      { width: 15 },
+      { width: 15 },
+      { width: 25 },
+    ];
+
+    sheet.mergeCells("A1:P1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+    sheet.getRow(1).commit();
+
+    sheet.mergeCells("A2:P2");
+    sheet.getCell("A2").value = `DANH SÁCH CỬA HÀNG - BATCH ${batchNumber}`;
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+    sheet.getRow(2).commit();
+
+    sheet.getRow(3).commit(); // keep empty spacer row
+
+    sheet.getRow(4).values = [
+      "STT",
+      "Mã cửa hàng",
+      "Tên cửa hàng",
+      "Loại đối tượng",
+      "Địa chỉ",
+      "Mã số thuế",
+      "Tên đối tác",
+      "Số điện thoại",
+      "Email",
+      "Trạng thái",
+      "Địa bàn phụ trách",
+      "User phụ trách",
+      "Link chi tiết",
+      "Latitude",
+      "Longitude",
+      "Xem trên Google Maps",
+    ];
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+    sheet.getRow(4).commit();
+
+    let rowIndex = offset; // Start from offset to maintain global numbering
+    stores.forEach((store) => {
+      const statuses =
+        store.userStatuses && store.userStatuses.length > 0
+          ? store.userStatuses
+          : [
+              {
+                UserFullName: store.UserFullName || "",
+                UserCode: store.UserCode || "",
+                Status: store.Status,
+              },
+            ];
+
+      statuses.forEach((userStatus) => {
+        rowIndex++;
+        const row = sheet.addRow([
+          rowIndex,
+          store.StoreCode,
+          store.StoreName,
+          store.Rank === 1
+            ? "Đơn vị, tổ chức"
+            : store.Rank === 2
+            ? "Cá nhân"
+            : "-",
+          store.Address || "",
+          store.TaxCode || "",
+          store.PartnerName || "",
+          store.Phone || "",
+          store.Email || "",
+          getStatusLabel(userStatus.Status),
+          store.TerritoryName || "",
+          userStatus.UserFullName
+            ? `${userStatus.UserFullName}${
+                userStatus.UserCode ? ` (${userStatus.UserCode})` : ""
+              }`
+            : "",
+          "",
+          store.Latitude || "",
+          store.Longitude || "",
+          "",
+        ]);
+
+        const detailCell = row.getCell(13);
+        detailCell.value = {
+          text: "Link chi tiết",
+          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
+        };
+        detailCell.font = { color: { argb: "FF0000FF" }, underline: true };
+
+        const mapCell = row.getCell(16);
+        if (store.Latitude && store.Longitude) {
+          mapCell.value = {
+            text: "Xem trên Google Maps",
+            hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
+          };
+          mapCell.font = { color: { argb: "FF0000FF" }, underline: true };
+        }
+
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          };
+        });
+        row.commit();
+      });
+    });
+
+    await sheet.commit();
+    await workbook.commit();
+  } catch (error) {
+    console.error("Export stores excel batch error:", error);
     if (workbook) {
       try {
         await workbook.commit();
@@ -1141,6 +1372,8 @@ module.exports = {
   getAllStores,
   exportStores,
   exportStoresExcel,
+  getStoresExportCount,
+  exportStoresExcelBatch,
   getStoreOptions,
   getStoreById,
   createStore,
