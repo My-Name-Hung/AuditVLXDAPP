@@ -612,9 +612,12 @@ export default function StoreDetail() {
           setUploadProgress({
             current: index,
             total: 3,
-            message: attempt > 0 
-              ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${attempt + 1})...`
-              : `Đang xử lý ảnh ${index + 1}/3...`,
+            message:
+              attempt > 0
+                ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${
+                    attempt + 1
+                  })...`
+                : `Đang xử lý ảnh ${index + 1}/3...`,
           });
         }
 
@@ -656,17 +659,27 @@ export default function StoreDetail() {
         return; // Success, exit retry loop
       } catch (error: any) {
         lastError = error;
-        console.error(`Upload attempt ${attempt + 1} failed for image ${index + 1}:`, error);
-        
+        console.error(
+          `Upload attempt ${attempt + 1} failed for image ${index + 1}:`,
+          error
+        );
+
         if (attempt < maxRetries) {
           // Wait before retry (exponential backoff)
-          await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1))
+          );
         }
       }
     }
 
     // All retries failed
-    throw lastError || new Error(`Failed to upload image ${index + 1} after ${maxRetries + 1} attempts`);
+    throw (
+      lastError ||
+      new Error(
+        `Failed to upload image ${index + 1} after ${maxRetries + 1} attempts`
+      )
+    );
   };
 
   const handleConfirmUpload = async () => {
@@ -712,9 +725,10 @@ export default function StoreDetail() {
         setUploadProgress({
           current: completedCount,
           total: 3,
-          message: completedCount === 2 
-            ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
-            : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
+          message:
+            completedCount === 2
+              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
         });
       };
 
@@ -767,7 +781,7 @@ export default function StoreDetail() {
         AuditCreatedAt: new Date().toISOString(),
         UserId: user.id,
         userId: user.id,
-        Images: imagesToUpload.map((img, idx) => ({
+        Images: imagesToUpload.map((img) => ({
           Id: 0, // Temporary ID
           ImageUrl: img.dataUrl, // Use local dataUrl temporarily
           CapturedAt: img.timestamp,
@@ -791,8 +805,13 @@ export default function StoreDetail() {
     } catch (error: unknown) {
       console.error("Error uploading images:", error);
       const errorMessage =
-        (error as { response?: { data?: { error?: string }; message?: string } })?.response?.data
-          ?.error || (error as Error)?.message || "Upload ảnh thất bại";
+        (
+          error as {
+            response?: { data?: { error?: string }; message?: string };
+          }
+        )?.response?.data?.error ||
+        (error as Error)?.message ||
+        "Upload ảnh thất bại";
       alert(errorMessage);
     } finally {
       setUploading(false);
@@ -1344,7 +1363,9 @@ export default function StoreDetail() {
                   >
                     <div
                       style={{
-                        width: `${(uploadProgress.current / uploadProgress.total) * 100}%`,
+                        width: `${
+                          (uploadProgress.current / uploadProgress.total) * 100
+                        }%`,
                         height: "100%",
                         backgroundColor: colors.primary,
                         borderRadius: "4px",
@@ -1352,7 +1373,9 @@ export default function StoreDetail() {
                       }}
                     />
                   </div>
-                  <p style={{ color: colors.icon, fontSize: "14px", margin: 0 }}>
+                  <p
+                    style={{ color: colors.icon, fontSize: "14px", margin: 0 }}
+                  >
                     {uploadProgress.current}/{uploadProgress.total} ảnh
                   </p>
                 </div>
