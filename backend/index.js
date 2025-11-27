@@ -184,7 +184,7 @@ app.listen(PORT, async () => {
     try {
       const result = await resetAllStoreAudits();
       console.log(
-        `✅ Monthly audit reset completed. Audits deleted: ${result.auditsDeleted}, Stores reset: ${result.storesUpdated}`
+        `✅ Monthly audit reset completed. Audits deleted: ${result.auditsDeleted}, Images deleted: ${result.imagesDeleted}, Stores reset: ${result.storesUpdated}`
       );
     } catch (error) {
       console.error("❌ Monthly audit reset failed:", error);

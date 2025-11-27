@@ -1249,6 +1249,7 @@ const resetStoreAuditData = async (req, res) => {
     res.json({
       message: "Đã làm mới dữ liệu audit và hình ảnh của cửa hàng.",
       auditsDeleted: result.auditsDeleted,
+      imagesDeleted: result.imagesDeleted,
       store: updatedStore,
     });
   } catch (error) {
