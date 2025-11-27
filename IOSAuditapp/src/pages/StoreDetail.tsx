@@ -791,7 +791,7 @@ export default function StoreDetail() {
     } catch (error: unknown) {
       console.error("Error uploading images:", error);
       const errorMessage =
-        (error as { response?: { data?: { error?: string }; message?: string })?.response?.data
+        (error as { response?: { data?: { error?: string }; message?: string } })?.response?.data
           ?.error || (error as Error)?.message || "Upload ảnh thất bại";
       alert(errorMessage);
     } finally {
