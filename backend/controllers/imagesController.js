@@ -1,4 +1,5 @@
 const Image = require("../models/Image");
+const Audit = require("../models/Audit");
 const { uploadImageWithWatermark } = require("../services/cloudinaryService");
 
 const uploadImage = async (req, res) => {
@@ -18,6 +19,22 @@ const uploadImage = async (req, res) => {
 
     if (!auditId) {
       return res.status(400).json({ error: "AuditId is required" });
+    }
+
+    // Validate and parse auditId
+    const parsedAuditId = parseInt(auditId, 10);
+    if (Number.isNaN(parsedAuditId) || parsedAuditId <= 0) {
+      return res.status(400).json({ 
+        error: "Invalid AuditId. AuditId must be a positive integer." 
+      });
+    }
+
+    // Verify that the Audit exists before inserting the image
+    const audit = await Audit.findById(parsedAuditId);
+    if (!audit) {
+      return res.status(404).json({ 
+        error: `Audit with ID ${parsedAuditId} does not exist. Please create the audit first before uploading images.` 
+      });
     }
 
     // Upload to Cloudinary with watermark
@@ -64,7 +81,7 @@ const uploadImage = async (req, res) => {
 
     // Save to database
     const image = await Image.create({
-      AuditId: auditId,
+      AuditId: parsedAuditId,
       ImageUrl: uploadResult.secure_url,
       ReferenceImageUrl: referenceImageUrl || null,
       Latitude: latitudeNum,
