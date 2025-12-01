@@ -77,10 +77,19 @@ app.get("/health", async (req, res) => {
   res.json(healthStatus);
 });
 
-const isLastDayOfMonth = (date) => {
+// Helper: check if a date is the last day of its quarter (Mar, Jun, Sep, Dec)
+const isLastDayOfQuarter = (date) => {
   const check = new Date(date);
-  check.setDate(check.getDate() + 1);
-  return check.getDate() === 1;
+  const month = check.getMonth(); // 0-based: 0 = Jan, 11 = Dec
+
+  // Only quarters ending in March(2), June(5), September(8), December(11)
+  const isQuarterEndMonth = [2, 5, 8, 11].includes(month);
+  if (!isQuarterEndMonth) return false;
+
+  // Last day of month: next day changes month
+  const nextDay = new Date(check);
+  nextDay.setDate(check.getDate() + 1);
+  return nextDay.getMonth() !== month;
 };
 
 // Error handling middleware
@@ -173,28 +182,28 @@ app.listen(PORT, async () => {
     });
   }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
 
-  // Schedule monthly audit reset at 23:59 every day, only execute on last day
+  // Schedule quarterly audit reset at 23:59 every day, only execute on last day of quarter
   cron.schedule("0 59 23 * * *", async () => {
     const now = new Date();
-    if (!isLastDayOfMonth(now)) {
+    if (!isLastDayOfQuarter(now)) {
       return;
     }
 
-    console.log("🗓️  Running monthly audit reset job...");
+    console.log("🗓️  Running quarterly audit reset job...");
     try {
       const result = await resetAllStoreAudits();
       console.log(
-        `✅ Monthly audit reset completed. Audits deleted: ${result.auditsDeleted}, Images deleted: ${result.imagesDeleted}, Stores reset: ${result.storesUpdated}`
+        `✅ Quarterly audit reset completed. Audits deleted: ${result.auditsDeleted}, Images deleted: ${result.imagesDeleted}, Stores reset: ${result.storesUpdated}`
       );
     } catch (error) {
-      console.error("❌ Monthly audit reset failed:", error);
+      console.error("❌ Quarterly audit reset failed:", error);
     }
   });
 
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);
   console.log(`🧹 Import history cleanup scheduled (runs every 24 hours)`);
-  console.log(`🗓️  Monthly audit reset scheduled (23:59 on last day of month)`);
+  console.log(`🗓️  Quarterly audit reset scheduled (23:59 on last day of quarter)`);
   console.log("=".repeat(50));
 });
 
