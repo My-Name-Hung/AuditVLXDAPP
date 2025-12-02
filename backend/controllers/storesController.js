@@ -18,9 +18,20 @@ const getAllStores = async (req, res) => {
     } = req.query;
     const filters = {};
 
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+
     if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
-    if (userId) filters.UserId = parseInt(userId);
+    if (userId) {
+      // If explicit userId is provided (e.g. Admin web filter), always respect it
+      filters.UserId = parseInt(userId);
+    } else if (currentUserId && currentUserRole !== "admin") {
+      // Default behaviour for sales user on mobile app & iosauditapp:
+      // only show stores that this user is assigned to (via Stores.UserId or StoreUsers)
+      filters.UserId = parseInt(currentUserId, 10);
+    }
     if (rank !== undefined && rank !== null && rank !== "") {
       filters.Rank = parseInt(rank);
     }
@@ -39,9 +50,6 @@ const getAllStores = async (req, res) => {
       Store.findAll(filters),
       Store.count(filters),
     ]);
-
-    // Get current user ID from token
-    const currentUserId = req.user?.id || req.user?.userId;
 
     if (stores.length === 0) {
       return res.json({
