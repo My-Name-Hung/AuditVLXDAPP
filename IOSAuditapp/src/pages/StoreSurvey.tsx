@@ -51,7 +51,7 @@ interface LocationState {
   notes: string;
 }
 
-const PRICE_OPTIONS = [3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
+// Không giới hạn 1–10000, chỉ dùng format VND cho dễ đọc
 const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
 
 const formatVND = (value: string): string => {
@@ -79,6 +79,12 @@ const StoreSurvey = () => {
   const notes = state?.notes || "";
 
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
+  const [cementSearch, setCementSearch] = useState("");
+  const [showAddCementModal, setShowAddCementModal] = useState(false);
+  const [newCementName, setNewCementName] = useState("");
+
+  const [salesUsers, setSalesUsers] = useState<Array<{ Id: number; FullName: string }>>([]);
+  const [salesSearch, setSalesSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedTitles, setExpandedTitles] = useState({
@@ -110,6 +116,7 @@ const StoreSurvey = () => {
 
   useEffect(() => {
     fetchCementProducts();
+    fetchSalesUsers();
   }, []);
 
   useEffect(() => {
@@ -156,6 +163,31 @@ const StoreSurvey = () => {
       setLoading(false);
     }
   };
+
+  const fetchSalesUsers = async () => {
+    try {
+      const response = await api.get("/users", {
+        params: { page: 1, pageSize: 1000 },
+      });
+      const data = response.data?.data || [];
+      setSalesUsers(
+        data.map((u: any) => ({
+          Id: u.Id,
+          FullName: u.FullName || u.Username,
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching users for sales dropdown:", error);
+    }
+  };
+
+  const filteredCementProducts = cementProducts.filter((product) =>
+    product.Name.toLowerCase().includes(cementSearch.toLowerCase())
+  );
+
+  const filteredSalesUsers = salesUsers.filter((user) =>
+    (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase())
+  );
 
   const toggleTitle = (title: "title1" | "title2" | "title3") => {
     setExpandedTitles((prev) => ({
@@ -384,7 +416,7 @@ const StoreSurvey = () => {
         >
           ← Quay lại
         </button>
-        <h1 className="store-survey-title" style={{ color: colors.text }}>
+        <h1 className="store-survey-title" style={{ color: colors.primary }}>
           Khảo sát cửa hàng
         </h1>
       </div>
@@ -395,42 +427,82 @@ const StoreSurvey = () => {
           <div
             className="store-survey-title-header"
             onClick={() => toggleTitle("title1")}
-            style={{ backgroundColor: colors.card }}
+            style={{
+              background: `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`,
+            }}
           >
-            <h2 style={{ color: colors.text }}>
+            <h2 style={{ color: "#fff" }}>
               Cửa hàng bán sản phẩm không phải của Xi Măng Tây Đô
             </h2>
-            <span style={{ color: colors.icon }}>
+            <span style={{ color: "#fff" }}>
               {expandedTitles.title1 ? "▲" : "▼"}
             </span>
           </div>
 
           {expandedTitles.title1 && (
-            <div className="store-survey-title-content" style={{ backgroundColor: colors.card }}>
+            <div
+              className="store-survey-title-content"
+              style={{ backgroundColor: colors.secondary }}
+            >
               {/* Loại xi măng */}
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>Loại xi măng *</label>
-                <select
-                  value={surveyData.cementProductId || ""}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "cementProductId",
-                      e.target.value ? parseInt(e.target.value) : null
-                    )
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                >
-                  <option value="">Chọn loại xi măng</option>
-                  {cementProducts.map((product) => (
-                    <option key={product.Id} value={product.Id}>
-                      {product.Code} - {product.Name}
-                    </option>
-                  ))}
-                </select>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <div style={{ flex: 1 }}>
+                    <input
+                      type="text"
+                      placeholder="Tìm kiếm loại xi măng"
+                      value={cementSearch}
+                      onChange={(e) => setCementSearch(e.target.value)}
+                      style={{
+                        marginBottom: 8,
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      }}
+                    />
+                    <select
+                      value={surveyData.cementProductId || ""}
+                      onChange={(e) =>
+                        handleInputChange(
+                          "cementProductId",
+                          e.target.value ? parseInt(e.target.value) : null
+                        )
+                      }
+                      style={{
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      }}
+                    >
+                      <option value="">Chọn loại xi măng</option>
+                      {filteredCementProducts.map((product) => (
+                        <option key={product.Id} value={product.Id}>
+                          {product.Name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCementName("");
+                      setShowAddCementModal(true);
+                    }}
+                    style={{
+                      padding: "10px 16px",
+                      borderRadius: 4,
+                      border: "none",
+                      cursor: "pointer",
+                      backgroundColor: colors.primary,
+                      color: "#fff",
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    + Thêm loại xi măng
+                  </button>
+                </div>
               </div>
 
               {/* 6 trường sau khi chọn loại xi măng */}
@@ -591,16 +663,25 @@ const StoreSurvey = () => {
           <div
             className="store-survey-title-header"
             onClick={() => toggleTitle("title2")}
-            style={{ backgroundColor: colors.card }}
+            style={{
+              background: expandedTitles.title2
+                ? `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`
+                : colors.card,
+            }}
           >
-            <h2 style={{ color: colors.text }}>Khảo sát sản phẩm của XMTĐ</h2>
-            <span style={{ color: colors.icon }}>
+            <h2 style={{ color: expandedTitles.title2 ? "#fff" : colors.text }}>
+              Khảo sát sản phẩm của XMTĐ
+            </h2>
+            <span style={{ color: expandedTitles.title2 ? "#fff" : colors.icon }}>
               {expandedTitles.title2 ? "▲" : "▼"}
             </span>
           </div>
 
           {expandedTitles.title2 && (
-            <div className="store-survey-title-content" style={{ backgroundColor: colors.card }}>
+            <div
+              className="store-survey-title-content"
+              style={{ backgroundColor: colors.secondary }}
+            >
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>Tại sao không bán sản phẩm mới *</label>
                 <textarea
@@ -650,14 +731,34 @@ const StoreSurvey = () => {
                 <label style={{ color: colors.text }}>Nhập bởi thương vụ *</label>
                 <input
                   type="text"
-                  value={surveyData.importedBySalesperson}
-                  onChange={(e) => handleInputChange("importedBySalesperson", e.target.value)}
+                  placeholder="Tìm kiếm thương vụ"
+                  value={salesSearch}
+                  onChange={(e) => setSalesSearch(e.target.value)}
                   style={{
+                    marginBottom: 8,
                     backgroundColor: colors.background,
                     color: colors.text,
                     borderColor: colors.icon + "40",
                   }}
                 />
+                <select
+                  value={surveyData.importedBySalesperson}
+                  onChange={(e) =>
+                    handleInputChange("importedBySalesperson", e.target.value)
+                  }
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                >
+                  <option value="">Chọn thương vụ</option>
+                  {filteredSalesUsers.map((user) => (
+                    <option key={user.Id} value={user.FullName}>
+                      {user.FullName}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div className="store-survey-field">
@@ -702,16 +803,25 @@ const StoreSurvey = () => {
           <div
             className="store-survey-title-header"
             onClick={() => toggleTitle("title3")}
-            style={{ backgroundColor: colors.card }}
+            style={{
+              background: expandedTitles.title3
+                ? `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`
+                : colors.card,
+            }}
           >
-            <h2 style={{ color: colors.text }}>Thông tin bán hàng</h2>
-            <span style={{ color: colors.icon }}>
+            <h2 style={{ color: expandedTitles.title3 ? "#fff" : colors.text }}>
+              Thông tin bán hàng
+            </h2>
+            <span style={{ color: expandedTitles.title3 ? "#fff" : colors.icon }}>
               {expandedTitles.title3 ? "▲" : "▼"}
             </span>
           </div>
 
           {expandedTitles.title3 && (
-            <div className="store-survey-title-content" style={{ backgroundColor: colors.card }}>
+            <div
+              className="store-survey-title-content"
+              style={{ backgroundColor: colors.secondary }}
+            >
               {surveyData.products.map((product, index) => (
                 <div key={index} className="store-survey-product-item">
                   <h3 style={{ color: colors.text }}>Sản phẩm {index + 1}</h3>
@@ -810,9 +920,63 @@ const StoreSurvey = () => {
             color: "#fff",
           }}
         >
-          {submitting ? "Đang xử lý..." : "Hoàn thành"}
+          {submitting ? "Đang xử lý..." : "Hoàn thành khảo sát & thực thi cửa hàng"}
         </button>
       </div>
+
+      {/* Modal thêm loại xi măng mới */}
+      {showAddCementModal && (
+        <div className="store-survey-modal-backdrop">
+          <div className="store-survey-modal">
+            <h2>Thêm loại xi măng mới</h2>
+            <div className="store-survey-field">
+              <label>Tên xi măng *</label>
+              <input
+                type="text"
+                value={newCementName}
+                onChange={(e) => setNewCementName(e.target.value)}
+              />
+            </div>
+            <div className="store-survey-modal-actions">
+              <button
+                type="button"
+                onClick={() => setShowAddCementModal(false)}
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const trimmed = newCementName.trim();
+                  if (!trimmed) {
+                    alert("Vui lòng nhập tên xi măng");
+                    return;
+                  }
+                  try {
+                    const res = await api.post("/cement-products", {
+                      name: trimmed,
+                    });
+                    const created = res.data;
+                    await fetchCementProducts();
+                    handleInputChange("cementProductId", created.Id);
+                    setShowAddCementModal(false);
+                  } catch (error: any) {
+                    console.error("Error creating cement product:", error);
+                    const message =
+                      error?.response?.data?.error ||
+                      error?.message ||
+                      "Không thể thêm loại xi măng";
+                    alert(message);
+                  }
+                }}
+                style={{ backgroundColor: colors.primary, color: "#fff" }}
+              >
+                Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

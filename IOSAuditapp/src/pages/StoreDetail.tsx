@@ -624,7 +624,7 @@ export default function StoreDetail() {
                 ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${
                     attempt + 1
                   })...`
-                : `Đang xử lý ảnh ${index + 1}/3...`,
+              : `Đang xử lý ảnh ${index + 1}/3...`,
           });
         }
 
@@ -670,7 +670,7 @@ export default function StoreDetail() {
           `Upload attempt ${attempt + 1} failed for image ${index + 1}:`,
           error
         );
-
+        
         if (attempt < maxRetries) {
           // Wait before retry (exponential backoff)
           await new Promise((resolve) =>
@@ -734,8 +734,8 @@ export default function StoreDetail() {
           total: 3,
           message:
             completedCount === 2
-              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
-              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
+            ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+            : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
         });
       };
 

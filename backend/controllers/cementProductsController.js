@@ -34,19 +34,30 @@ const createCementProduct = async (req, res) => {
   try {
     const { code, name } = req.body;
 
-    if (!code || !name) {
+    if (!name || !name.toString().trim()) {
       return res
         .status(400)
-        .json({ error: "Code and name are required" });
+        .json({ error: "Name is required" });
+    }
+
+    let resolvedCode = code && code.toString().trim();
+
+    // If code is not provided, auto-generate one
+    if (!resolvedCode) {
+      // Simple auto-code generator, guaranteed <= 50 chars
+      resolvedCode = `AUTO-${Date.now()}`;
     }
 
     // Check if code already exists
-    const existing = await CementProduct.findByCode(code);
+    const existing = await CementProduct.findByCode(resolvedCode);
     if (existing) {
       return res.status(400).json({ error: "Code already exists" });
     }
 
-    const product = await CementProduct.create({ Code: code, Name: name });
+    const product = await CementProduct.create({
+      Code: resolvedCode,
+      Name: name.toString().trim(),
+    });
     res.status(201).json(product);
   } catch (error) {
     console.error("Create cement product error:", error);

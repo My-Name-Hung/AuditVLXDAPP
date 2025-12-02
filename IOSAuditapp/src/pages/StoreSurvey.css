@@ -134,6 +134,44 @@
   opacity: 0.9;
 }
 
+/* Modal thêm xi măng */
+.store-survey-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.store-survey-modal {
+  background: #fff;
+  padding: 24px;
+  border-radius: 8px;
+  max-width: 400px;
+  width: 100%;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.store-survey-modal h2 {
+  margin: 0 0 16px 0;
+}
+
+.store-survey-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.store-survey-modal-actions button {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
 @media (max-width: 768px) {
   .store-survey-title-content {
     grid-template-columns: 1fr;

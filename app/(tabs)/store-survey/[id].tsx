@@ -52,7 +52,7 @@ interface SurveyData {
   }>;
 }
 
-const PRICE_OPTIONS = [3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000];
+// Không áp ràng buộc 1–10000, chỉ format số VND cho đẹp
 const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
 
 const formatVND = (value: string): string => {
@@ -84,8 +84,15 @@ export default function StoreSurveyScreen() {
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCementPicker, setShowCementPicker] = useState(false);
+  const [cementSearch, setCementSearch] = useState("");
   const [showProductTypePicker, setShowProductTypePicker] = useState<number | null>(null);
   const [showCementProductPicker, setShowCementProductPicker] = useState<number | null>(null);
+  const [showAddCementModal, setShowAddCementModal] = useState(false);
+  const [newCementName, setNewCementName] = useState("");
+
+  const [salesUsers, setSalesUsers] = useState<Array<{ Id: number; FullName: string }>>([]);
+  const [showSalesPicker, setShowSalesPicker] = useState(false);
+  const [salesSearch, setSalesSearch] = useState("");
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
     cementProductId: null,
@@ -110,6 +117,7 @@ export default function StoreSurveyScreen() {
 
   useEffect(() => {
     fetchCementProducts();
+    fetchSalesUsers();
   }, []);
 
   useEffect(() => {
@@ -156,6 +164,31 @@ export default function StoreSurveyScreen() {
       setLoading(false);
     }
   };
+
+  const fetchSalesUsers = async () => {
+    try {
+      const response = await api.get("/users", {
+        params: { page: 1, pageSize: 1000 },
+      });
+      const data = response.data?.data || [];
+      setSalesUsers(
+        data.map((u: any) => ({
+          Id: u.Id,
+          FullName: u.FullName || u.Username,
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching users for sales dropdown:", error);
+    }
+  };
+
+  const filteredCementProducts = cementProducts.filter((product) =>
+    product.Name.toLowerCase().includes(cementSearch.toLowerCase())
+  );
+
+  const filteredSalesUsers = salesUsers.filter((user) =>
+    (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase())
+  );
 
   const toggleTitle = (title: "title1" | "title2" | "title3") => {
     setExpandedTitles((prev) => ({
@@ -417,14 +450,19 @@ export default function StoreSurveyScreen() {
       edges={["top"]}
     >
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: colors.icon + "20" }]}>
+      <View
+        style={[
+          styles.header,
+          { borderBottomColor: colors.icon + "20", backgroundColor: colors.secondary },
+        ]}
+      >
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>
+        <Text style={[styles.headerTitle, { color: colors.primary }]}>
           Khảo sát cửa hàng
         </Text>
         <View style={styles.headerRight} />
@@ -443,44 +481,85 @@ export default function StoreSurveyScreen() {
           {/* Title 1 */}
           <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
             <TouchableOpacity
-              style={styles.titleHeader}
+              style={[
+                styles.titleHeader,
+                { backgroundColor: colors.primary },
+              ]}
               onPress={() => toggleTitle("title1")}
             >
-              <Text style={[styles.titleHeaderText, { color: colors.text }]}>
+              <Text style={[styles.titleHeaderText, { color: "#fff" }]}>
                 Cửa hàng bán sản phẩm không phải của Xi Măng Tây Đô
               </Text>
               <Ionicons
                 name={expandedTitles.title1 ? "chevron-up" : "chevron-down"}
                 size={24}
-                color={colors.icon}
+                color={"#fff"}
               />
             </TouchableOpacity>
 
             {expandedTitles.title1 && (
-              <View style={styles.titleContent}>
+              <View
+                style={[
+                  styles.titleContent,
+                  { backgroundColor: colors.secondary },
+                ]}
+              >
                 {/* Loại xi măng */}
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
                     Loại xi măng *
                   </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickerContainer,
-                      { borderColor: colors.icon + "40" },
-                    ]}
-                    onPress={() => setShowCementPicker(true)}
-                  >
-                    <View style={styles.picker}>
-                      <Text style={[styles.pickerText, { color: colors.text }]}>
-                        {surveyData.cementProductId
-                          ? cementProducts.find(
-                              (p) => p.Id === surveyData.cementProductId
-                            )?.Name || "Chọn loại xi măng"
-                          : "Chọn loại xi măng"}
-                      </Text>
-                      <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <View style={{ flex: 1, marginRight: 8 }}>
+                      <TextInput
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                            marginBottom: 8,
+                          },
+                        ]}
+                        value={cementSearch}
+                        onChangeText={setCementSearch}
+                        placeholder="Tìm kiếm loại xi măng"
+                        placeholderTextColor={colors.icon}
+                      />
+                      <TouchableOpacity
+                        style={[
+                          styles.pickerContainer,
+                          { borderColor: colors.icon + "40" },
+                        ]}
+                        onPress={() => setShowCementPicker(true)}
+                      >
+                        <View style={styles.picker}>
+                          <Text style={[styles.pickerText, { color: colors.text }]}>
+                            {surveyData.cementProductId
+                              ? cementProducts.find(
+                                  (p) => p.Id === surveyData.cementProductId
+                                )?.Name || "Chọn loại xi măng"
+                              : "Chọn loại xi măng"}
+                          </Text>
+                          <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                        </View>
+                      </TouchableOpacity>
                     </View>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setNewCementName("");
+                        setShowAddCementModal(true);
+                      }}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        borderRadius: 6,
+                        backgroundColor: colors.primary,
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontWeight: "600" }}>+ Thêm</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
                 {/* 6 trường sau khi chọn loại xi măng */}
@@ -717,23 +796,38 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Title 2 */}
-          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
-            <TouchableOpacity
-              style={styles.titleHeader}
-              onPress={() => toggleTitle("title2")}
+        <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+          <TouchableOpacity
+            style={[
+              styles.titleHeader,
+              {
+                backgroundColor: expandedTitles.title2 ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => toggleTitle("title2")}
+          >
+            <Text
+              style={[
+                styles.titleHeaderText,
+                { color: expandedTitles.title2 ? "#fff" : colors.text },
+              ]}
             >
-              <Text style={[styles.titleHeaderText, { color: colors.text }]}>
-                Khảo sát sản phẩm của XMTĐ
-              </Text>
-              <Ionicons
-                name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
-                size={24}
-                color={colors.icon}
-              />
-            </TouchableOpacity>
+              Khảo sát sản phẩm của XMTĐ
+            </Text>
+            <Ionicons
+              name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
+              size={24}
+              color={expandedTitles.title2 ? "#fff" : colors.icon}
+            />
+          </TouchableOpacity>
 
-            {expandedTitles.title2 && (
-              <View style={styles.titleContent}>
+          {expandedTitles.title2 && (
+            <View
+              style={[
+                styles.titleContent,
+                { backgroundColor: colors.secondary },
+              ]}
+            >
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
                     Tại sao không bán sản phẩm mới *
@@ -832,27 +926,25 @@ export default function StoreSurveyScreen() {
                   />
                 </View>
 
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Nhập bởi thương vụ *
+            <View style={styles.field}>
+              <Text style={[styles.label, { color: colors.text }]}>
+                Nhập bởi thương vụ *
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.pickerContainer,
+                  { borderColor: colors.icon + "40" },
+                ]}
+                onPress={() => setShowSalesPicker(true)}
+              >
+                <View style={styles.picker}>
+                  <Text style={[styles.pickerText, { color: colors.text }]}>
+                    {surveyData.importedBySalesperson || "Chọn thương vụ"}
                   </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.importedBySalesperson}
-                    onChangeText={(value) =>
-                      handleInputChange("importedBySalesperson", value)
-                    }
-                    placeholder="Nhập tên thương vụ"
-                    placeholderTextColor={colors.icon}
-                  />
+                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
                 </View>
+              </TouchableOpacity>
+            </View>
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
@@ -904,23 +996,38 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Title 3 */}
-          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
-            <TouchableOpacity
-              style={styles.titleHeader}
-              onPress={() => toggleTitle("title3")}
+        <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+          <TouchableOpacity
+            style={[
+              styles.titleHeader,
+              {
+                backgroundColor: expandedTitles.title3 ? colors.primary : colors.card,
+              },
+            ]}
+            onPress={() => toggleTitle("title3")}
+          >
+            <Text
+              style={[
+                styles.titleHeaderText,
+                { color: expandedTitles.title3 ? "#fff" : colors.text },
+              ]}
             >
-              <Text style={[styles.titleHeaderText, { color: colors.text }]}>
-                Thông tin bán hàng
-              </Text>
-              <Ionicons
-                name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
-                size={24}
-                color={colors.icon}
-              />
-            </TouchableOpacity>
+              Thông tin bán hàng
+            </Text>
+            <Ionicons
+              name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
+              size={24}
+              color={expandedTitles.title3 ? "#fff" : colors.icon}
+            />
+          </TouchableOpacity>
 
-            {expandedTitles.title3 && (
-              <View style={styles.titleContent}>
+          {expandedTitles.title3 && (
+            <View
+              style={[
+                styles.titleContent,
+                { backgroundColor: colors.secondary },
+              ]}
+            >
                 {surveyData.products.map((product, index) => (
                   <View
                     key={index}
@@ -1035,7 +1142,9 @@ export default function StoreSurveyScreen() {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitButtonText}>Hoàn thành</Text>
+              <Text style={styles.submitButtonText}>
+                Hoàn thành khảo sát & thực thi cửa hàng
+              </Text>
             )}
           </TouchableOpacity>
         </ScrollView>
@@ -1070,8 +1179,23 @@ export default function StoreSurveyScreen() {
                 <Ionicons name="close" size={24} color={colors.icon} />
               </TouchableOpacity>
             </View>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  marginBottom: 12,
+                },
+              ]}
+              value={cementSearch}
+              onChangeText={setCementSearch}
+              placeholder="Tìm kiếm loại xi măng"
+              placeholderTextColor={colors.icon}
+            />
             <ScrollView>
-              {cementProducts.map((product) => (
+              {filteredCementProducts.map((product) => (
                 <TouchableOpacity
                   key={product.Id}
                   style={[
@@ -1091,7 +1215,7 @@ export default function StoreSurveyScreen() {
                   <Text
                     style={[styles.modalOptionText, { color: colors.text }]}
                   >
-                    {product.Code} - {product.Name}
+                    {product.Name}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1162,6 +1286,151 @@ export default function StoreSurveyScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sales Picker Modal */}
+      <Modal
+        visible={showSalesPicker}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowSalesPicker(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Chọn thương vụ
+              </Text>
+              <TouchableOpacity onPress={() => setShowSalesPicker(false)}>
+                <Ionicons name="close" size={24} color={colors.icon} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  marginBottom: 12,
+                },
+              ]}
+              value={salesSearch}
+              onChangeText={setSalesSearch}
+              placeholder="Tìm kiếm thương vụ"
+              placeholderTextColor={colors.icon}
+            />
+            <ScrollView>
+              {filteredSalesUsers.map((user) => (
+                <TouchableOpacity
+                  key={user.Id}
+                  style={styles.modalOption}
+                  onPress={() => {
+                    handleInputChange("importedBySalesperson", user.FullName);
+                    setShowSalesPicker(false);
+                  }}
+                >
+                  <Text style={[styles.modalOptionText, { color: colors.text }]}>
+                    {user.FullName}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Add Cement Modal */}
+      <Modal
+        visible={showAddCementModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddCementModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Thêm loại xi măng mới
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  marginTop: 16,
+                },
+              ]}
+              value={newCementName}
+              onChangeText={setNewCementName}
+              placeholder="Nhập tên xi măng"
+              placeholderTextColor={colors.icon}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.modalCloseButton,
+                  { borderColor: colors.icon + "40" },
+                ]}
+                onPress={() => setShowAddCementModal(false)}
+              >
+                <Text style={{ color: colors.text }}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.modalCloseButton,
+                  {
+                    borderColor: "transparent",
+                    backgroundColor: colors.primary,
+                  },
+                ]}
+                onPress={async () => {
+                  const trimmed = newCementName.trim();
+                  if (!trimmed) {
+                    Alert.alert("Lỗi", "Vui lòng nhập tên xi măng");
+                    return;
+                  }
+                  try {
+                    const res = await api.post("/cement-products", {
+                      name: trimmed,
+                    });
+                    const created = res.data;
+                    await fetchCementProducts();
+                    handleInputChange("cementProductId", created.Id);
+                    setShowAddCementModal(false);
+                  } catch (error: any) {
+                    console.error("Error creating cement product:", error);
+                    const message =
+                      error?.response?.data?.error ||
+                      error?.message ||
+                      "Không thể thêm loại xi măng";
+                    Alert.alert("Lỗi", message);
+                  }
+                }}
+              >
+                <Text style={{ color: "#fff" }}>Lưu</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1366,6 +1635,12 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 18,
     fontWeight: "600",
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 16,
+    columnGap: 12,
   },
   modalOverlay: {
     flex: 1,
