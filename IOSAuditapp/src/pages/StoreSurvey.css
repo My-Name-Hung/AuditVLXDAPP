@@ -1,0 +1,142 @@
+.store-survey-container {
+  min-height: 100vh;
+  padding: 16px;
+}
+
+.store-survey-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.store-survey-back-button {
+  background: none;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 8px;
+  margin-right: 16px;
+}
+
+.store-survey-title {
+  font-size: 24px;
+  font-weight: bold;
+  margin: 0;
+}
+
+.store-survey-content {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.store-survey-title-section {
+  margin-bottom: 24px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.store-survey-title-header {
+  padding: 16px;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.store-survey-title-header:hover {
+  opacity: 0.9;
+}
+
+.store-survey-title-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.store-survey-title-content {
+  padding: 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.store-survey-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.store-survey-field label {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.store-survey-field input,
+.store-survey-field select,
+.store-survey-field textarea {
+  padding: 12px;
+  border: 1px solid;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.store-survey-field textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.store-survey-product-item {
+  padding: 16px;
+  border: 1px solid;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.store-survey-product-item h3 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.store-survey-add-product-button {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.store-survey-submit-button {
+  padding: 16px 32px;
+  border: none;
+  border-radius: 4px;
+  font-size: 18px;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  margin-top: 32px;
+  transition: opacity 0.2s;
+}
+
+.store-survey-submit-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.store-survey-submit-button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .store-survey-title-content {
+    grid-template-columns: 1fr;
+  }
+}
+

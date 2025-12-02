@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import Stores from './pages/Stores';
 import StoreDetail from './pages/StoreDetail';
+import StoreSurvey from './pages/StoreSurvey';
 import Profile from './pages/Profile';
 import './App.css';
 
@@ -139,6 +140,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <StoreDetail />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stores/:id/survey"
+          element={
+            <ProtectedRoute>
+              <StoreSurvey />
             </ProtectedRoute>
           }
         />

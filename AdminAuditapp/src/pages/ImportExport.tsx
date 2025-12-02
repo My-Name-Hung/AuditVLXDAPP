@@ -77,12 +77,13 @@ interface DashboardDetailItem {
   Notes: string | null;
 }
 
-type TabType = "import-stores" | "import-users" | "export-reports";
+type TabType = "import-stores" | "import-users" | "import-cement" | "export-reports";
 
 export default function ImportExport() {
   const [activeTab, setActiveTab] = useState<TabType>("import-stores");
   const [storesFile, setStoresFile] = useState<File | null>(null);
   const [usersFile, setUsersFile] = useState<File | null>(null);
+  const [cementFile, setCementFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importProgress, setImportProgress] = useState(0);
   const [exportLoading, setExportLoading] = useState(false);
@@ -101,6 +102,7 @@ export default function ImportExport() {
   });
   const storesFileInputRef = useRef<HTMLInputElement>(null);
   const usersFileInputRef = useRef<HTMLInputElement>(null);
+  const cementFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchImportHistory("stores");
@@ -154,6 +156,18 @@ export default function ImportExport() {
           "U000001, U000002, username3",
           "Bắt buộc địa bàn phụ trách phải đúng. Nhân viên phụ trách: có thể nhập 1 hoặc nhiều users phân cách bằng dấu phẩy. User đầu tiên là user chính. Có thể dùng UserCode (U000001), Username (username1) hoặc FullName (Nguyễn Văn A)",
         ];
+      } else if (type === "cement") {
+        // Template for cement products
+        sheet.getRow(1).values = [
+          "Mã số",
+          "Tên xi măng",
+        ];
+
+        // Add sample data row
+        sheet.getRow(2).values = [
+          "801002022",
+          "Xi măng xá Tây Đô Xỉ lò cao PCB BFS40",
+        ];
       } else {
         // Template for users
         sheet.getRow(1).values = [
@@ -202,6 +216,11 @@ export default function ImportExport() {
           { width: 30 },
           { width: 40 },
         ];
+      } else if (type === "cement") {
+        sheet.columns = [
+          { width: 20 },
+          { width: 50 },
+        ];
       } else {
         sheet.columns = [
           { width: 20 },
@@ -220,9 +239,9 @@ export default function ImportExport() {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `Template_${type === "stores" ? "CuaHang" : "NhanVien"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`;
+      link.download = `Template_${
+        type === "stores" ? "CuaHang" : type === "cement" ? "XiMang" : "NhanVien"
+      }_${new Date().toISOString().split("T")[0]}.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
     } catch (error) {
@@ -359,6 +378,86 @@ export default function ImportExport() {
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
           ?.error || "Lỗi khi import nhân viên";
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: errorMessage,
+      });
+    }
+  };
+
+  const handleImportCement = async () => {
+    if (!cementFile) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng chọn file Excel",
+      });
+      return;
+    }
+
+    try {
+      setImportLoading(true);
+      setImportProgress(0);
+
+      // Read Excel file
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+      const buffer = await cementFile.arrayBuffer();
+      await workbook.xlsx.load(buffer);
+
+      setImportProgress(30);
+
+      const worksheet = workbook.worksheets[0];
+      const products: Array<{ code: string; name: string }> = [];
+
+      // Read data from row 2 onwards (row 1 is header)
+      worksheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return; // Skip header
+
+        const code = row.getCell(1).value?.toString()?.trim() || "";
+        const name = row.getCell(2).value?.toString()?.trim() || "";
+
+        if (code && name) {
+          products.push({ code, name });
+        }
+      });
+
+      setImportProgress(60);
+
+      if (products.length === 0) {
+        throw new Error("Không tìm thấy dữ liệu trong file Excel");
+      }
+
+      // Import to backend
+      const res = await api.post("/cement-products/import", { products });
+
+      setImportProgress(100);
+
+      setNotification({
+        isOpen: true,
+        type: "success",
+        message: `Import thành công ${res.data.inserted} sản phẩm xi măng`,
+      });
+
+      setCementFile(null);
+      if (cementFileInputRef.current) {
+        cementFileInputRef.current.value = "";
+      }
+
+      setTimeout(() => {
+        setImportLoading(false);
+        setImportProgress(0);
+      }, 500);
+    } catch (error: unknown) {
+      console.error("Error importing cement products:", error);
+      setImportLoading(false);
+      setImportProgress(0);
+      const errorMessage =
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error ||
+        (error as Error)?.message ||
+        "Lỗi khi import xi măng";
       setNotification({
         isOpen: true,
         type: "error",
@@ -944,6 +1043,12 @@ export default function ImportExport() {
           <HiArrowUpTray /> Tải lên danh sách Nhân viên
         </button>
         <button
+          className={`tab ${activeTab === "import-cement" ? "active" : ""}`}
+          onClick={() => setActiveTab("import-cement")}
+        >
+          <HiArrowUpTray /> Tải lên xi măng
+        </button>
+        <button
           className={`tab ${activeTab === "export-reports" ? "active" : ""}`}
           onClick={() => setActiveTab("export-reports")}
         >
@@ -1162,6 +1267,58 @@ export default function ImportExport() {
                     </div>
                   ))
                 )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Import Cement Tab */}
+        {activeTab === "import-cement" && (
+          <div className="import-tab">
+            <div className="import-section">
+              <h2>Tải lên xi măng</h2>
+              <div className="import-actions">
+                <button
+                  className="btn-secondary"
+                  onClick={() => downloadTemplate("cement")}
+                >
+                  <HiDocumentText /> Tải file mẫu excel
+                </button>
+              </div>
+
+              <div className="upload-area">
+                <input
+                  ref={cementFileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={(e) => setCementFile(e.target.files?.[0] || null)}
+                  hidden
+                />
+                <label
+                  htmlFor="cementFile"
+                  className="upload-box"
+                  onClick={() => cementFileInputRef.current?.click()}
+                >
+                  <HiArrowUpTray className="upload-icon" />
+                  <div>
+                    <strong>
+                      {cementFile
+                        ? cementFile.name
+                        : "Chọn file Excel để tải lên"}
+                    </strong>
+                    <p>Chỉ chấp nhận file .xlsx, .xls</p>
+                    <p style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                      Format: Cột A = Mã số, Cột B = Tên xi măng
+                    </p>
+                  </div>
+                </label>
+                <button
+                  className="btn-primary"
+                  onClick={handleImportCement}
+                  disabled={!cementFile || importLoading}
+                >
+                  Bắt đầu tải lên
+                </button>
               </div>
             </div>
           </div>

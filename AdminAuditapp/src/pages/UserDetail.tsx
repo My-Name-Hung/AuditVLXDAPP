@@ -299,7 +299,20 @@ export default function UserDetail() {
                   <td>{item.TerritoryName || territoryName || ""}</td>
                   <td>{item.Address || ""}</td>
                   <td>{formatLocalTime(item.CheckinTime)}</td>
-                  <td>{item.Notes || ""}</td>
+                  <td>
+                    <button
+                      className="btn-view"
+                      onClick={() =>
+                        navigate(
+                          `/stores/${item.StoreId}/survey?auditId=${item.AuditId}&userId=${userId}`
+                        )
+                      }
+                      title="Xem thông tin khảo sát"
+                      style={{ margin: "0 auto", display: "block" }}
+                    >
+                      <HiEye />
+                    </button>
+                  </td>
                   <td>
                     <button
                       className="btn-view"

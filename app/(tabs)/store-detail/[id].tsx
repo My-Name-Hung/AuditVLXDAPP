@@ -1,5 +1,6 @@
 import BoardingTour from "@/src/components/BoardingTour";
 import { useAuth } from "@/src/contexts/AuthContext";
+import { useSurvey } from "@/src/contexts/SurveyContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
@@ -140,6 +141,8 @@ export default function StoreDetailScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
+  const { setCapturedImages: setSurveyImages, setNotes: setSurveyNotes } =
+    useSurvey();
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
@@ -444,7 +447,16 @@ export default function StoreDetailScreen() {
       Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
       return;
     }
-    setNotesModalVisible(true);
+    // Save captured images and notes to context
+    setSurveyImages(capturedImages);
+    setSurveyNotes(notes);
+    // Navigate to survey page
+    router.push({
+      pathname: "/(tabs)/store-survey/[id]",
+      params: {
+        id: id || "",
+      },
+    });
   };
 
   // Helper function to upload single image with retry
@@ -962,7 +974,7 @@ export default function StoreDetailScreen() {
               {uploading ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.completeButtonText}>Hoàn thành</Text>
+                <Text style={styles.completeButtonText}>Tiếp tục</Text>
               )}
             </TouchableOpacity>
 

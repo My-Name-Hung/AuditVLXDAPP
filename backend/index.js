@@ -31,6 +31,9 @@ app.use("/api/images", require("./routes/images"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/territories", require("./routes/territories"));
 app.use("/api/import", require("./routes/import"));
+app.use("/api/cement-products", require("./routes/cementProducts"));
+app.use("/api/store-surveys", require("./routes/storeSurveys"));
+app.use("/api/store-survey-products", require("./routes/storeSurveyProducts"));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {

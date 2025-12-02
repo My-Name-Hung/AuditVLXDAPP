@@ -593,7 +593,14 @@ export default function StoreDetail() {
       alert("Vui lòng chụp đủ 3 ảnh");
       return;
     }
-    setNotesModalVisible(true);
+    // Navigate to survey page instead of opening notes modal
+    navigate(`/stores/${store?.Id}/survey`, {
+      state: {
+        storeId: store?.Id,
+        capturedImages: capturedImages.filter((img) => img !== undefined),
+        notes: notes,
+      },
+    });
   };
 
   // Helper function to upload single image with retry
@@ -603,7 +610,7 @@ export default function StoreDetail() {
     index: number,
     maxRetries = 2
   ): Promise<void> => {
-    let lastError: any = null;
+    let lastError: unknown = null;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -657,7 +664,7 @@ export default function StoreDetail() {
         }
 
         return; // Success, exit retry loop
-      } catch (error: any) {
+      } catch (error: unknown) {
         lastError = error;
         console.error(
           `Upload attempt ${attempt + 1} failed for image ${index + 1}:`,
@@ -1163,7 +1170,7 @@ export default function StoreDetail() {
                 color: "#fff",
               }}
             >
-              {uploading ? "Đang tải..." : "Hoàn thành"}
+              {uploading ? "Đang tải..." : "Tiếp tục"}
             </button>
           </div>
         )}
