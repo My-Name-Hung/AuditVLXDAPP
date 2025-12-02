@@ -90,16 +90,21 @@
 }
 
 .store-survey-product-item {
-  padding: 16px;
-  border: 1px solid;
-  border-radius: 8px;
+  padding: 16px 20px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 12px;
   margin-bottom: 16px;
+  background: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
 }
 
 .store-survey-product-item h3 {
   margin: 0 0 16px 0;
   font-size: 16px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .store-survey-add-product-button {
@@ -170,6 +175,17 @@
   border-radius: 4px;
   border: none;
   cursor: pointer;
+  font-weight: 600;
+}
+
+.store-survey-modal-actions button:last-child {
+  background-color: #0138c3;
+  color: #fff;
+}
+
+.store-survey-modal-actions button:first-child {
+  background-color: #e5e7eb;
+  color: #111827;
 }
 
 @media (max-width: 768px) {

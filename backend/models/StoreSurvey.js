@@ -84,11 +84,14 @@ class StoreSurvey {
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
-        cp.Name as CementProductName
+        cp.Name as CementProductName,
+        a.AuditDate,
+        a.Notes as AuditNotes
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
+      LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE ss.Id = @Id
     `);
 
@@ -108,11 +111,14 @@ class StoreSurvey {
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
-        cp.Name as CementProductName
+        cp.Name as CementProductName,
+        a.AuditDate,
+        a.Notes as AuditNotes
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
+      LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE ss.AuditId = @AuditId
     `);
 
@@ -129,11 +135,14 @@ class StoreSurvey {
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
-        cp.Name as CementProductName
+        cp.Name as CementProductName,
+        a.AuditDate,
+        a.Notes as AuditNotes
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
+      LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE ss.StoreId = @StoreId
     `;
 
@@ -161,11 +170,14 @@ class StoreSurvey {
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
-        cp.Name as CementProductName
+        cp.Name as CementProductName,
+        a.AuditDate,
+        a.Notes as AuditNotes
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
+      LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE 1=1
     `;
 
@@ -184,6 +196,31 @@ class StoreSurvey {
     if (filters.auditId) {
       query += ' AND ss.AuditId = @AuditId';
       request.input('AuditId', sql.Int, filters.auditId);
+    }
+
+    if (filters.storeName) {
+      query += ' AND s.StoreName LIKE @StoreName';
+      request.input('StoreName', sql.NVarChar(500), `%${filters.storeName}%`);
+    }
+
+    if (filters.userName) {
+      query += ' AND u.FullName LIKE @UserName';
+      request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
+    }
+
+    if (filters.cementProductName) {
+      query += ' AND cp.Name LIKE @CementProductName';
+      request.input('CementProductName', sql.NVarChar(500), `%${filters.cementProductName}%`);
+    }
+
+    if (filters.dateFrom) {
+      query += ' AND CAST(a.AuditDate AS DATE) >= @DateFrom';
+      request.input('DateFrom', sql.Date, filters.dateFrom);
+    }
+
+    if (filters.dateTo) {
+      query += ' AND CAST(a.AuditDate AS DATE) <= @DateTo';
+      request.input('DateTo', sql.Date, filters.dateTo);
     }
 
     // Pagination

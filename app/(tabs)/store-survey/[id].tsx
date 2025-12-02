@@ -45,26 +45,27 @@ interface SurveyData {
   importedBySalesperson: string;
   newProductSellingPrice: string;
   futureImportPrediction: string;
-  products: Array<{
+  products: {
     productType: string;
     cementProductId: number | null;
     sellingPrice: string;
-  }>;
+  }[];
 }
 
 // Không áp ràng buộc 1–10000, chỉ format số VND cho đẹp
 const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
 
 const formatVND = (value: string): string => {
-  const num = value.replace(/,/g, "");
-  if (!num) return "";
-  const formatted = parseInt(num).toLocaleString("vi-VN");
+  // Chỉ giữ lại ký tự số, tránh lỗi khi nhập
+  const digits = value.replace(/[^\d]/g, "");
+  if (!digits) return "";
+  const formatted = Number(digits).toLocaleString("vi-VN");
   return formatted;
 };
 
 const parseVND = (value: string): number => {
-  const num = value.replace(/,/g, "");
-  return parseFloat(num) || 0;
+  const digits = value.replace(/[^\d]/g, "");
+  return Number(digits) || 0;
 };
 
 export default function StoreSurveyScreen() {
@@ -85,14 +86,24 @@ export default function StoreSurveyScreen() {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCementPicker, setShowCementPicker] = useState(false);
   const [cementSearch, setCementSearch] = useState("");
-  const [showProductTypePicker, setShowProductTypePicker] = useState<number | null>(null);
-  const [showCementProductPicker, setShowCementProductPicker] = useState<number | null>(null);
+  const [showProductTypePicker, setShowProductTypePicker] = useState<
+    number | null
+  >(null);
+  const [showCementProductPicker, setShowCementProductPicker] = useState<
+    number | null
+  >(null);
   const [showAddCementModal, setShowAddCementModal] = useState(false);
   const [newCementName, setNewCementName] = useState("");
 
-  const [salesUsers, setSalesUsers] = useState<Array<{ Id: number; FullName: string }>>([]);
+  const [salesUsers, setSalesUsers] = useState<
+    { Id: number; FullName: string }[]
+  >([]);
   const [showSalesPicker, setShowSalesPicker] = useState(false);
   const [salesSearch, setSalesSearch] = useState("");
+
+  const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
+  const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
+  const [newProductTypeName, setNewProductTypeName] = useState("");
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
     cementProductId: null,
@@ -453,7 +464,10 @@ export default function StoreSurveyScreen() {
       <View
         style={[
           styles.header,
-          { borderBottomColor: colors.icon + "20", backgroundColor: colors.secondary },
+          {
+            borderBottomColor: colors.icon + "20",
+            backgroundColor: colors.secondary,
+          },
         ]}
       >
         <TouchableOpacity
@@ -481,10 +495,7 @@ export default function StoreSurveyScreen() {
           {/* Title 1 */}
           <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
             <TouchableOpacity
-              style={[
-                styles.titleHeader,
-                { backgroundColor: colors.primary },
-              ]}
+              style={[styles.titleHeader, { backgroundColor: colors.primary }]}
               onPress={() => toggleTitle("title1")}
             >
               <Text style={[styles.titleHeaderText, { color: "#fff" }]}>
@@ -511,21 +522,6 @@ export default function StoreSurveyScreen() {
                   </Text>
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <View style={{ flex: 1, marginRight: 8 }}>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                            marginBottom: 8,
-                          },
-                        ]}
-                        value={cementSearch}
-                        onChangeText={setCementSearch}
-                        placeholder="Tìm kiếm loại xi măng"
-                        placeholderTextColor={colors.icon}
-                      />
                       <TouchableOpacity
                         style={[
                           styles.pickerContainer,
@@ -534,14 +530,20 @@ export default function StoreSurveyScreen() {
                         onPress={() => setShowCementPicker(true)}
                       >
                         <View style={styles.picker}>
-                          <Text style={[styles.pickerText, { color: colors.text }]}>
+                          <Text
+                            style={[styles.pickerText, { color: colors.text }]}
+                          >
                             {surveyData.cementProductId
                               ? cementProducts.find(
                                   (p) => p.Id === surveyData.cementProductId
                                 )?.Name || "Chọn loại xi măng"
                               : "Chọn loại xi măng"}
                           </Text>
-                          <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                          <Ionicons
+                            name="chevron-down"
+                            size={20}
+                            color={colors.icon}
+                          />
                         </View>
                       </TouchableOpacity>
                     </View>
@@ -557,7 +559,9 @@ export default function StoreSurveyScreen() {
                         backgroundColor: colors.primary,
                       }}
                     >
-                      <Text style={{ color: "#fff", fontWeight: "600" }}>+ Thêm</Text>
+                      <Text style={{ color: "#fff", fontWeight: "600" }}>
+                        + Thêm
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -706,7 +710,7 @@ export default function StoreSurveyScreen() {
                 {/* Các trường khác */}
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Số lượng nhập/xuất *
+                    Số lượng nhập *
                   </Text>
                   <TextInput
                     style={[
@@ -796,38 +800,40 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Title 2 */}
-        <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
-          <TouchableOpacity
-            style={[
-              styles.titleHeader,
-              {
-                backgroundColor: expandedTitles.title2 ? colors.primary : colors.card,
-              },
-            ]}
-            onPress={() => toggleTitle("title2")}
-          >
-            <Text
+          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+            <TouchableOpacity
               style={[
-                styles.titleHeaderText,
-                { color: expandedTitles.title2 ? "#fff" : colors.text },
+                styles.titleHeader,
+                {
+                  backgroundColor: expandedTitles.title2
+                    ? colors.primary
+                    : colors.card,
+                },
               ]}
+              onPress={() => toggleTitle("title2")}
             >
-              Khảo sát sản phẩm của XMTĐ
-            </Text>
-            <Ionicons
-              name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
-              size={24}
-              color={expandedTitles.title2 ? "#fff" : colors.icon}
-            />
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.titleHeaderText,
+                  { color: expandedTitles.title2 ? "#fff" : colors.text },
+                ]}
+              >
+                Khảo sát sản phẩm của XMTĐ
+              </Text>
+              <Ionicons
+                name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
+                size={24}
+                color={expandedTitles.title2 ? "#fff" : colors.icon}
+              />
+            </TouchableOpacity>
 
-          {expandedTitles.title2 && (
-            <View
-              style={[
-                styles.titleContent,
-                { backgroundColor: colors.secondary },
-              ]}
-            >
+            {expandedTitles.title2 && (
+              <View
+                style={[
+                  styles.titleContent,
+                  { backgroundColor: colors.secondary },
+                ]}
+              >
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
                     Tại sao không bán sản phẩm mới *
@@ -871,7 +877,11 @@ export default function StoreSurveyScreen() {
                     <Text
                       style={[
                         styles.input,
-                        { color: surveyData.timeToSellNewProduct ? colors.text : colors.icon },
+                        {
+                          color: surveyData.timeToSellNewProduct
+                            ? colors.text
+                            : colors.icon,
+                        },
                       ]}
                     >
                       {surveyData.timeToSellNewProduct
@@ -920,31 +930,35 @@ export default function StoreSurveyScreen() {
                     onChangeText={(value) =>
                       handlePriceChange("newProductImportQuantity", value)
                     }
-                    placeholder="Nhập giá (VND)"
+                    placeholder="Nhập số lượng"
                     placeholderTextColor={colors.icon}
                     keyboardType="numeric"
                   />
                 </View>
 
-            <View style={styles.field}>
-              <Text style={[styles.label, { color: colors.text }]}>
-                Nhập bởi thương vụ *
-              </Text>
-              <TouchableOpacity
-                style={[
-                  styles.pickerContainer,
-                  { borderColor: colors.icon + "40" },
-                ]}
-                onPress={() => setShowSalesPicker(true)}
-              >
-                <View style={styles.picker}>
-                  <Text style={[styles.pickerText, { color: colors.text }]}>
-                    {surveyData.importedBySalesperson || "Chọn thương vụ"}
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Nhập bởi thương vụ *
                   </Text>
-                  <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                  <TouchableOpacity
+                    style={[
+                      styles.pickerContainer,
+                      { borderColor: colors.icon + "40" },
+                    ]}
+                    onPress={() => setShowSalesPicker(true)}
+                  >
+                    <View style={styles.picker}>
+                      <Text style={[styles.pickerText, { color: colors.text }]}>
+                        {surveyData.importedBySalesperson || "Chọn thương vụ"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={colors.icon}
+                      />
+                    </View>
+                  </TouchableOpacity>
                 </View>
-              </TouchableOpacity>
-            </View>
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
@@ -996,42 +1010,47 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Title 3 */}
-        <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
-          <TouchableOpacity
-            style={[
-              styles.titleHeader,
-              {
-                backgroundColor: expandedTitles.title3 ? colors.primary : colors.card,
-              },
-            ]}
-            onPress={() => toggleTitle("title3")}
-          >
-            <Text
+          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+            <TouchableOpacity
               style={[
-                styles.titleHeaderText,
-                { color: expandedTitles.title3 ? "#fff" : colors.text },
+                styles.titleHeader,
+                {
+                  backgroundColor: expandedTitles.title3
+                    ? colors.primary
+                    : colors.card,
+                },
               ]}
+              onPress={() => toggleTitle("title3")}
             >
-              Thông tin bán hàng
-            </Text>
-            <Ionicons
-              name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
-              size={24}
-              color={expandedTitles.title3 ? "#fff" : colors.icon}
-            />
-          </TouchableOpacity>
+              <Text
+                style={[
+                  styles.titleHeaderText,
+                  { color: expandedTitles.title3 ? "#fff" : colors.text },
+                ]}
+              >
+                Thông tin bán hàng
+              </Text>
+              <Ionicons
+                name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
+                size={24}
+                color={expandedTitles.title3 ? "#fff" : colors.icon}
+              />
+            </TouchableOpacity>
 
-          {expandedTitles.title3 && (
-            <View
-              style={[
-                styles.titleContent,
-                { backgroundColor: colors.secondary },
-              ]}
-            >
+            {expandedTitles.title3 && (
+              <View
+                style={[
+                  styles.titleContent,
+                  { backgroundColor: colors.secondary },
+                ]}
+              >
                 {surveyData.products.map((product, index) => (
                   <View
                     key={index}
-                    style={[styles.productItem, { borderColor: colors.icon + "40" }]}
+                    style={[
+                      styles.productItem,
+                      { borderColor: colors.icon + "40" },
+                    ]}
                   >
                     <Text
                       style={[styles.productItemTitle, { color: colors.text }]}
@@ -1040,9 +1059,33 @@ export default function StoreSurveyScreen() {
                     </Text>
 
                     <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Sản phẩm được bán *
-                      </Text>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Text style={[styles.label, { color: colors.text }]}>
+                          Sản phẩm được bán *
+                        </Text>
+                        <TouchableOpacity
+                          onPress={() => {
+                            setNewProductTypeName("");
+                            setShowAddProductTypeModal(true);
+                          }}
+                        >
+                          <Text
+                            style={{
+                              color: colors.primary,
+                              fontWeight: "600",
+                              fontSize: 13,
+                            }}
+                          >
+                            + Thêm sản phẩm
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                       <TouchableOpacity
                         style={[
                           styles.pickerContainer,
@@ -1056,7 +1099,11 @@ export default function StoreSurveyScreen() {
                           >
                             {product.productType || "Chọn sản phẩm"}
                           </Text>
-                          <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                          <Ionicons
+                            name="chevron-down"
+                            size={20}
+                            color={colors.icon}
+                          />
                         </View>
                       </TouchableOpacity>
                     </View>
@@ -1075,7 +1122,10 @@ export default function StoreSurveyScreen() {
                         >
                           <View style={styles.picker}>
                             <Text
-                              style={[styles.pickerText, { color: colors.text }]}
+                              style={[
+                                styles.pickerText,
+                                { color: colors.text },
+                              ]}
                             >
                               {product.cementProductId
                                 ? cementProducts.find(
@@ -1083,7 +1133,11 @@ export default function StoreSurveyScreen() {
                                   )?.Name || "Chọn loại xi măng"
                                 : "Chọn loại xi măng"}
                             </Text>
-                            <Ionicons name="chevron-down" size={20} color={colors.icon} />
+                            <Ionicons
+                              name="chevron-down"
+                              size={20}
+                              color={colors.icon}
+                            />
                           </View>
                         </TouchableOpacity>
                       </View>
@@ -1116,7 +1170,10 @@ export default function StoreSurveyScreen() {
                 ))}
 
                 <TouchableOpacity
-                  style={[styles.addProductButton, { backgroundColor: colors.primary }]}
+                  style={[
+                    styles.addProductButton,
+                    { backgroundColor: colors.primary },
+                  ]}
                   onPress={handleAddProduct}
                 >
                   <Ionicons name="add" size={24} color="#fff" />
@@ -1224,6 +1281,66 @@ export default function StoreSurveyScreen() {
         </View>
       </Modal>
 
+      {/* Add Product Type Modal */}
+      <Modal
+        visible={showAddProductTypeModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAddProductTypeModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Thêm sản phẩm mới
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  marginTop: 16,
+                },
+              ]}
+              value={newProductTypeName}
+              onChangeText={setNewProductTypeName}
+              placeholder="Nhập tên sản phẩm"
+              placeholderTextColor={colors.icon}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonSecondary]}
+                onPress={() => setShowAddProductTypeModal(false)}
+              >
+                <Text style={styles.modalButtonSecondaryText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.modalButtonPrimary]}
+                onPress={() => {
+                  const trimmed = newProductTypeName.trim();
+                  if (!trimmed) {
+                    Alert.alert("Lỗi", "Vui lòng nhập tên sản phẩm");
+                    return;
+                  }
+                  setProductTypes((prev) =>
+                    prev.includes(trimmed) ? prev : [...prev, trimmed]
+                  );
+                  setShowAddProductTypeModal(false);
+                }}
+              >
+                <Text style={styles.modalButtonPrimaryText}>Lưu</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* Product Type Picker Modal (Title 3) */}
       <Modal
         visible={showProductTypePicker !== null}
@@ -1254,7 +1371,7 @@ export default function StoreSurveyScreen() {
               </TouchableOpacity>
             </View>
             <ScrollView>
-              {PRODUCT_TYPES.map((type) => (
+              {productTypes.map((type) => (
                 <TouchableOpacity
                   key={type}
                   style={[
@@ -1344,7 +1461,9 @@ export default function StoreSurveyScreen() {
                     setShowSalesPicker(false);
                   }}
                 >
-                  <Text style={[styles.modalOptionText, { color: colors.text }]}>
+                  <Text
+                    style={[styles.modalOptionText, { color: colors.text }]}
+                  >
                     {user.FullName}
                   </Text>
                 </TouchableOpacity>
@@ -1388,22 +1507,13 @@ export default function StoreSurveyScreen() {
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={[
-                  styles.modalCloseButton,
-                  { borderColor: colors.icon + "40" },
-                ]}
+                style={[styles.modalButton, styles.modalButtonSecondary]}
                 onPress={() => setShowAddCementModal(false)}
               >
-                <Text style={{ color: colors.text }}>Hủy</Text>
+                <Text style={styles.modalButtonSecondaryText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.modalCloseButton,
-                  {
-                    borderColor: "transparent",
-                    backgroundColor: colors.primary,
-                  },
-                ]}
+                style={[styles.modalButton, styles.modalButtonPrimary]}
                 onPress={async () => {
                   const trimmed = newCementName.trim();
                   if (!trimmed) {
@@ -1428,7 +1538,7 @@ export default function StoreSurveyScreen() {
                   }
                 }}
               >
-                <Text style={{ color: "#fff" }}>Lưu</Text>
+                <Text style={styles.modalButtonPrimaryText}>Lưu</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1460,12 +1570,29 @@ export default function StoreSurveyScreen() {
               <Text style={[styles.modalTitle, { color: colors.text }]}>
                 Chọn loại xi măng
               </Text>
-              <TouchableOpacity onPress={() => setShowCementProductPicker(null)}>
+              <TouchableOpacity
+                onPress={() => setShowCementProductPicker(null)}
+              >
                 <Ionicons name="close" size={24} color={colors.icon} />
               </TouchableOpacity>
             </View>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  marginBottom: 12,
+                },
+              ]}
+              value={cementSearch}
+              onChangeText={setCementSearch}
+              placeholder="Tìm kiếm loại xi măng"
+              placeholderTextColor={colors.icon}
+            />
             <ScrollView>
-              {cementProducts.map((product) => (
+              {filteredCementProducts.map((product) => (
                 <TouchableOpacity
                   key={product.Id}
                   style={[
@@ -1492,7 +1619,7 @@ export default function StoreSurveyScreen() {
                   <Text
                     style={[styles.modalOptionText, { color: colors.text }]}
                   >
-                    {product.Code} - {product.Name}
+                    {product.Name}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -1618,6 +1745,7 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 8,
     gap: 8,
+    marginTop: 12,
   },
   addProductButtonText: {
     color: "#fff",
@@ -1638,9 +1766,34 @@ const styles = StyleSheet.create({
   },
   modalActions: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     marginTop: 16,
     columnGap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    height: 44,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalButtonSecondary: {
+    borderWidth: 1,
+    borderColor: "#d1d5db",
+    backgroundColor: "#ffffff",
+  },
+  modalButtonPrimary: {
+    backgroundColor: "#0138C3",
+  },
+  modalButtonSecondaryText: {
+    color: "#111827",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalButtonPrimaryText: {
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   modalOverlay: {
     flex: 1,
@@ -1669,4 +1822,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-

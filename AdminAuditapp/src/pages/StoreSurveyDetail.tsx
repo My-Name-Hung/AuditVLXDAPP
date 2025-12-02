@@ -31,6 +31,8 @@ interface StoreSurvey {
   ImportedBySalesperson: string | null;
   NewProductSellingPrice: number | null;
   FutureImportPrediction: number | null;
+  AuditDate: string | null;
+  AuditNotes: string | null;
   products: Array<{
     Id: number;
     ProductType: string;
@@ -60,6 +62,7 @@ export default function StoreSurveyDetail() {
 
   const [survey, setSurvey] = useState<StoreSurvey | null>(null);
   const [loading, setLoading] = useState(true);
+  const [exportLoading, setExportLoading] = useState(false);
 
   useEffect(() => {
     fetchSurvey();
@@ -106,6 +109,134 @@ export default function StoreSurveyDetail() {
     );
   }
 
+  const handleExportExcel = async () => {
+    if (!survey) return;
+
+    try {
+      setExportLoading(true);
+      const ExcelJS = (await import("exceljs")).default;
+      const workbook = new ExcelJS.Workbook();
+
+      // Get current week number
+      const now = new Date();
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
+      const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
+      const weekNumber = Math.ceil((pastDaysOfYear + startOfYear.getDay() + 1) / 7);
+
+      const sheet = workbook.addWorksheet("Báo cáo khảo sát");
+
+      // Header style
+      const headerStyle = {
+        font: { bold: true, color: { argb: "FFFFFFFF" } },
+        fill: {
+          type: "pattern" as const,
+          pattern: "solid" as const,
+          fgColor: { argb: "FF0138C3" },
+        },
+        alignment: {
+          horizontal: "center" as const,
+          vertical: "middle" as const,
+        },
+        border: {
+          top: { style: "thin" as const },
+          bottom: { style: "thin" as const },
+          left: { style: "thin" as const },
+          right: { style: "thin" as const },
+        },
+      };
+
+      // Title rows
+      sheet.mergeCells("A1:K1");
+      sheet.getCell("A1").value = "1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN 20/2025";
+      sheet.getCell("A1").font = { bold: true, size: 12 };
+      sheet.getCell("A1").alignment = { horizontal: "left" };
+
+      sheet.mergeCells("A2:K2");
+      sheet.getCell("A2").value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumber}`;
+      sheet.getCell("A2").font = { bold: true, size: 14 };
+      sheet.getCell("A2").alignment = { horizontal: "center" };
+
+      sheet.mergeCells("A3:K3");
+      sheet.getCell("A3").value = "Địa bàn: An Giang";
+      sheet.getCell("A3").font = { bold: true, size: 12 };
+      sheet.getCell("A3").alignment = { horizontal: "center" };
+
+      // Table headers
+      const headers = [
+        "Stt",
+        "Tên Cửa hàng",
+        "Ngày thăm",
+        "Người tiếp xúc",
+        "Loại XM",
+        "Giá mua",
+        "Giá bán",
+        "SLTTBQ (tấn/tháng)",
+        "Mua qua NPP",
+        "Ý kiến CH",
+      ];
+
+      sheet.getRow(5).values = headers;
+      sheet.getRow(5).eachCell((cell) => {
+        cell.style = headerStyle;
+      });
+
+      // Data row
+      const row = sheet.addRow([
+        1,
+        survey.StoreName || "",
+        formatDate(survey.AuditDate),
+        survey.ContactPerson || "",
+        survey.CementProductName || "",
+        formatVND(survey.PurchasePrice),
+        formatVND(survey.SellingPrice),
+        survey.ImportExportQuantity || "",
+        survey.SupplierName || "",
+        survey.AuditNotes || "",
+      ]);
+
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+        cell.alignment = { vertical: "middle" };
+      });
+
+      // Column widths
+      sheet.columns = [
+        { width: 8 },
+        { width: 25 },
+        { width: 12 },
+        { width: 18 },
+        { width: 20 },
+        { width: 12 },
+        { width: 12 },
+        { width: 18 },
+        { width: 18 },
+        { width: 30 },
+      ];
+
+      // Export
+      const buffer = await workbook.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `BaoCaoKhaoSat_${survey.StoreCode}_${new Date().toISOString().split("T")[0]}.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("Error exporting Excel:", error);
+      alert("Lỗi khi xuất file Excel");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   return (
     <div className="store-survey-detail">
       <div className="store-survey-detail-header">
@@ -116,6 +247,13 @@ export default function StoreSurveyDetail() {
           <HiArrowLeft /> Quay lại
         </button>
         <h1>Thông tin khảo sát</h1>
+        <button
+          className="btn-export"
+          onClick={handleExportExcel}
+          disabled={exportLoading}
+        >
+          {exportLoading ? "Đang xuất..." : "Xuất Excel"}
+        </button>
       </div>
 
       <div className="store-survey-detail-content">
@@ -135,6 +273,16 @@ export default function StoreSurveyDetail() {
               <label>Người thực hiện:</label>
               <span>{survey.UserFullName} ({survey.UserCode})</span>
             </div>
+            <div className="info-item">
+              <label>Ngày thăm:</label>
+              <span>{formatDate(survey.AuditDate)}</span>
+            </div>
+            {survey.AuditNotes && (
+              <div className="info-item">
+                <label>Ý kiến cửa hàng:</label>
+                <span>{survey.AuditNotes}</span>
+              </div>
+            )}
           </div>
         </div>
 

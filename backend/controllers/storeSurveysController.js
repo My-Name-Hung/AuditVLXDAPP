@@ -159,12 +159,28 @@ const getStoreSurveysByStoreId = async (req, res) => {
 
 const getAllStoreSurveys = async (req, res) => {
   try {
-    const { storeId, userId, auditId, page, pageSize } = req.query;
+    const {
+      storeId,
+      userId,
+      auditId,
+      storeName,
+      userName,
+      cementProductName,
+      dateFrom,
+      dateTo,
+      page,
+      pageSize,
+    } = req.query;
 
     const filters = {};
     if (storeId) filters.storeId = parseInt(storeId);
     if (userId) filters.userId = parseInt(userId);
     if (auditId) filters.auditId = parseInt(auditId);
+    if (storeName) filters.storeName = storeName;
+    if (userName) filters.userName = userName;
+    if (cementProductName) filters.cementProductName = cementProductName;
+    if (dateFrom) filters.dateFrom = dateFrom;
+    if (dateTo) filters.dateTo = dateTo;
     if (page && pageSize) {
       filters.page = parseInt(page);
       filters.pageSize = parseInt(pageSize);

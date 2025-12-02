@@ -1,5 +1,5 @@
 import { HiHome, HiOfficeBuilding, HiUsers } from "react-icons/hi";
-import { HiArrowUpOnSquare } from "react-icons/hi2";
+import { HiArrowUpOnSquare, HiClipboardDocumentList } from "react-icons/hi2";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import "./Layout.css";
@@ -8,7 +8,16 @@ const navItems = [
   { path: "/", label: "Tổng quan", icon: HiHome },
   { path: "/stores", label: "Danh sách cửa hàng", icon: HiOfficeBuilding },
   { path: "/users", label: "Danh sách tài khoản", icon: HiUsers },
-  { path: "/import-export", label: "Tải lên danh sách", icon: HiArrowUpOnSquare },
+  {
+    path: "/store-surveys",
+    label: "Danh sách khảo sát",
+    icon: HiClipboardDocumentList,
+  },
+  {
+    path: "/import-export",
+    label: "Tải lên danh sách",
+    icon: HiArrowUpOnSquare,
+  },
 ];
 
 export default function Layout() {
