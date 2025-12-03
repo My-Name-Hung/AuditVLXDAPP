@@ -376,13 +376,12 @@ export default function StoreSurveyScreen() {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload images
+      // Step 2: Upload all images in parallel (much faster than sequential)
       const imagesToUpload = capturedImages.filter(
         (img): img is NonNullable<typeof img> => img !== undefined
       );
 
-      for (let i = 0; i < imagesToUpload.length; i++) {
-        const img = imagesToUpload[i];
+      const imageUploadPromises = imagesToUpload.map((img, i) => {
         const formData = new FormData();
         formData.append("image", {
           uri: img.uri,
@@ -395,15 +394,15 @@ export default function StoreSurveyScreen() {
         formData.append("timestamp", img.timestamp);
         formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        await api.post("/images/upload", formData, {
+        return api.post("/images/upload", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
         });
-      }
+      });
 
-      // Step 3: Create survey
-      await api.post("/store-surveys", {
+      // Step 3: Create survey (can run in parallel with image uploads)
+      const surveyPromise = api.post("/store-surveys", {
         storeId: storeId,
         auditId: auditId,
         userId: user.id,
@@ -436,6 +435,9 @@ export default function StoreSurveyScreen() {
           sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
         })),
       });
+
+      // Execute image uploads and survey creation in parallel
+      await Promise.all([...imageUploadPromises, surveyPromise]);
 
       // Clear survey data
       clearSurveyData();

@@ -355,9 +355,8 @@ const StoreSurvey = () => {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload images
-      for (let i = 0; i < capturedImages.length; i++) {
-        const img = capturedImages[i];
+      // Step 2: Upload all images in parallel (much faster than sequential)
+      const imageUploadPromises = capturedImages.map(async (img, i) => {
         const formData = new FormData();
         const blob = await fetch(img.dataUrl).then((r) => r.blob());
         formData.append("image", blob, `image_${i + 1}.jpg`);
@@ -367,15 +366,15 @@ const StoreSurvey = () => {
         formData.append("timestamp", img.timestamp);
         formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        await api.post("/images/upload", formData, {
+        return api.post("/images/upload", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
         });
-      }
+      });
 
-      // Step 3: Create survey
-      await api.post("/store-surveys", {
+      // Step 3: Create survey (can run in parallel with image uploads)
+      const surveyPromise = api.post("/store-surveys", {
         storeId: storeId,
         auditId: auditId,
         userId: user.id,
@@ -408,6 +407,9 @@ const StoreSurvey = () => {
           sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
         })),
       });
+
+      // Execute image uploads and survey creation in parallel
+      await Promise.all([...imageUploadPromises, surveyPromise]);
 
       alert("Thực thi cửa hàng thành công");
       // Navigate and force reload to show new images
@@ -916,7 +918,7 @@ const StoreSurvey = () => {
                   onChange={(e) =>
                     handleInputChange("futureImportPrediction", e.target.value)
                   }
-                  placeholder="Nhập giá (VND) - Không bắt buộc"
+                  placeholder="Nhập số lượng"
                   style={{
                     backgroundColor: colors.background,
                     color: colors.text,

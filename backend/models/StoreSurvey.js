@@ -24,6 +24,8 @@ class StoreSurvey {
       ImportedBySalesperson,
       NewProductSellingPrice,
       FutureImportPrediction,
+      StoreComment,
+      AverageMonthlyConsumption,
     } = surveyData;
 
     const request = pool.request();
