@@ -31,6 +31,8 @@ interface SurveyData {
   importedBySalesperson: string;
   newProductSellingPrice: string;
   futureImportPrediction: string;
+  storeComment: string;
+  averageMonthlyConsumption: string;
   // Title 3
   products: Array<{
     productType: string;
@@ -118,6 +120,8 @@ const StoreSurvey = () => {
     importedBySalesperson: "",
     newProductSellingPrice: "",
     futureImportPrediction: "",
+    storeComment: "",
+    averageMonthlyConsumption: "",
     products: [],
   });
 
@@ -125,6 +129,14 @@ const StoreSurvey = () => {
     fetchCementProducts();
     fetchSalesUsers();
   }, []);
+
+  // Autofill current user into "Nhập bởi thương vụ"
+  useEffect(() => {
+    if (user && user.fullName && !surveyData.importedBySalesperson) {
+      handleInputChange("importedBySalesperson", user.fullName);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     // Auto-expand title 2 if title 1 is complete
@@ -178,9 +190,9 @@ const StoreSurvey = () => {
       });
       const data = response.data?.data || [];
       setSalesUsers(
-        data.map((u: any) => ({
+        data.map((u: { Id: number; FullName?: string; Username?: string }) => ({
           Id: u.Id,
-          FullName: u.FullName || u.Username,
+          FullName: u.FullName || u.Username || "",
         }))
       );
     } catch (error) {
@@ -285,6 +297,8 @@ const StoreSurvey = () => {
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
     if (!surveyData.newProductSellingPrice)
       errors.push("Giá bán ra (sản phẩm mới)");
+    if (!surveyData.averageMonthlyConsumption)
+      errors.push("SLTTBQ (tấn/tháng)");
 
     // Title 3 validation
     if (surveyData.products.length === 0) {
@@ -384,6 +398,10 @@ const StoreSurvey = () => {
         futureImportPrediction: surveyData.futureImportPrediction
           ? parseVND(surveyData.futureImportPrediction)
           : null,
+        storeComment: surveyData.storeComment || null,
+        averageMonthlyConsumption: surveyData.averageMonthlyConsumption
+          ? parseFloat(surveyData.averageMonthlyConsumption)
+          : null,
         products: surveyData.products.map((p) => ({
           productType: p.productType,
           cementProductId: p.cementProductId,
@@ -392,12 +410,16 @@ const StoreSurvey = () => {
       });
 
       alert("Thực thi cửa hàng thành công");
-      navigate(`/stores/${storeId}`);
-    } catch (error: any) {
+      // Navigate and force reload to show new images
+      navigate(`/stores/${storeId}`, { replace: true });
+      // Force page reload to refresh images
+      window.location.reload();
+    } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       const errorMessage =
-        error?.response?.data?.error ||
-        error?.message ||
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error ||
+        (error as { message?: string })?.message ||
         "Có lỗi xảy ra khi lưu khảo sát";
       alert(errorMessage);
     } finally {
@@ -715,7 +737,7 @@ const StoreSurvey = () => {
             style={{
               background: expandedTitles.title2
                 ? `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`
-                : colors.card,
+                : colors.background,
             }}
           >
             <h2 style={{ color: expandedTitles.title2 ? "#fff" : colors.text }}>
@@ -848,6 +870,44 @@ const StoreSurvey = () => {
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
+                  SLTTBQ (tấn/tháng) *
+                </label>
+                <input
+                  type="text"
+                  value={surveyData.averageMonthlyConsumption}
+                  onChange={(e) =>
+                    handleInputChange("averageMonthlyConsumption", e.target.value)
+                  }
+                  placeholder="Nhập số lượng tiêu thụ bình quân"
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>
+                  Ý kiến của cửa hàng
+                </label>
+                <textarea
+                  value={surveyData.storeComment}
+                  onChange={(e) =>
+                    handleInputChange("storeComment", e.target.value)
+                  }
+                  placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
+                  rows={3}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>
                   Dự đoán tương lai sẽ nhập bao nhiêu hàng của XMTĐ
                 </label>
                 <input
@@ -876,7 +936,7 @@ const StoreSurvey = () => {
             style={{
               background: expandedTitles.title3
                 ? `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`
-                : colors.card,
+                : colors.background,
             }}
           >
             <h2 style={{ color: expandedTitles.title3 ? "#fff" : colors.text }}>
@@ -1079,11 +1139,12 @@ const StoreSurvey = () => {
                     await fetchCementProducts();
                     handleInputChange("cementProductId", created.Id);
                     setShowAddCementModal(false);
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     console.error("Error creating cement product:", error);
                     const message =
-                      error?.response?.data?.error ||
-                      error?.message ||
+                      (error as { response?: { data?: { error?: string } } })
+                        ?.response?.data?.error ||
+                      (error as { message?: string })?.message ||
                       "Không thể thêm loại xi măng";
                     alert(message);
                   }

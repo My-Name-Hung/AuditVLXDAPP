@@ -47,6 +47,8 @@ class StoreSurvey {
     request.input('ImportedBySalesperson', sql.NVarChar(200), ImportedBySalesperson || null);
     request.input('NewProductSellingPrice', sql.Decimal(18, 2), NewProductSellingPrice || null);
     request.input('FutureImportPrediction', sql.Decimal(18, 2), FutureImportPrediction || null);
+    request.input('StoreComment', sql.NVarChar(1000), StoreComment || null);
+    request.input('AverageMonthlyConsumption', sql.Decimal(18, 2), AverageMonthlyConsumption || null);
 
     const result = await request.query(`
       INSERT INTO StoreSurveys (
@@ -55,6 +57,7 @@ class StoreSurvey {
         ImportExportQuantity, StockQuantity, ConsumptionArea, DebtPeriod,
         WhyNotSellNewProduct, TimeToSellNewProduct, NewProductImportQuantity,
         ImportedBySalesperson, NewProductSellingPrice, FutureImportPrediction,
+        StoreComment, AverageMonthlyConsumption,
         CreatedAt, UpdatedAt
       )
       OUTPUT INSERTED.*
@@ -64,6 +67,7 @@ class StoreSurvey {
         @ImportExportQuantity, @StockQuantity, @ConsumptionArea, @DebtPeriod,
         @WhyNotSellNewProduct, @TimeToSellNewProduct, @NewProductImportQuantity,
         @ImportedBySalesperson, @NewProductSellingPrice, @FutureImportPrediction,
+        @StoreComment, @AverageMonthlyConsumption,
         GETDATE(), GETDATE()
       )
     `);
@@ -81,6 +85,7 @@ class StoreSurvey {
         ss.*,
         s.StoreCode,
         s.StoreName,
+        t.TerritoryName,
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
@@ -90,6 +95,7 @@ class StoreSurvey {
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
       LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE ss.Id = @Id
@@ -108,6 +114,7 @@ class StoreSurvey {
         ss.*,
         s.StoreCode,
         s.StoreName,
+        t.TerritoryName,
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
@@ -117,6 +124,7 @@ class StoreSurvey {
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
       LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE ss.AuditId = @AuditId
@@ -167,6 +175,7 @@ class StoreSurvey {
         ss.*,
         s.StoreCode,
         s.StoreName,
+        t.TerritoryName,
         u.FullName as UserFullName,
         u.UserCode,
         cp.Code as CementProductCode,
@@ -176,6 +185,7 @@ class StoreSurvey {
       FROM StoreSurveys ss
       INNER JOIN Stores s ON ss.StoreId = s.Id
       INNER JOIN Users u ON ss.UserId = u.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       LEFT JOIN CementProducts cp ON ss.CementProductId = cp.Id
       LEFT JOIN Audits a ON ss.AuditId = a.Id
       WHERE 1=1
@@ -223,6 +233,27 @@ class StoreSurvey {
       request.input('DateTo', sql.Date, filters.dateTo);
     }
 
+    if (filters.priceFrom) {
+      query += ' AND (ss.SellingPrice >= @PriceFrom OR ss.NewProductSellingPrice >= @PriceFrom)';
+      request.input('PriceFrom', sql.Decimal(18, 2), filters.priceFrom);
+    }
+
+    if (filters.priceTo) {
+      query += ' AND (ss.SellingPrice <= @PriceTo OR ss.NewProductSellingPrice <= @PriceTo)';
+      request.input('PriceTo', sql.Decimal(18, 2), filters.priceTo);
+    }
+
+    if (filters.productType) {
+      // Filter by product type: 'xmtd' (XMTĐ) or 'non-xmtd' (non-XMTĐ)
+      if (filters.productType === 'xmtd') {
+        // XMTĐ products: has Title 2 or Title 3 data
+        query += ' AND (ss.WhyNotSellNewProduct IS NOT NULL OR EXISTS (SELECT 1 FROM StoreSurveyProducts ssp WHERE ssp.StoreSurveyId = ss.Id))';
+      } else if (filters.productType === 'non-xmtd') {
+        // Non-XMTĐ products: has Title 1 data
+        query += ' AND ss.CementProductId IS NOT NULL';
+      }
+    }
+
     // Pagination
     if (filters.page && filters.pageSize) {
       const offset = (filters.page - 1) * filters.pageSize;
@@ -255,6 +286,8 @@ class StoreSurvey {
       ImportedBySalesperson,
       NewProductSellingPrice,
       FutureImportPrediction,
+      StoreComment,
+      AverageMonthlyConsumption,
     } = surveyData;
 
     const request = pool.request();
@@ -276,6 +309,8 @@ class StoreSurvey {
     request.input('ImportedBySalesperson', sql.NVarChar(200), ImportedBySalesperson || null);
     request.input('NewProductSellingPrice', sql.Decimal(18, 2), NewProductSellingPrice || null);
     request.input('FutureImportPrediction', sql.Decimal(18, 2), FutureImportPrediction || null);
+    request.input('StoreComment', sql.NVarChar(1000), StoreComment || null);
+    request.input('AverageMonthlyConsumption', sql.Decimal(18, 2), AverageMonthlyConsumption || null);
 
     const result = await request.query(`
       UPDATE StoreSurveys
@@ -296,6 +331,8 @@ class StoreSurvey {
           ImportedBySalesperson = @ImportedBySalesperson,
           NewProductSellingPrice = @NewProductSellingPrice,
           FutureImportPrediction = @FutureImportPrediction,
+          StoreComment = @StoreComment,
+          AverageMonthlyConsumption = @AverageMonthlyConsumption,
           UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id

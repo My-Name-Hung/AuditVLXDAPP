@@ -7,7 +7,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -253,6 +253,17 @@ export default function StoreDetailScreen() {
   useEffect(() => {
     fetchStore();
   }, [fetchStore]);
+
+  // Refresh when screen comes into focus (e.g., navigating back from survey)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Small delay to ensure navigation completes
+      const timer = setTimeout(() => {
+        fetchStore();
+      }, 300);
+      return () => clearTimeout(timer);
+    }, [fetchStore])
+  );
 
   useEffect(() => {
     promptedDateRef.current = null;

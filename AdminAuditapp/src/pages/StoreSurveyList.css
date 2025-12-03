@@ -129,6 +129,15 @@
   overflow-x: auto;
 }
 
+.table-section-title {
+  margin: 0 0 16px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0138c3;
+  border-bottom: 2px solid #0138c3;
+  padding-bottom: 8px;
+}
+
 .survey-list-table {
   width: 100%;
   border-collapse: collapse;

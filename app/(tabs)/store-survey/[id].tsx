@@ -45,6 +45,8 @@ interface SurveyData {
   importedBySalesperson: string;
   newProductSellingPrice: string;
   futureImportPrediction: string;
+  storeComment: string;
+  averageMonthlyConsumption: string;
   products: {
     productType: string;
     cementProductId: number | null;
@@ -123,6 +125,8 @@ export default function StoreSurveyScreen() {
     importedBySalesperson: "",
     newProductSellingPrice: "",
     futureImportPrediction: "",
+    storeComment: "",
+    averageMonthlyConsumption: "",
     products: [],
   });
 
@@ -130,6 +134,14 @@ export default function StoreSurveyScreen() {
     fetchCementProducts();
     fetchSalesUsers();
   }, []);
+
+  // Autofill current user into "Nhập bởi thương vụ"
+  useEffect(() => {
+    if (user && user.fullName && !surveyData.importedBySalesperson) {
+      handleInputChange("importedBySalesperson", user.fullName);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   useEffect(() => {
     // Auto-expand title 2 if title 1 is complete
@@ -183,9 +195,9 @@ export default function StoreSurveyScreen() {
       });
       const data = response.data?.data || [];
       setSalesUsers(
-        data.map((u: any) => ({
+        data.map((u: { Id: number; FullName?: string; Username?: string }) => ({
           Id: u.Id,
-          FullName: u.FullName || u.Username,
+          FullName: u.FullName || u.Username || "",
         }))
       );
     } catch (error) {
@@ -290,6 +302,8 @@ export default function StoreSurveyScreen() {
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
     if (!surveyData.newProductSellingPrice)
       errors.push("Giá bán ra (sản phẩm mới)");
+    if (!surveyData.averageMonthlyConsumption)
+      errors.push("SLTTBQ (tấn/tháng)");
 
     // Title 3 validation
     if (surveyData.products.length === 0) {
@@ -412,6 +426,10 @@ export default function StoreSurveyScreen() {
         futureImportPrediction: surveyData.futureImportPrediction
           ? parseVND(surveyData.futureImportPrediction)
           : null,
+        storeComment: surveyData.storeComment || null,
+        averageMonthlyConsumption: surveyData.averageMonthlyConsumption
+          ? parseFloat(surveyData.averageMonthlyConsumption)
+          : null,
         products: surveyData.products.map((p) => ({
           productType: p.productType,
           cementProductId: p.cementProductId,
@@ -426,15 +444,21 @@ export default function StoreSurveyScreen() {
         {
           text: "OK",
           onPress: () => {
+            // Navigate back and refresh store detail to show new images
             router.replace(`/(tabs)/store-detail/${id}`);
+            // Small delay to ensure navigation completes before refresh
+            setTimeout(() => {
+              // The store detail page should automatically refresh on mount
+            }, 100);
           },
         },
       ]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       const errorMessage =
-        error?.response?.data?.error ||
-        error?.message ||
+        (error as { response?: { data?: { error?: string } } })?.response?.data
+          ?.error ||
+        (error as { message?: string })?.message ||
         "Có lỗi xảy ra khi lưu khảo sát";
       Alert.alert("Lỗi", errorMessage);
     } finally {
@@ -493,7 +517,12 @@ export default function StoreSurveyScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Title 1 */}
-          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+          <View
+            style={[
+              styles.titleSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
             <TouchableOpacity
               style={[styles.titleHeader, { backgroundColor: colors.primary }]}
               onPress={() => toggleTitle("title1")}
@@ -800,14 +829,19 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Title 2 */}
-          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+          <View
+            style={[
+              styles.titleSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
             <TouchableOpacity
               style={[
                 styles.titleHeader,
                 {
                   backgroundColor: expandedTitles.title2
                     ? colors.primary
-                    : colors.card,
+                    : colors.background,
                 },
               ]}
               onPress={() => toggleTitle("title2")}
@@ -985,6 +1019,54 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
+                    SLTTBQ (tấn/tháng) *
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.averageMonthlyConsumption}
+                    onChangeText={(value) =>
+                      handleInputChange("averageMonthlyConsumption", value)
+                    }
+                    placeholder="Nhập số lượng tiêu thụ bình quân"
+                    placeholderTextColor={colors.icon}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Ý kiến của cửa hàng
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.storeComment}
+                    onChangeText={(value) =>
+                      handleInputChange("storeComment", value)
+                    }
+                    placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
+                    placeholderTextColor={colors.icon}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
                     Dự đoán tương lai sẽ nhập bao nhiêu hàng của XMTĐ
                   </Text>
                   <TextInput
@@ -1000,7 +1082,7 @@ export default function StoreSurveyScreen() {
                     onChangeText={(value) =>
                       handleInputChange("futureImportPrediction", value)
                     }
-                    placeholder="Nhập giá (VND) - Không bắt buộc"
+                    placeholder="Nhập số lượng"
                     placeholderTextColor={colors.icon}
                     keyboardType="numeric"
                   />
@@ -1010,14 +1092,19 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Title 3 */}
-          <View style={[styles.titleSection, { backgroundColor: colors.card }]}>
+          <View
+            style={[
+              styles.titleSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
             <TouchableOpacity
               style={[
                 styles.titleHeader,
                 {
                   backgroundColor: expandedTitles.title3
                     ? colors.primary
-                    : colors.card,
+                    : colors.background,
                 },
               ]}
               onPress={() => toggleTitle("title3")}
@@ -1528,11 +1615,12 @@ export default function StoreSurveyScreen() {
                     await fetchCementProducts();
                     handleInputChange("cementProductId", created.Id);
                     setShowAddCementModal(false);
-                  } catch (error: any) {
+                  } catch (error: unknown) {
                     console.error("Error creating cement product:", error);
                     const message =
-                      error?.response?.data?.error ||
-                      error?.message ||
+                      (error as { response?: { data?: { error?: string } } })
+                        ?.response?.data?.error ||
+                      (error as { message?: string })?.message ||
                       "Không thể thêm loại xi măng";
                     Alert.alert("Lỗi", message);
                   }

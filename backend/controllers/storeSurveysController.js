@@ -26,6 +26,8 @@ const createStoreSurvey = async (req, res) => {
       importedBySalesperson,
       newProductSellingPrice,
       futureImportPrediction,
+      storeComment,
+      averageMonthlyConsumption,
       // Title 3 - Products
       products,
     } = req.body;
@@ -58,6 +60,8 @@ const createStoreSurvey = async (req, res) => {
       ImportedBySalesperson: importedBySalesperson,
       NewProductSellingPrice: newProductSellingPrice,
       FutureImportPrediction: futureImportPrediction,
+      StoreComment: storeComment,
+      AverageMonthlyConsumption: averageMonthlyConsumption,
     });
 
     // Create products if provided
@@ -166,8 +170,9 @@ const getAllStoreSurveys = async (req, res) => {
       storeName,
       userName,
       cementProductName,
-      dateFrom,
-      dateTo,
+      priceFrom,
+      priceTo,
+      productType,
       page,
       pageSize,
     } = req.query;
@@ -179,8 +184,9 @@ const getAllStoreSurveys = async (req, res) => {
     if (storeName) filters.storeName = storeName;
     if (userName) filters.userName = userName;
     if (cementProductName) filters.cementProductName = cementProductName;
-    if (dateFrom) filters.dateFrom = dateFrom;
-    if (dateTo) filters.dateTo = dateTo;
+    if (priceFrom) filters.priceFrom = parseFloat(priceFrom);
+    if (priceTo) filters.priceTo = parseFloat(priceTo);
+    if (productType) filters.productType = productType; // 'xmtd' or 'non-xmtd'
     if (page && pageSize) {
       filters.page = parseInt(page);
       filters.pageSize = parseInt(pageSize);
@@ -227,6 +233,8 @@ const updateStoreSurvey = async (req, res) => {
       importedBySalesperson,
       newProductSellingPrice,
       futureImportPrediction,
+      storeComment,
+      averageMonthlyConsumption,
       products,
     } = req.body;
 
@@ -254,6 +262,8 @@ const updateStoreSurvey = async (req, res) => {
       ImportedBySalesperson: importedBySalesperson,
       NewProductSellingPrice: newProductSellingPrice,
       FutureImportPrediction: futureImportPrediction,
+      StoreComment: storeComment,
+      AverageMonthlyConsumption: averageMonthlyConsumption,
     });
 
     // Update products if provided

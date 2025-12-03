@@ -232,6 +232,20 @@ export default function StoreDetail() {
     fetchStore();
   }, [fetchStore]);
 
+  // Refresh when navigating back from survey page
+  useEffect(() => {
+    const handleFocus = () => {
+      fetchStore();
+    };
+    // Listen for page visibility change (when user navigates back)
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [fetchStore]);
+
   useEffect(() => {
     promptedDateRef.current = null;
   }, [id]);
