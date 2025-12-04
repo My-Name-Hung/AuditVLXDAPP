@@ -77,7 +77,11 @@ interface DashboardDetailItem {
   Notes: string | null;
 }
 
-type TabType = "import-stores" | "import-users" | "import-cement" | "export-reports";
+type TabType =
+  | "import-stores"
+  | "import-users"
+  | "import-cement"
+  | "export-reports";
 
 export default function ImportExport() {
   const [activeTab, setActiveTab] = useState<TabType>("import-stores");
@@ -122,7 +126,7 @@ export default function ImportExport() {
     }
   };
 
-  const downloadTemplate = async (type: "stores" | "users") => {
+  const downloadTemplate = async (type: "stores" | "users" | "cement") => {
     try {
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
@@ -158,10 +162,7 @@ export default function ImportExport() {
         ];
       } else if (type === "cement") {
         // Template for cement products
-        sheet.getRow(1).values = [
-          "Mã số",
-          "Tên xi măng",
-        ];
+        sheet.getRow(1).values = ["Mã số", "Tên xi măng"];
 
         // Add sample data row
         sheet.getRow(2).values = [
@@ -217,10 +218,7 @@ export default function ImportExport() {
           { width: 40 },
         ];
       } else if (type === "cement") {
-        sheet.columns = [
-          { width: 20 },
-          { width: 50 },
-        ];
+        sheet.columns = [{ width: 20 }, { width: 50 }];
       } else {
         sheet.columns = [
           { width: 20 },
@@ -240,7 +238,11 @@ export default function ImportExport() {
       const link = document.createElement("a");
       link.href = url;
       link.download = `Template_${
-        type === "stores" ? "CuaHang" : type === "cement" ? "XiMang" : "NhanVien"
+        type === "stores"
+          ? "CuaHang"
+          : type === "cement"
+          ? "XiMang"
+          : "NhanVien"
       }_${new Date().toISOString().split("T")[0]}.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
@@ -1042,12 +1044,12 @@ export default function ImportExport() {
         >
           <HiArrowUpTray /> Tải lên danh sách Nhân viên
         </button>
-        <button
+        {/* <button
           className={`tab ${activeTab === "import-cement" ? "active" : ""}`}
           onClick={() => setActiveTab("import-cement")}
         >
           <HiArrowUpTray /> Tải lên xi măng
-        </button>
+        </button> */}
         <button
           className={`tab ${activeTab === "export-reports" ? "active" : ""}`}
           onClick={() => setActiveTab("export-reports")}
@@ -1307,7 +1309,13 @@ export default function ImportExport() {
                         : "Chọn file Excel để tải lên"}
                     </strong>
                     <p>Chỉ chấp nhận file .xlsx, .xls</p>
-                    <p style={{ fontSize: "12px", color: "#666", marginTop: "8px" }}>
+                    <p
+                      style={{
+                        fontSize: "12px",
+                        color: "#666",
+                        marginTop: "8px",
+                      }}
+                    >
                       Format: Cột A = Mã số, Cột B = Tên xi măng
                     </p>
                   </div>

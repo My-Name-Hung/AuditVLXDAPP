@@ -38,6 +38,15 @@ interface DashboardSummaryItem {
   TotalStoresChecked: number;
 }
 
+interface DashboardDetailItem {
+  CheckinDate: string;
+  CheckinTime: string | null;
+  StoreName: string;
+  TerritoryName?: string;
+  Address: string | null;
+  Notes: string | null;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [territories, setTerritories] = useState<Territory[]>([]);
@@ -63,6 +72,7 @@ export default function Dashboard() {
   useEffect(() => {
     fetchTerritories();
     fetchSummary(); // Initial load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -72,6 +82,7 @@ export default function Dashboard() {
     } else {
       isInitialMount.current = false;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTerritories, dateFilter, selectedDate, selectedMonth]);
 
   const fetchTerritories = async () => {
@@ -91,7 +102,7 @@ export default function Dashboard() {
         setLoading(true);
       }
 
-      const params: any = {};
+      const params: Record<string, string> = {};
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
@@ -146,7 +157,7 @@ export default function Dashboard() {
       setExportLoading(true);
       setExportProgress(0);
 
-      const params: any = {};
+      const params: Record<string, string> = {};
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
@@ -168,7 +179,7 @@ export default function Dashboard() {
       // Fetch export data for details
       const res = await api.get("/dashboard/export", { params });
       setExportProgress(50);
-      
+
       // Use summaryData from state (which matches the UI) instead of data from export API
       // This ensures the summary table in Excel matches what's shown on the UI
       await generateExcel(
@@ -194,7 +205,10 @@ export default function Dashboard() {
   };
 
   const generateExcel = async (
-    data: { summary: DashboardSummaryItem[]; details: Record<string, any[]> },
+    data: {
+      summary: DashboardSummaryItem[];
+      details: Record<string, DashboardDetailItem[]>;
+    },
     progressCallback?: (progress: number) => void
   ) => {
     const ExcelJS = (await import("exceljs")).default;
@@ -312,7 +326,10 @@ export default function Dashboard() {
         userGroupMap.set(item.UserId, {
           user: item,
           territories: [
-            { territoryId: item.TerritoryId, territoryName: item.TerritoryName },
+            {
+              territoryId: item.TerritoryId,
+              territoryName: item.TerritoryName,
+            },
           ],
         });
       }
@@ -361,31 +378,31 @@ export default function Dashboard() {
         const userDetails = data.details[detailKey] || [];
 
         userDetails.forEach((detail) => {
-        const checkinDate = new Date(detail.CheckinDate);
-        const checkinTime = detail.CheckinTime
-          ? new Date(detail.CheckinTime)
-          : null;
+          const checkinDate = new Date(detail.CheckinDate);
+          const checkinTime = detail.CheckinTime
+            ? new Date(detail.CheckinTime)
+            : null;
 
-        // Format date and time using UTC timezone to match UI display
-        const formattedDate = checkinDate.toLocaleDateString("vi-VN", {
-          timeZone: "UTC",
-        });
-        const formattedTime = checkinTime
-          ? checkinTime.toLocaleTimeString("vi-VN", {
-              hour12: false,
-              timeZone: "UTC",
-            })
-          : "";
+          // Format date and time using UTC timezone to match UI display
+          const formattedDate = checkinDate.toLocaleDateString("vi-VN", {
+            timeZone: "UTC",
+          });
+          const formattedTime = checkinTime
+            ? checkinTime.toLocaleTimeString("vi-VN", {
+                hour12: false,
+                timeZone: "UTC",
+              })
+            : "";
 
-        detailSheet.addRow([
-          formattedDate,
+          detailSheet.addRow([
+            formattedDate,
             ++rowIndex,
-          detail.StoreName,
+            detail.StoreName,
             detail.TerritoryName || territoryName || "",
-          detail.Address || "",
-          formattedTime,
-          detail.Notes || "",
-        ]);
+            detail.Address || "",
+            formattedTime,
+            detail.Notes || "",
+          ]);
         });
       });
 

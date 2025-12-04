@@ -11,6 +11,7 @@ interface StoreSurvey {
   UserId: number;
   StoreCode: string;
   StoreName: string;
+  TerritoryName?: string;
   UserFullName: string;
   UserCode: string;
   CementProductCode: string | null;
@@ -40,7 +41,15 @@ interface StoreSurvey {
     ProductType: string;
     CementProductCode: string | null;
     CementProductName: string | null;
+    ContactPersonPhone: string | null;
+    PurchasePrice: number | null;
     SellingPrice: number | null;
+    RoadTransportFee: number | null;
+    WaterTransportFee: number | null;
+    QuantityReceived: number | null;
+    ImportedFromNPP: string | null;
+    DiscountPromotion: string | null;
+    AverageStockQuantity: number | null;
   }>;
 }
 
@@ -117,13 +126,30 @@ export default function StoreSurveyDetail() {
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
 
-      // Get current week number
+      // Calculate week number in month and week number in year
       const now = new Date();
-      const startOfYear = new Date(now.getFullYear(), 0, 1);
-      const pastDaysOfYear = (now.getTime() - startOfYear.getTime()) / 86400000;
-      const weekNumber = Math.ceil(
-        (pastDaysOfYear + startOfYear.getDay() + 1) / 7
+      const month = now.getMonth() + 1;
+      const year = now.getFullYear();
+      const day = now.getDate();
+      
+      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+      const weekNumberInMonth = Math.ceil(day / 7);
+      
+      // Week number in year: calculate from January 1st
+      // Get the first day of the year
+      const januaryFirst = new Date(year, 0, 1);
+      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+      const firstDayOfWeek = januaryFirst.getDay();
+      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+      
+      // Calculate days since year start
+      const daysSinceYearStart = Math.floor(
+        (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
       );
+      
+      // Calculate week number: (days + offset to first Monday) / 7, rounded up
+      const weekNumberInYear = Math.ceil((daysSinceYearStart + firstMondayOffset + 1) / 7);
 
       const sheet = workbook.addWorksheet("Báo cáo khảo sát");
 
@@ -147,34 +173,38 @@ export default function StoreSurveyDetail() {
         },
       };
 
-      // Title rows
-      sheet.mergeCells("A1:K1");
-      sheet.getCell("A1").value =
-        "1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN 20/2025";
-      sheet.getCell("A1").font = { bold: true, size: 12 };
-      sheet.getCell("A1").alignment = { horizontal: "left" };
+      // Title rows - Layout: Title 1 (top), Territory (middle), Title 2 (below)
+      sheet.mergeCells("A1:M1");
+      sheet.getCell("A1").value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+      sheet.getCell("A1").font = { bold: true, size: 14 };
+      sheet.getCell("A1").alignment = { horizontal: "center" };
 
-      sheet.mergeCells("A2:K2");
-      sheet.getCell("A2").value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumber}`;
-      sheet.getCell("A2").font = { bold: true, size: 14 };
+      sheet.mergeCells("A2:M2");
+      sheet.getCell("A2").value = `Địa bàn: ${
+        survey.TerritoryName || "Chưa xác định"
+      }`;
+      sheet.getCell("A2").font = { bold: true, size: 12 };
       sheet.getCell("A2").alignment = { horizontal: "center" };
 
-      sheet.mergeCells("A3:K3");
-      sheet.getCell("A3").value = "Địa bàn: An Giang";
+      sheet.mergeCells("A3:M3");
+      sheet.getCell("A3").value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
       sheet.getCell("A3").font = { bold: true, size: 12 };
-      sheet.getCell("A3").alignment = { horizontal: "center" };
+      sheet.getCell("A3").alignment = { horizontal: "left" };
 
       // Table headers
       const headers = [
         "Stt",
         "Tên Cửa hàng",
         "Ngày thăm",
-        "Người tiếp xúc",
+        "Tên + SDT",
         "Loại XM",
         "Giá mua",
         "Giá bán",
-        "SLTTBQ (tấn/tháng)",
-        "Mua qua NPP",
+        "Phí VC đường bộ",
+        "Phí VC đường thủy",
+        "SL nhận hàng (tấn/tháng)",
+        "Nhập từ NPP",
+        "Số lượng tồn bình quân (tấn/tháng)",
         "Ý kiến CH",
       ];
 
@@ -183,41 +213,78 @@ export default function StoreSurveyDetail() {
         cell.style = headerStyle;
       });
 
-      // Data row
-      const row = sheet.addRow([
-        1,
-        survey.StoreName || "",
-        formatDate(survey.AuditDate),
-        survey.ContactPerson || "",
-        survey.CementProductName || "",
-        formatVND(survey.PurchasePrice),
-        formatVND(survey.SellingPrice),
-        survey.ImportExportQuantity || "",
-        survey.SupplierName || "",
-        survey.AuditNotes || "",
-      ]);
+      // Data rows - Show products from Title 3
+      if (survey.products && survey.products.length > 0) {
+        survey.products.forEach((product, index) => {
+          const row = sheet.addRow([
+            index + 1,
+            survey.StoreName || "",
+            formatDate(survey.AuditDate),
+            product.ContactPersonPhone || "",
+            product.CementProductName || "",
+            formatVND(product.PurchasePrice),
+            formatVND(product.SellingPrice),
+            formatVND(product.RoadTransportFee),
+            formatVND(product.WaterTransportFee),
+            product.QuantityReceived || "",
+            product.ImportedFromNPP || "",
+            product.AverageStockQuantity || "",
+            survey.StoreComment || "",
+          ]);
 
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" },
-        };
-        cell.alignment = { vertical: "middle" };
-      });
+          row.eachCell((cell) => {
+            cell.border = {
+              top: { style: "thin" },
+              bottom: { style: "thin" },
+              left: { style: "thin" },
+              right: { style: "thin" },
+            };
+            cell.alignment = { vertical: "middle" };
+          });
+        });
+      } else {
+        // Fallback if no products
+        const row = sheet.addRow([
+          1,
+          survey.StoreName || "",
+          formatDate(survey.AuditDate),
+          "",
+          "",
+          "",
+          formatVND(survey.NewProductSellingPrice),
+          "",
+          "",
+          "",
+          "",
+          survey.AverageMonthlyConsumption || "",
+          survey.StoreComment || "",
+        ]);
+
+        row.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          };
+          cell.alignment = { vertical: "middle" };
+        });
+      }
 
       // Column widths
       sheet.columns = [
         { width: 8 },
         { width: 25 },
         { width: 12 },
-        { width: 18 },
+        { width: 20 },
         { width: 20 },
         { width: 12 },
         { width: 12 },
+        { width: 15 },
+        { width: 15 },
+        { width: 20 },
         { width: 18 },
-        { width: 18 },
+        { width: 25 },
         { width: 30 },
       ];
 
@@ -290,46 +357,7 @@ export default function StoreSurveyDetail() {
           </div>
         </div>
 
-        {/* Bảng 1: Không phải sản phẩm XMTĐ (Title 1) */}
-        {survey.CementProductCode && (
-          <div className="survey-section">
-            <h2>Cửa hàng bán sản phẩm không phải của Xi Măng Tây Đô</h2>
-            <div className="survey-table-container">
-              <table className="survey-table">
-                <thead>
-                  <tr>
-                    <th>Stt</th>
-                    <th>Tên Cửa hàng</th>
-                    <th>Ngày thăm</th>
-                    <th>Người tiếp xúc</th>
-                    <th>Loại XM</th>
-                    <th>Giá mua</th>
-                    <th>Giá bán</th>
-                    <th>SLTTBQ (tấn/tháng)</th>
-                    <th>Mua qua NPP</th>
-                    <th>Ý kiến CH</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>1</td>
-                    <td>{survey.StoreName}</td>
-                    <td>{formatDate(survey.AuditDate)}</td>
-                    <td>{survey.ContactPerson || ""}</td>
-                    <td>{survey.CementProductName || ""}</td>
-                    <td>{formatVND(survey.PurchasePrice)}</td>
-                    <td>{formatVND(survey.SellingPrice)}</td>
-                    <td>{survey.ImportExportQuantity || ""}</td>
-                    <td>{survey.SupplierName || ""}</td>
-                    <td>{survey.AuditNotes || ""}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Bảng 2: Sản phẩm của XMTĐ (Title 2 + 3) */}
+        {/* Sản phẩm của XMTĐ (Title 2 + 3) */}
         {(survey.WhyNotSellNewProduct ||
           (survey.products && survey.products.length > 0)) && (
           <div className="survey-section">
@@ -341,12 +369,15 @@ export default function StoreSurveyDetail() {
                     <th>Stt</th>
                     <th>Tên Cửa hàng</th>
                     <th>Ngày thăm</th>
-                    <th>Người tiếp xúc</th>
+                    <th>Tên + SDT</th>
                     <th>Loại XM</th>
                     <th>Giá mua</th>
                     <th>Giá bán</th>
-                    <th>SLTTBQ (tấn/tháng)</th>
-                    <th>Mua qua NPP</th>
+                    <th>Phí VC đường bộ</th>
+                    <th>Phí VC đường thủy</th>
+                    <th>SL nhận hàng (tấn/tháng)</th>
+                    <th>Nhập từ NPP</th>
+                    <th>Số lượng tồn bình quân (tấn/tháng)</th>
                     <th>Ý kiến CH</th>
                   </tr>
                 </thead>
@@ -357,15 +388,16 @@ export default function StoreSurveyDetail() {
                         <td>{index + 1}</td>
                         <td>{survey.StoreName}</td>
                         <td>{formatDate(survey.AuditDate)}</td>
-                        <td>{survey.ContactPerson || ""}</td>
+                        <td>{product.ContactPersonPhone || ""}</td>
                         <td>{product.CementProductName || ""}</td>
-                        <td>-</td>
+                        <td>{formatVND(product.PurchasePrice)}</td>
                         <td>{formatVND(product.SellingPrice)}</td>
-                        <td>{survey.AverageMonthlyConsumption || ""}</td>
-                        <td>-</td>
-                        <td>
-                          {survey.StoreComment || survey.AuditNotes || ""}
-                        </td>
+                        <td>{formatVND(product.RoadTransportFee)}</td>
+                        <td>{formatVND(product.WaterTransportFee)}</td>
+                        <td>{product.QuantityReceived || ""}</td>
+                        <td>{product.ImportedFromNPP || ""}</td>
+                        <td>{product.AverageStockQuantity || ""}</td>
+                        <td>{survey.StoreComment || ""}</td>
                       </tr>
                     ))
                   ) : (
@@ -373,13 +405,16 @@ export default function StoreSurveyDetail() {
                       <td>1</td>
                       <td>{survey.StoreName}</td>
                       <td>{formatDate(survey.AuditDate)}</td>
-                      <td>{survey.ContactPerson || ""}</td>
+                      <td>-</td>
                       <td>-</td>
                       <td>-</td>
                       <td>{formatVND(survey.NewProductSellingPrice)}</td>
-                      <td>{survey.AverageMonthlyConsumption || ""}</td>
                       <td>-</td>
-                      <td>{survey.StoreComment || survey.AuditNotes || ""}</td>
+                      <td>-</td>
+                      <td>-</td>
+                      <td>-</td>
+                      <td>{survey.AverageMonthlyConsumption || ""}</td>
+                      <td>{survey.StoreComment || ""}</td>
                     </tr>
                   )}
                 </tbody>

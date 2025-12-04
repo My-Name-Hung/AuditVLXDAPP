@@ -265,7 +265,7 @@ export default function UserDetail() {
               <th>Địa chỉ cửa hàng</th>
               <th>Thời Gian Checkin</th>
               <th>Ghi chú</th>
-              <th>Thao tác</th>
+              <th>Xem chi tiết</th>
             </tr>
           </thead>
           <tbody>

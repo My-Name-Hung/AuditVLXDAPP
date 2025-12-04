@@ -72,6 +72,14 @@ const createStoreSurvey = async (req, res) => {
         ProductType: p.productType,
         CementProductId: p.cementProductId,
         SellingPrice: p.sellingPrice,
+        ContactPersonPhone: p.contactPersonPhone,
+        PurchasePrice: p.purchasePrice,
+        RoadTransportFee: p.roadTransportFee,
+        WaterTransportFee: p.waterTransportFee,
+        QuantityReceived: p.quantityReceived,
+        ImportedFromNPP: p.importedFromNPP,
+        DiscountPromotion: p.discountPromotion,
+        AverageStockQuantity: p.averageStockQuantity,
       }));
 
       createdProducts = await StoreSurveyProduct.bulkCreate(productsToCreate);

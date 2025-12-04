@@ -12,18 +12,6 @@ interface CementProduct {
 }
 
 interface SurveyData {
-  // Title 1
-  cementProductId: number | null;
-  contactPerson: string;
-  purchasePrice: string;
-  sellingPrice: string;
-  supplierName: string;
-  roadTransportFee: string;
-  waterTransportFee: string;
-  importExportQuantity: string;
-  stockQuantity: string;
-  consumptionArea: string;
-  debtPeriod: string;
   // Title 2
   whyNotSellNewProduct: string;
   timeToSellNewProduct: string;
@@ -37,7 +25,15 @@ interface SurveyData {
   products: Array<{
     productType: string;
     cementProductId: number | null;
+    contactPersonPhone: string;
+    purchasePrice: string;
     sellingPrice: string;
+    roadTransportFee: string;
+    waterTransportFee: string;
+    quantityReceived: string;
+    importedFromNPP: string;
+    discountPromotion: string;
+    averageStockQuantity: string;
   }>;
 }
 
@@ -97,23 +93,12 @@ const StoreSurvey = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedTitles, setExpandedTitles] = useState({
-    title1: true,
     title2: false,
     title3: false,
   });
+  const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
-    cementProductId: null,
-    contactPerson: "",
-    purchasePrice: "",
-    sellingPrice: "",
-    supplierName: "",
-    roadTransportFee: "",
-    waterTransportFee: "",
-    importExportQuantity: "",
-    stockQuantity: "",
-    consumptionArea: "",
-    debtPeriod: "",
     whyNotSellNewProduct: "",
     timeToSellNewProduct: "",
     newProductImportQuantity: "",
@@ -138,25 +123,12 @@ const StoreSurvey = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Auto-expand title 2 on mount
   useEffect(() => {
-    // Auto-expand title 2 if title 1 is complete
-    const title1Complete =
-      surveyData.cementProductId &&
-      surveyData.contactPerson &&
-      surveyData.purchasePrice &&
-      surveyData.sellingPrice &&
-      surveyData.supplierName &&
-      surveyData.roadTransportFee &&
-      surveyData.waterTransportFee &&
-      surveyData.importExportQuantity &&
-      surveyData.stockQuantity &&
-      surveyData.consumptionArea &&
-      surveyData.debtPeriod;
-
-    if (title1Complete && !expandedTitles.title2) {
+    if (!expandedTitles.title2) {
       setExpandedTitles((prev) => ({ ...prev, title2: true }));
     }
-  }, [surveyData, expandedTitles.title2]);
+  }, []);
 
   useEffect(() => {
     // Auto-expand title 3 if title 2 is complete
@@ -208,10 +180,17 @@ const StoreSurvey = () => {
     (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase())
   );
 
-  const toggleTitle = (title: "title1" | "title2" | "title3") => {
+  const toggleTitle = (title: "title2" | "title3") => {
     setExpandedTitles((prev) => ({
       ...prev,
       [title]: !prev[title],
+    }));
+  };
+
+  const toggleProduct = (index: number) => {
+    setExpandedProducts((prev) => ({
+      ...prev,
+      [index]: !prev[index],
     }));
   };
 
@@ -227,11 +206,7 @@ const StoreSurvey = () => {
 
   const handlePriceChange = (
     field:
-      | "purchasePrice"
-      | "sellingPrice"
       | "newProductSellingPrice"
-      | "roadTransportFee"
-      | "waterTransportFee"
       | "newProductImportQuantity",
     value: string
   ) => {
@@ -239,7 +214,17 @@ const StoreSurvey = () => {
     handleInputChange(field, formatted);
   };
 
+  const handleProductPriceChange = (
+    index: number,
+    field: "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee",
+    value: string
+  ) => {
+    const formatted = formatVND(value);
+    handleProductChange(index, field, formatted);
+  };
+
   const handleAddProduct = () => {
+    const newIndex = surveyData.products.length;
     setSurveyData((prev) => ({
       ...prev,
       products: [
@@ -247,15 +232,54 @@ const StoreSurvey = () => {
         {
           productType: "",
           cementProductId: null,
+          contactPersonPhone: "",
+          purchasePrice: "",
           sellingPrice: "",
+          roadTransportFee: "",
+          waterTransportFee: "",
+          quantityReceived: "",
+          importedFromNPP: "",
+          discountPromotion: "",
+          averageStockQuantity: "",
         },
       ],
     }));
+    // Auto-expand new product
+    setExpandedProducts((prev) => ({
+      ...prev,
+      [newIndex]: true,
+    }));
+  };
+
+  const handleRemoveProduct = (index: number) => {
+    setSurveyData((prev) => {
+      const newProducts = prev.products.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        products: newProducts,
+      };
+    });
+    // Remove from expanded state
+    setExpandedProducts((prev) => {
+      const newExpanded = { ...prev };
+      delete newExpanded[index];
+      // Reindex remaining products
+      const reindexed: Record<number, boolean> = {};
+      Object.keys(newExpanded).forEach((key) => {
+        const oldIndex = parseInt(key);
+        if (oldIndex > index) {
+          reindexed[oldIndex - 1] = newExpanded[oldIndex];
+        } else if (oldIndex < index) {
+          reindexed[oldIndex] = newExpanded[oldIndex];
+        }
+      });
+      return reindexed;
+    });
   };
 
   const handleProductChange = (
     index: number,
-    field: "productType" | "cementProductId" | "sellingPrice",
+    field: "productType" | "cementProductId" | "contactPersonPhone" | "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee" | "quantityReceived" | "importedFromNPP" | "discountPromotion" | "averageStockQuantity",
     value: string | number | null
   ) => {
     setSurveyData((prev) => {
@@ -274,19 +298,6 @@ const StoreSurvey = () => {
   const validateSurvey = (): string[] => {
     const errors: string[] = [];
 
-    // Title 1 validation
-    if (!surveyData.cementProductId) errors.push("Loại xi măng");
-    if (!surveyData.contactPerson) errors.push("Người tiếp xúc");
-    if (!surveyData.purchasePrice) errors.push("Giá mua vào");
-    if (!surveyData.sellingPrice) errors.push("Giá bán ra");
-    if (!surveyData.supplierName) errors.push("Nhập NPP nào");
-    if (!surveyData.roadTransportFee) errors.push("Phí code đường bộ");
-    if (!surveyData.waterTransportFee) errors.push("Phí code đường thủy");
-    if (!surveyData.importExportQuantity) errors.push("Số lượng nhập");
-    if (!surveyData.stockQuantity) errors.push("Số sản phẩm tồn kho");
-    if (!surveyData.consumptionArea) errors.push("Vùng đang tiêu thụ");
-    if (!surveyData.debtPeriod) errors.push("Công nợ bao lâu");
-
     // Title 2 validation
     if (!surveyData.whyNotSellNewProduct)
       errors.push("Tại sao không bán sản phẩm mới");
@@ -298,7 +309,7 @@ const StoreSurvey = () => {
     if (!surveyData.newProductSellingPrice)
       errors.push("Giá bán ra (sản phẩm mới)");
     if (!surveyData.averageMonthlyConsumption)
-      errors.push("SLTTBQ (tấn/tháng)");
+      errors.push("Số lượng tồn bình quân (tấn/tháng)");
 
     // Title 3 validation
     if (surveyData.products.length === 0) {
@@ -311,8 +322,29 @@ const StoreSurvey = () => {
         if (product.productType === "Xi măng" && !product.cementProductId) {
           errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
         }
+        if (!product.contactPersonPhone) {
+          errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
+        }
+        if (!product.purchasePrice) {
+          errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
+        }
         if (!product.sellingPrice) {
           errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
+        }
+        if (!product.roadTransportFee) {
+          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
+        }
+        if (!product.waterTransportFee) {
+          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
+        }
+        if (!product.quantityReceived) {
+          errors.push(`Sản phẩm ${index + 1}: Số lượng nhận hàng (tấn/tháng)`);
+        }
+        if (!product.importedFromNPP) {
+          errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
+        }
+        if (!product.averageStockQuantity) {
+          errors.push(`Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`);
         }
       });
     }
@@ -327,7 +359,9 @@ const StoreSurvey = () => {
         "\n"
       )}`;
       if (
-        confirm(errorMessage + "\n\nBạn có muốn tiếp tục hoàn thành không?")
+        window.confirm(
+          errorMessage + "\n\nBạn có muốn tiếp tục hoàn thành không?"
+        )
       ) {
         await submitSurvey();
       }
@@ -337,8 +371,15 @@ const StoreSurvey = () => {
   };
 
   const submitSurvey = async () => {
-    if (!user || !storeId || capturedImages.length !== 3) {
-      alert("Thiếu thông tin cần thiết");
+    if (!user || !storeId || !capturedImages || capturedImages.length !== 3) {
+      alert("Lỗi: Thiếu thông tin cần thiết");
+      return;
+    }
+
+    const parsedStoreId =
+      typeof storeId === "string" ? parseInt(storeId) : storeId;
+    if (isNaN(parsedStoreId)) {
+      alert("Lỗi: ID cửa hàng không hợp lệ");
       return;
     }
 
@@ -348,7 +389,7 @@ const StoreSurvey = () => {
       // Step 1: Create audit
       const auditResponse = await api.post("/audits", {
         userId: user.id,
-        storeId: storeId,
+        storeId: parsedStoreId,
         notes: notes.trim() || null,
         auditDate: new Date().toISOString(),
       });
@@ -356,7 +397,12 @@ const StoreSurvey = () => {
       const auditId = auditResponse.data.Id;
 
       // Step 2: Upload all images in parallel (much faster than sequential)
-      const imageUploadPromises = capturedImages.map(async (img, i) => {
+      const imagesToUpload = capturedImages.filter(
+        (img): img is NonNullable<typeof img> =>
+          img !== undefined && img !== null
+      );
+
+      const imageUploadPromises = imagesToUpload.map(async (img, i) => {
         const formData = new FormData();
         const blob = await fetch(img.dataUrl).then((r) => r.blob());
         formData.append("image", blob, `image_${i + 1}.jpg`);
@@ -375,20 +421,9 @@ const StoreSurvey = () => {
 
       // Step 3: Create survey (can run in parallel with image uploads)
       const surveyPromise = api.post("/store-surveys", {
-        storeId: storeId,
+        storeId: parsedStoreId,
         auditId: auditId,
         userId: user.id,
-        cementProductId: surveyData.cementProductId,
-        contactPerson: surveyData.contactPerson,
-        purchasePrice: parseVND(surveyData.purchasePrice),
-        sellingPrice: parseVND(surveyData.sellingPrice),
-        supplierName: surveyData.supplierName,
-        roadTransportFee: parseVND(surveyData.roadTransportFee),
-        waterTransportFee: parseVND(surveyData.waterTransportFee),
-        importExportQuantity: surveyData.importExportQuantity,
-        stockQuantity: surveyData.stockQuantity,
-        consumptionArea: surveyData.consumptionArea,
-        debtPeriod: surveyData.debtPeriod,
         whyNotSellNewProduct: surveyData.whyNotSellNewProduct,
         timeToSellNewProduct: surveyData.timeToSellNewProduct || null,
         newProductImportQuantity: parseVND(surveyData.newProductImportQuantity),
@@ -404,18 +439,30 @@ const StoreSurvey = () => {
         products: surveyData.products.map((p) => ({
           productType: p.productType,
           cementProductId: p.cementProductId,
+          contactPersonPhone: p.contactPersonPhone,
+          purchasePrice: p.purchasePrice ? parseVND(p.purchasePrice) : null,
           sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
+          roadTransportFee: p.roadTransportFee ? parseVND(p.roadTransportFee) : null,
+          waterTransportFee: p.waterTransportFee ? parseVND(p.waterTransportFee) : null,
+          quantityReceived: p.quantityReceived ? parseFloat(p.quantityReceived) : null,
+          importedFromNPP: p.importedFromNPP,
+          discountPromotion: p.discountPromotion || null,
+          averageStockQuantity: p.averageStockQuantity ? parseFloat(p.averageStockQuantity) : null,
         })),
       });
 
       // Execute image uploads and survey creation in parallel
       await Promise.all([...imageUploadPromises, surveyPromise]);
 
-      alert("Thực thi cửa hàng thành công");
-      // Navigate and force reload to show new images
-      navigate(`/stores/${storeId}`, { replace: true });
-      // Force page reload to refresh images
-      window.location.reload();
+      // Success - navigate back to store detail
+      alert("Thành công: Thực thi cửa hàng thành công");
+      // Navigate back and refresh store detail to show new images
+      navigate(`/stores/${parsedStoreId}`, { replace: true });
+      // Small delay to ensure navigation completes before refresh
+      setTimeout(() => {
+        // The store detail page should automatically refresh on mount
+        window.location.reload();
+      }, 100);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       const errorMessage =
@@ -423,7 +470,7 @@ const StoreSurvey = () => {
           ?.error ||
         (error as { message?: string })?.message ||
         "Có lỗi xảy ra khi lưu khảo sát";
-      alert(errorMessage);
+      alert(`Lỗi: ${errorMessage}`);
     } finally {
       setSubmitting(false);
     }
@@ -473,264 +520,6 @@ const StoreSurvey = () => {
       </div>
 
       <div className="store-survey-content">
-        {/* Title 1 */}
-        <div className="store-survey-title-section">
-          <div
-            className="store-survey-title-header"
-            onClick={() => toggleTitle("title1")}
-            style={{
-              background: `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`,
-            }}
-          >
-            <h2 style={{ color: "#fff" }}>
-              Cửa hàng bán sản phẩm không phải của Xi Măng Tây Đô
-            </h2>
-            <span style={{ color: "#fff" }}>
-              {expandedTitles.title1 ? "▲" : "▼"}
-            </span>
-          </div>
-
-          {expandedTitles.title1 && (
-            <div
-              className="store-survey-title-content"
-              style={{ backgroundColor: colors.secondary }}
-            >
-              {/* Loại xi măng */}
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Loại xi măng *</label>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  <div style={{ flex: 1 }}>
-                    <select
-                      value={surveyData.cementProductId || ""}
-                      onChange={(e) =>
-                        handleInputChange(
-                          "cementProductId",
-                          e.target.value ? parseInt(e.target.value) : null
-                        )
-                      }
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    >
-                      <option value="">Chọn loại xi măng</option>
-                      {filteredCementProducts.map((product) => (
-                        <option key={product.Id} value={product.Id}>
-                          {product.Name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setNewCementName("");
-                      setShowAddCementModal(true);
-                    }}
-                    style={{
-                      padding: "10px 16px",
-                      borderRadius: 4,
-                      border: "none",
-                      cursor: "pointer",
-                      backgroundColor: colors.primary,
-                      color: "#fff",
-                      fontWeight: 600,
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    + Thêm loại xi măng
-                  </button>
-                </div>
-              </div>
-
-              {/* 6 trường sau khi chọn loại xi măng */}
-              {surveyData.cementProductId && (
-                <>
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>
-                      Người tiếp xúc *
-                    </label>
-                    <input
-                      type="text"
-                      value={surveyData.contactPerson}
-                      onChange={(e) =>
-                        handleInputChange("contactPerson", e.target.value)
-                      }
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
-
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>Giá mua vào *</label>
-                    <input
-                      type="text"
-                      value={surveyData.purchasePrice}
-                      onChange={(e) =>
-                        handlePriceChange("purchasePrice", e.target.value)
-                      }
-                      placeholder="Nhập giá (VND)"
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
-
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>Giá bán ra *</label>
-                    <input
-                      type="text"
-                      value={surveyData.sellingPrice}
-                      onChange={(e) =>
-                        handlePriceChange("sellingPrice", e.target.value)
-                      }
-                      placeholder="Nhập giá (VND)"
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
-
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>
-                      Nhập NPP nào? *
-                    </label>
-                    <input
-                      type="text"
-                      value={surveyData.supplierName}
-                      onChange={(e) =>
-                        handleInputChange("supplierName", e.target.value)
-                      }
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
-
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>
-                      Phí code đường bộ *
-                    </label>
-                    <input
-                      type="text"
-                      value={surveyData.roadTransportFee}
-                      onChange={(e) =>
-                        handlePriceChange("roadTransportFee", e.target.value)
-                      }
-                      placeholder="Nhập giá (VND)"
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
-
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>
-                      Phí code đường thủy *
-                    </label>
-                    <input
-                      type="text"
-                      value={surveyData.waterTransportFee}
-                      onChange={(e) =>
-                        handlePriceChange("waterTransportFee", e.target.value)
-                      }
-                      placeholder="Nhập giá (VND)"
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
-                </>
-              )}
-
-              {/* Các trường khác */}
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Số lượng nhập/xuất *
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.importExportQuantity}
-                  onChange={(e) =>
-                    handleInputChange("importExportQuantity", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Số sản phẩm tồn kho *
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.stockQuantity}
-                  onChange={(e) =>
-                    handleInputChange("stockQuantity", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Vùng đang tiêu thụ *
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.consumptionArea}
-                  onChange={(e) =>
-                    handleInputChange("consumptionArea", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Công nợ bao lâu *</label>
-                <input
-                  type="text"
-                  value={surveyData.debtPeriod}
-                  onChange={(e) =>
-                    handleInputChange("debtPeriod", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Title 2 */}
         <div className="store-survey-title-section">
           <div
@@ -743,7 +532,7 @@ const StoreSurvey = () => {
             }}
           >
             <h2 style={{ color: expandedTitles.title2 ? "#fff" : colors.text }}>
-              Khảo sát sản phẩm của XMTĐ
+              Khảo sát sản phẩm của XMTĐ *
             </h2>
             <span
               style={{ color: expandedTitles.title2 ? "#fff" : colors.icon }}
@@ -816,6 +605,40 @@ const StoreSurvey = () => {
               </div>
 
               <div className="store-survey-field">
+                <label style={{ color: colors.text }}>Giá mua *</label>
+                <input
+                  type="text"
+                  value={surveyData.purchasePrice}
+                  onChange={(e) =>
+                    handlePriceChange("purchasePrice", e.target.value)
+                  }
+                  placeholder="Nhập giá (VND)"
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>Mua qua NPP *</label>
+                <input
+                  type="text"
+                  value={surveyData.supplierName}
+                  onChange={(e) =>
+                    handleInputChange("supplierName", e.target.value)
+                  }
+                  placeholder="Nhập tên NPP"
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
                   Nhập bởi thương vụ *
                 </label>
@@ -872,15 +695,18 @@ const StoreSurvey = () => {
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
-                  SLTTBQ (tấn/tháng) *
+                  Số lượng tồn bình quân (tấn/tháng) *
                 </label>
                 <input
                   type="text"
                   value={surveyData.averageMonthlyConsumption}
                   onChange={(e) =>
-                    handleInputChange("averageMonthlyConsumption", e.target.value)
+                    handleInputChange(
+                      "averageMonthlyConsumption",
+                      e.target.value
+                    )
                   }
-                  placeholder="Nhập số lượng tiêu thụ bình quân"
+                  placeholder="Nhập số lượng tồn bình quân"
                   style={{
                     backgroundColor: colors.background,
                     color: colors.text,
@@ -942,7 +768,7 @@ const StoreSurvey = () => {
             }}
           >
             <h2 style={{ color: expandedTitles.title3 ? "#fff" : colors.text }}>
-              Thông tin bán hàng
+              Thông tin bán hàng *
             </h2>
             <span
               style={{ color: expandedTitles.title3 ? "#fff" : colors.icon }}
@@ -957,121 +783,391 @@ const StoreSurvey = () => {
               style={{ backgroundColor: colors.secondary }}
             >
               {surveyData.products.map((product, index) => (
-                <div key={index} className="store-survey-product-item">
-                  <h3 style={{ color: colors.text }}>Sản phẩm {index + 1}</h3>
-
-                  <div className="store-survey-field">
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        alignItems: "center",
-                      }}
-                    >
-                      <label style={{ color: colors.text }}>
-                        Sản phẩm được bán *
-                      </label>
+                <div
+                  key={index}
+                  className="store-survey-product-item"
+                  style={{
+                    border: `2px solid ${colors.primary}40`,
+                    borderRadius: 8,
+                    padding: 16,
+                    marginBottom: 16,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 16,
+                    }}
+                  >
+                    <h3 style={{ color: colors.text, margin: 0 }}>
+                      Sản phẩm {index + 1}
+                    </h3>
+                    <div style={{ display: "flex", gap: 8 }}>
                       <button
                         type="button"
-                        onClick={() => {
-                          setNewProductTypeName("");
-                          setShowAddProductTypeModal(true);
-                        }}
+                        onClick={() => toggleProduct(index)}
                         style={{
                           background: "none",
                           border: "none",
                           color: colors.primary,
-                          fontWeight: 600,
-                          fontSize: 13,
                           cursor: "pointer",
+                          fontSize: 18,
                         }}
                       >
-                        + Thêm sản phẩm
+                        {expandedProducts[index] ? "▼" : "▶"}
                       </button>
+                      {index > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveProduct(index)}
+                          style={{
+                            background: "none",
+                            border: "none",
+                            color: "#ff4444",
+                            cursor: "pointer",
+                            fontSize: 18,
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
                     </div>
-                    <select
-                      value={product.productType}
-                      onChange={(e) =>
-                        handleProductChange(
-                          index,
-                          "productType",
-                          e.target.value
-                        )
-                      }
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    >
-                      <option value="">Chọn sản phẩm</option>
-                      {productTypes.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
                   </div>
 
-                  {product.productType === "Xi măng" && (
-                    <div className="store-survey-field">
-                      <label style={{ color: colors.text }}>
-                        Loại xi măng *
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Tìm kiếm loại xi măng"
-                        value={cementSearch}
-                        onChange={(e) => setCementSearch(e.target.value)}
-                        style={{
-                          marginBottom: 8,
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.icon + "40",
-                        }}
-                      />
-                      <select
-                        value={product.cementProductId || ""}
-                        onChange={(e) =>
-                          handleProductChange(
-                            index,
-                            "cementProductId",
-                            e.target.value ? parseInt(e.target.value) : null
-                          )
-                        }
-                        style={{
-                          backgroundColor: colors.background,
-                          color: colors.text,
-                          borderColor: colors.icon + "40",
-                        }}
-                      >
-                        <option value="">Chọn loại xi măng</option>
-                        {filteredCementProducts.map((cp) => (
-                          <option key={cp.Id} value={cp.Id}>
-                            {cp.Name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  {expandedProducts[index] !== false && (
+                    <>
+                      <div className="store-survey-field">
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                          }}
+                        >
+                          <label style={{ color: colors.text }}>
+                            Sản phẩm được bán
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setNewProductTypeName("");
+                              setShowAddProductTypeModal(true);
+                            }}
+                            style={{
+                              background: "none",
+                              border: "none",
+                              color: colors.primary,
+                              fontWeight: 600,
+                              fontSize: 13,
+                              cursor: "pointer",
+                            }}
+                          >
+                            + Thêm sản phẩm
+                          </button>
+                        </div>
+                        <select
+                          value={product.productType}
+                          onChange={(e) =>
+                            handleProductChange(
+                              index,
+                              "productType",
+                              e.target.value
+                            )
+                          }
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                            width: "100%",
+                          }}
+                        >
+                          <option value="">Chọn sản phẩm</option>
+                          {productTypes.map((type) => (
+                            <option key={type} value={type}>
+                              {type}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {product.productType === "Xi măng" && (
+                        <div className="store-survey-field">
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <label style={{ color: colors.text }}>
+                              Loại xi măng
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewCementName("");
+                                setShowAddCementModal(true);
+                              }}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: colors.primary,
+                                fontWeight: 600,
+                                fontSize: 13,
+                                cursor: "pointer",
+                              }}
+                            >
+                              + Thêm loại xi măng
+                            </button>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Tìm kiếm loại xi măng"
+                            value={cementSearch}
+                            onChange={(e) => setCementSearch(e.target.value)}
+                            style={{
+                              marginBottom: 8,
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              borderColor: colors.icon + "40",
+                            }}
+                          />
+                          <select
+                            value={product.cementProductId || ""}
+                            onChange={(e) =>
+                              handleProductChange(
+                                index,
+                                "cementProductId",
+                                e.target.value ? parseInt(e.target.value) : null
+                              )
+                            }
+                            style={{
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              borderColor: colors.icon + "40",
+                              width: "100%",
+                            }}
+                          >
+                            <option value="">Chọn loại xi măng</option>
+                            {filteredCementProducts.map((cp) => (
+                              <option key={cp.Id} value={cp.Id}>
+                                {cp.Name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Tên + SDT
+                        </label>
+                        <input
+                          type="text"
+                          value={product.contactPersonPhone}
+                          onChange={(e) =>
+                            handleProductChange(
+                              index,
+                              "contactPersonPhone",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập tên và số điện thoại (VD: Nguyễn A – 0909xxxx)"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Giá mua vào
+                        </label>
+                        <input
+                          type="text"
+                          value={product.purchasePrice}
+                          onChange={(e) =>
+                            handleProductPriceChange(
+                              index,
+                              "purchasePrice",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập giá (VND)"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Giá bán ra
+                        </label>
+                        <input
+                          type="text"
+                          value={product.sellingPrice}
+                          onChange={(e) =>
+                            handleProductPriceChange(
+                              index,
+                              "sellingPrice",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập giá (VND)"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Phí vận chuyển đường bộ
+                        </label>
+                        <input
+                          type="text"
+                          value={product.roadTransportFee}
+                          onChange={(e) =>
+                            handleProductPriceChange(
+                              index,
+                              "roadTransportFee",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập giá (VND)"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Phí vận chuyển đường thủy
+                        </label>
+                        <input
+                          type="text"
+                          value={product.waterTransportFee}
+                          onChange={(e) =>
+                            handleProductPriceChange(
+                              index,
+                              "waterTransportFee",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập giá (VND)"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Số lượng nhận hàng (tấn/tháng)
+                        </label>
+                        <input
+                          type="text"
+                          value={product.quantityReceived}
+                          onChange={(e) =>
+                            handleProductChange(
+                              index,
+                              "quantityReceived",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập số lượng"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Nhập từ NPP
+                        </label>
+                        <input
+                          type="text"
+                          value={product.importedFromNPP}
+                          onChange={(e) =>
+                            handleProductChange(
+                              index,
+                              "importedFromNPP",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập tên NPP"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Chương trình chiết khấu - khuyến mãi (nếu có)
+                        </label>
+                        <input
+                          type="text"
+                          value={product.discountPromotion}
+                          onChange={(e) =>
+                            handleProductChange(
+                              index,
+                              "discountPromotion",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập thông tin chương trình"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+
+                      <div className="store-survey-field">
+                        <label style={{ color: colors.text }}>
+                          Số lượng tồn bình quân (tấn/tháng)
+                        </label>
+                        <input
+                          type="text"
+                          value={product.averageStockQuantity}
+                          onChange={(e) =>
+                            handleProductChange(
+                              index,
+                              "averageStockQuantity",
+                              e.target.value
+                            )
+                          }
+                          placeholder="Nhập số lượng tồn bình quân"
+                          style={{
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.icon + "40",
+                          }}
+                        />
+                      </div>
+                    </>
                   )}
-
-                  <div className="store-survey-field">
-                    <label style={{ color: colors.text }}>Giá bán ra *</label>
-                    <input
-                      type="text"
-                      value={product.sellingPrice}
-                      onChange={(e) => {
-                        const formatted = formatVND(e.target.value);
-                        handleProductChange(index, "sellingPrice", formatted);
-                      }}
-                      placeholder="Nhập giá (VND)"
-                      style={{
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      }}
-                    />
-                  </div>
                 </div>
               ))}
 
@@ -1081,6 +1177,13 @@ const StoreSurvey = () => {
                 style={{
                   backgroundColor: colors.primary,
                   color: "#fff",
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: "none",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                  fontSize: 16,
                 }}
               >
                 + Thêm sản phẩm
@@ -1090,19 +1193,27 @@ const StoreSurvey = () => {
         </div>
 
         {/* Submit Button */}
-        <button
-          className="store-survey-submit-button"
-          onClick={handleSubmit}
-          disabled={submitting}
-          style={{
-            backgroundColor: submitting ? colors.icon + "40" : colors.primary,
-            color: "#fff",
-          }}
-        >
-          {submitting
-            ? "Đang xử lý..."
-            : "Hoàn thành khảo sát & thực thi cửa hàng"}
-        </button>
+        <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+          <button
+            className="store-survey-submit-button"
+            onClick={handleSubmit}
+            disabled={submitting}
+            style={{
+              backgroundColor: submitting ? colors.icon + "40" : colors.primary,
+              color: "#fff",
+              padding: "14px 32px",
+              borderRadius: 8,
+              border: "none",
+              cursor: submitting ? "not-allowed" : "pointer",
+              fontWeight: 600,
+              fontSize: 16,
+            }}
+          >
+            {submitting
+              ? "Đang xử lý..."
+              : "Hoàn thành khảo sát & thực thi cửa hàng"}
+          </button>
+        </div>
       </div>
 
       {/* Modal thêm loại xi măng mới */}
@@ -1139,7 +1250,6 @@ const StoreSurvey = () => {
                     });
                     const created = res.data;
                     await fetchCementProducts();
-                    handleInputChange("cementProductId", created.Id);
                     setShowAddCementModal(false);
                   } catch (error: unknown) {
                     console.error("Error creating cement product:", error);

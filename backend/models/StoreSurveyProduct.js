@@ -3,18 +3,49 @@ const { getPool, sql } = require('../config/database');
 class StoreSurveyProduct {
   static async create(productData) {
     const pool = await getPool();
-    const { StoreSurveyId, ProductType, CementProductId, SellingPrice } = productData;
+    const {
+      StoreSurveyId,
+      ProductType,
+      CementProductId,
+      SellingPrice,
+      ContactPersonPhone,
+      PurchasePrice,
+      RoadTransportFee,
+      WaterTransportFee,
+      QuantityReceived,
+      ImportedFromNPP,
+      DiscountPromotion,
+      AverageStockQuantity,
+    } = productData;
 
     const request = pool.request();
     request.input('StoreSurveyId', sql.Int, StoreSurveyId);
     request.input('ProductType', sql.NVarChar(100), ProductType);
     request.input('CementProductId', sql.Int, CementProductId || null);
     request.input('SellingPrice', sql.Decimal(18, 2), SellingPrice || null);
+    request.input('ContactPersonPhone', sql.NVarChar(200), ContactPersonPhone || null);
+    request.input('PurchasePrice', sql.Decimal(18, 2), PurchasePrice || null);
+    request.input('RoadTransportFee', sql.Decimal(18, 2), RoadTransportFee || null);
+    request.input('WaterTransportFee', sql.Decimal(18, 2), WaterTransportFee || null);
+    request.input('QuantityReceived', sql.Decimal(18, 2), QuantityReceived || null);
+    request.input('ImportedFromNPP', sql.NVarChar(500), ImportedFromNPP || null);
+    request.input('DiscountPromotion', sql.NVarChar(1000), DiscountPromotion || null);
+    request.input('AverageStockQuantity', sql.Decimal(18, 2), AverageStockQuantity || null);
 
     const result = await request.query(`
-      INSERT INTO StoreSurveyProducts (StoreSurveyId, ProductType, CementProductId, SellingPrice, CreatedAt)
+      INSERT INTO StoreSurveyProducts (
+        StoreSurveyId, ProductType, CementProductId, SellingPrice,
+        ContactPersonPhone, PurchasePrice, RoadTransportFee, WaterTransportFee,
+        QuantityReceived, ImportedFromNPP, DiscountPromotion, AverageStockQuantity,
+        CreatedAt
+      )
       OUTPUT INSERTED.*
-      VALUES (@StoreSurveyId, @ProductType, @CementProductId, @SellingPrice, GETDATE())
+      VALUES (
+        @StoreSurveyId, @ProductType, @CementProductId, @SellingPrice,
+        @ContactPersonPhone, @PurchasePrice, @RoadTransportFee, @WaterTransportFee,
+        @QuantityReceived, @ImportedFromNPP, @DiscountPromotion, @AverageStockQuantity,
+        GETDATE()
+      )
     `);
 
     return result.recordset[0];
@@ -59,19 +90,47 @@ class StoreSurveyProduct {
 
   static async update(id, productData) {
     const pool = await getPool();
-    const { ProductType, CementProductId, SellingPrice } = productData;
+    const {
+      ProductType,
+      CementProductId,
+      SellingPrice,
+      ContactPersonPhone,
+      PurchasePrice,
+      RoadTransportFee,
+      WaterTransportFee,
+      QuantityReceived,
+      ImportedFromNPP,
+      DiscountPromotion,
+      AverageStockQuantity,
+    } = productData;
 
     const request = pool.request();
     request.input('Id', sql.Int, id);
     request.input('ProductType', sql.NVarChar(100), ProductType);
     request.input('CementProductId', sql.Int, CementProductId || null);
     request.input('SellingPrice', sql.Decimal(18, 2), SellingPrice || null);
+    request.input('ContactPersonPhone', sql.NVarChar(200), ContactPersonPhone || null);
+    request.input('PurchasePrice', sql.Decimal(18, 2), PurchasePrice || null);
+    request.input('RoadTransportFee', sql.Decimal(18, 2), RoadTransportFee || null);
+    request.input('WaterTransportFee', sql.Decimal(18, 2), WaterTransportFee || null);
+    request.input('QuantityReceived', sql.Decimal(18, 2), QuantityReceived || null);
+    request.input('ImportedFromNPP', sql.NVarChar(500), ImportedFromNPP || null);
+    request.input('DiscountPromotion', sql.NVarChar(1000), DiscountPromotion || null);
+    request.input('AverageStockQuantity', sql.Decimal(18, 2), AverageStockQuantity || null);
 
     const result = await request.query(`
       UPDATE StoreSurveyProducts
       SET ProductType = @ProductType,
           CementProductId = @CementProductId,
-          SellingPrice = @SellingPrice
+          SellingPrice = @SellingPrice,
+          ContactPersonPhone = @ContactPersonPhone,
+          PurchasePrice = @PurchasePrice,
+          RoadTransportFee = @RoadTransportFee,
+          WaterTransportFee = @WaterTransportFee,
+          QuantityReceived = @QuantityReceived,
+          ImportedFromNPP = @ImportedFromNPP,
+          DiscountPromotion = @DiscountPromotion,
+          AverageStockQuantity = @AverageStockQuantity
       OUTPUT INSERTED.*
       WHERE Id = @Id
     `);
@@ -106,11 +165,29 @@ class StoreSurveyProduct {
         request.input('ProductType', sql.NVarChar(100), product.ProductType);
         request.input('CementProductId', sql.Int, product.CementProductId || null);
         request.input('SellingPrice', sql.Decimal(18, 2), product.SellingPrice || null);
+        request.input('ContactPersonPhone', sql.NVarChar(200), product.ContactPersonPhone || null);
+        request.input('PurchasePrice', sql.Decimal(18, 2), product.PurchasePrice || null);
+        request.input('RoadTransportFee', sql.Decimal(18, 2), product.RoadTransportFee || null);
+        request.input('WaterTransportFee', sql.Decimal(18, 2), product.WaterTransportFee || null);
+        request.input('QuantityReceived', sql.Decimal(18, 2), product.QuantityReceived || null);
+        request.input('ImportedFromNPP', sql.NVarChar(500), product.ImportedFromNPP || null);
+        request.input('DiscountPromotion', sql.NVarChar(1000), product.DiscountPromotion || null);
+        request.input('AverageStockQuantity', sql.Decimal(18, 2), product.AverageStockQuantity || null);
 
         const result = await request.query(`
-          INSERT INTO StoreSurveyProducts (StoreSurveyId, ProductType, CementProductId, SellingPrice, CreatedAt)
+          INSERT INTO StoreSurveyProducts (
+            StoreSurveyId, ProductType, CementProductId, SellingPrice,
+            ContactPersonPhone, PurchasePrice, RoadTransportFee, WaterTransportFee,
+            QuantityReceived, ImportedFromNPP, DiscountPromotion, AverageStockQuantity,
+            CreatedAt
+          )
           OUTPUT INSERTED.*
-          VALUES (@StoreSurveyId, @ProductType, @CementProductId, @SellingPrice, GETDATE())
+          VALUES (
+            @StoreSurveyId, @ProductType, @CementProductId, @SellingPrice,
+            @ContactPersonPhone, @PurchasePrice, @RoadTransportFee, @WaterTransportFee,
+            @QuantityReceived, @ImportedFromNPP, @DiscountPromotion, @AverageStockQuantity,
+            GETDATE()
+          )
         `);
 
         inserted.push(result.recordset[0]);

@@ -28,17 +28,6 @@ interface CementProduct {
 }
 
 interface SurveyData {
-  cementProductId: number | null;
-  contactPerson: string;
-  purchasePrice: string;
-  sellingPrice: string;
-  supplierName: string;
-  roadTransportFee: string;
-  waterTransportFee: string;
-  importExportQuantity: string;
-  stockQuantity: string;
-  consumptionArea: string;
-  debtPeriod: string;
   whyNotSellNewProduct: string;
   timeToSellNewProduct: string;
   newProductImportQuantity: string;
@@ -50,7 +39,15 @@ interface SurveyData {
   products: {
     productType: string;
     cementProductId: number | null;
+    contactPersonPhone: string;
+    purchasePrice: string;
     sellingPrice: string;
+    roadTransportFee: string;
+    waterTransportFee: string;
+    quantityReceived: string;
+    importedFromNPP: string;
+    discountPromotion: string;
+    averageStockQuantity: string;
   }[];
 }
 
@@ -81,10 +78,10 @@ export default function StoreSurveyScreen() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedTitles, setExpandedTitles] = useState({
-    title1: true,
     title2: false,
     title3: false,
   });
+  const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showCementPicker, setShowCementPicker] = useState(false);
   const [cementSearch, setCementSearch] = useState("");
@@ -108,17 +105,6 @@ export default function StoreSurveyScreen() {
   const [newProductTypeName, setNewProductTypeName] = useState("");
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
-    cementProductId: null,
-    contactPerson: "",
-    purchasePrice: "",
-    sellingPrice: "",
-    supplierName: "",
-    roadTransportFee: "",
-    waterTransportFee: "",
-    importExportQuantity: "",
-    stockQuantity: "",
-    consumptionArea: "",
-    debtPeriod: "",
     whyNotSellNewProduct: "",
     timeToSellNewProduct: "",
     newProductImportQuantity: "",
@@ -143,25 +129,12 @@ export default function StoreSurveyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
+  // Auto-expand title 2 on mount
   useEffect(() => {
-    // Auto-expand title 2 if title 1 is complete
-    const title1Complete =
-      surveyData.cementProductId &&
-      surveyData.contactPerson &&
-      surveyData.purchasePrice &&
-      surveyData.sellingPrice &&
-      surveyData.supplierName &&
-      surveyData.roadTransportFee &&
-      surveyData.waterTransportFee &&
-      surveyData.importExportQuantity &&
-      surveyData.stockQuantity &&
-      surveyData.consumptionArea &&
-      surveyData.debtPeriod;
-
-    if (title1Complete && !expandedTitles.title2) {
+    if (!expandedTitles.title2) {
       setExpandedTitles((prev) => ({ ...prev, title2: true }));
     }
-  }, [surveyData, expandedTitles.title2]);
+  }, []);
 
   useEffect(() => {
     // Auto-expand title 3 if title 2 is complete
@@ -213,10 +186,17 @@ export default function StoreSurveyScreen() {
     (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase())
   );
 
-  const toggleTitle = (title: "title1" | "title2" | "title3") => {
+  const toggleTitle = (title: "title2" | "title3") => {
     setExpandedTitles((prev) => ({
       ...prev,
       [title]: !prev[title],
+    }));
+  };
+
+  const toggleProduct = (index: number) => {
+    setExpandedProducts((prev) => ({
+      ...prev,
+      [index]: !prev[index],
     }));
   };
 
@@ -232,11 +212,7 @@ export default function StoreSurveyScreen() {
 
   const handlePriceChange = (
     field:
-      | "purchasePrice"
-      | "sellingPrice"
       | "newProductSellingPrice"
-      | "roadTransportFee"
-      | "waterTransportFee"
       | "newProductImportQuantity",
     value: string
   ) => {
@@ -244,7 +220,17 @@ export default function StoreSurveyScreen() {
     handleInputChange(field, formatted);
   };
 
+  const handleProductPriceChange = (
+    index: number,
+    field: "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee",
+    value: string
+  ) => {
+    const formatted = formatVND(value);
+    handleProductChange(index, field, formatted);
+  };
+
   const handleAddProduct = () => {
+    const newIndex = surveyData.products.length;
     setSurveyData((prev) => ({
       ...prev,
       products: [
@@ -252,15 +238,54 @@ export default function StoreSurveyScreen() {
         {
           productType: "",
           cementProductId: null,
+          contactPersonPhone: "",
+          purchasePrice: "",
           sellingPrice: "",
+          roadTransportFee: "",
+          waterTransportFee: "",
+          quantityReceived: "",
+          importedFromNPP: "",
+          discountPromotion: "",
+          averageStockQuantity: "",
         },
       ],
     }));
+    // Auto-expand new product
+    setExpandedProducts((prev) => ({
+      ...prev,
+      [newIndex]: true,
+    }));
+  };
+
+  const handleRemoveProduct = (index: number) => {
+    setSurveyData((prev) => {
+      const newProducts = prev.products.filter((_, i) => i !== index);
+      return {
+        ...prev,
+        products: newProducts,
+      };
+    });
+    // Remove from expanded state
+    setExpandedProducts((prev) => {
+      const newExpanded = { ...prev };
+      delete newExpanded[index];
+      // Reindex remaining products
+      const reindexed: Record<number, boolean> = {};
+      Object.keys(newExpanded).forEach((key) => {
+        const oldIndex = parseInt(key);
+        if (oldIndex > index) {
+          reindexed[oldIndex - 1] = newExpanded[oldIndex];
+        } else if (oldIndex < index) {
+          reindexed[oldIndex] = newExpanded[oldIndex];
+        }
+      });
+      return reindexed;
+    });
   };
 
   const handleProductChange = (
     index: number,
-    field: "productType" | "cementProductId" | "sellingPrice",
+    field: "productType" | "cementProductId" | "contactPersonPhone" | "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee" | "quantityReceived" | "importedFromNPP" | "discountPromotion" | "averageStockQuantity",
     value: string | number | null
   ) => {
     setSurveyData((prev) => {
@@ -279,19 +304,6 @@ export default function StoreSurveyScreen() {
   const validateSurvey = (): string[] => {
     const errors: string[] = [];
 
-    // Title 1 validation
-    if (!surveyData.cementProductId) errors.push("Loại xi măng");
-    if (!surveyData.contactPerson) errors.push("Người tiếp xúc");
-    if (!surveyData.purchasePrice) errors.push("Giá mua vào");
-    if (!surveyData.sellingPrice) errors.push("Giá bán ra");
-    if (!surveyData.supplierName) errors.push("Nhập NPP nào");
-    if (!surveyData.roadTransportFee) errors.push("Phí code đường bộ");
-    if (!surveyData.waterTransportFee) errors.push("Phí code đường thủy");
-    if (!surveyData.importExportQuantity) errors.push("Số lượng nhập/xuất");
-    if (!surveyData.stockQuantity) errors.push("Số sản phẩm tồn kho");
-    if (!surveyData.consumptionArea) errors.push("Vùng đang tiêu thụ");
-    if (!surveyData.debtPeriod) errors.push("Công nợ bao lâu");
-
     // Title 2 validation
     if (!surveyData.whyNotSellNewProduct)
       errors.push("Tại sao không bán sản phẩm mới");
@@ -303,7 +315,7 @@ export default function StoreSurveyScreen() {
     if (!surveyData.newProductSellingPrice)
       errors.push("Giá bán ra (sản phẩm mới)");
     if (!surveyData.averageMonthlyConsumption)
-      errors.push("SLTTBQ (tấn/tháng)");
+      errors.push("Số lượng tồn bình quân (tấn/tháng)");
 
     // Title 3 validation
     if (surveyData.products.length === 0) {
@@ -316,8 +328,29 @@ export default function StoreSurveyScreen() {
         if (product.productType === "Xi măng" && !product.cementProductId) {
           errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
         }
+        if (!product.contactPersonPhone) {
+          errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
+        }
+        if (!product.purchasePrice) {
+          errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
+        }
         if (!product.sellingPrice) {
           errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
+        }
+        if (!product.roadTransportFee) {
+          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
+        }
+        if (!product.waterTransportFee) {
+          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
+        }
+        if (!product.quantityReceived) {
+          errors.push(`Sản phẩm ${index + 1}: Số lượng nhận hàng (tấn/tháng)`);
+        }
+        if (!product.importedFromNPP) {
+          errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
+        }
+        if (!product.averageStockQuantity) {
+          errors.push(`Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`);
         }
       });
     }
@@ -406,17 +439,6 @@ export default function StoreSurveyScreen() {
         storeId: storeId,
         auditId: auditId,
         userId: user.id,
-        cementProductId: surveyData.cementProductId,
-        contactPerson: surveyData.contactPerson,
-        purchasePrice: parseVND(surveyData.purchasePrice),
-        sellingPrice: parseVND(surveyData.sellingPrice),
-        supplierName: surveyData.supplierName,
-        roadTransportFee: parseVND(surveyData.roadTransportFee),
-        waterTransportFee: parseVND(surveyData.waterTransportFee),
-        importExportQuantity: surveyData.importExportQuantity,
-        stockQuantity: surveyData.stockQuantity,
-        consumptionArea: surveyData.consumptionArea,
-        debtPeriod: surveyData.debtPeriod,
         whyNotSellNewProduct: surveyData.whyNotSellNewProduct,
         timeToSellNewProduct: surveyData.timeToSellNewProduct || null,
         newProductImportQuantity: parseVND(surveyData.newProductImportQuantity),
@@ -432,7 +454,15 @@ export default function StoreSurveyScreen() {
         products: surveyData.products.map((p) => ({
           productType: p.productType,
           cementProductId: p.cementProductId,
+          contactPersonPhone: p.contactPersonPhone,
+          purchasePrice: p.purchasePrice ? parseVND(p.purchasePrice) : null,
           sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
+          roadTransportFee: p.roadTransportFee ? parseVND(p.roadTransportFee) : null,
+          waterTransportFee: p.waterTransportFee ? parseVND(p.waterTransportFee) : null,
+          quantityReceived: p.quantityReceived ? parseFloat(p.quantityReceived) : null,
+          importedFromNPP: p.importedFromNPP,
+          discountPromotion: p.discountPromotion || null,
+          averageStockQuantity: p.averageStockQuantity ? parseFloat(p.averageStockQuantity) : null,
         })),
       });
 
@@ -518,318 +548,6 @@ export default function StoreSurveyScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Title 1 */}
-          <View
-            style={[
-              styles.titleSection,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <TouchableOpacity
-              style={[styles.titleHeader, { backgroundColor: colors.primary }]}
-              onPress={() => toggleTitle("title1")}
-            >
-              <Text style={[styles.titleHeaderText, { color: "#fff" }]}>
-                Cửa hàng bán sản phẩm không phải của Xi Măng Tây Đô
-              </Text>
-              <Ionicons
-                name={expandedTitles.title1 ? "chevron-up" : "chevron-down"}
-                size={24}
-                color={"#fff"}
-              />
-            </TouchableOpacity>
-
-            {expandedTitles.title1 && (
-              <View
-                style={[
-                  styles.titleContent,
-                  { backgroundColor: colors.secondary },
-                ]}
-              >
-                {/* Loại xi măng */}
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Loại xi măng *
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center" }}>
-                    <View style={{ flex: 1, marginRight: 8 }}>
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerContainer,
-                          { borderColor: colors.icon + "40" },
-                        ]}
-                        onPress={() => setShowCementPicker(true)}
-                      >
-                        <View style={styles.picker}>
-                          <Text
-                            style={[styles.pickerText, { color: colors.text }]}
-                          >
-                            {surveyData.cementProductId
-                              ? cementProducts.find(
-                                  (p) => p.Id === surveyData.cementProductId
-                                )?.Name || "Chọn loại xi măng"
-                              : "Chọn loại xi măng"}
-                          </Text>
-                          <Ionicons
-                            name="chevron-down"
-                            size={20}
-                            color={colors.icon}
-                          />
-                        </View>
-                      </TouchableOpacity>
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => {
-                        setNewCementName("");
-                        setShowAddCementModal(true);
-                      }}
-                      style={{
-                        paddingHorizontal: 12,
-                        paddingVertical: 10,
-                        borderRadius: 6,
-                        backgroundColor: colors.primary,
-                      }}
-                    >
-                      <Text style={{ color: "#fff", fontWeight: "600" }}>
-                        + Thêm
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* 6 trường sau khi chọn loại xi măng */}
-                {surveyData.cementProductId && (
-                  <>
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Người tiếp xúc *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={surveyData.contactPerson}
-                        onChangeText={(value) =>
-                          handleInputChange("contactPerson", value)
-                        }
-                        placeholder="Nhập người tiếp xúc"
-                        placeholderTextColor={colors.icon}
-                      />
-                    </View>
-
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Giá mua vào *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={surveyData.purchasePrice}
-                        onChangeText={(value) =>
-                          handlePriceChange("purchasePrice", value)
-                        }
-                        placeholder="Nhập giá (VND)"
-                        placeholderTextColor={colors.icon}
-                        keyboardType="numeric"
-                      />
-                    </View>
-
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Giá bán ra *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={surveyData.sellingPrice}
-                        onChangeText={(value) =>
-                          handlePriceChange("sellingPrice", value)
-                        }
-                        placeholder="Nhập giá (VND)"
-                        placeholderTextColor={colors.icon}
-                        keyboardType="numeric"
-                      />
-                    </View>
-
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Nhập NPP nào? *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={surveyData.supplierName}
-                        onChangeText={(value) =>
-                          handleInputChange("supplierName", value)
-                        }
-                        placeholder="Nhập tên NPP"
-                        placeholderTextColor={colors.icon}
-                      />
-                    </View>
-
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Phí code đường bộ *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={surveyData.roadTransportFee}
-                        onChangeText={(value) =>
-                          handlePriceChange("roadTransportFee", value)
-                        }
-                        placeholder="Nhập giá (VND)"
-                        placeholderTextColor={colors.icon}
-                        keyboardType="numeric"
-                      />
-                    </View>
-
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Phí code đường thủy *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={surveyData.waterTransportFee}
-                        onChangeText={(value) =>
-                          handlePriceChange("waterTransportFee", value)
-                        }
-                        placeholder="Nhập giá (VND)"
-                        placeholderTextColor={colors.icon}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                  </>
-                )}
-
-                {/* Các trường khác */}
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Số lượng nhập *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.importExportQuantity}
-                    onChangeText={(value) =>
-                      handleInputChange("importExportQuantity", value)
-                    }
-                    placeholder="Nhập số lượng"
-                    placeholderTextColor={colors.icon}
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Số sản phẩm tồn kho *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.stockQuantity}
-                    onChangeText={(value) =>
-                      handleInputChange("stockQuantity", value)
-                    }
-                    placeholder="Nhập số lượng"
-                    placeholderTextColor={colors.icon}
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Vùng đang tiêu thụ *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.consumptionArea}
-                    onChangeText={(value) =>
-                      handleInputChange("consumptionArea", value)
-                    }
-                    placeholder="Nhập vùng tiêu thụ"
-                    placeholderTextColor={colors.icon}
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Công nợ bao lâu *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.debtPeriod}
-                    onChangeText={(value) =>
-                      handleInputChange("debtPeriod", value)
-                    }
-                    placeholder="Nhập thời gian công nợ"
-                    placeholderTextColor={colors.icon}
-                  />
-                </View>
-              </View>
-            )}
-          </View>
-
           {/* Title 2 */}
           <View
             style={[
@@ -854,7 +572,7 @@ export default function StoreSurveyScreen() {
                   { color: expandedTitles.title2 ? "#fff" : colors.text },
                 ]}
               >
-                Khảo sát sản phẩm của XMTĐ
+                Khảo sát sản phẩm của XMTĐ *
               </Text>
               <Ionicons
                 name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
@@ -974,6 +692,51 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
+                    Giá mua *
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.purchasePrice}
+                    onChangeText={(value) =>
+                      handlePriceChange("purchasePrice", value)
+                    }
+                    placeholder="Nhập giá (VND)"
+                    placeholderTextColor={colors.icon}
+                    keyboardType="numeric"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Mua qua NPP *
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.supplierName}
+                    onChangeText={(value) =>
+                      handleInputChange("supplierName", value)
+                    }
+                    placeholder="Nhập tên NPP"
+                    placeholderTextColor={colors.icon}
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
                     Nhập bởi thương vụ *
                   </Text>
                   <TouchableOpacity
@@ -1021,7 +784,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    SLTTBQ (tấn/tháng) *
+                    Số lượng tồn bình quân (tấn/tháng) *
                   </Text>
                   <TextInput
                     style={[
@@ -1036,7 +799,7 @@ export default function StoreSurveyScreen() {
                     onChangeText={(value) =>
                       handleInputChange("averageMonthlyConsumption", value)
                     }
-                    placeholder="Nhập số lượng tiêu thụ bình quân"
+                    placeholder="Nhập số lượng tồn bình quân"
                     placeholderTextColor={colors.icon}
                     keyboardType="numeric"
                   />
@@ -1117,7 +880,7 @@ export default function StoreSurveyScreen() {
                   { color: expandedTitles.title3 ? "#fff" : colors.text },
                 ]}
               >
-                Thông tin bán hàng
+                Thông tin bán hàng *
               </Text>
               <Ionicons
                 name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
@@ -1138,123 +901,411 @@ export default function StoreSurveyScreen() {
                     key={index}
                     style={[
                       styles.productItem,
-                      { borderColor: colors.icon + "40" },
+                      {
+                        borderColor: colors.primary + "40",
+                        borderWidth: 2,
+                        borderRadius: 8,
+                        padding: 16,
+                        marginBottom: 16,
+                      },
                     ]}
                   >
-                    <Text
-                      style={[styles.productItemTitle, { color: colors.text }]}
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        marginBottom: 16,
+                      }}
                     >
-                      Sản phẩm {index + 1}
-                    </Text>
-
-                    <View style={styles.field}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                        }}
+                      <Text
+                        style={[styles.productItemTitle, { color: colors.text }]}
                       >
-                        <Text style={[styles.label, { color: colors.text }]}>
-                          Sản phẩm được bán *
-                        </Text>
+                        Sản phẩm {index + 1}
+                      </Text>
+                      <View style={{ flexDirection: "row", gap: 8 }}>
                         <TouchableOpacity
-                          onPress={() => {
-                            setNewProductTypeName("");
-                            setShowAddProductTypeModal(true);
-                          }}
+                          onPress={() => toggleProduct(index)}
+                          style={{ padding: 4 }}
                         >
-                          <Text
+                          <Ionicons
+                            name={
+                              expandedProducts[index] !== false
+                                ? "chevron-down"
+                                : "chevron-forward"
+                            }
+                            size={20}
+                            color={colors.primary}
+                          />
+                        </TouchableOpacity>
+                        {index > 0 && (
+                          <TouchableOpacity
+                            onPress={() => handleRemoveProduct(index)}
+                            style={{ padding: 4 }}
+                          >
+                            <Ionicons name="close" size={20} color="#ff4444" />
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    </View>
+
+                    {expandedProducts[index] !== false && (
+                      <>
+                        <View style={styles.field}>
+                          <View
                             style={{
-                              color: colors.primary,
-                              fontWeight: "600",
-                              fontSize: 13,
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              alignItems: "center",
                             }}
                           >
-                            + Thêm sản phẩm
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerContainer,
-                          { borderColor: colors.icon + "40" },
-                        ]}
-                        onPress={() => setShowProductTypePicker(index)}
-                      >
-                        <View style={styles.picker}>
-                          <Text
-                            style={[styles.pickerText, { color: colors.text }]}
+                            <Text style={[styles.label, { color: colors.text }]}>
+                              Sản phẩm được bán
+                            </Text>
+                            <TouchableOpacity
+                              onPress={() => {
+                                setNewProductTypeName("");
+                                setShowAddProductTypeModal(true);
+                              }}
+                            >
+                              <Text
+                                style={{
+                                  color: colors.primary,
+                                  fontWeight: "600",
+                                  fontSize: 13,
+                                }}
+                              >
+                                + Thêm sản phẩm
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                          <TouchableOpacity
+                            style={[
+                              styles.pickerContainer,
+                              { borderColor: colors.icon + "40" },
+                            ]}
+                            onPress={() => setShowProductTypePicker(index)}
                           >
-                            {product.productType || "Chọn sản phẩm"}
+                            <View style={styles.picker}>
+                              <Text
+                                style={[
+                                  styles.pickerText,
+                                  { color: colors.text },
+                                ]}
+                              >
+                                {product.productType || "Chọn sản phẩm"}
+                              </Text>
+                              <Ionicons
+                                name="chevron-down"
+                                size={20}
+                                color={colors.icon}
+                              />
+                            </View>
+                          </TouchableOpacity>
+                        </View>
+
+                        {product.productType === "Xi măng" && (
+                          <View style={styles.field}>
+                            <View
+                              style={{
+                                flexDirection: "row",
+                                justifyContent: "space-between",
+                                alignItems: "center",
+                              }}
+                            >
+                              <Text
+                                style={[styles.label, { color: colors.text }]}
+                              >
+                                Loại xi măng
+                              </Text>
+                              <TouchableOpacity
+                                onPress={() => {
+                                  setNewCementName("");
+                                  setShowAddCementModal(true);
+                                }}
+                              >
+                                <Text
+                                  style={{
+                                    color: colors.primary,
+                                    fontWeight: "600",
+                                    fontSize: 13,
+                                  }}
+                                >
+                                  + Thêm loại xi măng
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                            <TouchableOpacity
+                              style={[
+                                styles.pickerContainer,
+                                { borderColor: colors.icon + "40" },
+                              ]}
+                              onPress={() => setShowCementProductPicker(index)}
+                            >
+                              <View style={styles.picker}>
+                                <Text
+                                  style={[
+                                    styles.pickerText,
+                                    { color: colors.text },
+                                  ]}
+                                >
+                                  {product.cementProductId
+                                    ? cementProducts.find(
+                                        (p) => p.Id === product.cementProductId
+                                      )?.Name || "Chọn loại xi măng"
+                                    : "Chọn loại xi măng"}
+                                </Text>
+                                <Ionicons
+                                  name="chevron-down"
+                                  size={20}
+                                  color={colors.icon}
+                                />
+                              </View>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Tên + SDT
                           </Text>
-                          <Ionicons
-                            name="chevron-down"
-                            size={20}
-                            color={colors.icon}
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.contactPersonPhone}
+                            onChangeText={(value) =>
+                              handleProductChange(
+                                index,
+                                "contactPersonPhone",
+                                value
+                              )
+                            }
+                            placeholder="Nhập tên và số điện thoại (VD: Nguyễn A – 0909xxxx)"
+                            placeholderTextColor={colors.icon}
                           />
                         </View>
-                      </TouchableOpacity>
-                    </View>
 
-                    {product.productType === "Xi măng" && (
-                      <View style={styles.field}>
-                        <Text style={[styles.label, { color: colors.text }]}>
-                          Loại xi măng *
-                        </Text>
-                        <TouchableOpacity
-                          style={[
-                            styles.pickerContainer,
-                            { borderColor: colors.icon + "40" },
-                          ]}
-                          onPress={() => setShowCementProductPicker(index)}
-                        >
-                          <View style={styles.picker}>
-                            <Text
-                              style={[
-                                styles.pickerText,
-                                { color: colors.text },
-                              ]}
-                            >
-                              {product.cementProductId
-                                ? cementProducts.find(
-                                    (p) => p.Id === product.cementProductId
-                                  )?.Name || "Chọn loại xi măng"
-                                : "Chọn loại xi măng"}
-                            </Text>
-                            <Ionicons
-                              name="chevron-down"
-                              size={20}
-                              color={colors.icon}
-                            />
-                          </View>
-                        </TouchableOpacity>
-                      </View>
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Giá mua vào
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.purchasePrice}
+                            onChangeText={(value) =>
+                              handleProductPriceChange(
+                                index,
+                                "purchasePrice",
+                                value
+                              )
+                            }
+                            placeholder="Nhập giá (VND)"
+                            placeholderTextColor={colors.icon}
+                            keyboardType="numeric"
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Giá bán ra
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.sellingPrice}
+                            onChangeText={(value) =>
+                              handleProductPriceChange(
+                                index,
+                                "sellingPrice",
+                                value
+                              )
+                            }
+                            placeholder="Nhập giá (VND)"
+                            placeholderTextColor={colors.icon}
+                            keyboardType="numeric"
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Phí vận chuyển đường bộ
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.roadTransportFee}
+                            onChangeText={(value) =>
+                              handleProductPriceChange(
+                                index,
+                                "roadTransportFee",
+                                value
+                              )
+                            }
+                            placeholder="Nhập giá (VND)"
+                            placeholderTextColor={colors.icon}
+                            keyboardType="numeric"
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Phí vận chuyển đường thủy
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.waterTransportFee}
+                            onChangeText={(value) =>
+                              handleProductPriceChange(
+                                index,
+                                "waterTransportFee",
+                                value
+                              )
+                            }
+                            placeholder="Nhập giá (VND)"
+                            placeholderTextColor={colors.icon}
+                            keyboardType="numeric"
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Số lượng nhận hàng (tấn/tháng)
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.quantityReceived}
+                            onChangeText={(value) =>
+                              handleProductChange(
+                                index,
+                                "quantityReceived",
+                                value
+                              )
+                            }
+                            placeholder="Nhập số lượng"
+                            placeholderTextColor={colors.icon}
+                            keyboardType="numeric"
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Nhập từ NPP
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.importedFromNPP}
+                            onChangeText={(value) =>
+                              handleProductChange(
+                                index,
+                                "importedFromNPP",
+                                value
+                              )
+                            }
+                            placeholder="Nhập tên NPP"
+                            placeholderTextColor={colors.icon}
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Chương trình chiết khấu - khuyến mãi (nếu có)
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.discountPromotion}
+                            onChangeText={(value) =>
+                              handleProductChange(
+                                index,
+                                "discountPromotion",
+                                value
+                              )
+                            }
+                            placeholder="Nhập thông tin chương trình"
+                            placeholderTextColor={colors.icon}
+                          />
+                        </View>
+
+                        <View style={styles.field}>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Số lượng tồn bình quân (tấn/tháng)
+                          </Text>
+                          <TextInput
+                            style={[
+                              styles.input,
+                              {
+                                backgroundColor: colors.background,
+                                color: colors.text,
+                                borderColor: colors.icon + "40",
+                              },
+                            ]}
+                            value={product.averageStockQuantity}
+                            onChangeText={(value) =>
+                              handleProductChange(
+                                index,
+                                "averageStockQuantity",
+                                value
+                              )
+                            }
+                            placeholder="Nhập số lượng tồn bình quân"
+                            placeholderTextColor={colors.icon}
+                            keyboardType="numeric"
+                          />
+                        </View>
+                      </>
                     )}
-
-                    <View style={styles.field}>
-                      <Text style={[styles.label, { color: colors.text }]}>
-                        Giá bán ra *
-                      </Text>
-                      <TextInput
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          },
-                        ]}
-                        value={product.sellingPrice}
-                        onChangeText={(value) => {
-                          const formatted = formatVND(value);
-                          handleProductChange(index, "sellingPrice", formatted);
-                        }}
-                        placeholder="Nhập giá (VND)"
-                        placeholderTextColor={colors.icon}
-                        keyboardType="numeric"
-                      />
-                    </View>
                   </View>
                 ))}
 
@@ -1273,26 +1324,37 @@ export default function StoreSurveyScreen() {
           </View>
 
           {/* Submit Button */}
-          <TouchableOpacity
-            style={[
-              styles.submitButton,
-              {
-                backgroundColor: submitting
-                  ? colors.icon + "40"
-                  : colors.primary,
-              },
-            ]}
-            onPress={handleSubmit}
-            disabled={submitting}
+          <View
+            style={{
+              alignItems: "center",
+              marginTop: 24,
+              marginBottom: 24,
+            }}
           >
-            {submitting ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.submitButtonText}>
-                Hoàn thành khảo sát & thực thi cửa hàng
-              </Text>
-            )}
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.submitButton,
+                {
+                  backgroundColor: submitting
+                    ? colors.icon + "40"
+                    : colors.primary,
+                  paddingHorizontal: 32,
+                  paddingVertical: 14,
+                  borderRadius: 8,
+                },
+              ]}
+              onPress={handleSubmit}
+              disabled={submitting}
+            >
+              {submitting ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.submitButtonText}>
+                  Hoàn thành khảo sát & thực thi cửa hàng
+                </Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
