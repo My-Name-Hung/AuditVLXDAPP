@@ -123,14 +123,16 @@
 
 .survey-table th {
   padding: 12px;
-  text-align: left;
+  text-align: center;
   font-weight: 600;
   white-space: nowrap;
+  border: 1px solid #ddd;
 }
 
 .survey-table td {
   padding: 12px;
-  border-bottom: 1px solid #e0e0e0;
+  border: 1px solid #e0e0e0;
+  text-align: center;
 }
 
 .survey-table tbody tr:hover {

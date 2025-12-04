@@ -195,7 +195,8 @@
 .store-assignment-options {
   display: flex;
   gap: 1.5rem;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  white-space: nowrap;
 }
 
 .store-assignment-option {
@@ -204,6 +205,8 @@
   gap: 0.35rem;
   font-weight: 500;
   color: #333;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .store-assignment-helper {

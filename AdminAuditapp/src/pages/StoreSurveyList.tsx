@@ -343,8 +343,15 @@ export default function StoreSurveyList() {
         ];
 
         sheet.getRow(5).values = headers;
+        sheet.getRow(5).height = 40; // Set row height for wrapped text
         sheet.getRow(5).eachCell((cell) => {
-          cell.style = headerStyle;
+          cell.style = {
+            ...headerStyle,
+            alignment: {
+              ...headerStyle.alignment,
+              wrapText: true,
+            },
+          };
         });
 
         // Data rows - Group by store and show multiple products
@@ -667,20 +674,20 @@ export default function StoreSurveyList() {
                   return (
                     <tr key={survey.Id}>
                       <td>{index + 1}</td>
-                      <td>{survey.StoreName}</td>
-                      <td>{formatDate(survey.AuditDate)}</td>
-                      <td>{survey.ContactPerson || "-"}</td>
+                      <td>{survey.StoreName || "-"}</td>
+                      <td>{formatDate(survey.AuditDate) || "-"}</td>
+                      <td>{mainProduct?.ContactPersonPhone || survey.ContactPerson || "-"}</td>
                       <td>{mainProduct?.CementProductName || "-"}</td>
-                      <td>-</td>
+                      <td>{formatVND(mainProduct?.PurchasePrice || null) || "-"}</td>
                       <td>
                         {formatVND(
                           mainProduct?.SellingPrice ||
                             survey.NewProductSellingPrice ||
                             null
-                        )}
+                        ) || "-"}
                       </td>
-                      <td>{survey.AverageMonthlyConsumption ?? "-"}</td>
-                      <td>-</td>
+                      <td>{mainProduct?.AverageStockQuantity ?? survey.AverageMonthlyConsumption ?? "-"}</td>
+                      <td>{survey.SupplierName || mainProduct?.ImportedFromNPP || "-"}</td>
                       <td>
                         <button
                           className="btn-view-survey-list"

@@ -209,8 +209,15 @@ export default function StoreSurveyDetail() {
       ];
 
       sheet.getRow(5).values = headers;
+      sheet.getRow(5).height = 40; // Set row height for wrapped text
       sheet.getRow(5).eachCell((cell) => {
-        cell.style = headerStyle;
+        cell.style = {
+          ...headerStyle,
+          alignment: {
+            ...headerStyle.alignment,
+            wrapText: true,
+          },
+        };
       });
 
       // Data rows - Show products from Title 3

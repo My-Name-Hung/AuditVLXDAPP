@@ -57,6 +57,7 @@
 
 .store-survey-title-content {
   padding: 16px;
+  padding-top: 16px;
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
@@ -82,6 +83,13 @@
   font-size: 14px;
   width: 100%;
   box-sizing: border-box;
+}
+
+.store-survey-field select {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
 }
 
 .store-survey-field textarea {
@@ -186,6 +194,35 @@
 .store-survey-modal-actions button:first-child {
   background-color: #e5e7eb;
   color: #111827;
+}
+
+.price-suggestions-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  border: 1px solid;
+  border-radius: 8px;
+  margin-top: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.price-suggestion-item {
+  padding: 12px;
+  border-bottom: 1px solid;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.price-suggestion-item:hover {
+  background-color: rgba(1, 56, 195, 0.1);
+}
+
+.price-suggestion-item:last-child {
+  border-bottom: none;
 }
 
 @media (max-width: 768px) {

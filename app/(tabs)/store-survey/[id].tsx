@@ -52,6 +52,11 @@ interface SurveyData {
 // Không áp ràng buộc 1–10000, chỉ format số VND cho đẹp
 const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
 
+// Price suggestions (30,000 - 100,000 VND)
+const PRICE_SUGGESTIONS = [
+  30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000,
+];
+
 const formatVND = (value: string): string => {
   // Chỉ giữ lại ký tự số, tránh lỗi khi nhập
   const digits = value.replace(/[^\d]/g, "");
@@ -79,9 +84,10 @@ export default function StoreSurveyScreen() {
     title2: false,
     title3: false,
   });
-  const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
+  const [expandedProducts, setExpandedProducts] = useState<
+    Record<number, boolean>
+  >({});
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showCementPicker, setShowCementPicker] = useState(false);
   const [cementSearch, setCementSearch] = useState("");
   const [showProductTypePicker, setShowProductTypePicker] = useState<
     number | null
@@ -90,6 +96,9 @@ export default function StoreSurveyScreen() {
     number | null
   >(null);
   const [showAddCementModal, setShowAddCementModal] = useState(false);
+  const [addCementForProductIndex, setAddCementForProductIndex] = useState<
+    number | null
+  >(null);
   const [newCementName, setNewCementName] = useState("");
 
   const [salesUsers, setSalesUsers] = useState<
@@ -101,6 +110,14 @@ export default function StoreSurveyScreen() {
   const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
   const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
   const [newProductTypeName, setNewProductTypeName] = useState("");
+  const [showPriceSuggestions, setShowPriceSuggestions] = useState<{
+    productIndex: number;
+    field:
+      | "purchasePrice"
+      | "sellingPrice"
+      | "roadTransportFee"
+      | "waterTransportFee";
+  } | null>(null);
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
     whyNotSellNewProduct: "",
@@ -130,6 +147,7 @@ export default function StoreSurveyScreen() {
     if (!expandedTitles.title2) {
       setExpandedTitles((prev) => ({ ...prev, title2: true }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -205,17 +223,13 @@ export default function StoreSurveyScreen() {
     }));
   };
 
-  const handlePriceChange = (
-    field: "newProductImportQuantity",
-    value: string
-  ) => {
-    const formatted = formatVND(value);
-    handleInputChange(field, formatted);
-  };
-
   const handleProductPriceChange = (
     index: number,
-    field: "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee",
+    field:
+      | "purchasePrice"
+      | "sellingPrice"
+      | "roadTransportFee"
+      | "waterTransportFee",
     value: string
   ) => {
     const formatted = formatVND(value);
@@ -278,7 +292,18 @@ export default function StoreSurveyScreen() {
 
   const handleProductChange = (
     index: number,
-    field: "productType" | "cementProductId" | "contactPersonPhone" | "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee" | "quantityReceived" | "importedFromNPP" | "discountPromotion" | "averageStockQuantity",
+    field:
+      | "productType"
+      | "cementProductId"
+      | "contactPersonPhone"
+      | "purchasePrice"
+      | "sellingPrice"
+      | "roadTransportFee"
+      | "waterTransportFee"
+      | "quantityReceived"
+      | "importedFromNPP"
+      | "discountPromotion"
+      | "averageStockQuantity",
     value: string | number | null
   ) => {
     setSurveyData((prev) => {
@@ -340,7 +365,9 @@ export default function StoreSurveyScreen() {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
         }
         if (!product.averageStockQuantity) {
-          errors.push(`Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`);
+          errors.push(
+            `Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`
+          );
         }
       });
     }
@@ -441,12 +468,20 @@ export default function StoreSurveyScreen() {
           contactPersonPhone: p.contactPersonPhone,
           purchasePrice: p.purchasePrice ? parseVND(p.purchasePrice) : null,
           sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
-          roadTransportFee: p.roadTransportFee ? parseVND(p.roadTransportFee) : null,
-          waterTransportFee: p.waterTransportFee ? parseVND(p.waterTransportFee) : null,
-          quantityReceived: p.quantityReceived ? parseFloat(p.quantityReceived) : null,
+          roadTransportFee: p.roadTransportFee
+            ? parseVND(p.roadTransportFee)
+            : null,
+          waterTransportFee: p.waterTransportFee
+            ? parseVND(p.waterTransportFee)
+            : null,
+          quantityReceived: p.quantityReceived
+            ? parseFloat(p.quantityReceived)
+            : null,
           importedFromNPP: p.importedFromNPP,
           discountPromotion: p.discountPromotion || null,
-          averageStockQuantity: p.averageStockQuantity ? parseFloat(p.averageStockQuantity) : null,
+          averageStockQuantity: p.averageStockQuantity
+            ? parseFloat(p.averageStockQuantity)
+            : null,
         })),
       });
 
@@ -574,7 +609,7 @@ export default function StoreSurveyScreen() {
               >
                 <View style={[styles.field, { marginTop: 16 }]}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Tại sao không bán sản phẩm mới *
+                    Tại sao không bán sản phẩm mới
                   </Text>
                   <TextInput
                     style={[
@@ -599,7 +634,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Thời gian để bán sản phẩm mới *
+                    Thời gian để bán sản phẩm mới
                   </Text>
                   <TouchableOpacity
                     style={[
@@ -662,7 +697,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Tên sản phẩm muốn nhập – Số lượng (nếu có) *
+                    Tên sản phẩm muốn nhập – Số lượng (nếu có)
                   </Text>
                   <TextInput
                     style={[
@@ -684,7 +719,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Mua qua NPP *
+                    Mua qua NPP
                   </Text>
                   <TextInput
                     style={[
@@ -706,7 +741,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Nhập bởi thương vụ *
+                    Nhập bởi thương vụ
                   </Text>
                   <TouchableOpacity
                     style={[
@@ -793,7 +828,7 @@ export default function StoreSurveyScreen() {
               <View
                 style={[
                   styles.titleContent,
-                  { backgroundColor: colors.secondary },
+                  { backgroundColor: colors.secondary, paddingTop: 16 },
                 ]}
               >
                 {surveyData.products.map((product, index) => (
@@ -807,6 +842,7 @@ export default function StoreSurveyScreen() {
                         borderRadius: 8,
                         padding: 16,
                         marginBottom: 16,
+                        marginTop: index === 0 ? 0 : 0,
                       },
                     ]}
                   >
@@ -819,7 +855,10 @@ export default function StoreSurveyScreen() {
                       }}
                     >
                       <Text
-                        style={[styles.productItemTitle, { color: colors.text }]}
+                        style={[
+                          styles.productItemTitle,
+                          { color: colors.text },
+                        ]}
                       >
                         Sản phẩm {index + 1}
                       </Text>
@@ -859,7 +898,9 @@ export default function StoreSurveyScreen() {
                               alignItems: "center",
                             }}
                           >
-                            <Text style={[styles.label, { color: colors.text }]}>
+                            <Text
+                              style={[styles.label, { color: colors.text }]}
+                            >
                               Sản phẩm được bán
                             </Text>
                             <TouchableOpacity
@@ -921,6 +962,7 @@ export default function StoreSurveyScreen() {
                               <TouchableOpacity
                                 onPress={() => {
                                   setNewCementName("");
+                                  setAddCementForProductIndex(index);
                                   setShowAddCementModal(true);
                                 }}
                               >
@@ -946,8 +988,14 @@ export default function StoreSurveyScreen() {
                                 <Text
                                   style={[
                                     styles.pickerText,
-                                    { color: colors.text },
+                                    {
+                                      color: colors.text,
+                                      flex: 1,
+                                      marginRight: 8,
+                                    },
                                   ]}
+                                  numberOfLines={1}
+                                  ellipsizeMode="tail"
                                 >
                                   {product.cementProductId
                                     ? cementProducts.find(
@@ -959,6 +1007,7 @@ export default function StoreSurveyScreen() {
                                   name="chevron-down"
                                   size={20}
                                   color={colors.icon}
+                                  style={{ flexShrink: 0 }}
                                 />
                               </View>
                             </TouchableOpacity>
@@ -986,7 +1035,7 @@ export default function StoreSurveyScreen() {
                                 value
                               )
                             }
-                            placeholder="Nhập tên và số điện thoại (VD: Nguyễn A – 0909xxxx)"
+                            placeholder="VD: Nguyễn A – 0909xxxx"
                             placeholderTextColor={colors.icon}
                           />
                         </View>
@@ -995,108 +1044,420 @@ export default function StoreSurveyScreen() {
                           <Text style={[styles.label, { color: colors.text }]}>
                             Giá mua vào
                           </Text>
-                          <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                backgroundColor: colors.background,
-                                color: colors.text,
-                                borderColor: colors.icon + "40",
-                              },
-                            ]}
-                            value={product.purchasePrice}
-                            onChangeText={(value) =>
-                              handleProductPriceChange(
-                                index,
-                                "purchasePrice",
-                                value
-                              )
-                            }
-                            placeholder="Nhập giá (VND)"
-                            placeholderTextColor={colors.icon}
-                            keyboardType="numeric"
-                          />
+                          <View style={{ position: "relative" }}>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                {
+                                  backgroundColor: colors.background,
+                                  color: colors.text,
+                                  borderColor: colors.icon + "40",
+                                  paddingRight: 40,
+                                },
+                              ]}
+                              value={product.purchasePrice}
+                              onChangeText={(value) =>
+                                handleProductPriceChange(
+                                  index,
+                                  "purchasePrice",
+                                  value
+                                )
+                              }
+                              onFocus={() =>
+                                setShowPriceSuggestions({
+                                  productIndex: index,
+                                  field: "purchasePrice",
+                                })
+                              }
+                              placeholder="Nhập giá (VND)"
+                              placeholderTextColor={colors.icon}
+                              keyboardType="numeric"
+                            />
+                            <TouchableOpacity
+                              style={{
+                                position: "absolute",
+                                right: 12,
+                                top: "50%",
+                                transform: [{ translateY: -10 }],
+                              }}
+                              onPress={() =>
+                                setShowPriceSuggestions(
+                                  showPriceSuggestions?.productIndex ===
+                                    index &&
+                                    showPriceSuggestions?.field ===
+                                      "purchasePrice"
+                                    ? null
+                                    : {
+                                        productIndex: index,
+                                        field: "purchasePrice",
+                                      }
+                                )
+                              }
+                            >
+                              <Ionicons
+                                name="chevron-down"
+                                size={20}
+                                color={colors.icon}
+                              />
+                            </TouchableOpacity>
+                            {showPriceSuggestions?.productIndex === index &&
+                              showPriceSuggestions?.field ===
+                                "purchasePrice" && (
+                                <View
+                                  style={[
+                                    styles.priceSuggestionsDropdown,
+                                    {
+                                      backgroundColor: colors.background,
+                                      borderColor: colors.icon + "40",
+                                    },
+                                  ]}
+                                >
+                                  {PRICE_SUGGESTIONS.map((price) => (
+                                    <TouchableOpacity
+                                      key={price}
+                                      style={[
+                                        styles.priceSuggestionItem,
+                                        {
+                                          borderBottomColor: colors.icon + "20",
+                                        },
+                                      ]}
+                                      onPress={() => {
+                                        handleProductPriceChange(
+                                          index,
+                                          "purchasePrice",
+                                          formatVND(price.toString())
+                                        );
+                                        setShowPriceSuggestions(null);
+                                      }}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.priceSuggestionText,
+                                          { color: colors.text },
+                                        ]}
+                                      >
+                                        {price.toLocaleString("vi-VN")} VND
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                          </View>
                         </View>
 
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: colors.text }]}>
                             Giá bán ra
                           </Text>
-                          <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                backgroundColor: colors.background,
-                                color: colors.text,
-                                borderColor: colors.icon + "40",
-                              },
-                            ]}
-                            value={product.sellingPrice}
-                            onChangeText={(value) =>
-                              handleProductPriceChange(
-                                index,
-                                "sellingPrice",
-                                value
-                              )
-                            }
-                            placeholder="Nhập giá (VND)"
-                            placeholderTextColor={colors.icon}
-                            keyboardType="numeric"
-                          />
+                          <View style={{ position: "relative" }}>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                {
+                                  backgroundColor: colors.background,
+                                  color: colors.text,
+                                  borderColor: colors.icon + "40",
+                                  paddingRight: 40,
+                                },
+                              ]}
+                              value={product.sellingPrice}
+                              onChangeText={(value) =>
+                                handleProductPriceChange(
+                                  index,
+                                  "sellingPrice",
+                                  value
+                                )
+                              }
+                              onFocus={() =>
+                                setShowPriceSuggestions({
+                                  productIndex: index,
+                                  field: "sellingPrice",
+                                })
+                              }
+                              placeholder="Nhập giá (VND)"
+                              placeholderTextColor={colors.icon}
+                              keyboardType="numeric"
+                            />
+                            <TouchableOpacity
+                              style={{
+                                position: "absolute",
+                                right: 12,
+                                top: "50%",
+                                transform: [{ translateY: -10 }],
+                              }}
+                              onPress={() =>
+                                setShowPriceSuggestions(
+                                  showPriceSuggestions?.productIndex ===
+                                    index &&
+                                    showPriceSuggestions?.field ===
+                                      "sellingPrice"
+                                    ? null
+                                    : {
+                                        productIndex: index,
+                                        field: "sellingPrice",
+                                      }
+                                )
+                              }
+                            >
+                              <Ionicons
+                                name="chevron-down"
+                                size={20}
+                                color={colors.icon}
+                              />
+                            </TouchableOpacity>
+                            {showPriceSuggestions?.productIndex === index &&
+                              showPriceSuggestions?.field ===
+                                "sellingPrice" && (
+                                <View
+                                  style={[
+                                    styles.priceSuggestionsDropdown,
+                                    {
+                                      backgroundColor: colors.background,
+                                      borderColor: colors.icon + "40",
+                                    },
+                                  ]}
+                                >
+                                  {PRICE_SUGGESTIONS.map((price) => (
+                                    <TouchableOpacity
+                                      key={price}
+                                      style={[
+                                        styles.priceSuggestionItem,
+                                        {
+                                          borderBottomColor: colors.icon + "20",
+                                        },
+                                      ]}
+                                      onPress={() => {
+                                        handleProductPriceChange(
+                                          index,
+                                          "sellingPrice",
+                                          formatVND(price.toString())
+                                        );
+                                        setShowPriceSuggestions(null);
+                                      }}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.priceSuggestionText,
+                                          { color: colors.text },
+                                        ]}
+                                      >
+                                        {price.toLocaleString("vi-VN")} VND
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                          </View>
                         </View>
 
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: colors.text }]}>
                             Phí vận chuyển đường bộ
                           </Text>
-                          <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                backgroundColor: colors.background,
-                                color: colors.text,
-                                borderColor: colors.icon + "40",
-                              },
-                            ]}
-                            value={product.roadTransportFee}
-                            onChangeText={(value) =>
-                              handleProductPriceChange(
-                                index,
-                                "roadTransportFee",
-                                value
-                              )
-                            }
-                            placeholder="Nhập giá (VND)"
-                            placeholderTextColor={colors.icon}
-                            keyboardType="numeric"
-                          />
+                          <View style={{ position: "relative" }}>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                {
+                                  backgroundColor: colors.background,
+                                  color: colors.text,
+                                  borderColor: colors.icon + "40",
+                                  paddingRight: 40,
+                                },
+                              ]}
+                              value={product.roadTransportFee}
+                              onChangeText={(value) =>
+                                handleProductPriceChange(
+                                  index,
+                                  "roadTransportFee",
+                                  value
+                                )
+                              }
+                              onFocus={() =>
+                                setShowPriceSuggestions({
+                                  productIndex: index,
+                                  field: "roadTransportFee",
+                                })
+                              }
+                              placeholder="Nhập giá (VND)"
+                              placeholderTextColor={colors.icon}
+                              keyboardType="numeric"
+                            />
+                            <TouchableOpacity
+                              style={{
+                                position: "absolute",
+                                right: 12,
+                                top: "50%",
+                                transform: [{ translateY: -10 }],
+                              }}
+                              onPress={() =>
+                                setShowPriceSuggestions(
+                                  showPriceSuggestions?.productIndex ===
+                                    index &&
+                                    showPriceSuggestions?.field ===
+                                      "roadTransportFee"
+                                    ? null
+                                    : {
+                                        productIndex: index,
+                                        field: "roadTransportFee",
+                                      }
+                                )
+                              }
+                            >
+                              <Ionicons
+                                name="chevron-down"
+                                size={20}
+                                color={colors.icon}
+                              />
+                            </TouchableOpacity>
+                            {showPriceSuggestions?.productIndex === index &&
+                              showPriceSuggestions?.field ===
+                                "roadTransportFee" && (
+                                <View
+                                  style={[
+                                    styles.priceSuggestionsDropdown,
+                                    {
+                                      backgroundColor: colors.background,
+                                      borderColor: colors.icon + "40",
+                                    },
+                                  ]}
+                                >
+                                  {PRICE_SUGGESTIONS.map((price) => (
+                                    <TouchableOpacity
+                                      key={price}
+                                      style={[
+                                        styles.priceSuggestionItem,
+                                        {
+                                          borderBottomColor: colors.icon + "20",
+                                        },
+                                      ]}
+                                      onPress={() => {
+                                        handleProductPriceChange(
+                                          index,
+                                          "roadTransportFee",
+                                          formatVND(price.toString())
+                                        );
+                                        setShowPriceSuggestions(null);
+                                      }}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.priceSuggestionText,
+                                          { color: colors.text },
+                                        ]}
+                                      >
+                                        {price.toLocaleString("vi-VN")} VND
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                          </View>
                         </View>
 
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: colors.text }]}>
                             Phí vận chuyển đường thủy
                           </Text>
-                          <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                backgroundColor: colors.background,
-                                color: colors.text,
-                                borderColor: colors.icon + "40",
-                              },
-                            ]}
-                            value={product.waterTransportFee}
-                            onChangeText={(value) =>
-                              handleProductPriceChange(
-                                index,
-                                "waterTransportFee",
-                                value
-                              )
-                            }
-                            placeholder="Nhập giá (VND)"
-                            placeholderTextColor={colors.icon}
-                            keyboardType="numeric"
-                          />
+                          <View style={{ position: "relative" }}>
+                            <TextInput
+                              style={[
+                                styles.input,
+                                {
+                                  backgroundColor: colors.background,
+                                  color: colors.text,
+                                  borderColor: colors.icon + "40",
+                                  paddingRight: 40,
+                                },
+                              ]}
+                              value={product.waterTransportFee}
+                              onChangeText={(value) =>
+                                handleProductPriceChange(
+                                  index,
+                                  "waterTransportFee",
+                                  value
+                                )
+                              }
+                              onFocus={() =>
+                                setShowPriceSuggestions({
+                                  productIndex: index,
+                                  field: "waterTransportFee",
+                                })
+                              }
+                              placeholder="Nhập giá (VND)"
+                              placeholderTextColor={colors.icon}
+                              keyboardType="numeric"
+                            />
+                            <TouchableOpacity
+                              style={{
+                                position: "absolute",
+                                right: 12,
+                                top: "50%",
+                                transform: [{ translateY: -10 }],
+                              }}
+                              onPress={() =>
+                                setShowPriceSuggestions(
+                                  showPriceSuggestions?.productIndex ===
+                                    index &&
+                                    showPriceSuggestions?.field ===
+                                      "waterTransportFee"
+                                    ? null
+                                    : {
+                                        productIndex: index,
+                                        field: "waterTransportFee",
+                                      }
+                                )
+                              }
+                            >
+                              <Ionicons
+                                name="chevron-down"
+                                size={20}
+                                color={colors.icon}
+                              />
+                            </TouchableOpacity>
+                            {showPriceSuggestions?.productIndex === index &&
+                              showPriceSuggestions?.field ===
+                                "waterTransportFee" && (
+                                <View
+                                  style={[
+                                    styles.priceSuggestionsDropdown,
+                                    {
+                                      backgroundColor: colors.background,
+                                      borderColor: colors.icon + "40",
+                                    },
+                                  ]}
+                                >
+                                  {PRICE_SUGGESTIONS.map((price) => (
+                                    <TouchableOpacity
+                                      key={price}
+                                      style={[
+                                        styles.priceSuggestionItem,
+                                        {
+                                          borderBottomColor: colors.icon + "20",
+                                        },
+                                      ]}
+                                      onPress={() => {
+                                        handleProductPriceChange(
+                                          index,
+                                          "waterTransportFee",
+                                          formatVND(price.toString())
+                                        );
+                                        setShowPriceSuggestions(null);
+                                      }}
+                                    >
+                                      <Text
+                                        style={[
+                                          styles.priceSuggestionText,
+                                          { color: colors.text },
+                                        ]}
+                                      >
+                                        {price.toLocaleString("vi-VN")} VND
+                                      </Text>
+                                    </TouchableOpacity>
+                                  ))}
+                                </View>
+                              )}
+                          </View>
                         </View>
 
                         <View style={styles.field}>
@@ -1257,80 +1618,6 @@ export default function StoreSurveyScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
-
-      {/* Cement Product Picker Modal (Title 1) */}
-      <Modal
-        visible={showCementPicker}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowCementPicker(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <View
-              style={{
-                flexDirection: "row",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 16,
-              }}
-            >
-              <Text style={[styles.modalTitle, { color: colors.text }]}>
-                Chọn loại xi măng
-              </Text>
-              <TouchableOpacity onPress={() => setShowCementPicker(false)}>
-                <Ionicons name="close" size={24} color={colors.icon} />
-              </TouchableOpacity>
-            </View>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.icon + "40",
-                  marginBottom: 12,
-                },
-              ]}
-              value={cementSearch}
-              onChangeText={setCementSearch}
-              placeholder="Tìm kiếm loại xi măng"
-              placeholderTextColor={colors.icon}
-            />
-            <ScrollView>
-              {filteredCementProducts.map((product) => (
-                <TouchableOpacity
-                  key={product.Id}
-                  style={[
-                    styles.modalOption,
-                    {
-                      backgroundColor:
-                        surveyData.cementProductId === product.Id
-                          ? colors.primary + "20"
-                          : "transparent",
-                    },
-                  ]}
-                  onPress={() => {
-                    handleInputChange("cementProductId", product.Id);
-                    setShowCementPicker(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.modalOptionText, { color: colors.text }]}
-                  >
-                    {product.Name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
 
       {/* Add Product Type Modal */}
       <Modal
@@ -1577,8 +1864,16 @@ export default function StoreSurveyScreen() {
                     });
                     const created = res.data;
                     await fetchCementProducts();
-                    handleInputChange("cementProductId", created.Id);
+                    // Set cement product for the current product being edited
+                    if (addCementForProductIndex !== null) {
+                      handleProductChange(
+                        addCementForProductIndex,
+                        "cementProductId",
+                        created.Id
+                      );
+                    }
                     setShowAddCementModal(false);
+                    setAddCementForProductIndex(null);
                   } catch (error: unknown) {
                     console.error("Error creating cement product:", error);
                     const message =
@@ -1740,7 +2035,7 @@ const styles = StyleSheet.create({
   },
   titleContent: {
     padding: 16,
-    paddingTop: 0,
+    paddingTop: 16,
   },
   field: {
     marginBottom: 16,
@@ -1778,6 +2073,7 @@ const styles = StyleSheet.create({
   },
   pickerText: {
     fontSize: 14,
+    flex: 1,
   },
   productItem: {
     borderWidth: 1,
@@ -1871,6 +2167,29 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   modalOptionText: {
+    fontSize: 14,
+  },
+  priceSuggestionsDropdown: {
+    position: "absolute",
+    top: "100%",
+    left: 0,
+    right: 0,
+    zIndex: 1000,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginTop: 4,
+    maxHeight: 200,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  priceSuggestionItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+  },
+  priceSuggestionText: {
     fontSize: 14,
   },
 });

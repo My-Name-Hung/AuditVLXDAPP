@@ -50,6 +50,11 @@ interface LocationState {
 // Không giới hạn 1–10000, chỉ dùng format VND cho dễ đọc
 const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
 
+// Price suggestions (30,000 - 100,000 VND)
+const PRICE_SUGGESTIONS = [
+  30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000,
+];
+
 const formatVND = (value: string): string => {
   // Chỉ giữ lại ký tự số, tránh lỗi khi nhập
   const digits = value.replace(/[^\d]/g, "");
@@ -88,13 +93,23 @@ const StoreSurvey = () => {
   const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
   const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
   const [newProductTypeName, setNewProductTypeName] = useState("");
+  const [showPriceSuggestions, setShowPriceSuggestions] = useState<{
+    productIndex: number;
+    field:
+      | "purchasePrice"
+      | "sellingPrice"
+      | "roadTransportFee"
+      | "waterTransportFee";
+  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedTitles, setExpandedTitles] = useState({
     title2: false,
     title3: false,
   });
-  const [expandedProducts, setExpandedProducts] = useState<Record<number, boolean>>({});
+  const [expandedProducts, setExpandedProducts] = useState<
+    Record<number, boolean>
+  >({});
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
     whyNotSellNewProduct: "",
@@ -124,6 +139,7 @@ const StoreSurvey = () => {
     if (!expandedTitles.title2) {
       setExpandedTitles((prev) => ({ ...prev, title2: true }));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -199,17 +215,13 @@ const StoreSurvey = () => {
     }));
   };
 
-  const handlePriceChange = (
-    field: "newProductImportQuantity",
-    value: string
-  ) => {
-    const formatted = formatVND(value);
-    handleInputChange(field, formatted);
-  };
-
   const handleProductPriceChange = (
     index: number,
-    field: "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee",
+    field:
+      | "purchasePrice"
+      | "sellingPrice"
+      | "roadTransportFee"
+      | "waterTransportFee",
     value: string
   ) => {
     const formatted = formatVND(value);
@@ -272,7 +284,18 @@ const StoreSurvey = () => {
 
   const handleProductChange = (
     index: number,
-    field: "productType" | "cementProductId" | "contactPersonPhone" | "purchasePrice" | "sellingPrice" | "roadTransportFee" | "waterTransportFee" | "quantityReceived" | "importedFromNPP" | "discountPromotion" | "averageStockQuantity",
+    field:
+      | "productType"
+      | "cementProductId"
+      | "contactPersonPhone"
+      | "purchasePrice"
+      | "sellingPrice"
+      | "roadTransportFee"
+      | "waterTransportFee"
+      | "quantityReceived"
+      | "importedFromNPP"
+      | "discountPromotion"
+      | "averageStockQuantity",
     value: string | number | null
   ) => {
     setSurveyData((prev) => {
@@ -334,7 +357,9 @@ const StoreSurvey = () => {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
         }
         if (!product.averageStockQuantity) {
-          errors.push(`Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`);
+          errors.push(
+            `Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`
+          );
         }
       });
     }
@@ -426,12 +451,20 @@ const StoreSurvey = () => {
           contactPersonPhone: p.contactPersonPhone,
           purchasePrice: p.purchasePrice ? parseVND(p.purchasePrice) : null,
           sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
-          roadTransportFee: p.roadTransportFee ? parseVND(p.roadTransportFee) : null,
-          waterTransportFee: p.waterTransportFee ? parseVND(p.waterTransportFee) : null,
-          quantityReceived: p.quantityReceived ? parseFloat(p.quantityReceived) : null,
+          roadTransportFee: p.roadTransportFee
+            ? parseVND(p.roadTransportFee)
+            : null,
+          waterTransportFee: p.waterTransportFee
+            ? parseVND(p.waterTransportFee)
+            : null,
+          quantityReceived: p.quantityReceived
+            ? parseFloat(p.quantityReceived)
+            : null,
           importedFromNPP: p.importedFromNPP,
           discountPromotion: p.discountPromotion || null,
-          averageStockQuantity: p.averageStockQuantity ? parseFloat(p.averageStockQuantity) : null,
+          averageStockQuantity: p.averageStockQuantity
+            ? parseFloat(p.averageStockQuantity)
+            : null,
         })),
       });
 
@@ -532,7 +565,7 @@ const StoreSurvey = () => {
             >
               <div className="store-survey-field" style={{ marginTop: 16 }}>
                 <label style={{ color: colors.text }}>
-                  Tại sao không bán sản phẩm mới *
+                  Tại sao không bán sản phẩm mới
                 </label>
                 <textarea
                   value={surveyData.whyNotSellNewProduct}
@@ -550,7 +583,7 @@ const StoreSurvey = () => {
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
-                  Thời gian để bán sản phẩm mới *
+                  Thời gian để bán sản phẩm mới
                 </label>
                 <div style={{ position: "relative" }}>
                   <input
@@ -585,7 +618,7 @@ const StoreSurvey = () => {
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
-                  Tên sản phẩm muốn nhập – Số lượng (nếu có) *
+                  Tên sản phẩm muốn nhập – Số lượng (nếu có)
                 </label>
                 <input
                   type="text"
@@ -606,7 +639,7 @@ const StoreSurvey = () => {
               </div>
 
               <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Mua qua NPP *</label>
+                <label style={{ color: colors.text }}>Mua qua NPP</label>
                 <input
                   type="text"
                   value={surveyData.supplierName}
@@ -623,9 +656,7 @@ const StoreSurvey = () => {
               </div>
 
               <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Nhập bởi thương vụ *
-                </label>
+                <label style={{ color: colors.text }}>Nhập bởi thương vụ</label>
                 <input
                   type="text"
                   placeholder="Tìm kiếm thương vụ"
@@ -704,7 +735,7 @@ const StoreSurvey = () => {
           {expandedTitles.title3 && (
             <div
               className="store-survey-title-content"
-              style={{ backgroundColor: colors.secondary }}
+              style={{ backgroundColor: colors.secondary, paddingTop: 16 }}
             >
               {surveyData.products.map((product, index) => (
                 <div
@@ -715,6 +746,7 @@ const StoreSurvey = () => {
                     borderRadius: 8,
                     padding: 16,
                     marginBottom: 16,
+                    marginTop: index === 0 ? 0 : 0,
                   }}
                 >
                   <div
@@ -872,7 +904,17 @@ const StoreSurvey = () => {
                               color: colors.text,
                               borderColor: colors.icon + "40",
                               width: "100%",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
                             }}
+                            title={
+                              product.cementProductId
+                                ? cementProducts.find(
+                                    (p) => p.Id === product.cementProductId
+                                  )?.Name || ""
+                                : ""
+                            }
                           >
                             <option value="">Chọn loại xi măng</option>
                             {filteredCementProducts.map((cp) => (
@@ -885,9 +927,7 @@ const StoreSurvey = () => {
                       )}
 
                       <div className="store-survey-field">
-                        <label style={{ color: colors.text }}>
-                          Tên + SDT
-                        </label>
+                        <label style={{ color: colors.text }}>Tên + SDT</label>
                         <input
                           type="text"
                           value={product.contactPersonPhone}
@@ -898,7 +938,7 @@ const StoreSurvey = () => {
                               e.target.value
                             )
                           }
-                          placeholder="Nhập tên và số điện thoại (VD: Nguyễn A – 0909xxxx)"
+                          placeholder="VD: Nguyễn A – 0909xxxx"
                           style={{
                             backgroundColor: colors.background,
                             color: colors.text,
@@ -911,92 +951,347 @@ const StoreSurvey = () => {
                         <label style={{ color: colors.text }}>
                           Giá mua vào
                         </label>
-                        <input
-                          type="text"
-                          value={product.purchasePrice}
-                          onChange={(e) =>
-                            handleProductPriceChange(
-                              index,
-                              "purchasePrice",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Nhập giá (VND)"
-                          style={{
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          }}
-                        />
+                        <div style={{ position: "relative" }}>
+                          <input
+                            type="text"
+                            value={product.purchasePrice}
+                            onChange={(e) =>
+                              handleProductPriceChange(
+                                index,
+                                "purchasePrice",
+                                e.target.value
+                              )
+                            }
+                            onFocus={() =>
+                              setShowPriceSuggestions({
+                                productIndex: index,
+                                field: "purchasePrice",
+                              })
+                            }
+                            placeholder="Nhập giá (VND)"
+                            style={{
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              borderColor: colors.icon + "40",
+                              paddingRight: "40px",
+                              width: "100%",
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: "absolute",
+                              right: "12px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: colors.icon,
+                              cursor: "pointer",
+                            }}
+                            onClick={() =>
+                              setShowPriceSuggestions(
+                                showPriceSuggestions?.productIndex === index &&
+                                  showPriceSuggestions?.field ===
+                                    "purchasePrice"
+                                  ? null
+                                  : {
+                                      productIndex: index,
+                                      field: "purchasePrice",
+                                    }
+                              )
+                            }
+                          >
+                            ▼
+                          </span>
+                          {showPriceSuggestions?.productIndex === index &&
+                            showPriceSuggestions?.field === "purchasePrice" && (
+                              <div
+                                className="price-suggestions-dropdown"
+                                style={{
+                                  backgroundColor: colors.background,
+                                  borderColor: colors.icon + "40",
+                                }}
+                              >
+                                {PRICE_SUGGESTIONS.map((price) => (
+                                  <div
+                                    key={price}
+                                    className="price-suggestion-item"
+                                    style={{
+                                      borderBottomColor: colors.icon + "20",
+                                    }}
+                                    onClick={() => {
+                                      handleProductPriceChange(
+                                        index,
+                                        "purchasePrice",
+                                        formatVND(price.toString())
+                                      );
+                                      setShowPriceSuggestions(null);
+                                    }}
+                                  >
+                                    {price.toLocaleString("vi-VN")} VND
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                        </div>
                       </div>
 
                       <div className="store-survey-field">
-                        <label style={{ color: colors.text }}>
-                          Giá bán ra
-                        </label>
-                        <input
-                          type="text"
-                          value={product.sellingPrice}
-                          onChange={(e) =>
-                            handleProductPriceChange(
-                              index,
-                              "sellingPrice",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Nhập giá (VND)"
-                          style={{
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          }}
-                        />
+                        <label style={{ color: colors.text }}>Giá bán ra</label>
+                        <div style={{ position: "relative" }}>
+                          <input
+                            type="text"
+                            value={product.sellingPrice}
+                            onChange={(e) =>
+                              handleProductPriceChange(
+                                index,
+                                "sellingPrice",
+                                e.target.value
+                              )
+                            }
+                            onFocus={() =>
+                              setShowPriceSuggestions({
+                                productIndex: index,
+                                field: "sellingPrice",
+                              })
+                            }
+                            placeholder="Nhập giá (VND)"
+                            style={{
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              borderColor: colors.icon + "40",
+                              paddingRight: "40px",
+                              width: "100%",
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: "absolute",
+                              right: "12px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: colors.icon,
+                              cursor: "pointer",
+                            }}
+                            onClick={() =>
+                              setShowPriceSuggestions(
+                                showPriceSuggestions?.productIndex === index &&
+                                  showPriceSuggestions?.field === "sellingPrice"
+                                  ? null
+                                  : {
+                                      productIndex: index,
+                                      field: "sellingPrice",
+                                    }
+                              )
+                            }
+                          >
+                            ▼
+                          </span>
+                          {showPriceSuggestions?.productIndex === index &&
+                            showPriceSuggestions?.field === "sellingPrice" && (
+                              <div
+                                className="price-suggestions-dropdown"
+                                style={{
+                                  backgroundColor: colors.background,
+                                  borderColor: colors.icon + "40",
+                                }}
+                              >
+                                {PRICE_SUGGESTIONS.map((price) => (
+                                  <div
+                                    key={price}
+                                    className="price-suggestion-item"
+                                    style={{
+                                      borderBottomColor: colors.icon + "20",
+                                    }}
+                                    onClick={() => {
+                                      handleProductPriceChange(
+                                        index,
+                                        "sellingPrice",
+                                        formatVND(price.toString())
+                                      );
+                                      setShowPriceSuggestions(null);
+                                    }}
+                                  >
+                                    {price.toLocaleString("vi-VN")} VND
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                        </div>
                       </div>
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
                           Phí vận chuyển đường bộ
                         </label>
-                        <input
-                          type="text"
-                          value={product.roadTransportFee}
-                          onChange={(e) =>
-                            handleProductPriceChange(
-                              index,
-                              "roadTransportFee",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Nhập giá (VND)"
-                          style={{
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          }}
-                        />
+                        <div style={{ position: "relative" }}>
+                          <input
+                            type="text"
+                            value={product.roadTransportFee}
+                            onChange={(e) =>
+                              handleProductPriceChange(
+                                index,
+                                "roadTransportFee",
+                                e.target.value
+                              )
+                            }
+                            onFocus={() =>
+                              setShowPriceSuggestions({
+                                productIndex: index,
+                                field: "roadTransportFee",
+                              })
+                            }
+                            placeholder="Nhập giá (VND)"
+                            style={{
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              borderColor: colors.icon + "40",
+                              paddingRight: "40px",
+                              width: "100%",
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: "absolute",
+                              right: "12px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: colors.icon,
+                              cursor: "pointer",
+                            }}
+                            onClick={() =>
+                              setShowPriceSuggestions(
+                                showPriceSuggestions?.productIndex === index &&
+                                  showPriceSuggestions?.field ===
+                                    "roadTransportFee"
+                                  ? null
+                                  : {
+                                      productIndex: index,
+                                      field: "roadTransportFee",
+                                    }
+                              )
+                            }
+                          >
+                            ▼
+                          </span>
+                          {showPriceSuggestions?.productIndex === index &&
+                            showPriceSuggestions?.field ===
+                              "roadTransportFee" && (
+                              <div
+                                className="price-suggestions-dropdown"
+                                style={{
+                                  backgroundColor: colors.background,
+                                  borderColor: colors.icon + "40",
+                                }}
+                              >
+                                {PRICE_SUGGESTIONS.map((price) => (
+                                  <div
+                                    key={price}
+                                    className="price-suggestion-item"
+                                    style={{
+                                      borderBottomColor: colors.icon + "20",
+                                    }}
+                                    onClick={() => {
+                                      handleProductPriceChange(
+                                        index,
+                                        "roadTransportFee",
+                                        formatVND(price.toString())
+                                      );
+                                      setShowPriceSuggestions(null);
+                                    }}
+                                  >
+                                    {price.toLocaleString("vi-VN")} VND
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                        </div>
                       </div>
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
                           Phí vận chuyển đường thủy
                         </label>
-                        <input
-                          type="text"
-                          value={product.waterTransportFee}
-                          onChange={(e) =>
-                            handleProductPriceChange(
-                              index,
-                              "waterTransportFee",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Nhập giá (VND)"
-                          style={{
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          }}
-                        />
+                        <div style={{ position: "relative" }}>
+                          <input
+                            type="text"
+                            value={product.waterTransportFee}
+                            onChange={(e) =>
+                              handleProductPriceChange(
+                                index,
+                                "waterTransportFee",
+                                e.target.value
+                              )
+                            }
+                            onFocus={() =>
+                              setShowPriceSuggestions({
+                                productIndex: index,
+                                field: "waterTransportFee",
+                              })
+                            }
+                            placeholder="Nhập giá (VND)"
+                            style={{
+                              backgroundColor: colors.background,
+                              color: colors.text,
+                              borderColor: colors.icon + "40",
+                              paddingRight: "40px",
+                              width: "100%",
+                            }}
+                          />
+                          <span
+                            style={{
+                              position: "absolute",
+                              right: "12px",
+                              top: "50%",
+                              transform: "translateY(-50%)",
+                              color: colors.icon,
+                              cursor: "pointer",
+                            }}
+                            onClick={() =>
+                              setShowPriceSuggestions(
+                                showPriceSuggestions?.productIndex === index &&
+                                  showPriceSuggestions?.field ===
+                                    "waterTransportFee"
+                                  ? null
+                                  : {
+                                      productIndex: index,
+                                      field: "waterTransportFee",
+                                    }
+                              )
+                            }
+                          >
+                            ▼
+                          </span>
+                          {showPriceSuggestions?.productIndex === index &&
+                            showPriceSuggestions?.field ===
+                              "waterTransportFee" && (
+                              <div
+                                className="price-suggestions-dropdown"
+                                style={{
+                                  backgroundColor: colors.background,
+                                  borderColor: colors.icon + "40",
+                                }}
+                              >
+                                {PRICE_SUGGESTIONS.map((price) => (
+                                  <div
+                                    key={price}
+                                    className="price-suggestion-item"
+                                    style={{
+                                      borderBottomColor: colors.icon + "20",
+                                    }}
+                                    onClick={() => {
+                                      handleProductPriceChange(
+                                        index,
+                                        "waterTransportFee",
+                                        formatVND(price.toString())
+                                      );
+                                      setShowPriceSuggestions(null);
+                                    }}
+                                  >
+                                    {price.toLocaleString("vi-VN")} VND
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                        </div>
                       </div>
 
                       <div className="store-survey-field">
@@ -1117,7 +1412,9 @@ const StoreSurvey = () => {
         </div>
 
         {/* Submit Button */}
-        <div style={{ display: "flex", justifyContent: "center", marginTop: 24 }}>
+        <div
+          style={{ display: "flex", justifyContent: "center", marginTop: 24 }}
+        >
           <button
             className="store-survey-submit-button"
             onClick={handleSubmit}
@@ -1169,10 +1466,9 @@ const StoreSurvey = () => {
                     return;
                   }
                   try {
-                    const res = await api.post("/cement-products", {
+                    await api.post("/cement-products", {
                       name: trimmed,
                     });
-                    const created = res.data;
                     await fetchCementProducts();
                     setShowAddCementModal(false);
                   } catch (error: unknown) {
