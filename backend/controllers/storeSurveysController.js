@@ -23,11 +23,9 @@ const createStoreSurvey = async (req, res) => {
       whyNotSellNewProduct,
       timeToSellNewProduct,
       newProductImportQuantity,
+      supplierName,
       importedBySalesperson,
-      newProductSellingPrice,
-      futureImportPrediction,
       storeComment,
-      averageMonthlyConsumption,
       // Title 3 - Products
       products,
     } = req.body;
@@ -58,10 +56,7 @@ const createStoreSurvey = async (req, res) => {
       TimeToSellNewProduct: timeToSellNewProduct,
       NewProductImportQuantity: newProductImportQuantity,
       ImportedBySalesperson: importedBySalesperson,
-      NewProductSellingPrice: newProductSellingPrice,
-      FutureImportPrediction: futureImportPrediction,
       StoreComment: storeComment,
-      AverageMonthlyConsumption: averageMonthlyConsumption,
     });
 
     // Create products if provided
@@ -268,10 +263,7 @@ const updateStoreSurvey = async (req, res) => {
       TimeToSellNewProduct: timeToSellNewProduct,
       NewProductImportQuantity: newProductImportQuantity,
       ImportedBySalesperson: importedBySalesperson,
-      NewProductSellingPrice: newProductSellingPrice,
-      FutureImportPrediction: futureImportPrediction,
       StoreComment: storeComment,
-      AverageMonthlyConsumption: averageMonthlyConsumption,
     });
 
     // Update products if provided

@@ -22,10 +22,7 @@ class StoreSurvey {
       TimeToSellNewProduct,
       NewProductImportQuantity,
       ImportedBySalesperson,
-      NewProductSellingPrice,
-      FutureImportPrediction,
       StoreComment,
-      AverageMonthlyConsumption,
     } = surveyData;
 
     const request = pool.request();
@@ -47,10 +44,7 @@ class StoreSurvey {
     request.input('TimeToSellNewProduct', sql.DateTime, TimeToSellNewProduct || null);
     request.input('NewProductImportQuantity', sql.Decimal(18, 2), NewProductImportQuantity || null);
     request.input('ImportedBySalesperson', sql.NVarChar(200), ImportedBySalesperson || null);
-    request.input('NewProductSellingPrice', sql.Decimal(18, 2), NewProductSellingPrice || null);
-    request.input('FutureImportPrediction', sql.Decimal(18, 2), FutureImportPrediction || null);
     request.input('StoreComment', sql.NVarChar(1000), StoreComment || null);
-    request.input('AverageMonthlyConsumption', sql.Decimal(18, 2), AverageMonthlyConsumption || null);
 
     const result = await request.query(`
       INSERT INTO StoreSurveys (
@@ -58,8 +52,7 @@ class StoreSurvey {
         SellingPrice, SupplierName, RoadTransportFee, WaterTransportFee,
         ImportExportQuantity, StockQuantity, ConsumptionArea, DebtPeriod,
         WhyNotSellNewProduct, TimeToSellNewProduct, NewProductImportQuantity,
-        ImportedBySalesperson, NewProductSellingPrice, FutureImportPrediction,
-        StoreComment, AverageMonthlyConsumption,
+        ImportedBySalesperson, StoreComment,
         CreatedAt, UpdatedAt
       )
       OUTPUT INSERTED.*
@@ -68,8 +61,7 @@ class StoreSurvey {
         @SellingPrice, @SupplierName, @RoadTransportFee, @WaterTransportFee,
         @ImportExportQuantity, @StockQuantity, @ConsumptionArea, @DebtPeriod,
         @WhyNotSellNewProduct, @TimeToSellNewProduct, @NewProductImportQuantity,
-        @ImportedBySalesperson, @NewProductSellingPrice, @FutureImportPrediction,
-        @StoreComment, @AverageMonthlyConsumption,
+        @ImportedBySalesperson, @StoreComment,
         GETDATE(), GETDATE()
       )
     `);
@@ -286,10 +278,7 @@ class StoreSurvey {
       TimeToSellNewProduct,
       NewProductImportQuantity,
       ImportedBySalesperson,
-      NewProductSellingPrice,
-      FutureImportPrediction,
       StoreComment,
-      AverageMonthlyConsumption,
     } = surveyData;
 
     const request = pool.request();
@@ -309,10 +298,7 @@ class StoreSurvey {
     request.input('TimeToSellNewProduct', sql.DateTime, TimeToSellNewProduct || null);
     request.input('NewProductImportQuantity', sql.Decimal(18, 2), NewProductImportQuantity || null);
     request.input('ImportedBySalesperson', sql.NVarChar(200), ImportedBySalesperson || null);
-    request.input('NewProductSellingPrice', sql.Decimal(18, 2), NewProductSellingPrice || null);
-    request.input('FutureImportPrediction', sql.Decimal(18, 2), FutureImportPrediction || null);
     request.input('StoreComment', sql.NVarChar(1000), StoreComment || null);
-    request.input('AverageMonthlyConsumption', sql.Decimal(18, 2), AverageMonthlyConsumption || null);
 
     const result = await request.query(`
       UPDATE StoreSurveys
@@ -331,10 +317,7 @@ class StoreSurvey {
           TimeToSellNewProduct = @TimeToSellNewProduct,
           NewProductImportQuantity = @NewProductImportQuantity,
           ImportedBySalesperson = @ImportedBySalesperson,
-          NewProductSellingPrice = @NewProductSellingPrice,
-          FutureImportPrediction = @FutureImportPrediction,
           StoreComment = @StoreComment,
-          AverageMonthlyConsumption = @AverageMonthlyConsumption,
           UpdatedAt = GETDATE()
       OUTPUT INSERTED.*
       WHERE Id = @Id

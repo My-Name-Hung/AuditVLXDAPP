@@ -16,11 +16,9 @@ interface SurveyData {
   whyNotSellNewProduct: string;
   timeToSellNewProduct: string;
   newProductImportQuantity: string;
+  supplierName: string;
   importedBySalesperson: string;
-  newProductSellingPrice: string;
-  futureImportPrediction: string;
   storeComment: string;
-  averageMonthlyConsumption: string;
   // Title 3
   products: Array<{
     productType: string;
@@ -102,11 +100,9 @@ const StoreSurvey = () => {
     whyNotSellNewProduct: "",
     timeToSellNewProduct: "",
     newProductImportQuantity: "",
+    supplierName: "",
     importedBySalesperson: "",
-    newProductSellingPrice: "",
-    futureImportPrediction: "",
     storeComment: "",
-    averageMonthlyConsumption: "",
     products: [],
   });
 
@@ -136,8 +132,7 @@ const StoreSurvey = () => {
       surveyData.whyNotSellNewProduct &&
       surveyData.timeToSellNewProduct &&
       surveyData.newProductImportQuantity &&
-      surveyData.importedBySalesperson &&
-      surveyData.newProductSellingPrice;
+      surveyData.importedBySalesperson;
 
     if (title2Complete && !expandedTitles.title3) {
       setExpandedTitles((prev) => ({ ...prev, title3: true }));
@@ -205,9 +200,7 @@ const StoreSurvey = () => {
   };
 
   const handlePriceChange = (
-    field:
-      | "newProductSellingPrice"
-      | "newProductImportQuantity",
+    field: "newProductImportQuantity",
     value: string
   ) => {
     const formatted = formatVND(value);
@@ -304,12 +297,9 @@ const StoreSurvey = () => {
     if (!surveyData.timeToSellNewProduct)
       errors.push("Thời gian để bán sản phẩm mới");
     if (!surveyData.newProductImportQuantity)
-      errors.push("Số lượng nhập sản phẩm mới");
+      errors.push("Tên sản phẩm muốn nhập – Số lượng (nếu có)");
+    if (!surveyData.supplierName) errors.push("Mua qua NPP");
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
-    if (!surveyData.newProductSellingPrice)
-      errors.push("Giá bán ra (sản phẩm mới)");
-    if (!surveyData.averageMonthlyConsumption)
-      errors.push("Số lượng tồn bình quân (tấn/tháng)");
 
     // Title 3 validation
     if (surveyData.products.length === 0) {
@@ -427,15 +417,9 @@ const StoreSurvey = () => {
         whyNotSellNewProduct: surveyData.whyNotSellNewProduct,
         timeToSellNewProduct: surveyData.timeToSellNewProduct || null,
         newProductImportQuantity: parseVND(surveyData.newProductImportQuantity),
+        supplierName: surveyData.supplierName,
         importedBySalesperson: surveyData.importedBySalesperson,
-        newProductSellingPrice: parseVND(surveyData.newProductSellingPrice),
-        futureImportPrediction: surveyData.futureImportPrediction
-          ? parseVND(surveyData.futureImportPrediction)
-          : null,
         storeComment: surveyData.storeComment || null,
-        averageMonthlyConsumption: surveyData.averageMonthlyConsumption
-          ? parseFloat(surveyData.averageMonthlyConsumption)
-          : null,
         products: surveyData.products.map((p) => ({
           productType: p.productType,
           cementProductId: p.cementProductId,
@@ -546,7 +530,7 @@ const StoreSurvey = () => {
               className="store-survey-title-content"
               style={{ backgroundColor: colors.secondary }}
             >
-              <div className="store-survey-field">
+              <div className="store-survey-field" style={{ marginTop: 16 }}>
                 <label style={{ color: colors.text }}>
                   Tại sao không bán sản phẩm mới *
                 </label>
@@ -568,51 +552,51 @@ const StoreSurvey = () => {
                 <label style={{ color: colors.text }}>
                   Thời gian để bán sản phẩm mới *
                 </label>
-                <input
-                  type="date"
-                  value={surveyData.timeToSellNewProduct}
-                  onChange={(e) =>
-                    handleInputChange("timeToSellNewProduct", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="date"
+                    value={surveyData.timeToSellNewProduct}
+                    onChange={(e) =>
+                      handleInputChange("timeToSellNewProduct", e.target.value)
+                    }
+                    style={{
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.icon + "40",
+                      width: "100%",
+                      paddingRight: 40,
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: 12,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                      color: colors.icon,
+                      fontSize: 18,
+                    }}
+                  >
+                    📅
+                  </span>
+                </div>
               </div>
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
-                  Số lượng nhập sản phẩm mới *
+                  Tên sản phẩm muốn nhập – Số lượng (nếu có) *
                 </label>
                 <input
                   type="text"
                   value={surveyData.newProductImportQuantity}
                   onChange={(e) =>
-                    handlePriceChange(
+                    handleInputChange(
                       "newProductImportQuantity",
                       e.target.value
                     )
                   }
-                  placeholder="Nhập số lượng"
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Giá mua *</label>
-                <input
-                  type="text"
-                  value={surveyData.purchasePrice}
-                  onChange={(e) =>
-                    handlePriceChange("purchasePrice", e.target.value)
-                  }
-                  placeholder="Nhập giá (VND)"
+                  placeholder="Nhập tên sản phẩm và số lượng"
                   style={{
                     backgroundColor: colors.background,
                     color: colors.text,
@@ -676,47 +660,6 @@ const StoreSurvey = () => {
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>
-                  Giá bán ra (sản phẩm mới) *
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.newProductSellingPrice}
-                  onChange={(e) =>
-                    handlePriceChange("newProductSellingPrice", e.target.value)
-                  }
-                  placeholder="Nhập giá (VND)"
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Số lượng tồn bình quân (tấn/tháng) *
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.averageMonthlyConsumption}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "averageMonthlyConsumption",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Nhập số lượng tồn bình quân"
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
                   Ý kiến của cửa hàng
                 </label>
                 <textarea
@@ -726,25 +669,6 @@ const StoreSurvey = () => {
                   }
                   placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
                   rows={3}
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Dự đoán tương lai sẽ nhập bao nhiêu hàng của XMTĐ
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.futureImportPrediction}
-                  onChange={(e) =>
-                    handleInputChange("futureImportPrediction", e.target.value)
-                  }
-                  placeholder="Nhập số lượng"
                   style={{
                     backgroundColor: colors.background,
                     color: colors.text,

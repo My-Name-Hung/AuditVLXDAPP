@@ -31,11 +31,9 @@ interface SurveyData {
   whyNotSellNewProduct: string;
   timeToSellNewProduct: string;
   newProductImportQuantity: string;
+  supplierName: string;
   importedBySalesperson: string;
-  newProductSellingPrice: string;
-  futureImportPrediction: string;
   storeComment: string;
-  averageMonthlyConsumption: string;
   products: {
     productType: string;
     cementProductId: number | null;
@@ -108,11 +106,9 @@ export default function StoreSurveyScreen() {
     whyNotSellNewProduct: "",
     timeToSellNewProduct: "",
     newProductImportQuantity: "",
+    supplierName: "",
     importedBySalesperson: "",
-    newProductSellingPrice: "",
-    futureImportPrediction: "",
     storeComment: "",
-    averageMonthlyConsumption: "",
     products: [],
   });
 
@@ -142,8 +138,7 @@ export default function StoreSurveyScreen() {
       surveyData.whyNotSellNewProduct &&
       surveyData.timeToSellNewProduct &&
       surveyData.newProductImportQuantity &&
-      surveyData.importedBySalesperson &&
-      surveyData.newProductSellingPrice;
+      surveyData.importedBySalesperson;
 
     if (title2Complete && !expandedTitles.title3) {
       setExpandedTitles((prev) => ({ ...prev, title3: true }));
@@ -211,9 +206,7 @@ export default function StoreSurveyScreen() {
   };
 
   const handlePriceChange = (
-    field:
-      | "newProductSellingPrice"
-      | "newProductImportQuantity",
+    field: "newProductImportQuantity",
     value: string
   ) => {
     const formatted = formatVND(value);
@@ -310,12 +303,9 @@ export default function StoreSurveyScreen() {
     if (!surveyData.timeToSellNewProduct)
       errors.push("Thời gian để bán sản phẩm mới");
     if (!surveyData.newProductImportQuantity)
-      errors.push("Số lượng nhập sản phẩm mới");
+      errors.push("Tên sản phẩm muốn nhập – Số lượng (nếu có)");
+    if (!surveyData.supplierName) errors.push("Mua qua NPP");
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
-    if (!surveyData.newProductSellingPrice)
-      errors.push("Giá bán ra (sản phẩm mới)");
-    if (!surveyData.averageMonthlyConsumption)
-      errors.push("Số lượng tồn bình quân (tấn/tháng)");
 
     // Title 3 validation
     if (surveyData.products.length === 0) {
@@ -442,15 +432,9 @@ export default function StoreSurveyScreen() {
         whyNotSellNewProduct: surveyData.whyNotSellNewProduct,
         timeToSellNewProduct: surveyData.timeToSellNewProduct || null,
         newProductImportQuantity: parseVND(surveyData.newProductImportQuantity),
+        supplierName: surveyData.supplierName,
         importedBySalesperson: surveyData.importedBySalesperson,
-        newProductSellingPrice: parseVND(surveyData.newProductSellingPrice),
-        futureImportPrediction: surveyData.futureImportPrediction
-          ? parseVND(surveyData.futureImportPrediction)
-          : null,
         storeComment: surveyData.storeComment || null,
-        averageMonthlyConsumption: surveyData.averageMonthlyConsumption
-          ? parseFloat(surveyData.averageMonthlyConsumption)
-          : null,
         products: surveyData.products.map((p) => ({
           productType: p.productType,
           cementProductId: p.cementProductId,
@@ -588,7 +572,7 @@ export default function StoreSurveyScreen() {
                   { backgroundColor: colors.secondary },
                 ]}
               >
-                <View style={styles.field}>
+                <View style={[styles.field, { marginTop: 16 }]}>
                   <Text style={[styles.label, { color: colors.text }]}>
                     Tại sao không bán sản phẩm mới *
                   </Text>
@@ -624,14 +608,17 @@ export default function StoreSurveyScreen() {
                         backgroundColor: colors.background,
                         borderColor: colors.icon + "40",
                         justifyContent: "center",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingRight: 40,
                       },
                     ]}
                     onPress={() => setShowDatePicker(true)}
                   >
                     <Text
                       style={[
-                        styles.input,
                         {
+                          flex: 1,
                           color: surveyData.timeToSellNewProduct
                             ? colors.text
                             : colors.icon,
@@ -644,6 +631,12 @@ export default function StoreSurveyScreen() {
                           ).toLocaleDateString("vi-VN")
                         : "Chọn ngày"}
                     </Text>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={colors.icon}
+                      style={{ marginLeft: 8 }}
+                    />
                   </TouchableOpacity>
                   {showDatePicker && (
                     <DateTimePicker
@@ -669,7 +662,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Số lượng nhập sản phẩm mới *
+                    Tên sản phẩm muốn nhập – Số lượng (nếu có) *
                   </Text>
                   <TextInput
                     style={[
@@ -682,34 +675,10 @@ export default function StoreSurveyScreen() {
                     ]}
                     value={surveyData.newProductImportQuantity}
                     onChangeText={(value) =>
-                      handlePriceChange("newProductImportQuantity", value)
+                      handleInputChange("newProductImportQuantity", value)
                     }
-                    placeholder="Nhập số lượng"
+                    placeholder="Nhập tên sản phẩm và số lượng"
                     placeholderTextColor={colors.icon}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Giá mua *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.purchasePrice}
-                    onChangeText={(value) =>
-                      handlePriceChange("purchasePrice", value)
-                    }
-                    placeholder="Nhập giá (VND)"
-                    placeholderTextColor={colors.icon}
-                    keyboardType="numeric"
                   />
                 </View>
 
@@ -761,52 +730,6 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Giá bán ra (sản phẩm mới) *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.newProductSellingPrice}
-                    onChangeText={(value) =>
-                      handlePriceChange("newProductSellingPrice", value)
-                    }
-                    placeholder="Nhập giá (VND)"
-                    placeholderTextColor={colors.icon}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Số lượng tồn bình quân (tấn/tháng) *
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.averageMonthlyConsumption}
-                    onChangeText={(value) =>
-                      handleInputChange("averageMonthlyConsumption", value)
-                    }
-                    placeholder="Nhập số lượng tồn bình quân"
-                    placeholderTextColor={colors.icon}
-                    keyboardType="numeric"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
                     Ý kiến của cửa hàng
                   </Text>
                   <TextInput
@@ -827,29 +750,6 @@ export default function StoreSurveyScreen() {
                     multiline
                     numberOfLines={3}
                     textAlignVertical="top"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Dự đoán tương lai sẽ nhập bao nhiêu hàng của XMTĐ
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.futureImportPrediction}
-                    onChangeText={(value) =>
-                      handleInputChange("futureImportPrediction", value)
-                    }
-                    placeholder="Nhập số lượng"
-                    placeholderTextColor={colors.icon}
-                    keyboardType="numeric"
                   />
                 </View>
               </View>
