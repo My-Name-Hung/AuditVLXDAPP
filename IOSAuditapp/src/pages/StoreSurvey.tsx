@@ -35,6 +35,19 @@ interface SurveyData {
   }>;
 }
 
+type PriceField =
+  | "purchasePrice"
+  | "sellingPrice"
+  | "roadTransportFee"
+  | "waterTransportFee";
+
+const PRICE_FIELD_LABELS: Record<PriceField, string> = {
+  purchasePrice: "Giá mua vào",
+  sellingPrice: "Giá bán ra",
+  roadTransportFee: "Phí vận chuyển đường bộ",
+  waterTransportFee: "Phí vận chuyển đường thủy",
+};
+
 interface LocationState {
   storeId: number;
   capturedImages: Array<{
@@ -50,9 +63,14 @@ interface LocationState {
 // Không giới hạn 1–10000, chỉ dùng format VND cho dễ đọc
 const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
 
-// Price suggestions (30,000 - 100,000 VND)
+// Price suggestions cho Giá mua vào / Giá bán ra (30,000 - 100,000 VND)
 const PRICE_SUGGESTIONS = [
   30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000,
+];
+
+// Price suggestions cho phí vận chuyển (3,000 - 10,000 VND)
+const TRANSPORT_FEE_SUGGESTIONS = [
+  3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
 ];
 
 const formatVND = (value: string): string => {
@@ -93,14 +111,14 @@ const StoreSurvey = () => {
   const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
   const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
   const [newProductTypeName, setNewProductTypeName] = useState("");
-  const [showPriceSuggestions, setShowPriceSuggestions] = useState<{
+  const [priceOptions, setPriceOptions] = useState<number[]>(PRICE_SUGGESTIONS);
+  const [transportFeeOptions, setTransportFeeOptions] =
+    useState<number[]>(TRANSPORT_FEE_SUGGESTIONS);
+  const [activePricePicker, setActivePricePicker] = useState<{
     productIndex: number;
-    field:
-      | "purchasePrice"
-      | "sellingPrice"
-      | "roadTransportFee"
-      | "waterTransportFee";
+    field: PriceField;
   } | null>(null);
+  const [customPriceValue, setCustomPriceValue] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [expandedTitles, setExpandedTitles] = useState({
@@ -215,19 +233,6 @@ const StoreSurvey = () => {
     }));
   };
 
-  const handleProductPriceChange = (
-    index: number,
-    field:
-      | "purchasePrice"
-      | "sellingPrice"
-      | "roadTransportFee"
-      | "waterTransportFee",
-    value: string
-  ) => {
-    const formatted = formatVND(value);
-    handleProductChange(index, field, formatted);
-  };
-
   const handleAddProduct = () => {
     const newIndex = surveyData.products.length;
     setSurveyData((prev) => ({
@@ -309,6 +314,79 @@ const StoreSurvey = () => {
         products: newProducts,
       };
     });
+  };
+
+  const isTransportField = (field: PriceField) =>
+    field === "roadTransportFee" || field === "waterTransportFee";
+
+  const getOptionsForField = (field: PriceField) =>
+    isTransportField(field) ? transportFeeOptions : priceOptions;
+
+  const addCustomOption = (field: PriceField, numericValue: number) => {
+    if (numericValue < 0) return;
+    if (isTransportField(field)) {
+      setTransportFeeOptions((prev) =>
+        prev.includes(numericValue)
+          ? prev
+          : [...prev, numericValue].sort((a, b) => a - b)
+      );
+    } else {
+      setPriceOptions((prev) =>
+        prev.includes(numericValue)
+          ? prev
+          : [...prev, numericValue].sort((a, b) => a - b)
+      );
+    }
+  };
+
+  const openPricePicker = (productIndex: number, field: PriceField) => {
+    const currentValue = surveyData.products[productIndex]?.[field] || "";
+    setActivePricePicker({ productIndex, field });
+    setCustomPriceValue(typeof currentValue === "string" ? currentValue : "");
+  };
+
+  const closePricePicker = () => {
+    setActivePricePicker(null);
+    setCustomPriceValue("");
+  };
+
+  const handleSelectPriceOption = (numericValue: number) => {
+    if (!activePricePicker) return;
+    const formatted = formatVND(numericValue.toString());
+    handleProductChange(
+      activePricePicker.productIndex,
+      activePricePicker.field,
+      formatted
+    );
+    closePricePicker();
+  };
+
+  const handleCustomPriceInputChange = (value: string) => {
+    setCustomPriceValue(formatVND(value));
+  };
+
+  const handleCustomPriceSave = () => {
+    if (!activePricePicker) {
+      closePricePicker();
+      return;
+    }
+    if (!customPriceValue.trim()) {
+      alert("Vui lòng nhập giá hợp lệ");
+      return;
+    }
+    const numericValue = parseVND(customPriceValue);
+    if (numericValue < 0) {
+      alert("Giá không hợp lệ");
+      return;
+    }
+    const formatted = formatVND(numericValue.toString());
+    addCustomOption(activePricePicker.field, numericValue);
+    handleProductChange(
+      activePricePicker.productIndex,
+      activePricePicker.field,
+      formatted
+    );
+    closePricePicker();
   };
 
   const validateSurvey = (): string[] => {
@@ -951,347 +1029,114 @@ const StoreSurvey = () => {
                         <label style={{ color: colors.text }}>
                           Giá mua vào
                         </label>
-                        <div style={{ position: "relative" }}>
-                          <input
-                            type="text"
-                            value={product.purchasePrice}
-                            onChange={(e) =>
-                              handleProductPriceChange(
-                                index,
-                                "purchasePrice",
-                                e.target.value
-                              )
-                            }
-                            onFocus={() =>
-                              setShowPriceSuggestions({
-                                productIndex: index,
-                                field: "purchasePrice",
-                              })
-                            }
-                            placeholder="Nhập giá (VND)"
-                            style={{
-                              backgroundColor: colors.background,
-                              color: colors.text,
-                              borderColor: colors.icon + "40",
-                              paddingRight: "40px",
-                              width: "100%",
-                            }}
-                          />
-                          <span
-                            style={{
-                              position: "absolute",
-                              right: "12px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              color: colors.icon,
-                              cursor: "pointer",
-                            }}
-                            onClick={() =>
-                              setShowPriceSuggestions(
-                                showPriceSuggestions?.productIndex === index &&
-                                  showPriceSuggestions?.field ===
-                                    "purchasePrice"
-                                  ? null
-                                  : {
-                                      productIndex: index,
-                                      field: "purchasePrice",
-                                    }
-                              )
-                            }
-                          >
-                            ▼
-                          </span>
-                          {showPriceSuggestions?.productIndex === index &&
-                            showPriceSuggestions?.field === "purchasePrice" && (
-                              <div
-                                className="price-suggestions-dropdown"
+                        <button
+                          type="button"
+                          className="store-survey-dropdown-trigger"
                                 style={{
                                   backgroundColor: colors.background,
                                   borderColor: colors.icon + "40",
+                            color: product.purchasePrice
+                              ? colors.text
+                              : colors.icon,
                                 }}
+                          onClick={() => openPricePicker(index, "purchasePrice")}
+                        >
+                          <span className="store-survey-dropdown-value">
+                            {product.purchasePrice ||
+                              "Chọn giá mua vào hoặc nhập mới"}
+                          </span>
+                              <span
+                            className="store-survey-dropdown-icon"
+                            style={{ color: colors.icon }}
                               >
-                                {PRICE_SUGGESTIONS.map((price) => (
-                                  <div
-                                    key={price}
-                                    className="price-suggestion-item"
-                                    style={{
-                                      borderBottomColor: colors.icon + "20",
-                                    }}
-                                    onClick={() => {
-                                      handleProductPriceChange(
-                                        index,
-                                        "purchasePrice",
-                                        formatVND(price.toString())
-                                      );
-                                      setShowPriceSuggestions(null);
-                                    }}
-                                  >
-                                    {price.toLocaleString("vi-VN")} VND
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                        </div>
+                                ▼
+                              </span>
+                        </button>
                       </div>
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>Giá bán ra</label>
-                        <div style={{ position: "relative" }}>
-                          <input
-                            type="text"
-                            value={product.sellingPrice}
-                            onChange={(e) =>
-                              handleProductPriceChange(
-                                index,
-                                "sellingPrice",
-                                e.target.value
-                              )
-                            }
-                            onFocus={() =>
-                              setShowPriceSuggestions({
-                                productIndex: index,
-                                field: "sellingPrice",
-                              })
-                            }
-                            placeholder="Nhập giá (VND)"
-                            style={{
-                              backgroundColor: colors.background,
-                              color: colors.text,
-                              borderColor: colors.icon + "40",
-                              paddingRight: "40px",
-                              width: "100%",
-                            }}
-                          />
-                          <span
-                            style={{
-                              position: "absolute",
-                              right: "12px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              color: colors.icon,
-                              cursor: "pointer",
-                            }}
-                            onClick={() =>
-                              setShowPriceSuggestions(
-                                showPriceSuggestions?.productIndex === index &&
-                                  showPriceSuggestions?.field === "sellingPrice"
-                                  ? null
-                                  : {
-                                      productIndex: index,
-                                      field: "sellingPrice",
-                                    }
-                              )
-                            }
-                          >
-                            ▼
-                          </span>
-                          {showPriceSuggestions?.productIndex === index &&
-                            showPriceSuggestions?.field === "sellingPrice" && (
-                              <div
-                                className="price-suggestions-dropdown"
+                        <button
+                          type="button"
+                          className="store-survey-dropdown-trigger"
                                 style={{
                                   backgroundColor: colors.background,
                                   borderColor: colors.icon + "40",
+                            color: product.sellingPrice
+                              ? colors.text
+                              : colors.icon,
                                 }}
+                          onClick={() => openPricePicker(index, "sellingPrice")}
+                        >
+                          <span className="store-survey-dropdown-value">
+                            {product.sellingPrice ||
+                              "Chọn giá bán ra hoặc nhập mới"}
+                          </span>
+                              <span
+                            className="store-survey-dropdown-icon"
+                            style={{ color: colors.icon }}
                               >
-                                {PRICE_SUGGESTIONS.map((price) => (
-                                  <div
-                                    key={price}
-                                    className="price-suggestion-item"
-                                    style={{
-                                      borderBottomColor: colors.icon + "20",
-                                    }}
-                                    onClick={() => {
-                                      handleProductPriceChange(
-                                        index,
-                                        "sellingPrice",
-                                        formatVND(price.toString())
-                                      );
-                                      setShowPriceSuggestions(null);
-                                    }}
-                                  >
-                                    {price.toLocaleString("vi-VN")} VND
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                        </div>
-                      </div>
-
+                                ▼
+                              </span>
+                        </button>
+                                    </div>
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
                           Phí vận chuyển đường bộ
                         </label>
-                        <div style={{ position: "relative" }}>
-                          <input
-                            type="text"
-                            value={product.roadTransportFee}
-                            onChange={(e) =>
-                              handleProductPriceChange(
-                                index,
-                                "roadTransportFee",
-                                e.target.value
-                              )
-                            }
-                            onFocus={() =>
-                              setShowPriceSuggestions({
-                                productIndex: index,
-                                field: "roadTransportFee",
-                              })
-                            }
-                            placeholder="Nhập giá (VND)"
-                            style={{
-                              backgroundColor: colors.background,
-                              color: colors.text,
-                              borderColor: colors.icon + "40",
-                              paddingRight: "40px",
-                              width: "100%",
-                            }}
-                          />
-                          <span
-                            style={{
-                              position: "absolute",
-                              right: "12px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              color: colors.icon,
-                              cursor: "pointer",
-                            }}
-                            onClick={() =>
-                              setShowPriceSuggestions(
-                                showPriceSuggestions?.productIndex === index &&
-                                  showPriceSuggestions?.field ===
-                                    "roadTransportFee"
-                                  ? null
-                                  : {
-                                      productIndex: index,
-                                      field: "roadTransportFee",
-                                    }
-                              )
-                            }
-                          >
-                            ▼
-                          </span>
-                          {showPriceSuggestions?.productIndex === index &&
-                            showPriceSuggestions?.field ===
-                              "roadTransportFee" && (
-                              <div
-                                className="price-suggestions-dropdown"
+                        <button
+                          type="button"
+                          className="store-survey-dropdown-trigger"
                                 style={{
                                   backgroundColor: colors.background,
                                   borderColor: colors.icon + "40",
+                            color: product.roadTransportFee
+                              ? colors.text
+                              : colors.icon,
                                 }}
+                          onClick={() => openPricePicker(index, "roadTransportFee")}
+                        >
+                          <span className="store-survey-dropdown-value">
+                            {product.roadTransportFee ||
+                              "Chọn phí đường bộ hoặc nhập mới"}
+                          </span>
+                              <span
+                            className="store-survey-dropdown-icon"
+                            style={{ color: colors.icon }}
                               >
-                                {PRICE_SUGGESTIONS.map((price) => (
-                                  <div
-                                    key={price}
-                                    className="price-suggestion-item"
-                                    style={{
-                                      borderBottomColor: colors.icon + "20",
-                                    }}
-                                    onClick={() => {
-                                      handleProductPriceChange(
-                                        index,
-                                        "roadTransportFee",
-                                        formatVND(price.toString())
-                                      );
-                                      setShowPriceSuggestions(null);
-                                    }}
-                                  >
-                                    {price.toLocaleString("vi-VN")} VND
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                        </div>
+                                ▼
+                              </span>
+                        </button>
                       </div>
+
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
                           Phí vận chuyển đường thủy
                         </label>
-                        <div style={{ position: "relative" }}>
-                          <input
-                            type="text"
-                            value={product.waterTransportFee}
-                            onChange={(e) =>
-                              handleProductPriceChange(
-                                index,
-                                "waterTransportFee",
-                                e.target.value
-                              )
-                            }
-                            onFocus={() =>
-                              setShowPriceSuggestions({
-                                productIndex: index,
-                                field: "waterTransportFee",
-                              })
-                            }
-                            placeholder="Nhập giá (VND)"
-                            style={{
-                              backgroundColor: colors.background,
-                              color: colors.text,
-                              borderColor: colors.icon + "40",
-                              paddingRight: "40px",
-                              width: "100%",
-                            }}
-                          />
-                          <span
-                            style={{
-                              position: "absolute",
-                              right: "12px",
-                              top: "50%",
-                              transform: "translateY(-50%)",
-                              color: colors.icon,
-                              cursor: "pointer",
-                            }}
-                            onClick={() =>
-                              setShowPriceSuggestions(
-                                showPriceSuggestions?.productIndex === index &&
-                                  showPriceSuggestions?.field ===
-                                    "waterTransportFee"
-                                  ? null
-                                  : {
-                                      productIndex: index,
-                                      field: "waterTransportFee",
-                                    }
-                              )
-                            }
-                          >
-                            ▼
-                          </span>
-                          {showPriceSuggestions?.productIndex === index &&
-                            showPriceSuggestions?.field ===
-                              "waterTransportFee" && (
-                              <div
-                                className="price-suggestions-dropdown"
+                        <button
+                          type="button"
+                          className="store-survey-dropdown-trigger"
                                 style={{
                                   backgroundColor: colors.background,
                                   borderColor: colors.icon + "40",
+                            color: product.waterTransportFee
+                              ? colors.text
+                              : colors.icon,
                                 }}
+                          onClick={() => openPricePicker(index, "waterTransportFee")}
+                        >
+                          <span className="store-survey-dropdown-value">
+                            {product.waterTransportFee ||
+                              "Chọn phí đường thủy hoặc nhập mới"}
+                          </span>
+                              <span
+                            className="store-survey-dropdown-icon"
+                            style={{ color: colors.icon }}
                               >
-                                {PRICE_SUGGESTIONS.map((price) => (
-                                  <div
-                                    key={price}
-                                    className="price-suggestion-item"
-                                    style={{
-                                      borderBottomColor: colors.icon + "20",
-                                    }}
-                                    onClick={() => {
-                                      handleProductPriceChange(
-                                        index,
-                                        "waterTransportFee",
-                                        formatVND(price.toString())
-                                      );
-                                      setShowPriceSuggestions(null);
-                                    }}
-                                  >
-                                    {price.toLocaleString("vi-VN")} VND
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                        </div>
+                                ▼
+                              </span>
+                        </button>
                       </div>
 
                       <div className="store-survey-field">
@@ -1436,6 +1281,69 @@ const StoreSurvey = () => {
           </button>
         </div>
       </div>
+
+      {activePricePicker && (
+        <div className="store-survey-modal-backdrop">
+          <div className="store-survey-modal store-survey-price-modal">
+            <div className="store-survey-price-modal-header">
+              <h2>
+                {`Chọn ${
+                  activePricePicker
+                    ? PRICE_FIELD_LABELS[activePricePicker.field]
+                    : ""
+                }`}
+              </h2>
+              <button
+                type="button"
+                onClick={closePricePicker}
+                className="store-survey-price-close"
+              >
+                ×
+              </button>
+            </div>
+            <p className="store-survey-price-modal-desc">
+              Chọn giá có sẵn hoặc nhập giá mới bên dưới
+            </p>
+            <input
+              type="text"
+              value={customPriceValue}
+              onChange={(e) => handleCustomPriceInputChange(e.target.value)}
+              placeholder={
+                activePricePicker
+                  ? `Nhập ${PRICE_FIELD_LABELS[activePricePicker.field]} (VND)`
+                  : "Nhập giá"
+              }
+            />
+            <div className="store-survey-price-options">
+              {(activePricePicker
+                ? getOptionsForField(activePricePicker.field)
+                : []
+              ).map((price, optionIndex) => (
+                <button
+                  type="button"
+                  key={`${price}-${optionIndex}`}
+                  className="store-survey-price-option"
+                  onClick={() => handleSelectPriceOption(price)}
+                >
+                  {price.toLocaleString("vi-VN")} VND
+                </button>
+              ))}
+            </div>
+            <div className="store-survey-modal-actions">
+              <button type="button" onClick={closePricePicker}>
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleCustomPriceSave}
+                style={{ backgroundColor: colors.primary, color: "#fff" }}
+              >
+                Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal thêm loại xi măng mới */}
       {showAddCementModal && (

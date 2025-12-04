@@ -196,33 +196,74 @@
   color: #111827;
 }
 
-.price-suggestions-dropdown {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  right: 0;
-  z-index: 1000;
+.store-survey-dropdown-trigger {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
   border: 1px solid;
-  border-radius: 8px;
-  margin-top: 4px;
-  max-height: 200px;
-  overflow-y: auto;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  background: transparent;
+  cursor: pointer;
 }
 
-.price-suggestion-item {
+.store-survey-dropdown-value {
+  flex: 1;
+  text-align: left;
+  font-size: 14px;
+}
+
+.store-survey-dropdown-icon {
+  margin-left: 8px;
+  font-size: 16px;
+}
+
+.store-survey-price-modal {
+  max-width: 420px;
+}
+
+.store-survey-price-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.store-survey-price-close {
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.store-survey-price-modal-desc {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.store-survey-price-options {
+  max-height: 240px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.store-survey-price-option {
   padding: 12px;
-  border-bottom: 1px solid;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: transparent;
+  text-align: left;
+  font-size: 14px;
   cursor: pointer;
   transition: background-color 0.2s;
 }
 
-.price-suggestion-item:hover {
-  background-color: rgba(1, 56, 195, 0.1);
-}
-
-.price-suggestion-item:last-child {
-  border-bottom: none;
+.store-survey-price-option:hover {
+  background-color: rgba(1, 56, 195, 0.08);
 }
 
 @media (max-width: 768px) {
