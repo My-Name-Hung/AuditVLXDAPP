@@ -20,8 +20,7 @@ const getAllStores = async (req, res) => {
 
     // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole =
-      req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
     if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
