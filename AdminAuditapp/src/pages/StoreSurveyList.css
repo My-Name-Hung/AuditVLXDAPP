@@ -171,17 +171,18 @@
   max-width: 300px;
 }
 
-/* Cột Loại XM - giới hạn xuống nhiều dòng */
+/* Cột Loại XM - giới hạn xuống tối đa 2 dòng */
 .survey-list-table tbody tr td:nth-child(6) {
-  max-width: 250px;
+  max-width: 400px;
+  min-width: 300px;
   word-wrap: break-word;
   white-space: normal;
   line-height: 1.4;
-  max-height: 4.2em; /* Giới hạn khoảng 3 dòng (1.4em * 3) */
+  max-height: 2.8em; /* Giới hạn tối đa 2 dòng (1.4em * 2) */
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
-  -webkit-line-clamp: 3;
+  -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   text-align: left;
   padding: 8px 12px;
