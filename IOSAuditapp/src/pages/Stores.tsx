@@ -371,32 +371,6 @@ export default function Stores() {
                 >
                   Đã thực hiện
                 </button>
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedStatus("passed");
-                    setShowStatusDropdown(false);
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.text,
-                  }}
-                >
-                  Đạt
-                </button>
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedStatus("failed");
-                    setShowStatusDropdown(false);
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.text,
-                  }}
-                >
-                  Không đạt
-                </button>
               </div>
             )}
           </div>

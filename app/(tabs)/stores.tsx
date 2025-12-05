@@ -491,38 +491,6 @@ export default function StoresScreen() {
                     Đã thực hiện
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.secondary },
-                  ]}
-                  onPress={() => {
-                    setSelectedStatus("passed");
-                    setShowStatusDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.dropdownItemText, { color: colors.text }]}
-                  >
-                    Đạt
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.secondary },
-                  ]}
-                  onPress={() => {
-                    setSelectedStatus("failed");
-                    setShowStatusDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.dropdownItemText, { color: colors.text }]}
-                  >
-                    Không đạt
-                  </Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>

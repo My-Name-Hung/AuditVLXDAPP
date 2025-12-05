@@ -212,7 +212,7 @@ export default function StoreSurveyDetail() {
         "SL nhận hàng (tấn/tháng)",
         "Nhập từ NPP",
         "Số lượng tồn bình quân (tấn/tháng)",
-        "Ý kiến CH",
+        "Ý kiến/Ghi chú",
       ];
 
       sheet1.getRow(5).values = headers;
@@ -489,7 +489,7 @@ export default function StoreSurveyDetail() {
                     <th>SL nhận hàng (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
                     <th>Số lượng tồn bình quân (tấn/tháng)</th>
-                    <th>Ý kiến CH</th>
+                    <th>Ý kiến/Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody>

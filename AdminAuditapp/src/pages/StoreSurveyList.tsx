@@ -460,7 +460,7 @@ export default function StoreSurveyList() {
           "SL nhận hàng (tấn/tháng)",
           "Nhập từ NPP",
           "Số lượng tồn bình quân (tấn/tháng)",
-          "Ý kiến CH",
+          "Ý kiến/Ghi chú",
         ];
 
         sheet.getRow(5).values = headers;

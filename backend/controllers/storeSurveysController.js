@@ -23,7 +23,6 @@ const createStoreSurvey = async (req, res) => {
       whyNotSellNewProduct,
       timeToSellNewProduct,
       newProductImportQuantity,
-      supplierName,
       importedBySalesperson,
       storeComment,
       // Title 3 - Products
@@ -60,7 +59,6 @@ const createStoreSurvey = async (req, res) => {
     });
 
     // Create products if provided
-    let createdProducts = [];
     if (Array.isArray(products) && products.length > 0) {
       const productsToCreate = products.map((p) => ({
         StoreSurveyId: survey.Id,
@@ -77,7 +75,7 @@ const createStoreSurvey = async (req, res) => {
         AverageStockQuantity: p.averageStockQuantity,
       }));
 
-      createdProducts = await StoreSurveyProduct.bulkCreate(productsToCreate);
+      await StoreSurveyProduct.bulkCreate(productsToCreate);
     }
 
     // Get full survey with products
@@ -234,10 +232,7 @@ const updateStoreSurvey = async (req, res) => {
       timeToSellNewProduct,
       newProductImportQuantity,
       importedBySalesperson,
-      newProductSellingPrice,
-      futureImportPrediction,
       storeComment,
-      averageMonthlyConsumption,
       products,
     } = req.body;
 

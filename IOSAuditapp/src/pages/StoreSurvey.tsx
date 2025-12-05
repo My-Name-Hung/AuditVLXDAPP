@@ -1356,15 +1356,13 @@ const StoreSurvey = () => {
               </div>
 
               <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Ý kiến của cửa hàng
-                </label>
+                <label style={{ color: colors.text }}>Ý kiến/Ghi chú</label>
                 <textarea
                   value={surveyData.storeComment}
                   onChange={(e) =>
                     handleInputChange("storeComment", e.target.value)
                   }
-                  placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
+                  placeholder="Nhập Ý kiến/Ghi chú (không bắt buộc)"
                   rows={3}
                   style={{
                     backgroundColor: colors.background,

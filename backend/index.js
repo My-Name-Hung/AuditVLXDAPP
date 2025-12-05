@@ -160,8 +160,7 @@ async function initializeServices() {
 }
 
 // Start server
-// Bind to 0.0.0.0 to allow Render to detect the port
-app.listen(PORT, "0.0.0.0", async () => {
+app.listen(PORT, async () => {
   console.log("=".repeat(50));
   console.log(`🚀 Auditapp Backend Server`);
   console.log(`📍 Running on port ${PORT}`);
@@ -172,17 +171,17 @@ app.listen(PORT, "0.0.0.0", async () => {
   await initializeServices();
 
   // Setup cleanup job for import history (run every 24 hours)
-  const { cleanupImportHistory } = require("./utils/cleanupImportHistory");
-
+  const { cleanupImportHistory } = require('./utils/cleanupImportHistory');
+  
   // Run cleanup immediately on startup
-  cleanupImportHistory().catch((err) => {
-    console.error("Error running initial cleanup:", err);
+  cleanupImportHistory().catch(err => {
+    console.error('Error running initial cleanup:', err);
   });
-
+  
   // Schedule cleanup to run every 24 hours
   setInterval(() => {
-    cleanupImportHistory().catch((err) => {
-      console.error("Error running scheduled cleanup:", err);
+    cleanupImportHistory().catch(err => {
+      console.error('Error running scheduled cleanup:', err);
     });
   }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
 
@@ -207,9 +206,7 @@ app.listen(PORT, "0.0.0.0", async () => {
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);
   console.log(`🧹 Import history cleanup scheduled (runs every 24 hours)`);
-  console.log(
-    `🗓️  Quarterly audit reset scheduled (23:59 on last day of quarter)`
-  );
+  console.log(`🗓️  Quarterly audit reset scheduled (23:59 on last day of quarter)`);
   console.log("=".repeat(50));
 });
 
