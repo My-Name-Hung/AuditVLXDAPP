@@ -24,7 +24,7 @@
 }
 
 .btn-export {
-  background-color: var(--primary-color);
+  background-color: #22c55e; /* green */
   color: white;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -32,11 +32,15 @@
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition: background-color 0.15s ease, transform 0.05s;
 }
 
 .btn-export:hover {
-  background-color: #0129a0;
+  background-color: #16a34a; /* darker on hover */
+}
+
+.btn-export:active {
+  transform: translateY(1px);
 }
 
 .dashboard-filters {

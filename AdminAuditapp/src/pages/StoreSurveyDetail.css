@@ -19,18 +19,22 @@
 
 .btn-export {
   padding: 10px 20px;
-  background: #0138c3;
+  background: #22c55e; /* green */
   color: #fff;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  transition: opacity 0.2s;
+  transition: opacity 0.2s, transform 0.05s;
 }
 
 .btn-export:hover:not(:disabled) {
-  opacity: 0.9;
+  background: #16a34a; /* darker on hover */
+}
+
+.btn-export:active:not(:disabled) {
+  transform: translateY(1px);
 }
 
 .btn-export:disabled {

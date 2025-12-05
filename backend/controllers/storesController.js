@@ -22,6 +22,7 @@ const getAllStores = async (req, res) => {
     const currentUserId = req.user?.id || req.user?.userId;
     const currentUserRole =
       req.user?.role || req.user?.Role || req.user?.RoleName;
+    const isAdmin = currentUserRole === "admin";
 
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
     if (userId) {
@@ -74,6 +75,9 @@ const getAllStores = async (req, res) => {
     const storeUsersMap = await getStoreUsersMap(pool, storeIds);
     const primaryUsersMap = await getPrimaryUsersMap(pool, stores);
     const latestAuditMap = await getLatestAuditMap(pool, storeIds);
+    const latestAuditOverallMap = isAdmin
+      ? await getLatestAuditMapOverall(pool, storeIds)
+      : null;
 
     let computedStores = stores.map((store) => {
       let assignedUsers = storeUsersMap.get(store.Id) || [];
@@ -85,30 +89,36 @@ const getAllStores = async (req, res) => {
         }
       }
 
-      const userStatuses = assignedUsers.map((assignedUser) => {
-        const latestAuditResult =
-          latestAuditMap.get(`${store.Id}-${assignedUser.UserId}`) || null;
-        return {
-          UserId: assignedUser.UserId,
-          UserFullName: assignedUser.UserFullName,
-          UserCode: assignedUser.UserCode,
-          Status: mapAuditResultToStatus(latestAuditResult),
-        };
-      });
+      // Admin web: legacy logic - if any audit exists, show latest overall (any user, any time)
+      if (isAdmin) {
+        const latestOverall = latestAuditOverallMap?.get(store.Id) || null;
+        store.Status = mapAuditResultToStatus(latestOverall);
+      } else {
+        const userStatuses = assignedUsers.map((assignedUser) => {
+          const latestAuditResult =
+            latestAuditMap.get(`${store.Id}-${assignedUser.UserId}`) || null;
+          return {
+            UserId: assignedUser.UserId,
+            UserFullName: assignedUser.UserFullName,
+            UserCode: assignedUser.UserCode,
+            Status: mapAuditResultToStatus(latestAuditResult),
+          };
+        });
 
-      store.userStatuses = userStatuses;
+        store.userStatuses = userStatuses;
 
-      if (currentUserId) {
-        const currentUserStatus = userStatuses.find(
-          (us) => us.UserId === currentUserId
-        );
-        store.Status = currentUserStatus
-          ? currentUserStatus.Status
-          : "not_audited";
-      } else if (userStatuses.length > 0) {
-        store.Status = userStatuses[0].Status;
-      } else if (!store.Status) {
-        store.Status = "not_audited";
+        if (currentUserId) {
+          const currentUserStatus = userStatuses.find(
+            (us) => us.UserId === currentUserId
+          );
+          store.Status = currentUserStatus
+            ? currentUserStatus.Status
+            : "not_audited";
+        } else if (userStatuses.length > 0) {
+          store.Status = userStatuses[0].Status;
+        } else if (!store.Status) {
+          store.Status = "not_audited";
+        }
       }
       return store;
     });
@@ -772,6 +782,44 @@ const getLatestAuditMap = async (pool, storeIds) => {
 
     result.recordset.forEach((row) => {
       map.set(`${row.StoreId}-${row.UserId}`, row.Result);
+    });
+  }
+
+  return map;
+};
+
+// Latest audit per store (any user, any time) - for admin legacy status
+const getLatestAuditMapOverall = async (pool, storeIds) => {
+  const map = new Map();
+  if (storeIds.length === 0) {
+    return map;
+  }
+
+  const chunks = chunkArray(storeIds, CHUNK_SIZE);
+
+  for (const chunk of chunks) {
+    const auditRequest = pool.request();
+    const inClause = buildInClause(chunk, "AuditStoreIdOverall", auditRequest);
+
+    const result = await auditRequest.query(`
+      WITH RankedAudits AS (
+        SELECT 
+          StoreId,
+          Result,
+          ROW_NUMBER() OVER (
+            PARTITION BY StoreId
+            ORDER BY AuditDate DESC, CreatedAt DESC
+          ) AS RowNum
+        FROM Audits
+        WHERE StoreId IN (${inClause})
+      )
+      SELECT StoreId, Result
+      FROM RankedAudits
+      WHERE RowNum = 1
+    `);
+
+    result.recordset.forEach((row) => {
+      map.set(row.StoreId, row.Result);
     });
   }
 
