@@ -23,6 +23,7 @@ const createStoreSurvey = async (req, res) => {
       whyNotSellNewProduct,
       timeToSellNewProduct,
       newProductImportQuantity,
+      supplierName,
       importedBySalesperson,
       storeComment,
       // Title 3 - Products

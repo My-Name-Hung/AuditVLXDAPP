@@ -212,7 +212,7 @@ export default function StoreSurveyDetail() {
         "SL nhận hàng (tấn/tháng)",
         "Nhập từ NPP",
         "Số lượng tồn bình quân (tấn/tháng)",
-        "Ý kiến/Ghi chú",
+        "Ý kiến CH",
       ];
 
       sheet1.getRow(5).values = headers;
@@ -345,7 +345,7 @@ export default function StoreSurveyDetail() {
           "Tên sản phẩm muốn nhập – Số lượng",
           "Mua qua NPP",
           "Nhập bởi thương vụ",
-          "Ý kiến/Ghi chú",
+          "Ý kiến của cửa hàng",
         ];
 
         sheet2.getRow(5).values = headers2;
@@ -461,7 +461,7 @@ export default function StoreSurveyDetail() {
             </div>
             {survey.AuditNotes && (
               <div className="info-item">
-                <label>Ý kiến/Ghi chú:</label>
+                <label>Ý kiến cửa hàng:</label>
                 <span>{survey.AuditNotes}</span>
               </div>
             )}
@@ -489,7 +489,7 @@ export default function StoreSurveyDetail() {
                     <th>SL nhận hàng (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
                     <th>Số lượng tồn bình quân (tấn/tháng)</th>
-                    <th>Ý kiến/Ghi chú</th>
+                    <th>Ý kiến CH</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -538,7 +538,7 @@ export default function StoreSurveyDetail() {
                     <th>Tên sản phẩm muốn nhập – Số lượng</th>
                     <th>Mua qua NPP</th>
                     <th>Nhập bởi thương vụ</th>
-                    <th>Ý kiến/Ghi chú</th>
+                    <th>Ý kiến của cửa hàng</th>
                   </tr>
                 </thead>
                 <tbody>

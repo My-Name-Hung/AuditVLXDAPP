@@ -17,27 +17,23 @@
   color: #333;
 }
 
-.btn-export-store {
+.btn-export {
   padding: 10px 20px;
-  background: #22c55e; /* green */
+  background: #0138c3;
   color: #fff;
   border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
   font-weight: 600;
-  transition: opacity 0.2s, transform 0.05s;
+  transition: opacity 0.2s;
 }
 
-.btn-export-store:hover:not(:disabled) {
-  background: #16a34a; /* darker on hover */
+.btn-export:hover:not(:disabled) {
+  opacity: 0.9;
 }
 
-.btn-export-store:active:not(:disabled) {
-  transform: translateY(1px);
-}
-
-.btn-export-store:disabled {
+.btn-export:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }

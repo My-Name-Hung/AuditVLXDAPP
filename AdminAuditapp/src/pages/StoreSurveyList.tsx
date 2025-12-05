@@ -460,7 +460,7 @@ export default function StoreSurveyList() {
           "SL nhận hàng (tấn/tháng)",
           "Nhập từ NPP",
           "Số lượng tồn bình quân (tấn/tháng)",
-          "Ý kiến/Ghi chú",
+          "Ý kiến CH",
         ];
 
         sheet.getRow(5).values = headers;
@@ -576,7 +576,7 @@ export default function StoreSurveyList() {
             "Tên sản phẩm muốn nhập – Số lượng",
             "Mua qua NPP",
             "Nhập bởi thương vụ",
-            "Ý kiến/Ghi chú",
+            "Ý kiến của cửa hàng",
           ];
 
           const headerRow2 = sheet.addRow(headers2);
@@ -652,7 +652,7 @@ export default function StoreSurveyList() {
       <div className="store-survey-list-header">
         <h1>Danh sách khảo sát</h1>
         <button
-          className="btn-export-store"
+          className="btn-export"
           onClick={handleExportExcel}
           disabled={exportLoading}
         >
