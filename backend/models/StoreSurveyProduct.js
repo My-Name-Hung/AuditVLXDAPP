@@ -156,11 +156,13 @@ class StoreSurveyProduct {
 
     try {
       await transaction.begin();
-      const request = new sql.Request(transaction);
 
       const inserted = [];
 
       for (const product of products) {
+        // Create a new request for each product to avoid parameter name conflicts
+        const request = new sql.Request(transaction);
+        
         request.input('StoreSurveyId', sql.Int, product.StoreSurveyId);
         request.input('ProductType', sql.NVarChar(100), product.ProductType);
         request.input('CementProductId', sql.Int, product.CementProductId || null);

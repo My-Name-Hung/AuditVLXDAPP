@@ -24,16 +24,16 @@ const uploadImage = async (req, res) => {
     // Validate and parse auditId
     const parsedAuditId = parseInt(auditId, 10);
     if (Number.isNaN(parsedAuditId) || parsedAuditId <= 0) {
-      return res.status(400).json({ 
-        error: "Invalid AuditId. AuditId must be a positive integer." 
+      return res.status(400).json({
+        error: "Invalid AuditId. AuditId must be a positive integer.",
       });
     }
 
     // Verify that the Audit exists before inserting the image
     const audit = await Audit.findById(parsedAuditId);
     if (!audit) {
-      return res.status(404).json({ 
-        error: `Audit with ID ${parsedAuditId} does not exist. Please create the audit first before uploading images.` 
+      return res.status(404).json({
+        error: `Audit with ID ${parsedAuditId} does not exist. Please create the audit first before uploading images.`,
       });
     }
 
@@ -67,11 +67,13 @@ const uploadImage = async (req, res) => {
     // Web iosauditapp: fontSize 10
     const userAgent = req.headers["user-agent"] || "";
     const source = req.headers["x-source"] || req.query.source || "";
-    const isWebIOS = 
-      userAgent.includes("Mozilla") && 
-      (userAgent.includes("iPhone") || userAgent.includes("iPad") || source === "web");
-    
-    const fontSize = isWebIOS ? 10 : 45; // 10 for web iosauditapp, 30 for mobile app
+    const isWebIOS =
+      userAgent.includes("Mozilla") &&
+      (userAgent.includes("iPhone") ||
+        userAgent.includes("iPad") ||
+        source === "web");
+
+    const fontSize = isWebIOS ? 12 : 40; // 10 for web iosauditapp, 30 for mobile app
 
     const uploadResult = await uploadImageWithWatermark(
       req.file.buffer,
