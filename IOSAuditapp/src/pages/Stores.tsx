@@ -65,6 +65,21 @@ const sortStoresByStatus = (stores: Store[]): Store[] => {
   });
 };
 
+const filterStoresByStatus = (
+  stores: Store[],
+  selectedStatus: string | null
+): Store[] => {
+  if (!selectedStatus) return stores;
+  if (selectedStatus === "audited") {
+    // Any status except "not_audited" is treated as audited
+    return stores.filter((store) => store.Status !== "not_audited");
+  }
+  if (selectedStatus === "not_audited") {
+    return stores.filter((store) => store.Status === "not_audited");
+  }
+  return stores;
+};
+
 export default function Stores() {
   const navigate = useNavigate();
   const { colors } = useTheme();
@@ -128,12 +143,15 @@ export default function Stores() {
       const pagination = response.data.pagination || {};
 
       const sortedData = sortStoresByStatus(data);
+      const filteredData = filterStoresByStatus(sortedData, selectedStatus);
 
       if (reset) {
-        setStores(sortedData);
+        setStores(filteredData);
           setPage(2); // Set next page for pagination
       } else {
-        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
+        setStores((prev) =>
+          sortStoresByStatus([...prev, ...filteredData])
+        );
           setPage((prev) => prev + 1);
       }
 

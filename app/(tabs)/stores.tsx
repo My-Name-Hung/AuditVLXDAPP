@@ -75,6 +75,21 @@ const sortStoresByStatus = (stores: Store[]): Store[] => {
   });
 };
 
+const filterStoresByStatus = (
+  stores: Store[],
+  selectedStatus: string | null
+): Store[] => {
+  if (!selectedStatus) return stores;
+  if (selectedStatus === "audited") {
+    // Any store that is not "not_audited" is considered audited
+    return stores.filter((store) => store.Status !== "not_audited");
+  }
+  if (selectedStatus === "not_audited") {
+    return stores.filter((store) => store.Status === "not_audited");
+  }
+  return stores;
+};
+
 export default function StoresScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -186,14 +201,15 @@ export default function StoresScreen() {
 
       // Sort stores by status priority
       const sortedData = sortStoresByStatus(data);
+      const filteredData = filterStoresByStatus(sortedData, selectedStatus);
 
       if (reset) {
-        setStores(sortedData);
+        setStores(filteredData);
       } else {
         // When loading more, remove duplicates by Id before combining
         setStores((prev) => {
           const existingIds = new Set(prev.map((store) => store.Id));
-          const newStores = sortedData.filter(
+          const newStores = filteredData.filter(
             (store) => !existingIds.has(store.Id)
           );
           return sortStoresByStatus([...prev, ...newStores]);
