@@ -1,121 +1,43 @@
-# Quản lý thương vụ XMTĐ - Hệ thống Quản lý Audit
+# 🚀 AuditVLXDAPP
 
-Hệ thống quản lý thương vụ XMTĐ gồm 3 phần chính:
-1. **Mobile App** - React Native + Expo Router
-2. **Admin Web** - React + Vite + TypeScript
-3. **Backend API** - Node.js + Express + SQL Server
+![Last Updated](https://img.shields.io/github/last-commit/My-Name-Hung/AuditVLXDAPP)
+![Commit Activity](https://img.shields.io/github/commit-activity/m/My-Name-Hung/AuditVLXDAPP)
+![Repo Size](https://img.shields.io/github/repo-size/My-Name-Hung/AuditVLXDAPP)
+![Issues](https://img.shields.io/github/issues/My-Name-Hung/AuditVLXDAPP)
+![License](https://img.shields.io/github/license/My-Name-Hung/AuditVLXDAPP)
 
-## 🏗️ Kiến trúc hệ thống
+---
 
-```
-Auditapp/
-├── Auditapp-mobile/     # Mobile App (Expo)
-├── AdminAuditapp/       # Admin Web (Vite + React + TS)
-└── backend/             # Backend API (Node + Express + SQL Server)
-```
+## 📊 Repository Overview
 
-## 🚀 Bắt đầu nhanh
+### 🔥 GitHub Stats
+![Stats](https://github-readme-stats.vercel.app/api?username=My-Name-Hung&show_icons=true&theme=radical)
 
-### 1. Backend Setup
+### 🧩 Ngôn ngữ sử dụng
+![Languages](https://github-readme-stats.vercel.app/api/top-langs/?username=My-Name-Hung&layout=compact&theme=radical)
 
-```bash
-cd backend
+### 📈 Lịch sử Commits (graph)
+![Activity Graph](https://github-readme-activity-graph.vercel.app/graph?username=My-Name-Hung&theme=react-dark)
+
+---
+
+## 📅 Update Log
+- **Last update**: Tự động hiển thị qua badge
+- **Commit mới nhất**: Tự động cập nhật
+- **Total commits**: Badge bên trên
+
+---
+
+## 🚧 Installation
+\`\`\`bash
 npm install
-cp .env.example .env
-# Cấu hình .env với thông tin database và Cloudinary
-# Chạy schema.sql trên SQL Server
+npm expo start
 npm run dev
-```
+\`\`\`
 
-### 2. Admin Web Setup
+---
 
-```bash
-cd AdminAuditapp
-npm install
-cp .env.example .env
-# Cấu hình VITE_API_BASE_URL trong .env
-npm run dev
-```
+## 🧑‍💻 Developer
+**XMTĐ**
 
-### 3. Mobile App Setup
-
-```bash
-npm install
-npx expo start
-```
-
-## 📋 Yêu cầu hệ thống
-
-- Node.js >= 18
-- SQL Server (Aurora/RDS hoặc local)
-- Cloudinary account (cho upload ảnh)
-- Expo CLI (cho mobile app)
-
-## 🎨 Global Styling
-
-- **Primary Color**: `#0138C3` (Xanh đậm)
-- **Secondary Color**: `#fefefe` (Trắng be/Off-White)
-
-## 📚 Tài liệu chi tiết
-
-- [Backend README](./backend/README.md)
-- [Admin Web README](./AdminAuditapp/README.md)
-
-## 🔐 Database Schema
-
-Database gồm 4 bảng chính:
-- **Users**: Quản lý người dùng (auto UserCode: U000001, U000002, ...)
-- **Stores**: Quản lý cửa hàng (auto StoreCode: CH000001, CH000002, ...)
-- **Audits**: Lưu kết quả audit (pass/fail) của user cho store
-- **Images**: Lưu URL ảnh từ Cloudinary với watermark lat/lon/time
-
-Xem chi tiết trong `backend/database/schema.sql`
-
-## 🔑 API Endpoints
-
-### Authentication
-- `POST /api/auth/login`
-- `POST /api/auth/register`
-- `POST /api/auth/refresh`
-
-### Resources
-- `/api/users` - Quản lý users
-- `/api/stores` - Quản lý stores
-- `/api/audits` - Quản lý audits
-- `/api/images` - Upload và quản lý ảnh
-
-Xem chi tiết trong [Backend README](./backend/README.md)
-
-## 📝 Tính năng chính
-
-- ✅ Authentication với JWT
-- ✅ Auto-generate codes (UserCode, StoreCode)
-- ✅ Upload ảnh lên Cloudinary với watermark (lat/lon/time)
-- ✅ Admin Dashboard với thống kê
-- ✅ CRUD đầy đủ cho Users, Stores, Audits
-- ✅ Responsive design
-
-## 🛠️ Công nghệ sử dụng
-
-### Backend
-- Node.js + Express
-- SQL Server (mssql)
-- Cloudinary
-- JWT
-- bcryptjs
-
-### Admin Web
-- React 19
-- TypeScript
-- Vite
-- React Router
-- Axios
-
-### Mobile App
-- React Native
-- Expo Router
-- TypeScript
-
-## 📄 License
-
-ISC
+---

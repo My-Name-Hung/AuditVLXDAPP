@@ -39,6 +39,7 @@ app-example
 # generated native folders
 /ios
 /android
+.cursor
 
 # Local Netlify folder
 .netlify
