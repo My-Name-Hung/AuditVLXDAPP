@@ -699,7 +699,8 @@ export default function StoreSurveyScreen() {
         {
           text: "OK",
           onPress: () => {
-            router.replace(`/(tabs)/store-detail/${id}`);
+            // Use push instead of replace to maintain navigation stack
+            router.push(`/(tabs)/store-detail/${id}`);
           },
         },
       ]);
@@ -2391,13 +2392,13 @@ const styles = StyleSheet.create({
     backgroundColor: "#1d4ed8",
   },
   validationModalButtonText: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
     color: "#111827",
   },
   validationModalButtonTextConfirm: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: "600",
   },
   uploadProgressModalContent: {

@@ -852,7 +852,14 @@ export default function StoreDetail() {
         <div className="store-detail-header">
           <button
             className="store-detail-back-button"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Check if we can go back, otherwise navigate to stores list
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/stores");
+              }
+            }}
             style={{ color: colors.text }}
           >
             ← Quay lại
@@ -883,7 +890,14 @@ export default function StoreDetail() {
         <div className="store-detail-header">
           <button
             className="store-detail-back-button"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Check if we can go back, otherwise navigate to stores list
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/stores");
+              }
+            }}
             style={{ color: colors.text }}
           >
             ← Quay lại

@@ -679,10 +679,8 @@ const StoreSurvey = () => {
 
       // Success - navigate back to store detail
       alert("Đã hoàn thành audit cửa hàng");
-      navigate(`/stores/${parsedStoreId}`, { replace: true });
-      setTimeout(() => {
-        window.location.reload();
-      }, 100);
+      // Use push instead of replace to maintain navigation history
+      navigate(`/stores/${parsedStoreId}`);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);

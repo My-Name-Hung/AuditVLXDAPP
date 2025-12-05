@@ -431,8 +431,12 @@ export default function StoreDetailScreen() {
       // Show confirmation modal if there are captured images
       setConfirmBackModalVisible(true);
     } else {
-      // Go back immediately if no images
-      router.back();
+      // Check if we can go back, otherwise navigate to stores list
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.push("/(tabs)/stores");
+      }
     }
   };
 
@@ -444,7 +448,12 @@ export default function StoreDetailScreen() {
     setCachedLocation(null);
     // Close modal and go back
     setConfirmBackModalVisible(false);
-    router.back();
+    // Check if we can go back, otherwise navigate to stores list
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.push("/(tabs)/stores");
+    }
   };
 
   // Cancel going back
@@ -726,7 +735,13 @@ export default function StoreDetailScreen() {
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.push("/(tabs)/stores");
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />
@@ -751,7 +766,13 @@ export default function StoreDetailScreen() {
       >
         <View style={styles.header}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.push("/(tabs)/stores");
+              }
+            }}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color={colors.text} />

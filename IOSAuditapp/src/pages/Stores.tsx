@@ -397,14 +397,7 @@ export default function Stores() {
 
       {/* Store List */}
       <div className="stores-list-container">
-        {loading && stores.length === 0 ? (
-          <div className="stores-loading-container">
-            <div
-              className="stores-loading-spinner"
-              style={{ borderTopColor: colors.primary }}
-            />
-          </div>
-        ) : isSearching ? (
+        {(loading && stores.length === 0) || isSearching ? (
           <div className="stores-list">
             <StoreSkeletonList count={5} />
           </div>
@@ -416,21 +409,6 @@ export default function Stores() {
           </div>
         ) : (
           <div className="stores-list">
-            {isSearching && (
-              <div className="stores-skeleton-list">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="stores-store-card stores-store-card-skeleton"
-                  >
-                    <div className="skeleton-line skeleton-line-title" />
-                    <div className="skeleton-line skeleton-line-code" />
-                    <div className="skeleton-line skeleton-line-address" />
-                    <div className="skeleton-line skeleton-line-contact" />
-                  </div>
-                ))}
-              </div>
-            )}
             {stores.map((item) => (
               <div
                 key={item.Id}

@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -514,10 +515,31 @@ export default function StoresScreen() {
       </View>
 
       {/* Store List */}
-      {loading && stores.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      {(loading && stores.length === 0) || isSearching ? (
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          <View style={styles.skeletonContainer}>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.storeCard,
+                  styles.skeletonCard,
+                  { borderColor: colors.icon + "10" },
+                ]}
+              >
+                <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+                <View style={[styles.skeletonLine, styles.skeletonCode]} />
+                <View style={[styles.skeletonLine, styles.skeletonAddress]} />
+                <View style={[styles.skeletonLine, styles.skeletonContact]} />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={stores}
@@ -528,27 +550,6 @@ export default function StoresScreen() {
           onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          ListHeaderComponent={
-            isSearching ? (
-              <View style={styles.skeletonContainer}>
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.storeCard,
-                      styles.skeletonCard,
-                      { borderColor: colors.icon + "10" },
-                    ]}
-                  >
-                    <View style={[styles.skeletonLine, styles.skeletonTitle]} />
-                    <View style={[styles.skeletonLine, styles.skeletonCode]} />
-                    <View style={[styles.skeletonLine, styles.skeletonAddress]} />
-                    <View style={[styles.skeletonLine, styles.skeletonContact]} />
-                  </View>
-                ))}
-              </View>
-            ) : null
           }
           ListFooterComponent={
             loading && stores.length > 0 ? (
@@ -705,5 +706,37 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
+  },
+  skeletonContainer: {
+    padding: 16,
+  },
+  skeletonCard: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.7,
+  },
+  skeletonLine: {
+    backgroundColor: "#e0e0e0",
+    borderRadius: 4,
+    marginBottom: 8,
+    height: 16,
+  },
+  skeletonTitle: {
+    width: "70%",
+    height: 20,
+    marginBottom: 12,
+  },
+  skeletonCode: {
+    width: "40%",
+    height: 14,
+    marginBottom: 8,
+  },
+  skeletonAddress: {
+    width: "90%",
+    height: 14,
+    marginBottom: 8,
+  },
+  skeletonContact: {
+    width: "60%",
+    height: 14,
   },
 });

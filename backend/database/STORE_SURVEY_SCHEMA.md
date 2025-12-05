@@ -63,7 +63,7 @@ CREATE TABLE StoreSurveys (
     -- Title 2: Khảo sát sản phẩm của XMTĐ
     WhyNotSellNewProduct NVARCHAR(1000),  -- Tại sao không bán sản phẩm mới
     TimeToSellNewProduct DATETIME NULL,  -- Thời gian để bán sản phẩm mới
-    NewProductImportQuantity DECIMAL(18,2),  -- Số lượng nhập sản phẩm mới
+    NewProductImportQuantity NVARCHAR(500),  -- Tên sản phẩm muốn nhập – Số lượng (hỗ trợ cả text và số)
     ImportedBySalesperson NVARCHAR(200),  -- Nhập bởi thương vụ
     NewProductSellingPrice DECIMAL(18,2),  -- Giá bán ra (sản phẩm mới)
     FutureImportPrediction DECIMAL(18,2) NULL,  -- Dự đoán tương lai sẽ nhập bao nhiêu (không bắt buộc)
