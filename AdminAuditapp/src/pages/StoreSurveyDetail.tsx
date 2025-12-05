@@ -128,13 +128,12 @@ export default function StoreSurveyDetail() {
 
       // Calculate week number in month and week number in year
       const now = new Date();
-      const month = now.getMonth() + 1;
       const year = now.getFullYear();
       const day = now.getDate();
-      
+
       // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
       const weekNumberInMonth = Math.ceil(day / 7);
-      
+
       // Week number in year: calculate from January 1st
       // Get the first day of the year
       const januaryFirst = new Date(year, 0, 1);
@@ -142,16 +141,16 @@ export default function StoreSurveyDetail() {
       const firstDayOfWeek = januaryFirst.getDay();
       // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
       const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-      
+
       // Calculate days since year start
       const daysSinceYearStart = Math.floor(
         (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
       );
-      
-      // Calculate week number: (days + offset to first Monday) / 7, rounded up
-      const weekNumberInYear = Math.ceil((daysSinceYearStart + firstMondayOffset + 1) / 7);
 
-      const sheet = workbook.addWorksheet("Báo cáo khảo sát");
+      // Calculate week number: (days + offset to first Monday) / 7, rounded up
+      const weekNumberInYear = Math.ceil(
+        (daysSinceYearStart + firstMondayOffset + 1) / 7
+      );
 
       // Header style
       const headerStyle = {
@@ -173,23 +172,30 @@ export default function StoreSurveyDetail() {
         },
       };
 
-      // Title rows - Layout: Title 1 (top), Territory (middle), Title 2 (below)
-      sheet.mergeCells("A1:M1");
-      sheet.getCell("A1").value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
-      sheet.getCell("A1").font = { bold: true, size: 14 };
-      sheet.getCell("A1").alignment = { horizontal: "center" };
+      // Sheet 1: Thông tin Thông tin bán hàng (Title 3)
+      const sheet1 = workbook.addWorksheet("Thông tin bán hàng");
 
-      sheet.mergeCells("A2:M2");
-      sheet.getCell("A2").value = `Địa bàn: ${
+      // Title rows
+      sheet1.mergeCells("A1:M1");
+      sheet1.getCell(
+        "A1"
+      ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+      sheet1.getCell("A1").font = { bold: true, size: 14 };
+      sheet1.getCell("A1").alignment = { horizontal: "center" };
+
+      sheet1.mergeCells("A2:M2");
+      sheet1.getCell("A2").value = `Địa bàn: ${
         survey.TerritoryName || "Chưa xác định"
       }`;
-      sheet.getCell("A2").font = { bold: true, size: 12 };
-      sheet.getCell("A2").alignment = { horizontal: "center" };
+      sheet1.getCell("A2").font = { bold: true, size: 12 };
+      sheet1.getCell("A2").alignment = { horizontal: "center" };
 
-      sheet.mergeCells("A3:M3");
-      sheet.getCell("A3").value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
-      sheet.getCell("A3").font = { bold: true, size: 12 };
-      sheet.getCell("A3").alignment = { horizontal: "left" };
+      sheet1.mergeCells("A3:M3");
+      sheet1.getCell(
+        "A3"
+      ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+      sheet1.getCell("A3").font = { bold: true, size: 12 };
+      sheet1.getCell("A3").alignment = { horizontal: "left" };
 
       // Table headers
       const headers = [
@@ -208,9 +214,9 @@ export default function StoreSurveyDetail() {
         "Ý kiến CH",
       ];
 
-      sheet.getRow(5).values = headers;
-      sheet.getRow(5).height = 40; // Set row height for wrapped text
-      sheet.getRow(5).eachCell((cell) => {
+      sheet1.getRow(5).values = headers;
+      sheet1.getRow(5).height = 40;
+      sheet1.getRow(5).eachCell((cell) => {
         cell.style = {
           ...headerStyle,
           alignment: {
@@ -223,7 +229,7 @@ export default function StoreSurveyDetail() {
       // Data rows - Show products from Title 3
       if (survey.products && survey.products.length > 0) {
         survey.products.forEach((product, index) => {
-          const row = sheet.addRow([
+          const row = sheet1.addRow([
             index + 1,
             survey.StoreName || "",
             formatDate(survey.AuditDate),
@@ -251,7 +257,7 @@ export default function StoreSurveyDetail() {
         });
       } else {
         // Fallback if no products
-        const row = sheet.addRow([
+        const row = sheet1.addRow([
           1,
           survey.StoreName || "",
           formatDate(survey.AuditDate),
@@ -279,7 +285,7 @@ export default function StoreSurveyDetail() {
       }
 
       // Column widths
-      sheet.columns = [
+      sheet1.columns = [
         { width: 8 },
         { width: 25 },
         { width: 12 },
@@ -294,6 +300,101 @@ export default function StoreSurveyDetail() {
         { width: 25 },
         { width: 30 },
       ];
+
+      // Sheet 2: Khảo sát sản phẩm XMTĐ (Title 2)
+      if (
+        survey.WhyNotSellNewProduct ||
+        survey.TimeToSellNewProduct ||
+        survey.NewProductImportQuantity ||
+        survey.SupplierName ||
+        survey.ImportedBySalesperson ||
+        survey.StoreComment
+      ) {
+        const sheet2 = workbook.addWorksheet("Khảo sát sản phẩm XMTĐ");
+
+        // Title rows
+        sheet2.mergeCells("A1:I1");
+        sheet2.getCell(
+          "A1"
+        ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+        sheet2.getCell("A1").font = { bold: true, size: 14 };
+        sheet2.getCell("A1").alignment = { horizontal: "center" };
+
+        sheet2.mergeCells("A2:I2");
+        sheet2.getCell("A2").value = `Địa bàn: ${
+          survey.TerritoryName || "Chưa xác định"
+        }`;
+        sheet2.getCell("A2").font = { bold: true, size: 12 };
+        sheet2.getCell("A2").alignment = { horizontal: "center" };
+
+        sheet2.mergeCells("A3:I3");
+        sheet2.getCell("A3").value = `2. KHẢO SÁT SẢN PHẨM XMTĐ`;
+        sheet2.getCell("A3").font = { bold: true, size: 12 };
+        sheet2.getCell("A3").alignment = { horizontal: "left" };
+
+        // Table headers for Title 2
+        const headers2 = [
+          "Stt",
+          "Tên Cửa hàng",
+          "Ngày thăm",
+          "Tại sao không bán sản phẩm mới",
+          "Thời gian để bán sản phẩm mới",
+          "Tên sản phẩm muốn nhập – Số lượng",
+          "Mua qua NPP",
+          "Nhập bởi thương vụ",
+          "Ý kiến của cửa hàng",
+        ];
+
+        sheet2.getRow(5).values = headers2;
+        sheet2.getRow(5).height = 40;
+        sheet2.getRow(5).eachCell((cell) => {
+          cell.style = {
+            ...headerStyle,
+            alignment: {
+              ...headerStyle.alignment,
+              wrapText: true,
+            },
+          };
+        });
+
+        // Data row for Title 2
+        const row2 = sheet2.addRow([
+          1,
+          survey.StoreName || "",
+          formatDate(survey.AuditDate),
+          survey.WhyNotSellNewProduct || "",
+          survey.TimeToSellNewProduct
+            ? formatDate(survey.TimeToSellNewProduct)
+            : "",
+          survey.NewProductImportQuantity || "",
+          survey.SupplierName || "",
+          survey.ImportedBySalesperson || "",
+          survey.StoreComment || "",
+        ]);
+
+        row2.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          };
+          cell.alignment = { vertical: "middle", wrapText: true };
+        });
+
+        // Column widths for Title 2
+        sheet2.columns = [
+          { width: 8 },
+          { width: 25 },
+          { width: 12 },
+          { width: 30 },
+          { width: 20 },
+          { width: 30 },
+          { width: 20 },
+          { width: 20 },
+          { width: 30 },
+        ];
+      }
 
       // Export
       const buffer = await workbook.xlsx.writeBuffer();
@@ -364,11 +465,10 @@ export default function StoreSurveyDetail() {
           </div>
         </div>
 
-        {/* Sản phẩm của XMTĐ (Title 2 + 3) */}
-        {(survey.WhyNotSellNewProduct ||
-          (survey.products && survey.products.length > 0)) && (
+        {/* Thông tin bán hàng (Title 3) - Hiển thị ở trên */}
+        {survey.products && survey.products.length > 0 && (
           <div className="survey-section">
-            <h2>Sản phẩm của XMTĐ</h2>
+            <h2>Thông tin bán hàng</h2>
             <div className="survey-table-container">
               <table className="survey-table">
                 <thead>
@@ -389,41 +489,69 @@ export default function StoreSurveyDetail() {
                   </tr>
                 </thead>
                 <tbody>
-                  {survey.products && survey.products.length > 0 ? (
-                    survey.products.map((product, index) => (
-                      <tr key={product.Id}>
-                        <td>{index + 1}</td>
-                        <td>{survey.StoreName}</td>
-                        <td>{formatDate(survey.AuditDate)}</td>
-                        <td>{product.ContactPersonPhone || ""}</td>
-                        <td>{product.CementProductName || ""}</td>
-                        <td>{formatVND(product.PurchasePrice)}</td>
-                        <td>{formatVND(product.SellingPrice)}</td>
-                        <td>{formatVND(product.RoadTransportFee)}</td>
-                        <td>{formatVND(product.WaterTransportFee)}</td>
-                        <td>{product.QuantityReceived || ""}</td>
-                        <td>{product.ImportedFromNPP || ""}</td>
-                        <td>{product.AverageStockQuantity || ""}</td>
-                        <td>{survey.StoreComment || ""}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td>1</td>
+                  {survey.products.map((product, index) => (
+                    <tr key={product.Id}>
+                      <td>{index + 1}</td>
                       <td>{survey.StoreName}</td>
                       <td>{formatDate(survey.AuditDate)}</td>
-                      <td>-</td>
-                      <td>-</td>
-                      <td>-</td>
-                      <td>{formatVND(survey.NewProductSellingPrice)}</td>
-                      <td>-</td>
-                      <td>-</td>
-                      <td>-</td>
-                      <td>-</td>
-                      <td>{survey.AverageMonthlyConsumption || ""}</td>
+                      <td>{product.ContactPersonPhone || ""}</td>
+                      <td>{product.CementProductName || ""}</td>
+                      <td>{formatVND(product.PurchasePrice)}</td>
+                      <td>{formatVND(product.SellingPrice)}</td>
+                      <td>{formatVND(product.RoadTransportFee)}</td>
+                      <td>{formatVND(product.WaterTransportFee)}</td>
+                      <td>{product.QuantityReceived || ""}</td>
+                      <td>{product.ImportedFromNPP || ""}</td>
+                      <td>{product.AverageStockQuantity || ""}</td>
                       <td>{survey.StoreComment || ""}</td>
                     </tr>
-                  )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Khảo sát sản phẩm XMTĐ (Title 2) - Hiển thị ở dưới */}
+        {(survey.WhyNotSellNewProduct ||
+          survey.TimeToSellNewProduct ||
+          survey.NewProductImportQuantity ||
+          survey.SupplierName ||
+          survey.ImportedBySalesperson ||
+          survey.StoreComment) && (
+          <div className="survey-section">
+            <h2>Khảo sát sản phẩm XMTĐ</h2>
+            <div className="survey-table-container">
+              <table className="survey-table">
+                <thead>
+                  <tr>
+                    <th>Stt</th>
+                    <th>Tên Cửa hàng</th>
+                    <th>Ngày thăm</th>
+                    <th>Tại sao không bán sản phẩm mới</th>
+                    <th>Thời gian để bán sản phẩm mới</th>
+                    <th>Tên sản phẩm muốn nhập – Số lượng</th>
+                    <th>Mua qua NPP</th>
+                    <th>Nhập bởi thương vụ</th>
+                    <th>Ý kiến của cửa hàng</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>1</td>
+                    <td>{survey.StoreName}</td>
+                    <td>{formatDate(survey.AuditDate)}</td>
+                    <td>{survey.WhyNotSellNewProduct || "-"}</td>
+                    <td>
+                      {survey.TimeToSellNewProduct
+                        ? formatDate(survey.TimeToSellNewProduct)
+                        : "-"}
+                    </td>
+                    <td>{survey.NewProductImportQuantity || "-"}</td>
+                    <td>{survey.SupplierName || "-"}</td>
+                    <td>{survey.ImportedBySalesperson || "-"}</td>
+                    <td>{survey.StoreComment || "-"}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>

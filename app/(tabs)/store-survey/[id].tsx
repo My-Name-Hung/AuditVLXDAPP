@@ -3,6 +3,7 @@ import { useSurvey } from "@/src/contexts/SurveyContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
@@ -98,6 +99,11 @@ export default function StoreSurveyScreen() {
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+    message: "",
+  });
   const [expandedTitles, setExpandedTitles] = useState({
     title2: false,
     title3: false,
@@ -148,10 +154,43 @@ export default function StoreSurveyScreen() {
     products: [],
   });
 
+  // Load saved survey data from AsyncStorage
   useEffect(() => {
+    const loadSavedSurveyData = async () => {
+      try {
+        if (user?.id) {
+          const storageKey = `survey_data_${user.id}`;
+          const savedData = await AsyncStorage.getItem(storageKey);
+          if (savedData) {
+            const parsed = JSON.parse(savedData);
+            setSurveyData(parsed);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading saved survey data:", error);
+      }
+    };
+    loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, []);
+  }, [user?.id]);
+
+  // Auto-save survey data to AsyncStorage whenever it changes
+  useEffect(() => {
+    const saveSurveyData = async () => {
+      try {
+        if (user?.id) {
+          const storageKey = `survey_data_${user.id}`;
+          await AsyncStorage.setItem(storageKey, JSON.stringify(surveyData));
+        }
+      } catch (error) {
+        console.error("Error saving survey data:", error);
+      }
+    };
+    // Debounce save to avoid too frequent writes
+    const timeoutId = setTimeout(saveSurveyData, 500);
+    return () => clearTimeout(timeoutId);
+  }, [surveyData, user?.id]);
 
   // Autofill current user into "Nhập bởi thương vụ"
   useEffect(() => {
@@ -161,10 +200,10 @@ export default function StoreSurveyScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Auto-expand title 2 on mount
+  // Auto-expand title 3 on mount (after taking photos)
   useEffect(() => {
-    if (!expandedTitles.title2) {
-      setExpandedTitles((prev) => ({ ...prev, title2: true }));
+    if (!expandedTitles.title3) {
+      setExpandedTitles((prev) => ({ ...prev, title3: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -456,27 +495,12 @@ export default function StoreSurveyScreen() {
     return errors;
   };
 
+  const [showValidationModal, setShowValidationModal] = useState(false);
+
   const handleSubmit = async () => {
     const errors = validateSurvey();
     if (errors.length > 0) {
-      const errorMessage = `Vui lòng điền đầy đủ các trường sau:\n${errors.join(
-        "\n"
-      )}`;
-      Alert.alert(
-        "Thiếu thông tin",
-        errorMessage,
-        [
-          {
-            text: "Hủy",
-            style: "cancel",
-          },
-          {
-            text: "Xác nhận hoàn thành",
-            onPress: () => submitSurvey(),
-          },
-        ],
-        { cancelable: true }
-      );
+      setShowValidationModal(true);
     } else {
       await submitSurvey();
     }
@@ -495,9 +519,11 @@ export default function StoreSurveyScreen() {
     }
 
     setSubmitting(true);
+    setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
 
     try {
       // Step 1: Create audit
+      setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: storeId,
@@ -507,17 +533,44 @@ export default function StoreSurveyScreen() {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload all images in parallel (much faster than sequential)
+      // Step 2: Upload images sequentially with progress tracking
       const imagesToUpload = capturedImages.filter(
         (img): img is NonNullable<typeof img> => img !== undefined
       );
 
-      const imageUploadPromises = imagesToUpload.map((img, i) => {
+      if (imagesToUpload.length !== 3) {
+        throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
+      }
+
+      // Upload first 2 images in parallel
+      setUploadProgress({
+        current: 0,
+        total: 3,
+        message: "Đang tải ảnh 1 và 2...",
+      });
+
+      let completedCount = 0;
+      const updateBatchProgress = () => {
+        completedCount++;
+        setUploadProgress({
+          current: completedCount,
+          total: 3,
+          message:
+            completedCount === 2
+              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
+        });
+      };
+
+      const uploadImage = async (
+        img: NonNullable<(typeof capturedImages)[0]>,
+        index: number
+      ) => {
         const formData = new FormData();
         formData.append("image", {
           uri: img.uri,
           type: "image/jpeg",
-          name: `image_${i + 1}.jpg`,
+          name: `image_${index + 1}.jpg`,
         } as any);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
@@ -530,16 +583,50 @@ export default function StoreSurveyScreen() {
             "Content-Type": "multipart/form-data",
           },
         });
+      };
+
+      // Upload first 2 images in parallel
+      const [upload1Result, upload2Result] = await Promise.allSettled([
+        uploadImage(imagesToUpload[0], 0).then(() => {
+          updateBatchProgress();
+        }),
+        uploadImage(imagesToUpload[1], 1).then(() => {
+          updateBatchProgress();
+        }),
+      ]);
+
+      if (upload1Result.status === "rejected") {
+        throw upload1Result.reason;
+      }
+      if (upload2Result.status === "rejected") {
+        throw upload2Result.reason;
+      }
+
+      // Upload third image
+      setUploadProgress({
+        current: 2,
+        total: 3,
+        message: "Đang tải ảnh 3/3...",
+      });
+      await uploadImage(imagesToUpload[2], 2);
+      setUploadProgress({
+        current: 3,
+        total: 3,
+        message: "Đang cập nhật thông tin cửa hàng...",
       });
 
-      // Step 3: Create survey (can run in parallel with image uploads)
-      const surveyPromise = api.post("/store-surveys", {
+      // Step 3: Create survey
+      const newProductImportQty = surveyData.newProductImportQuantity?.trim()
+        ? parseVND(surveyData.newProductImportQuantity)
+        : null;
+
+      await api.post("/store-surveys", {
         storeId: storeId,
         auditId: auditId,
         userId: user.id,
         whyNotSellNewProduct: surveyData.whyNotSellNewProduct,
         timeToSellNewProduct: surveyData.timeToSellNewProduct || null,
-        newProductImportQuantity: parseVND(surveyData.newProductImportQuantity),
+        newProductImportQuantity: newProductImportQty,
         supplierName: surveyData.supplierName,
         importedBySalesperson: surveyData.importedBySalesperson,
         storeComment: surveyData.storeComment || null,
@@ -547,54 +634,69 @@ export default function StoreSurveyScreen() {
           productType: p.productType,
           cementProductId: p.cementProductId,
           contactPersonPhone: p.contactPersonPhone,
-          purchasePrice: p.purchasePrice ? parseVND(p.purchasePrice) : null,
-          sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
-          roadTransportFee: p.roadTransportFee
+          purchasePrice: p.purchasePrice?.trim()
+            ? parseVND(p.purchasePrice)
+            : null,
+          sellingPrice: p.sellingPrice?.trim()
+            ? parseVND(p.sellingPrice)
+            : null,
+          roadTransportFee: p.roadTransportFee?.trim()
             ? parseVND(p.roadTransportFee)
             : null,
-          waterTransportFee: p.waterTransportFee
+          waterTransportFee: p.waterTransportFee?.trim()
             ? parseVND(p.waterTransportFee)
             : null,
-          quantityReceived: p.quantityReceived
+          quantityReceived: p.quantityReceived?.trim()
             ? parseFloat(p.quantityReceived)
             : null,
           importedFromNPP: p.importedFromNPP,
           discountPromotion: p.discountPromotion || null,
-          averageStockQuantity: p.averageStockQuantity
+          averageStockQuantity: p.averageStockQuantity?.trim()
             ? parseFloat(p.averageStockQuantity)
             : null,
         })),
       });
 
-      // Execute image uploads and survey creation in parallel
-      await Promise.all([...imageUploadPromises, surveyPromise]);
+      // Update store coordinates from first image
+      if (imagesToUpload[0]) {
+        await api.put(`/stores/${storeId}`, {
+          latitude: imagesToUpload[0].latitude,
+          longitude: imagesToUpload[0].longitude,
+        });
+      }
 
-      // Clear survey data
+      // Clear survey data and saved data from AsyncStorage
       clearSurveyData();
+      if (user?.id) {
+        try {
+          const storageKey = `survey_data_${user.id}`;
+          await AsyncStorage.removeItem(storageKey);
+        } catch (error) {
+          console.error("Error clearing saved survey data:", error);
+        }
+      }
 
-      Alert.alert("Thành công", "Thực thi cửa hàng thành công", [
+      setSubmitting(false);
+      setUploadProgress({ current: 0, total: 0, message: "" });
+
+      Alert.alert("Thành công", "Đã hoàn thành audit cửa hàng", [
         {
           text: "OK",
           onPress: () => {
-            // Navigate back and refresh store detail to show new images
             router.replace(`/(tabs)/store-detail/${id}`);
-            // Small delay to ensure navigation completes before refresh
-            setTimeout(() => {
-              // The store detail page should automatically refresh on mount
-            }, 100);
           },
         },
       ]);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
+      setSubmitting(false);
+      setUploadProgress({ current: 0, total: 0, message: "" });
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
           ?.error ||
         (error as { message?: string })?.message ||
         "Có lỗi xảy ra khi lưu khảo sát";
       Alert.alert("Lỗi", errorMessage);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -649,231 +751,7 @@ export default function StoreSurveyScreen() {
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
-          {/* Title 2 */}
-          <View
-            style={[
-              styles.titleSection,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.titleHeader,
-                {
-                  backgroundColor: expandedTitles.title2
-                    ? colors.primary
-                    : colors.background,
-                },
-              ]}
-              onPress={() => toggleTitle("title2")}
-            >
-              <Text
-                style={[
-                  styles.titleHeaderText,
-                  { color: expandedTitles.title2 ? "#fff" : colors.text },
-                ]}
-              >
-                Khảo sát sản phẩm của XMTĐ *
-              </Text>
-              <Ionicons
-                name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
-                size={24}
-                color={expandedTitles.title2 ? "#fff" : colors.icon}
-              />
-            </TouchableOpacity>
-
-            {expandedTitles.title2 && (
-              <View
-                style={[
-                  styles.titleContent,
-                  { backgroundColor: colors.secondary },
-                ]}
-              >
-                <View style={[styles.field, { marginTop: 16 }]}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Tại sao không bán sản phẩm mới
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textArea,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.whyNotSellNewProduct}
-                    onChangeText={(value) =>
-                      handleInputChange("whyNotSellNewProduct", value)
-                    }
-                    placeholder="Nhập lý do"
-                    placeholderTextColor={colors.icon}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Thời gian để bán sản phẩm mới
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        borderColor: colors.icon + "40",
-                        justifyContent: "center",
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingRight: 40,
-                      },
-                    ]}
-                    onPress={() => setShowDatePicker(true)}
-                  >
-                    <Text
-                      style={[
-                        {
-                          flex: 1,
-                          color: surveyData.timeToSellNewProduct
-                            ? colors.text
-                            : colors.icon,
-                        },
-                      ]}
-                    >
-                      {surveyData.timeToSellNewProduct
-                        ? new Date(
-                            surveyData.timeToSellNewProduct
-                          ).toLocaleDateString("vi-VN")
-                        : "Chọn ngày"}
-                    </Text>
-                    <Ionicons
-                      name="calendar-outline"
-                      size={20}
-                      color={colors.icon}
-                      style={{ marginLeft: 8 }}
-                    />
-                  </TouchableOpacity>
-                  {showDatePicker && (
-                    <DateTimePicker
-                      value={
-                        surveyData.timeToSellNewProduct
-                          ? new Date(surveyData.timeToSellNewProduct)
-                          : new Date()
-                      }
-                      mode="date"
-                      display="default"
-                      onChange={(event, selectedDate) => {
-                        setShowDatePicker(Platform.OS === "ios");
-                        if (selectedDate) {
-                          handleInputChange(
-                            "timeToSellNewProduct",
-                            selectedDate.toISOString()
-                          );
-                        }
-                      }}
-                    />
-                  )}
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Tên sản phẩm muốn nhập – Số lượng (nếu có)
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.newProductImportQuantity}
-                    onChangeText={(value) =>
-                      handleInputChange("newProductImportQuantity", value)
-                    }
-                    placeholder="Nhập tên sản phẩm và số lượng"
-                    placeholderTextColor={colors.icon}
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Mua qua NPP
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.supplierName}
-                    onChangeText={(value) =>
-                      handleInputChange("supplierName", value)
-                    }
-                    placeholder="Nhập tên NPP"
-                    placeholderTextColor={colors.icon}
-                  />
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Nhập bởi thương vụ
-                  </Text>
-                  <TouchableOpacity
-                    style={[
-                      styles.pickerContainer,
-                      { borderColor: colors.icon + "40" },
-                    ]}
-                    onPress={() => setShowSalesPicker(true)}
-                  >
-                    <View style={styles.picker}>
-                      <Text style={[styles.pickerText, { color: colors.text }]}>
-                        {surveyData.importedBySalesperson || "Chọn thương vụ"}
-                      </Text>
-                      <Ionicons
-                        name="chevron-down"
-                        size={20}
-                        color={colors.icon}
-                      />
-                    </View>
-                  </TouchableOpacity>
-                </View>
-
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Ý kiến của cửa hàng
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textArea,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.storeComment}
-                    onChangeText={(value) =>
-                      handleInputChange("storeComment", value)
-                    }
-                    placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
-                    placeholderTextColor={colors.icon}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* Title 3 */}
+          {/* Title 3 - Thông tin bán hàng (Hiển thị ở trên) */}
           <View
             style={[
               styles.titleSection,
@@ -1410,6 +1288,230 @@ export default function StoreSurveyScreen() {
             )}
           </View>
 
+          {/* Title 2 - Khảo sát sản phẩm của XMTĐ (Hiển thị ở dưới) */}
+          <View
+            style={[
+              styles.titleSection,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.titleHeader,
+                {
+                  backgroundColor: expandedTitles.title2
+                    ? colors.primary
+                    : colors.background,
+                },
+              ]}
+              onPress={() => toggleTitle("title2")}
+            >
+              <Text
+                style={[
+                  styles.titleHeaderText,
+                  { color: expandedTitles.title2 ? "#fff" : colors.text },
+                ]}
+              >
+                Khảo sát sản phẩm của XMTĐ *
+              </Text>
+              <Ionicons
+                name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
+                size={24}
+                color={expandedTitles.title2 ? "#fff" : colors.icon}
+              />
+            </TouchableOpacity>
+
+            {expandedTitles.title2 && (
+              <View
+                style={[
+                  styles.titleContent,
+                  { backgroundColor: colors.secondary },
+                ]}
+              >
+                <View style={[styles.field, { marginTop: 16 }]}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Tại sao không bán sản phẩm mới
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.whyNotSellNewProduct}
+                    onChangeText={(value) =>
+                      handleInputChange("whyNotSellNewProduct", value)
+                    }
+                    placeholder="Nhập lý do"
+                    placeholderTextColor={colors.icon}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Thời gian để bán sản phẩm mới
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: colors.icon + "40",
+                        justifyContent: "center",
+                        flexDirection: "row",
+                        alignItems: "center",
+                        paddingRight: 40,
+                      },
+                    ]}
+                    onPress={() => setShowDatePicker(true)}
+                  >
+                    <Text
+                      style={[
+                        {
+                          flex: 1,
+                          color: surveyData.timeToSellNewProduct
+                            ? colors.text
+                            : colors.icon,
+                        },
+                      ]}
+                    >
+                      {surveyData.timeToSellNewProduct
+                        ? new Date(
+                            surveyData.timeToSellNewProduct
+                          ).toLocaleDateString("vi-VN")
+                        : "Chọn ngày"}
+                    </Text>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={20}
+                      color={colors.icon}
+                      style={{ marginLeft: 8 }}
+                    />
+                  </TouchableOpacity>
+                  {showDatePicker && (
+                    <DateTimePicker
+                      value={
+                        surveyData.timeToSellNewProduct
+                          ? new Date(surveyData.timeToSellNewProduct)
+                          : new Date()
+                      }
+                      mode="date"
+                      display="default"
+                      onChange={(event, selectedDate) => {
+                        setShowDatePicker(Platform.OS === "ios");
+                        if (selectedDate) {
+                          handleInputChange(
+                            "timeToSellNewProduct",
+                            selectedDate.toISOString()
+                          );
+                        }
+                      }}
+                    />
+                  )}
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Tên sản phẩm muốn nhập – Số lượng (nếu có)
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.newProductImportQuantity}
+                    onChangeText={(value) =>
+                      handleInputChange("newProductImportQuantity", value)
+                    }
+                    placeholder="Nhập tên sản phẩm và số lượng"
+                    placeholderTextColor={colors.icon}
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Mua qua NPP
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.supplierName}
+                    onChangeText={(value) =>
+                      handleInputChange("supplierName", value)
+                    }
+                    placeholder="Nhập tên NPP"
+                    placeholderTextColor={colors.icon}
+                  />
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Nhập bởi thương vụ
+                  </Text>
+                  <TouchableOpacity
+                    style={[
+                      styles.pickerContainer,
+                      { borderColor: colors.icon + "40" },
+                    ]}
+                    onPress={() => setShowSalesPicker(true)}
+                  >
+                    <View style={styles.picker}>
+                      <Text style={[styles.pickerText, { color: colors.text }]}>
+                        {surveyData.importedBySalesperson || "Chọn thương vụ"}
+                      </Text>
+                      <Ionicons
+                        name="chevron-down"
+                        size={20}
+                        color={colors.icon}
+                      />
+                    </View>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.field}>
+                  <Text style={[styles.label, { color: colors.text }]}>
+                    Ý kiến của cửa hàng
+                  </Text>
+                  <TextInput
+                    style={[
+                      styles.textArea,
+                      {
+                        backgroundColor: colors.background,
+                        color: colors.text,
+                        borderColor: colors.icon + "40",
+                      },
+                    ]}
+                    value={surveyData.storeComment}
+                    onChangeText={(value) =>
+                      handleInputChange("storeComment", value)
+                    }
+                    placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
+                    placeholderTextColor={colors.icon}
+                    multiline
+                    numberOfLines={3}
+                    textAlignVertical="top"
+                  />
+                </View>
+              </View>
+            )}
+          </View>
+
           {/* Submit Button */}
           <View
             style={{
@@ -1436,9 +1538,7 @@ export default function StoreSurveyScreen() {
               {submitting ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.submitButtonText}>
-                  Hoàn thành khảo sát & thực thi cửa hàng
-                </Text>
+                <Text style={styles.submitButtonText}>Hoàn thành</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -1891,6 +1991,136 @@ export default function StoreSurveyScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Validation Warning Modal */}
+      <Modal
+        visible={showValidationModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowValidationModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.validationModalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <Text style={[styles.validationModalTitle, { color: colors.text }]}>
+              Cảnh báo
+            </Text>
+            <Text
+              style={[styles.validationModalMessage, { color: colors.text }]}
+            >
+              Vui lòng điền đầy đủ tất cả các thông tin khảo sát, bao gồm cả 2
+              phần liên quan đến cửa hàng để hoàn tất quá trình đánh giá.
+            </Text>
+            <View style={styles.validationModalActions}>
+              <TouchableOpacity
+                style={[
+                  styles.validationModalButton,
+                  {
+                    backgroundColor: "#dbeafe",
+                    borderColor: "#1d4ed8",
+                  },
+                ]}
+                onPress={() => setShowValidationModal(false)}
+              >
+                <Text
+                  style={[
+                    styles.validationModalButtonText,
+                    { color: "#1d4ed8" },
+                  ]}
+                >
+                  Tiếp tục điền
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.validationModalButton,
+                  {
+                    backgroundColor: "#dbeafe",
+                    borderColor: "#1d4ed8",
+                  },
+                ]}
+                onPress={() => {
+                  setShowValidationModal(false);
+                  submitSurvey();
+                }}
+              >
+                <Text
+                  style={[
+                    styles.validationModalButtonText,
+                    { color: "#1d4ed8" },
+                  ]}
+                >
+                  Xác nhận hoàn thành
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Upload Progress Modal */}
+      <Modal
+        visible={submitting && uploadProgress.total > 0}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.uploadProgressModalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <View style={{ alignItems: "center" }}>
+              <ActivityIndicator
+                size="large"
+                color={colors.primary}
+                style={{ marginBottom: 16 }}
+              />
+              <Text
+                style={[styles.uploadProgressTitle, { color: colors.text }]}
+              >
+                {uploadProgress.message || "Đang xử lý..."}
+              </Text>
+              {uploadProgress.total > 0 && (
+                <View style={{ marginTop: 16, width: "100%" }}>
+                  <View
+                    style={[
+                      styles.uploadProgressBar,
+                      {
+                        backgroundColor: colors.icon + "20",
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.uploadProgressFill,
+                        {
+                          width: `${
+                            (uploadProgress.current / uploadProgress.total) *
+                            100
+                          }%`,
+                          backgroundColor: colors.primary,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text
+                    style={[styles.uploadProgressText, { color: colors.icon }]}
+                  >
+                    {uploadProgress.current}/{uploadProgress.total} ảnh
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -2118,5 +2348,75 @@ const styles = StyleSheet.create({
   },
   priceOptionText: {
     fontSize: 14,
+  },
+  validationModalContent: {
+    width: "85%",
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+  },
+  validationModalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  validationModalMessage: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  validationModalActions: {
+    flexDirection: "row",
+    gap: 12,
+    width: "100%",
+  },
+  validationModalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 6,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#1d4ed8",
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.15,
+    shadowRadius: 1,
+    elevation: 2,
+  },
+  validationModalButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  uploadProgressModalContent: {
+    width: "85%",
+    maxWidth: 400,
+    borderRadius: 12,
+    padding: 24,
+    alignItems: "center",
+  },
+  uploadProgressTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: 8,
+  },
+  uploadProgressBar: {
+    width: "100%",
+    height: 8,
+    borderRadius: 4,
+    overflow: "hidden",
+    marginBottom: 8,
+  },
+  uploadProgressFill: {
+    height: "100%",
+    borderRadius: 4,
+  },
+  uploadProgressText: {
+    fontSize: 14,
+    textAlign: "center",
   },
 });

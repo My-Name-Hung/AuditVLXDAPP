@@ -163,6 +163,14 @@
   text-align: center;
 }
 
+/* Cột Loại XM - hiển thị trên 1 dòng */
+.survey-list-table tbody tr td:nth-child(5) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
 .survey-list-table tbody tr:hover {
   background: #f5f5f5;
 }

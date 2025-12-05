@@ -27,6 +27,9 @@ interface StoreSurveyListItem {
   AverageMonthlyConsumption?: number | null;
   StoreComment?: string | null;
   WhyNotSellNewProduct?: string | null;
+  TimeToSellNewProduct?: string | null;
+  NewProductImportQuantity?: string | null;
+  ImportedBySalesperson?: string | null;
   NewProductSellingPrice?: number | null;
   products: Array<{
     Id: number;
@@ -71,6 +74,7 @@ interface CementProduct {
 export default function StoreSurveyList() {
   const navigate = useNavigate();
   const [surveys, setSurveys] = useState<StoreSurveyListItem[]>([]);
+  const [allSurveys, setAllSurveys] = useState<StoreSurveyListItem[]>([]); // Store all surveys for client-side filtering
   const [loading, setLoading] = useState(true);
   const [exportLoading, setExportLoading] = useState(false);
 
@@ -138,6 +142,134 @@ export default function StoreSurveyList() {
   };
 
   const fetchSurveys = async () => {
+    await fetchSurveysWithFilters(filters);
+  };
+
+  // Client-side filtering function
+  const filterSurveys = (
+    surveysToFilter: StoreSurveyListItem[],
+    filterValues: typeof filters = filters
+  ) => {
+    return surveysToFilter.filter((survey) => {
+      // Filter by store name
+      if (
+        filterValues.storeName &&
+        !survey.StoreName?.toLowerCase().includes(
+          filterValues.storeName.toLowerCase()
+        )
+      ) {
+        return false;
+      }
+
+      // Filter by user name
+      if (
+        filterValues.userName &&
+        !survey.UserFullName?.toLowerCase().includes(
+          filterValues.userName.toLowerCase()
+        ) &&
+        !survey.UserCode?.toLowerCase().includes(
+          filterValues.userName.toLowerCase()
+        )
+      ) {
+        return false;
+      }
+
+      // Filter by cement product name (check in products)
+      if (filterValues.cementProductName) {
+        const hasMatchingProduct = survey.products?.some(
+          (product) =>
+            product.CementProductName?.toLowerCase().includes(
+              filterValues.cementProductName.toLowerCase()
+            ) ||
+            product.CementProductCode?.toLowerCase().includes(
+              filterValues.cementProductName.toLowerCase()
+            )
+        );
+        if (!hasMatchingProduct) {
+          return false;
+        }
+      }
+
+      // Filter by price range (check in products)
+      if (filterValues.priceFrom || filterValues.priceTo) {
+        const priceFromValue = filterValues.priceFrom
+          ? parseFloat(filterValues.priceFrom.replace(/[^\d]/g, ""))
+          : null;
+        const priceToValue = filterValues.priceTo
+          ? parseFloat(filterValues.priceTo.replace(/[^\d]/g, ""))
+          : null;
+
+        const hasMatchingPrice = survey.products?.some((product) => {
+          const sellingPrice = product.SellingPrice || 0;
+          const purchasePrice = product.PurchasePrice || 0;
+          const price = sellingPrice || purchasePrice;
+
+          if (priceFromValue !== null && price < priceFromValue) {
+            return false;
+          }
+          if (priceToValue !== null && price > priceToValue) {
+            return false;
+          }
+          return true;
+        });
+
+        // Also check survey-level prices if no products
+        if (
+          !hasMatchingPrice &&
+          (!survey.products || survey.products.length === 0)
+        ) {
+          const surveyPrice =
+            survey.NewProductSellingPrice || survey.SellingPrice || 0;
+          if (priceFromValue !== null && surveyPrice < priceFromValue) {
+            return false;
+          }
+          if (priceToValue !== null && surveyPrice > priceToValue) {
+            return false;
+          }
+        } else if (!hasMatchingPrice) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  };
+
+  const handleFilterChange = (field: string, value: string) => {
+    setFilters((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleApplyFilters = () => {
+    // Apply client-side filters to already fetched data
+    const filtered = filterSurveys(allSurveys);
+    setSurveys(filtered);
+  };
+
+  // Apply filters when filters change (if data is already loaded)
+  useEffect(() => {
+    if (allSurveys.length > 0) {
+      const filtered = filterSurveys(allSurveys, filters);
+      setSurveys(filtered);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters, allSurveys]);
+
+  const handleResetFilters = () => {
+    const emptyFilters = {
+      storeName: "",
+      userName: "",
+      cementProductName: "",
+      priceFrom: "",
+      priceTo: "",
+    };
+    setFilters(emptyFilters);
+    setUserSearch("");
+    setCementSearch("");
+    // Fetch with empty filters immediately
+    fetchSurveysWithFilters(emptyFilters);
+  };
+
+  const fetchSurveysWithFilters = async (filterValues: typeof filters) => {
     try {
       setLoading(true);
       const params: Record<string, string | number> = {
@@ -145,18 +277,16 @@ export default function StoreSurveyList() {
         pageSize: 1000,
       };
 
-      if (filters.storeName) params.storeName = filters.storeName;
-      if (filters.userName) params.userName = filters.userName;
-      if (filters.cementProductName)
-        params.cementProductName = filters.cementProductName;
-      if (filters.priceFrom) {
-        // Remove formatting before sending
-        const priceFromValue = filters.priceFrom.replace(/[^\d]/g, "");
+      if (filterValues.storeName) params.storeName = filterValues.storeName;
+      if (filterValues.userName) params.userName = filterValues.userName;
+      if (filterValues.cementProductName)
+        params.cementProductName = filterValues.cementProductName;
+      if (filterValues.priceFrom) {
+        const priceFromValue = filterValues.priceFrom.replace(/[^\d]/g, "");
         if (priceFromValue) params.priceFrom = priceFromValue;
       }
-      if (filters.priceTo) {
-        // Remove formatting before sending
-        const priceToValue = filters.priceTo.replace(/[^\d]/g, "");
+      if (filterValues.priceTo) {
+        const priceToValue = filterValues.priceTo.replace(/[^\d]/g, "");
         if (priceToValue) params.priceTo = priceToValue;
       }
 
@@ -176,33 +306,15 @@ export default function StoreSurveyList() {
         })
       );
 
-      setSurveys(surveysWithProducts);
+      setAllSurveys(surveysWithProducts);
+      // Apply client-side filters
+      const filtered = filterSurveys(surveysWithProducts, filterValues);
+      setSurveys(filtered);
     } catch (error) {
       console.error("Error fetching surveys:", error);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleFilterChange = (field: string, value: string) => {
-    setFilters((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleApplyFilters = () => {
-    fetchSurveys();
-  };
-
-  const handleResetFilters = () => {
-    setFilters({
-      storeName: "",
-      userName: "",
-      cementProductName: "",
-      priceFrom: "",
-      priceTo: "",
-    });
-    setUserSearch("");
-    setCementSearch("");
-    setTimeout(() => fetchSurveys(), 100);
   };
 
   // Format VND for price inputs
@@ -223,12 +335,14 @@ export default function StoreSurveyList() {
   };
 
   // Filter users and cement products based on search
-  const filteredUsers = users.filter((user) =>
+  const filteredUsers = users.filter(
+    (user) =>
     user.FullName.toLowerCase().includes(userSearch.toLowerCase()) ||
     user.UserCode.toLowerCase().includes(userSearch.toLowerCase())
   );
 
-  const filteredCementProducts = cementProducts.filter((product) =>
+  const filteredCementProducts = cementProducts.filter(
+    (product) =>
     product.Name.toLowerCase().includes(cementSearch.toLowerCase()) ||
     product.Code.toLowerCase().includes(cementSearch.toLowerCase())
   );
@@ -241,7 +355,6 @@ export default function StoreSurveyList() {
 
       // Calculate week number in month and week number in year
       const now = new Date();
-      const month = now.getMonth() + 1;
       const year = now.getFullYear();
       const day = now.getDate();
       
@@ -262,7 +375,9 @@ export default function StoreSurveyList() {
       );
       
       // Calculate week number: (days + offset to first Monday) / 7, rounded up
-      const weekNumberInYear = Math.ceil((daysSinceYearStart + firstMondayOffset + 1) / 7);
+      const weekNumberInYear = Math.ceil(
+        (daysSinceYearStart + firstMondayOffset + 1) / 7
+      );
 
       // Filter only XMTĐ products (Title 2 + 3)
       const xmtdSurveys = surveys.filter(
@@ -301,29 +416,34 @@ export default function StoreSurveyList() {
         },
       };
 
-      // Create a sheet for each territory
+      // Create sheets for each territory
       territoryGroups.forEach((territorySurveys, territoryName) => {
-        const sheet = workbook.addWorksheet(territoryName || "Chưa xác định");
+        // Sheet 1: Thông tin bán hàng (Title 3)
+        const sheet1 = workbook.addWorksheet(
+          `${territoryName || "Chưa xác định"} - Thông tin bán hàng`
+        );
 
-        // Title rows - Layout: Title 1 (top), Territory (middle), Title 2 (below)
-        sheet.mergeCells("A1:M1");
-        sheet.getCell("A1").value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
-        sheet.getCell("A1").font = { bold: true, size: 14 };
-        sheet.getCell("A1").alignment = { horizontal: "center" };
+        // Title rows
+        sheet1.mergeCells("A1:M1");
+        sheet1.getCell(
+          "A1"
+        ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+        sheet1.getCell("A1").font = { bold: true, size: 14 };
+        sheet1.getCell("A1").alignment = { horizontal: "center" };
 
-        sheet.mergeCells("A2:M2");
-        sheet.getCell("A2").value = `Địa bàn: ${
+        sheet1.mergeCells("A2:M2");
+        sheet1.getCell("A2").value = `Địa bàn: ${
           territoryName || "Chưa xác định"
         }`;
-        sheet.getCell("A2").font = { bold: true, size: 12 };
-        sheet.getCell("A2").alignment = { horizontal: "center" };
+        sheet1.getCell("A2").font = { bold: true, size: 12 };
+        sheet1.getCell("A2").alignment = { horizontal: "center" };
 
-        sheet.mergeCells("A3:M3");
-        sheet.getCell(
+        sheet1.mergeCells("A3:M3");
+        sheet1.getCell(
           "A3"
         ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
-        sheet.getCell("A3").font = { bold: true, size: 12 };
-        sheet.getCell("A3").alignment = { horizontal: "left" };
+        sheet1.getCell("A3").font = { bold: true, size: 12 };
+        sheet1.getCell("A3").alignment = { horizontal: "left" };
 
         // Table headers
         const headers = [
@@ -342,9 +462,9 @@ export default function StoreSurveyList() {
           "Ý kiến CH",
         ];
 
-        sheet.getRow(5).values = headers;
-        sheet.getRow(5).height = 40; // Set row height for wrapped text
-        sheet.getRow(5).eachCell((cell) => {
+        sheet1.getRow(5).values = headers;
+        sheet1.getRow(5).height = 40;
+        sheet1.getRow(5).eachCell((cell) => {
           cell.style = {
             ...headerStyle,
             alignment: {
@@ -371,7 +491,7 @@ export default function StoreSurveyList() {
           // Show products from Title 3
           if (firstSurvey.products && firstSurvey.products.length > 0) {
             firstSurvey.products.forEach((product) => {
-              const row = sheet.addRow([
+              const row = sheet1.addRow([
                 isFirstRow ? sttCounter : "",
                 isFirstRow ? firstSurvey.StoreName || "" : "",
                 isFirstRow ? formatDate(firstSurvey.AuditDate) : "",
@@ -384,9 +504,7 @@ export default function StoreSurveyList() {
                 product.QuantityReceived || "",
                 product.ImportedFromNPP || "",
                 product.AverageStockQuantity || "",
-                isFirstRow
-                  ? firstSurvey.StoreComment || ""
-                  : "",
+                isFirstRow ? firstSurvey.StoreComment || "" : "",
               ]);
 
               row.eachCell((cell) => {
@@ -406,7 +524,7 @@ export default function StoreSurveyList() {
         });
 
         // Column widths
-        sheet.columns = [
+        sheet1.columns = [
           { width: 8 },
           { width: 25 },
           { width: 12 },
@@ -421,6 +539,110 @@ export default function StoreSurveyList() {
           { width: 25 },
           { width: 30 },
         ];
+
+        // Sheet 2: Khảo sát sản phẩm XMTĐ (Title 2)
+        const title2Surveys = territorySurveys.filter(
+          (survey) =>
+            survey.WhyNotSellNewProduct ||
+            survey.TimeToSellNewProduct ||
+            survey.NewProductImportQuantity ||
+            survey.SupplierName ||
+            survey.ImportedBySalesperson ||
+            survey.StoreComment
+        );
+
+        if (title2Surveys.length > 0) {
+          const sheet2 = workbook.addWorksheet(
+            `${territoryName || "Chưa xác định"} - Khảo sát XMTĐ`
+          );
+
+          // Title rows
+          sheet2.mergeCells("A1:I1");
+          sheet2.getCell(
+            "A1"
+          ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+          sheet2.getCell("A1").font = { bold: true, size: 14 };
+          sheet2.getCell("A1").alignment = { horizontal: "center" };
+
+          sheet2.mergeCells("A2:I2");
+          sheet2.getCell("A2").value = `Địa bàn: ${
+            territoryName || "Chưa xác định"
+          }`;
+          sheet2.getCell("A2").font = { bold: true, size: 12 };
+          sheet2.getCell("A2").alignment = { horizontal: "center" };
+
+          sheet2.mergeCells("A3:I3");
+          sheet2.getCell("A3").value = `2. KHẢO SÁT SẢN PHẨM XMTĐ`;
+          sheet2.getCell("A3").font = { bold: true, size: 12 };
+          sheet2.getCell("A3").alignment = { horizontal: "left" };
+
+          // Table headers for Title 2
+          const headers2 = [
+            "Stt",
+            "Tên Cửa hàng",
+            "Ngày thăm",
+            "Tại sao không bán sản phẩm mới",
+            "Thời gian để bán sản phẩm mới",
+            "Tên sản phẩm muốn nhập – Số lượng",
+            "Mua qua NPP",
+            "Nhập bởi thương vụ",
+            "Ý kiến của cửa hàng",
+          ];
+
+          sheet2.getRow(5).values = headers2;
+          sheet2.getRow(5).height = 40;
+          sheet2.getRow(5).eachCell((cell) => {
+            cell.style = {
+              ...headerStyle,
+              alignment: {
+                ...headerStyle.alignment,
+                wrapText: true,
+              },
+            };
+          });
+
+          // Data rows for Title 2
+          let sttCounter2 = 1;
+          title2Surveys.forEach((survey) => {
+            const row2 = sheet2.addRow([
+              sttCounter2,
+              survey.StoreName || "",
+              formatDate(survey.AuditDate),
+              survey.WhyNotSellNewProduct || "",
+              survey.TimeToSellNewProduct
+                ? formatDate(survey.TimeToSellNewProduct)
+                : "",
+              survey.NewProductImportQuantity || "",
+              survey.SupplierName || "",
+              survey.ImportedBySalesperson || "",
+              survey.StoreComment || "",
+            ]);
+
+            row2.eachCell((cell) => {
+              cell.border = {
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" },
+              };
+              cell.alignment = { vertical: "middle", wrapText: true };
+            });
+            sttCounter2++;
+          });
+
+          // Column widths for Title 2
+          sheet2.columns = [
+            { width: 8 },
+            { width: 25 },
+            { width: 12 },
+            { width: 30 },
+            { width: 20 },
+            { width: 30 },
+            { width: 20 },
+            { width: 20 },
+            { width: 30 },
+          ];
+        }
       });
 
       // Export
@@ -629,10 +851,12 @@ export default function StoreSurveyList() {
         </div>
       </div>
 
-      {/* Tables - Phân cấp theo loại sản phẩm */}
-      {/* Sản phẩm XMTĐ (Title 2 + 3) */}
+      {/* Tables - Chỉ hiển thị Thông tin bán hàng */}
+      {/* Thông tin bán hàng (Title 3) */}
+      {surveys.filter((survey) => survey.products && survey.products.length > 0)
+        .length > 0 && (
       <div className="table-container">
-        <h3 className="table-section-title">Sản phẩm của XMTĐ</h3>
+          <h3 className="table-section-title">Thông tin bán hàng</h3>
         <table className="survey-list-table">
           <thead>
             <tr>
@@ -649,45 +873,27 @@ export default function StoreSurveyList() {
             </tr>
           </thead>
           <tbody>
-            {surveys.filter(
-              (survey) =>
-                survey.WhyNotSellNewProduct ||
-                (survey.products && survey.products.length > 0)
-            ).length === 0 ? (
-              <tr>
-                <td colSpan={10} className="no-data">
-                  Không có dữ liệu
-                </td>
-              </tr>
-            ) : (
-              surveys
+              {surveys
                 .filter(
-                  (survey) =>
-                    survey.WhyNotSellNewProduct ||
-                    (survey.products && survey.products.length > 0)
+                  (survey) => survey.products && survey.products.length > 0
                 )
                 .map((survey, index) => {
-                  const mainProduct =
-                    survey.products && survey.products.length > 0
-                      ? survey.products[0]
-                      : null;
+                  const mainProduct = survey.products[0];
                   return (
                     <tr key={survey.Id}>
                       <td>{index + 1}</td>
                       <td>{survey.StoreName || "-"}</td>
                       <td>{formatDate(survey.AuditDate) || "-"}</td>
-                      <td>{mainProduct?.ContactPersonPhone || survey.ContactPerson || "-"}</td>
+                      <td>{mainProduct?.ContactPersonPhone || "-"}</td>
                       <td>{mainProduct?.CementProductName || "-"}</td>
-                      <td>{formatVND(mainProduct?.PurchasePrice || null) || "-"}</td>
                       <td>
-                        {formatVND(
-                          mainProduct?.SellingPrice ||
-                            survey.NewProductSellingPrice ||
-                            null
-                        ) || "-"}
+                        {formatVND(mainProduct?.PurchasePrice || null) || "-"}
                       </td>
-                      <td>{mainProduct?.AverageStockQuantity ?? survey.AverageMonthlyConsumption ?? "-"}</td>
-                      <td>{survey.SupplierName || mainProduct?.ImportedFromNPP || "-"}</td>
+                      <td>
+                        {formatVND(mainProduct?.SellingPrice || null) || "-"}
+                      </td>
+                      <td>{mainProduct?.AverageStockQuantity ?? "-"}</td>
+                      <td>{mainProduct?.ImportedFromNPP || "-"}</td>
                       <td>
                         <button
                           className="btn-view-survey-list"
@@ -703,12 +909,11 @@ export default function StoreSurveyList() {
                       </td>
                     </tr>
                   );
-                })
-            )}
+                })}
           </tbody>
         </table>
       </div>
-
+      )}
     </div>
   );
 }

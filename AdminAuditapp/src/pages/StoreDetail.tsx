@@ -860,7 +860,7 @@ export default function StoreDetail() {
             </div>
             <div className="status-action-buttons">
               <button
-                className="btn-status btn-reset"
+                className="btn-status btn-reset-store"
                 onClick={() => setResetModalOpen(true)}
                 disabled={!selectedAudit}
               >

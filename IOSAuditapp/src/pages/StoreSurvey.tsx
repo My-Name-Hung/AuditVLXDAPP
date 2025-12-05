@@ -112,8 +112,9 @@ const StoreSurvey = () => {
   const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
   const [newProductTypeName, setNewProductTypeName] = useState("");
   const [priceOptions, setPriceOptions] = useState<number[]>(PRICE_SUGGESTIONS);
-  const [transportFeeOptions, setTransportFeeOptions] =
-    useState<number[]>(TRANSPORT_FEE_SUGGESTIONS);
+  const [transportFeeOptions, setTransportFeeOptions] = useState<number[]>(
+    TRANSPORT_FEE_SUGGESTIONS
+  );
   const [activePricePicker, setActivePricePicker] = useState<{
     productIndex: number;
     field: PriceField;
@@ -121,6 +122,11 @@ const StoreSurvey = () => {
   const [customPriceValue, setCustomPriceValue] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({
+    current: 0,
+    total: 0,
+    message: "",
+  });
   const [expandedTitles, setExpandedTitles] = useState({
     title2: false,
     title3: false,
@@ -128,6 +134,7 @@ const StoreSurvey = () => {
   const [expandedProducts, setExpandedProducts] = useState<
     Record<number, boolean>
   >({});
+  const [showValidationModal, setShowValidationModal] = useState(false);
 
   const [surveyData, setSurveyData] = useState<SurveyData>({
     whyNotSellNewProduct: "",
@@ -139,10 +146,43 @@ const StoreSurvey = () => {
     products: [],
   });
 
+  // Load saved survey data from localStorage
   useEffect(() => {
+    const loadSavedSurveyData = () => {
+      try {
+        if (user?.id) {
+          const storageKey = `survey_data_${user.id}`;
+          const savedData = localStorage.getItem(storageKey);
+          if (savedData) {
+            const parsed = JSON.parse(savedData);
+            setSurveyData(parsed);
+          }
+        }
+      } catch (error) {
+        console.error("Error loading saved survey data:", error);
+      }
+    };
+    loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, []);
+  }, [user?.id]);
+
+  // Auto-save survey data to localStorage whenever it changes
+  useEffect(() => {
+    const saveSurveyData = () => {
+      try {
+        if (user?.id) {
+          const storageKey = `survey_data_${user.id}`;
+          localStorage.setItem(storageKey, JSON.stringify(surveyData));
+        }
+      } catch (error) {
+        console.error("Error saving survey data:", error);
+      }
+    };
+    // Debounce save to avoid too frequent writes
+    const timeoutId = setTimeout(saveSurveyData, 500);
+    return () => clearTimeout(timeoutId);
+  }, [surveyData, user?.id]);
 
   // Autofill current user into "Nhập bởi thương vụ"
   useEffect(() => {
@@ -152,10 +192,10 @@ const StoreSurvey = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
-  // Auto-expand title 2 on mount
+  // Auto-expand title 3 on mount (after taking photos)
   useEffect(() => {
-    if (!expandedTitles.title2) {
-      setExpandedTitles((prev) => ({ ...prev, title2: true }));
+    if (!expandedTitles.title3) {
+      setExpandedTitles((prev) => ({ ...prev, title3: true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -448,16 +488,7 @@ const StoreSurvey = () => {
   const handleSubmit = async () => {
     const errors = validateSurvey();
     if (errors.length > 0) {
-      const errorMessage = `Vui lòng điền đầy đủ các trường sau:\n${errors.join(
-        "\n"
-      )}`;
-      if (
-        window.confirm(
-          errorMessage + "\n\nBạn có muốn tiếp tục hoàn thành không?"
-        )
-      ) {
-        await submitSurvey();
-      }
+      setShowValidationModal(true);
     } else {
       await submitSurvey();
     }
@@ -477,9 +508,11 @@ const StoreSurvey = () => {
     }
 
     setSubmitting(true);
+    setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
 
     try {
       // Step 1: Create audit
+      setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: parsedStoreId,
@@ -489,16 +522,43 @@ const StoreSurvey = () => {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload all images in parallel (much faster than sequential)
+      // Step 2: Upload images sequentially with progress tracking
       const imagesToUpload = capturedImages.filter(
         (img): img is NonNullable<typeof img> =>
           img !== undefined && img !== null
       );
 
-      const imageUploadPromises = imagesToUpload.map(async (img, i) => {
+      if (imagesToUpload.length !== 3) {
+        throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
+      }
+
+      // Upload first 2 images in parallel
+      setUploadProgress({
+        current: 0,
+        total: 3,
+        message: "Đang tải ảnh 1 và 2...",
+      });
+
+      let completedCount = 0;
+      const updateBatchProgress = () => {
+        completedCount++;
+        setUploadProgress({
+          current: completedCount,
+          total: 3,
+          message:
+            completedCount === 2
+              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
+        });
+      };
+
+      const uploadImage = async (
+        img: NonNullable<(typeof capturedImages)[0]>,
+        index: number
+      ) => {
         const formData = new FormData();
         const blob = await fetch(img.dataUrl).then((r) => r.blob());
-        formData.append("image", blob, `image_${i + 1}.jpg`);
+        formData.append("image", blob, `image_${index + 1}.jpg`);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
         formData.append("longitude", img.longitude.toString());
@@ -510,16 +570,50 @@ const StoreSurvey = () => {
             "Content-Type": "multipart/form-data",
           },
         });
+      };
+
+      // Upload first 2 images in parallel
+      const [upload1Result, upload2Result] = await Promise.allSettled([
+        uploadImage(imagesToUpload[0], 0).then(() => {
+          updateBatchProgress();
+        }),
+        uploadImage(imagesToUpload[1], 1).then(() => {
+          updateBatchProgress();
+        }),
+      ]);
+
+      if (upload1Result.status === "rejected") {
+        throw upload1Result.reason;
+      }
+      if (upload2Result.status === "rejected") {
+        throw upload2Result.reason;
+      }
+
+      // Upload third image
+      setUploadProgress({
+        current: 2,
+        total: 3,
+        message: "Đang tải ảnh 3/3...",
+      });
+      await uploadImage(imagesToUpload[2], 2);
+      setUploadProgress({
+        current: 3,
+        total: 3,
+        message: "Đang cập nhật thông tin cửa hàng...",
       });
 
-      // Step 3: Create survey (can run in parallel with image uploads)
-      const surveyPromise = api.post("/store-surveys", {
+      // Step 3: Create survey
+      const newProductImportQty = surveyData.newProductImportQuantity?.trim()
+        ? parseVND(surveyData.newProductImportQuantity)
+        : null;
+
+      await api.post("/store-surveys", {
         storeId: parsedStoreId,
         auditId: auditId,
         userId: user.id,
         whyNotSellNewProduct: surveyData.whyNotSellNewProduct,
         timeToSellNewProduct: surveyData.timeToSellNewProduct || null,
-        newProductImportQuantity: parseVND(surveyData.newProductImportQuantity),
+        newProductImportQuantity: newProductImportQty,
         supplierName: surveyData.supplierName,
         importedBySalesperson: surveyData.importedBySalesperson,
         storeComment: surveyData.storeComment || null,
@@ -527,47 +621,66 @@ const StoreSurvey = () => {
           productType: p.productType,
           cementProductId: p.cementProductId,
           contactPersonPhone: p.contactPersonPhone,
-          purchasePrice: p.purchasePrice ? parseVND(p.purchasePrice) : null,
-          sellingPrice: p.sellingPrice ? parseVND(p.sellingPrice) : null,
-          roadTransportFee: p.roadTransportFee
+          purchasePrice: p.purchasePrice?.trim()
+            ? parseVND(p.purchasePrice)
+            : null,
+          sellingPrice: p.sellingPrice?.trim()
+            ? parseVND(p.sellingPrice)
+            : null,
+          roadTransportFee: p.roadTransportFee?.trim()
             ? parseVND(p.roadTransportFee)
             : null,
-          waterTransportFee: p.waterTransportFee
+          waterTransportFee: p.waterTransportFee?.trim()
             ? parseVND(p.waterTransportFee)
             : null,
-          quantityReceived: p.quantityReceived
+          quantityReceived: p.quantityReceived?.trim()
             ? parseFloat(p.quantityReceived)
             : null,
           importedFromNPP: p.importedFromNPP,
           discountPromotion: p.discountPromotion || null,
-          averageStockQuantity: p.averageStockQuantity
+          averageStockQuantity: p.averageStockQuantity?.trim()
             ? parseFloat(p.averageStockQuantity)
             : null,
         })),
       });
 
-      // Execute image uploads and survey creation in parallel
-      await Promise.all([...imageUploadPromises, surveyPromise]);
+      // Update store coordinates from first image
+      if (imagesToUpload[0]) {
+        await api.put(`/stores/${parsedStoreId}`, {
+          latitude: imagesToUpload[0].latitude,
+          longitude: imagesToUpload[0].longitude,
+        });
+      }
+
+      // Clear saved data from localStorage
+      if (user?.id) {
+        try {
+          const storageKey = `survey_data_${user.id}`;
+          localStorage.removeItem(storageKey);
+        } catch (error) {
+          console.error("Error clearing saved survey data:", error);
+        }
+      }
+
+      setSubmitting(false);
+      setUploadProgress({ current: 0, total: 0, message: "" });
 
       // Success - navigate back to store detail
-      alert("Thành công: Thực thi cửa hàng thành công");
-      // Navigate back and refresh store detail to show new images
+      alert("Đã hoàn thành audit cửa hàng");
       navigate(`/stores/${parsedStoreId}`, { replace: true });
-      // Small delay to ensure navigation completes before refresh
       setTimeout(() => {
-        // The store detail page should automatically refresh on mount
         window.location.reload();
       }, 100);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
+      setSubmitting(false);
+      setUploadProgress({ current: 0, total: 0, message: "" });
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
           ?.error ||
         (error as { message?: string })?.message ||
         "Có lỗi xảy ra khi lưu khảo sát";
       alert(`Lỗi: ${errorMessage}`);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -615,181 +728,7 @@ const StoreSurvey = () => {
       </div>
 
       <div className="store-survey-content">
-        {/* Title 2 */}
-        <div className="store-survey-title-section">
-          <div
-            className="store-survey-title-header"
-            onClick={() => toggleTitle("title2")}
-            style={{
-              background: expandedTitles.title2
-                ? `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`
-                : colors.background,
-            }}
-          >
-            <h2 style={{ color: expandedTitles.title2 ? "#fff" : colors.text }}>
-              Khảo sát sản phẩm của XMTĐ *
-            </h2>
-            <span
-              style={{ color: expandedTitles.title2 ? "#fff" : colors.icon }}
-            >
-              {expandedTitles.title2 ? "▲" : "▼"}
-            </span>
-          </div>
-
-          {expandedTitles.title2 && (
-            <div
-              className="store-survey-title-content"
-              style={{ backgroundColor: colors.secondary }}
-            >
-              <div className="store-survey-field" style={{ marginTop: 16 }}>
-                <label style={{ color: colors.text }}>
-                  Tại sao không bán sản phẩm mới
-                </label>
-                <textarea
-                  value={surveyData.whyNotSellNewProduct}
-                  onChange={(e) =>
-                    handleInputChange("whyNotSellNewProduct", e.target.value)
-                  }
-                  rows={3}
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Thời gian để bán sản phẩm mới
-                </label>
-                <div style={{ position: "relative" }}>
-                  <input
-                    type="date"
-                    value={surveyData.timeToSellNewProduct}
-                    onChange={(e) =>
-                      handleInputChange("timeToSellNewProduct", e.target.value)
-                    }
-                    style={{
-                      backgroundColor: colors.background,
-                      color: colors.text,
-                      borderColor: colors.icon + "40",
-                      width: "100%",
-                      paddingRight: 40,
-                    }}
-                  />
-                  <span
-                    style={{
-                      position: "absolute",
-                      right: 12,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      pointerEvents: "none",
-                      color: colors.icon,
-                      fontSize: 18,
-                    }}
-                  >
-                    📅
-                  </span>
-                </div>
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Tên sản phẩm muốn nhập – Số lượng (nếu có)
-                </label>
-                <input
-                  type="text"
-                  value={surveyData.newProductImportQuantity}
-                  onChange={(e) =>
-                    handleInputChange(
-                      "newProductImportQuantity",
-                      e.target.value
-                    )
-                  }
-                  placeholder="Nhập tên sản phẩm và số lượng"
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Mua qua NPP</label>
-                <input
-                  type="text"
-                  value={surveyData.supplierName}
-                  onChange={(e) =>
-                    handleInputChange("supplierName", e.target.value)
-                  }
-                  placeholder="Nhập tên NPP"
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Nhập bởi thương vụ</label>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm thương vụ"
-                  value={salesSearch}
-                  onChange={(e) => setSalesSearch(e.target.value)}
-                  style={{
-                    marginBottom: 8,
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-                <select
-                  value={surveyData.importedBySalesperson}
-                  onChange={(e) =>
-                    handleInputChange("importedBySalesperson", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                >
-                  <option value="">Chọn thương vụ</option>
-                  {filteredSalesUsers.map((user) => (
-                    <option key={user.Id} value={user.FullName}>
-                      {user.FullName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
-                  Ý kiến của cửa hàng
-                </label>
-                <textarea
-                  value={surveyData.storeComment}
-                  onChange={(e) =>
-                    handleInputChange("storeComment", e.target.value)
-                  }
-                  placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
-                  rows={3}
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Title 3 */}
+        {/* Title 3 - Thông tin bán hàng (Hiển thị ở trên) */}
         <div className="store-survey-title-section">
           <div
             className="store-survey-title-header"
@@ -1032,25 +971,27 @@ const StoreSurvey = () => {
                         <button
                           type="button"
                           className="store-survey-dropdown-trigger"
-                                style={{
-                                  backgroundColor: colors.background,
-                                  borderColor: colors.icon + "40",
+                          style={{
+                            backgroundColor: colors.background,
+                            borderColor: colors.icon + "40",
                             color: product.purchasePrice
                               ? colors.text
                               : colors.icon,
-                                }}
-                          onClick={() => openPricePicker(index, "purchasePrice")}
+                          }}
+                          onClick={() =>
+                            openPricePicker(index, "purchasePrice")
+                          }
                         >
                           <span className="store-survey-dropdown-value">
                             {product.purchasePrice ||
                               "Chọn giá mua vào hoặc nhập mới"}
                           </span>
-                              <span
+                          <span
                             className="store-survey-dropdown-icon"
                             style={{ color: colors.icon }}
-                              >
-                                ▼
-                              </span>
+                          >
+                            ▼
+                          </span>
                         </button>
                       </div>
 
@@ -1059,27 +1000,27 @@ const StoreSurvey = () => {
                         <button
                           type="button"
                           className="store-survey-dropdown-trigger"
-                                style={{
-                                  backgroundColor: colors.background,
-                                  borderColor: colors.icon + "40",
+                          style={{
+                            backgroundColor: colors.background,
+                            borderColor: colors.icon + "40",
                             color: product.sellingPrice
                               ? colors.text
                               : colors.icon,
-                                }}
+                          }}
                           onClick={() => openPricePicker(index, "sellingPrice")}
                         >
                           <span className="store-survey-dropdown-value">
                             {product.sellingPrice ||
                               "Chọn giá bán ra hoặc nhập mới"}
                           </span>
-                              <span
+                          <span
                             className="store-survey-dropdown-icon"
                             style={{ color: colors.icon }}
-                              >
-                                ▼
-                              </span>
+                          >
+                            ▼
+                          </span>
                         </button>
-                                    </div>
+                      </div>
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
                           Phí vận chuyển đường bộ
@@ -1087,28 +1028,29 @@ const StoreSurvey = () => {
                         <button
                           type="button"
                           className="store-survey-dropdown-trigger"
-                                style={{
-                                  backgroundColor: colors.background,
-                                  borderColor: colors.icon + "40",
+                          style={{
+                            backgroundColor: colors.background,
+                            borderColor: colors.icon + "40",
                             color: product.roadTransportFee
                               ? colors.text
                               : colors.icon,
-                                }}
-                          onClick={() => openPricePicker(index, "roadTransportFee")}
+                          }}
+                          onClick={() =>
+                            openPricePicker(index, "roadTransportFee")
+                          }
                         >
                           <span className="store-survey-dropdown-value">
                             {product.roadTransportFee ||
                               "Chọn phí đường bộ hoặc nhập mới"}
                           </span>
-                              <span
+                          <span
                             className="store-survey-dropdown-icon"
                             style={{ color: colors.icon }}
-                              >
-                                ▼
-                              </span>
+                          >
+                            ▼
+                          </span>
                         </button>
                       </div>
-
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
@@ -1117,25 +1059,27 @@ const StoreSurvey = () => {
                         <button
                           type="button"
                           className="store-survey-dropdown-trigger"
-                                style={{
-                                  backgroundColor: colors.background,
-                                  borderColor: colors.icon + "40",
+                          style={{
+                            backgroundColor: colors.background,
+                            borderColor: colors.icon + "40",
                             color: product.waterTransportFee
                               ? colors.text
                               : colors.icon,
-                                }}
-                          onClick={() => openPricePicker(index, "waterTransportFee")}
+                          }}
+                          onClick={() =>
+                            openPricePicker(index, "waterTransportFee")
+                          }
                         >
                           <span className="store-survey-dropdown-value">
                             {product.waterTransportFee ||
                               "Chọn phí đường thủy hoặc nhập mới"}
                           </span>
-                              <span
+                          <span
                             className="store-survey-dropdown-icon"
                             style={{ color: colors.icon }}
-                              >
-                                ▼
-                              </span>
+                          >
+                            ▼
+                          </span>
                         </button>
                       </div>
 
@@ -1256,6 +1200,180 @@ const StoreSurvey = () => {
           )}
         </div>
 
+        {/* Title 2 - Khảo sát sản phẩm của XMTĐ (Hiển thị ở dưới) */}
+        <div className="store-survey-title-section">
+          <div
+            className="store-survey-title-header"
+            onClick={() => toggleTitle("title2")}
+            style={{
+              background: expandedTitles.title2
+                ? `linear-gradient(90deg, ${colors.primary}, ${colors.primary}CC)`
+                : colors.background,
+            }}
+          >
+            <h2 style={{ color: expandedTitles.title2 ? "#fff" : colors.text }}>
+              Khảo sát sản phẩm của XMTĐ *
+            </h2>
+            <span
+              style={{ color: expandedTitles.title2 ? "#fff" : colors.icon }}
+            >
+              {expandedTitles.title2 ? "▲" : "▼"}
+            </span>
+          </div>
+
+          {expandedTitles.title2 && (
+            <div
+              className="store-survey-title-content"
+              style={{ backgroundColor: colors.secondary }}
+            >
+              <div className="store-survey-field" style={{ marginTop: 16 }}>
+                <label style={{ color: colors.text }}>
+                  Tại sao không bán sản phẩm mới
+                </label>
+                <textarea
+                  value={surveyData.whyNotSellNewProduct}
+                  onChange={(e) =>
+                    handleInputChange("whyNotSellNewProduct", e.target.value)
+                  }
+                  rows={3}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>
+                  Thời gian để bán sản phẩm mới
+                </label>
+                <div style={{ position: "relative" }}>
+                  <input
+                    type="date"
+                    value={surveyData.timeToSellNewProduct}
+                    onChange={(e) =>
+                      handleInputChange("timeToSellNewProduct", e.target.value)
+                    }
+                    style={{
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.icon + "40",
+                      width: "100%",
+                      paddingRight: 40,
+                    }}
+                  />
+                  <span
+                    style={{
+                      position: "absolute",
+                      right: 12,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      pointerEvents: "none",
+                      color: colors.icon,
+                      fontSize: 18,
+                    }}
+                  >
+                    📅
+                  </span>
+                </div>
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>
+                  Tên sản phẩm muốn nhập – Số lượng (nếu có)
+                </label>
+                <input
+                  type="text"
+                  value={surveyData.newProductImportQuantity}
+                  onChange={(e) =>
+                    handleInputChange(
+                      "newProductImportQuantity",
+                      e.target.value
+                    )
+                  }
+                  placeholder="Nhập tên sản phẩm và số lượng"
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>Mua qua NPP</label>
+                <input
+                  type="text"
+                  value={surveyData.supplierName}
+                  onChange={(e) =>
+                    handleInputChange("supplierName", e.target.value)
+                  }
+                  placeholder="Nhập tên NPP"
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>Nhập bởi thương vụ</label>
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm thương vụ"
+                  value={salesSearch}
+                  onChange={(e) => setSalesSearch(e.target.value)}
+                  style={{
+                    marginBottom: 8,
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+                <select
+                  value={surveyData.importedBySalesperson}
+                  onChange={(e) =>
+                    handleInputChange("importedBySalesperson", e.target.value)
+                  }
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                >
+                  <option value="">Chọn thương vụ</option>
+                  {filteredSalesUsers.map((user) => (
+                    <option key={user.Id} value={user.FullName}>
+                      {user.FullName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="store-survey-field">
+                <label style={{ color: colors.text }}>
+                  Ý kiến của cửa hàng
+                </label>
+                <textarea
+                  value={surveyData.storeComment}
+                  onChange={(e) =>
+                    handleInputChange("storeComment", e.target.value)
+                  }
+                  placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
+                  rows={3}
+                  style={{
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.icon + "40",
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
         {/* Submit Button */}
         <div
           style={{ display: "flex", justifyContent: "center", marginTop: 24 }}
@@ -1275,9 +1393,7 @@ const StoreSurvey = () => {
               fontSize: 16,
             }}
           >
-            {submitting
-              ? "Đang xử lý..."
-              : "Hoàn thành khảo sát & thực thi cửa hàng"}
+            {submitting ? "Đang xử lý..." : "Hoàn thành"}
           </button>
         </div>
       </div>
@@ -1434,6 +1550,163 @@ const StoreSurvey = () => {
               >
                 Lưu
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Validation Warning Modal */}
+      {showValidationModal && (
+        <div className="store-survey-modal-backdrop">
+          <div
+            className="store-survey-modal"
+            style={{ maxWidth: "500px", width: "90%" }}
+          >
+            <h2 style={{ color: colors.text, marginBottom: "16px" }}>
+              Cảnh báo
+            </h2>
+            <p
+              style={{
+                color: colors.text,
+                marginBottom: "24px",
+                lineHeight: "1.6",
+                textAlign: "center",
+              }}
+            >
+              Vui lòng điền đầy đủ tất cả các thông tin khảo sát, bao gồm cả 2
+              phần liên quan đến cửa hàng để hoàn tất quá trình đánh giá.
+            </p>
+            <div
+              className="store-survey-modal-actions"
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "center",
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => setShowValidationModal(false)}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  borderRadius: "6px",
+                  border: "1px solid #1d4ed8",
+                  backgroundColor: "#dbeafe",
+                  color: "#1d4ed8",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 0 1px rgba(29, 78, 216, 0.15)",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#bfdbfe";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#dbeafe";
+                }}
+              >
+                Tiếp tục điền
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowValidationModal(false);
+                  submitSurvey();
+                }}
+                style={{
+                  flex: 1,
+                  padding: "12px 24px",
+                  borderRadius: "6px",
+                  border: "1px solid #1d4ed8",
+                  backgroundColor: "#dbeafe",
+                  color: "#1d4ed8",
+                  fontWeight: "600",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  boxShadow: "0 0 0 1px rgba(29, 78, 216, 0.15)",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = "#bfdbfe";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = "#dbeafe";
+                }}
+              >
+                Xác nhận hoàn thành
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Upload Progress Modal */}
+      {submitting && uploadProgress.total > 0 && (
+        <div className="store-survey-modal-backdrop">
+          <div
+            className="store-survey-modal"
+            style={{ maxWidth: "400px", width: "90%" }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <div
+                className="store-survey-spinner"
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  border: `4px solid ${colors.icon}20`,
+                  borderTop: `4px solid ${colors.primary}`,
+                  borderRadius: "50%",
+                  margin: "0 auto 16px",
+                  animation: "spin 1s linear infinite",
+                }}
+              />
+              <h2
+                style={{
+                  color: colors.text,
+                  marginBottom: "8px",
+                  fontSize: "16px",
+                  fontWeight: "600",
+                }}
+              >
+                {uploadProgress.message || "Đang xử lý..."}
+              </h2>
+              {uploadProgress.total > 0 && (
+                <div style={{ marginTop: "16px" }}>
+                  <div
+                    style={{
+                      width: "100%",
+                      height: "8px",
+                      backgroundColor: colors.icon + "20",
+                      borderRadius: "4px",
+                      overflow: "hidden",
+                      marginBottom: "8px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: `${
+                          (uploadProgress.current / uploadProgress.total) * 100
+                        }%`,
+                        height: "100%",
+                        backgroundColor: colors.primary,
+                        borderRadius: "4px",
+                        transition: "width 0.3s ease",
+                      }}
+                    />
+                  </div>
+                  <p
+                    style={{
+                      color: colors.icon,
+                      fontSize: "14px",
+                      margin: 0,
+                    }}
+                  >
+                    {uploadProgress.current}/{uploadProgress.total} ảnh
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
