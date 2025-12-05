@@ -10,11 +10,11 @@ const { getProvinceDistrict } = require("./geocodingService");
  *
  * @param {Buffer} imageBuffer - Image file buffer from frontend
  * @param {Object} metadata - Metadata containing latitude, longitude, timestamp
- * @param {Object} options - Optional settings: { fontSize: number } (default: 36 for mobile app)
+ * @param {Object} options - Optional settings: { fontSize: number } (default: 60 for mobile app)
  * @returns {Promise<Object>} Cloudinary upload result
  */
 async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
-  const { fontSize = 36 } = options; // Default 36 for mobile app, 10 for web iosauditapp
+  const { fontSize = 45 } = options; // Default 60 for mobile app, 10 for web iosauditapp
   const { latitude, longitude, timestamp } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
@@ -55,7 +55,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
 
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
-    // Font size: 36 for mobile app (default), 10 for web iosauditapp
+    // Font size: 45 for mobile app (default), 10 for web iosauditapp
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
       eager: [
