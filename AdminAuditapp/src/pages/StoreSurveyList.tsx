@@ -460,7 +460,7 @@ export default function StoreSurveyList() {
           "SL nhận hàng (tấn/tháng)",
           "Nhập từ NPP",
           "Số lượng tồn bình quân (tấn/tháng)",
-          "Ý kiến CH",
+          "Ý kiến/Ghi chú",
         ];
 
         sheet.getRow(5).values = headers;
@@ -576,7 +576,7 @@ export default function StoreSurveyList() {
             "Tên sản phẩm muốn nhập – Số lượng",
             "Mua qua NPP",
             "Nhập bởi thương vụ",
-            "Ý kiến của cửa hàng",
+            "Ý kiến/Ghi chú",
           ];
 
           const headerRow2 = sheet.addRow(headers2);

@@ -28,31 +28,21 @@ interface Store {
 }
 
 const getStatusLabel = (status: string) => {
-  const statusMap: Record<string, string> = {
-    not_audited: "Chưa thực hiện",
-    audited: "Đã thực hiện",
-    passed: "Đạt",
-    failed: "Không đạt",
-  };
-  return statusMap[status] || status;
+  if (status === "not_audited") return "Chưa thực hiện";
+  return "Đã thực hiện";
 };
 
 const getStatusColor = (status: string) => {
-  const colorMap: Record<string, string> = {
-    not_audited: "#FF9800",
-    audited: "#2196F3",
-    passed: "#4CAF50",
-    failed: "#F44336",
-  };
-  return colorMap[status] || "#999";
+  if (status === "not_audited") return "#FF9800";
+  return "#2196F3";
 };
 
 const getStatusPriority = (status: string): number => {
   const priorityMap: Record<string, number> = {
     not_audited: 1,
+    audited: 2,
+    passed: 2,
     failed: 2,
-    passed: 3,
-    audited: 4,
   };
   return priorityMap[status] || 99;
 };
@@ -370,32 +360,6 @@ export default function Stores() {
                   }}
                 >
                   Đã thực hiện
-                </button>
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedStatus("passed");
-                    setShowStatusDropdown(false);
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.text,
-                  }}
-                >
-                  Đạt
-                </button>
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedStatus("failed");
-                    setShowStatusDropdown(false);
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.text,
-                  }}
-                >
-                  Không đạt
                 </button>
               </div>
             )}

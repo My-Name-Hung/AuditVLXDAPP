@@ -38,33 +38,25 @@ interface Store {
 }
 
 const getStatusLabel = (status: string) => {
-  const statusMap: Record<string, string> = {
-    not_audited: "Chưa thực hiện",
-    audited: "Đã thực hiện",
-    passed: "Đạt",
-    failed: "Không đạt",
-  };
-  return statusMap[status] || status;
+  if (status === "not_audited") return "Chưa thực hiện";
+  // Collapse all completed states into one label
+  return "Đã thực hiện";
 };
 
 const getStatusColor = (status: string) => {
-  const colorMap: Record<string, string> = {
-    not_audited: "#FF9800",
-    audited: "#2196F3",
-    passed: "#4CAF50",
-    failed: "#F44336",
-  };
-  return colorMap[status] || "#999";
+  if (status === "not_audited") return "#FF9800";
+  // Completed states share the same badge color
+  return "#2196F3";
 };
 
 const getStatusPriority = (status: string): number => {
   const priorityMap: Record<string, number> = {
     not_audited: 1, // Chưa thực hiện - đầu tiên
-    failed: 2, // Không đạt
-    passed: 3, // Đạt
-    audited: 4, // Đã thực hiện - cuối cùng
+    audited: 2, // Đã thực hiện (bao gồm đạt/không đạt)
+    passed: 2,
+    failed: 2,
   };
-  return priorityMap[status] || 99; // Unknown status goes to end
+  return priorityMap[status] || 99;
 };
 
 const sortStoresByStatus = (stores: Store[]): Store[] => {
@@ -489,38 +481,6 @@ export default function StoresScreen() {
                     style={[styles.dropdownItemText, { color: colors.text }]}
                   >
                     Đã thực hiện
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.secondary },
-                  ]}
-                  onPress={() => {
-                    setSelectedStatus("passed");
-                    setShowStatusDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.dropdownItemText, { color: colors.text }]}
-                  >
-                    Đạt
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.secondary },
-                  ]}
-                  onPress={() => {
-                    setSelectedStatus("failed");
-                    setShowStatusDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.dropdownItemText, { color: colors.text }]}
-                  >
-                    Không đạt
                   </Text>
                 </TouchableOpacity>
               </View>
