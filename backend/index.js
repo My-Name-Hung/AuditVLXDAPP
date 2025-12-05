@@ -160,7 +160,8 @@ async function initializeServices() {
 }
 
 // Start server
-app.listen(PORT, async () => {
+// Bind to 0.0.0.0 to allow Render to detect the port
+app.listen(PORT, '0.0.0.0', async () => {
   console.log("=".repeat(50));
   console.log(`🚀 Auditapp Backend Server`);
   console.log(`📍 Running on port ${PORT}`);

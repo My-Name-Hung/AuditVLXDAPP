@@ -416,34 +416,34 @@ export default function StoreSurveyList() {
         },
       };
 
-      // Create sheets for each territory
+      // Create sheets for each territory (gộp 2 bảng vào 1 sheet)
       territoryGroups.forEach((territorySurveys, territoryName) => {
-        // Sheet 1: Thông tin bán hàng (Title 3)
-        const sheet1 = workbook.addWorksheet(
-          `${territoryName || "Chưa xác định"} - Thông tin bán hàng`
+        // Single sheet with both tables
+        const sheet = workbook.addWorksheet(
+          `${territoryName || "Chưa xác định"}`
         );
 
         // Title rows
-        sheet1.mergeCells("A1:N1");
-        sheet1.getCell(
+        sheet.mergeCells("A1:N1");
+        sheet.getCell(
           "A1"
         ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
-        sheet1.getCell("A1").font = { bold: true, size: 14 };
-        sheet1.getCell("A1").alignment = { horizontal: "center" };
+        sheet.getCell("A1").font = { bold: true, size: 14 };
+        sheet.getCell("A1").alignment = { horizontal: "center" };
 
-        sheet1.mergeCells("A2:N2");
-        sheet1.getCell("A2").value = `Địa bàn: ${
+        sheet.mergeCells("A2:N2");
+        sheet.getCell("A2").value = `Địa bàn: ${
           territoryName || "Chưa xác định"
         }`;
-        sheet1.getCell("A2").font = { bold: true, size: 12 };
-        sheet1.getCell("A2").alignment = { horizontal: "center" };
+        sheet.getCell("A2").font = { bold: true, size: 12 };
+        sheet.getCell("A2").alignment = { horizontal: "center" };
 
-        sheet1.mergeCells("A3:N3");
-        sheet1.getCell(
+        sheet.mergeCells("A3:N3");
+        sheet.getCell(
           "A3"
         ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
-        sheet1.getCell("A3").font = { bold: true, size: 12 };
-        sheet1.getCell("A3").alignment = { horizontal: "left" };
+        sheet.getCell("A3").font = { bold: true, size: 12 };
+        sheet.getCell("A3").alignment = { horizontal: "left" };
 
         // Table headers
         const headers = [
@@ -463,9 +463,9 @@ export default function StoreSurveyList() {
           "Ý kiến CH",
         ];
 
-        sheet1.getRow(5).values = headers;
-        sheet1.getRow(5).height = 40;
-        sheet1.getRow(5).eachCell((cell) => {
+        sheet.getRow(5).values = headers;
+        sheet.getRow(5).height = 40;
+        sheet.getRow(5).eachCell((cell) => {
           cell.style = {
             ...headerStyle,
             alignment: {
@@ -492,7 +492,7 @@ export default function StoreSurveyList() {
           // Show products from Title 3
           if (firstSurvey.products && firstSurvey.products.length > 0) {
             firstSurvey.products.forEach((product) => {
-              const row = sheet1.addRow([
+              const row = sheet.addRow([
                 isFirstRow ? sttCounter : "",
                 isFirstRow ? firstSurvey.StoreName || "" : "",
                 isFirstRow ? formatDate(firstSurvey.AuditDate) : "",
@@ -525,8 +525,8 @@ export default function StoreSurveyList() {
           sttCounter++;
         });
 
-        // Column widths
-        sheet1.columns = [
+        // Column widths for Title 3 table
+        sheet.columns = [
           { width: 8 },
           { width: 25 },
           { width: 12 },
@@ -543,7 +543,11 @@ export default function StoreSurveyList() {
           { width: 30 },
         ];
 
-        // Sheet 2: Khảo sát sản phẩm XMTĐ (Title 2)
+        // Add spacing between tables
+        sheet.addRow([]);
+        sheet.addRow([]);
+
+        // Table 2: Khảo sát sản phẩm XMTĐ (Title 2) - Below Title 3
         const title2Surveys = territorySurveys.filter(
           (survey) =>
             survey.WhyNotSellNewProduct ||
@@ -555,29 +559,12 @@ export default function StoreSurveyList() {
         );
 
         if (title2Surveys.length > 0) {
-          const sheet2 = workbook.addWorksheet(
-            `${territoryName || "Chưa xác định"} - Khảo sát XMTĐ`
-          );
-
-          // Title rows
-          sheet2.mergeCells("A1:I1");
-          sheet2.getCell(
-            "A1"
-          ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
-          sheet2.getCell("A1").font = { bold: true, size: 14 };
-          sheet2.getCell("A1").alignment = { horizontal: "center" };
-
-          sheet2.mergeCells("A2:I2");
-          sheet2.getCell("A2").value = `Địa bàn: ${
-            territoryName || "Chưa xác định"
-          }`;
-          sheet2.getCell("A2").font = { bold: true, size: 12 };
-          sheet2.getCell("A2").alignment = { horizontal: "center" };
-
-          sheet2.mergeCells("A3:I3");
-          sheet2.getCell("A3").value = `2. KHẢO SÁT SẢN PHẨM XMTĐ`;
-          sheet2.getCell("A3").font = { bold: true, size: 12 };
-          sheet2.getCell("A3").alignment = { horizontal: "left" };
+          // Title for Table 2
+          const title2Row = sheet.rowCount + 1;
+          sheet.mergeCells(`A${title2Row}:I${title2Row}`);
+          sheet.getCell(`A${title2Row}`).value = `2. KHẢO SÁT SẢN PHẨM XMTĐ`;
+          sheet.getCell(`A${title2Row}`).font = { bold: true, size: 12 };
+          sheet.getCell(`A${title2Row}`).alignment = { horizontal: "left" };
 
           // Table headers for Title 2
           const headers2 = [
@@ -592,9 +579,9 @@ export default function StoreSurveyList() {
             "Ý kiến của cửa hàng",
           ];
 
-          sheet2.getRow(5).values = headers2;
-          sheet2.getRow(5).height = 40;
-          sheet2.getRow(5).eachCell((cell) => {
+          const headerRow2 = sheet.addRow(headers2);
+          headerRow2.height = 40;
+          headerRow2.eachCell((cell) => {
             cell.style = {
               ...headerStyle,
               alignment: {
@@ -607,7 +594,7 @@ export default function StoreSurveyList() {
           // Data rows for Title 2
           let sttCounter2 = 1;
           title2Surveys.forEach((survey) => {
-            const row2 = sheet2.addRow([
+            const row2 = sheet.addRow([
               sttCounter2,
               survey.StoreName || "",
               formatDate(survey.AuditDate),
@@ -632,19 +619,6 @@ export default function StoreSurveyList() {
             });
             sttCounter2++;
           });
-
-          // Column widths for Title 2
-          sheet2.columns = [
-            { width: 8 },
-            { width: 25 },
-            { width: 12 },
-            { width: 30 },
-            { width: 20 },
-            { width: 30 },
-            { width: 20 },
-            { width: 20 },
-            { width: 30 },
-          ];
         }
       });
 
