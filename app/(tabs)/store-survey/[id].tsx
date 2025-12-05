@@ -71,6 +71,11 @@ const PRICE_SUGGESTIONS = [
   30000, 40000, 50000, 60000, 70000, 80000, 90000, 100000,
 ];
 
+const getTodayTemplateKey = (userId: number) => {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return `survey_template_${userId}_${today}`;
+};
+
 // Price suggestions cho phí vận chuyển (3,000 - 10,000 VND)
 const TRANSPORT_FEE_SUGGESTIONS = [
   3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
@@ -154,12 +159,12 @@ export default function StoreSurveyScreen() {
     products: [],
   });
 
-  // Load saved survey data from AsyncStorage
+  // Load last submitted survey (today) for the current user to auto-fill
   useEffect(() => {
     const loadSavedSurveyData = async () => {
       try {
         if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
+          const storageKey = getTodayTemplateKey(user.id);
           const savedData = await AsyncStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
@@ -174,23 +179,6 @@ export default function StoreSurveyScreen() {
     fetchCementProducts();
     fetchSalesUsers();
   }, [user?.id]);
-
-  // Auto-save survey data to AsyncStorage whenever it changes
-  useEffect(() => {
-    const saveSurveyData = async () => {
-      try {
-        if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.setItem(storageKey, JSON.stringify(surveyData));
-        }
-      } catch (error) {
-        console.error("Error saving survey data:", error);
-      }
-    };
-    // Debounce save to avoid too frequent writes
-    const timeoutId = setTimeout(saveSurveyData, 500);
-    return () => clearTimeout(timeoutId);
-  }, [surveyData, user?.id]);
 
   // Autofill current user into "Nhập bởi thương vụ"
   useEffect(() => {
@@ -668,16 +656,20 @@ export default function StoreSurveyScreen() {
         });
       }
 
-      // Clear survey data and saved data from AsyncStorage
-      clearSurveyData();
+      // Save submitted survey as today's template for reuse on next store
       if (user?.id) {
         try {
-          const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.removeItem(storageKey);
+          const templateKey = getTodayTemplateKey(user.id);
+          await AsyncStorage.setItem(templateKey, JSON.stringify(surveyData));
+          // Clean old draft key if exists
+          await AsyncStorage.removeItem(`survey_data_${user.id}`);
         } catch (error) {
-          console.error("Error clearing saved survey data:", error);
+          console.error("Error saving survey template:", error);
         }
       }
+
+      // Clear survey data and captured images in context
+      clearSurveyData();
 
       setSubmitting(false);
       setUploadProgress({ current: 0, total: 0, message: "" });

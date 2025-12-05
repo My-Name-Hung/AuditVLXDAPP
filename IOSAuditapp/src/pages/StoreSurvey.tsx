@@ -73,6 +73,11 @@ const TRANSPORT_FEE_SUGGESTIONS = [
   3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000,
 ];
 
+const getTodayTemplateKey = (userId: number) => {
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return `survey_template_${userId}_${today}`;
+};
+
 const formatVND = (value: string): string => {
   // Chỉ giữ lại ký tự số, tránh lỗi khi nhập
   const digits = value.replace(/[^\d]/g, "");
@@ -146,12 +151,12 @@ const StoreSurvey = () => {
     products: [],
   });
 
-  // Load saved survey data from localStorage
+  // Load last submitted survey (today) for the current user to auto-fill
   useEffect(() => {
     const loadSavedSurveyData = () => {
       try {
         if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
+          const storageKey = getTodayTemplateKey(user.id);
           const savedData = localStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
@@ -166,23 +171,6 @@ const StoreSurvey = () => {
     fetchCementProducts();
     fetchSalesUsers();
   }, [user?.id]);
-
-  // Auto-save survey data to localStorage whenever it changes
-  useEffect(() => {
-    const saveSurveyData = () => {
-      try {
-        if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
-          localStorage.setItem(storageKey, JSON.stringify(surveyData));
-        }
-      } catch (error) {
-        console.error("Error saving survey data:", error);
-      }
-    };
-    // Debounce save to avoid too frequent writes
-    const timeoutId = setTimeout(saveSurveyData, 500);
-    return () => clearTimeout(timeoutId);
-  }, [surveyData, user?.id]);
 
   // Autofill current user into "Nhập bởi thương vụ"
   useEffect(() => {
@@ -655,13 +643,15 @@ const StoreSurvey = () => {
         });
       }
 
-      // Clear saved data from localStorage
+      // Save submitted survey as today's template for reuse
       if (user?.id) {
         try {
-          const storageKey = `survey_data_${user.id}`;
-          localStorage.removeItem(storageKey);
+          const templateKey = getTodayTemplateKey(user.id);
+          localStorage.setItem(templateKey, JSON.stringify(surveyData));
+          // Clean old draft key if it exists
+          localStorage.removeItem(`survey_data_${user.id}`);
         } catch (error) {
-          console.error("Error clearing saved survey data:", error);
+          console.error("Error saving survey template:", error);
         }
       }
 
