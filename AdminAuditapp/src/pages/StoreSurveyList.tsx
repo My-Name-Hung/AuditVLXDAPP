@@ -337,14 +337,14 @@ export default function StoreSurveyList() {
   // Filter users and cement products based on search
   const filteredUsers = users.filter(
     (user) =>
-    user.FullName.toLowerCase().includes(userSearch.toLowerCase()) ||
-    user.UserCode.toLowerCase().includes(userSearch.toLowerCase())
+      user.FullName.toLowerCase().includes(userSearch.toLowerCase()) ||
+      user.UserCode.toLowerCase().includes(userSearch.toLowerCase())
   );
 
   const filteredCementProducts = cementProducts.filter(
     (product) =>
-    product.Name.toLowerCase().includes(cementSearch.toLowerCase()) ||
-    product.Code.toLowerCase().includes(cementSearch.toLowerCase())
+      product.Name.toLowerCase().includes(cementSearch.toLowerCase()) ||
+      product.Code.toLowerCase().includes(cementSearch.toLowerCase())
   );
 
   const handleExportExcel = async () => {
@@ -357,10 +357,10 @@ export default function StoreSurveyList() {
       const now = new Date();
       const year = now.getFullYear();
       const day = now.getDate();
-      
+
       // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
       const weekNumberInMonth = Math.ceil(day / 7);
-      
+
       // Week number in year: calculate from January 1st
       // Get the first day of the year
       const januaryFirst = new Date(year, 0, 1);
@@ -368,12 +368,12 @@ export default function StoreSurveyList() {
       const firstDayOfWeek = januaryFirst.getDay();
       // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
       const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-      
+
       // Calculate days since year start
       const daysSinceYearStart = Math.floor(
         (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
       );
-      
+
       // Calculate week number: (days + offset to first Monday) / 7, rounded up
       const weekNumberInYear = Math.ceil(
         (daysSinceYearStart + firstMondayOffset + 1) / 7
@@ -424,21 +424,21 @@ export default function StoreSurveyList() {
         );
 
         // Title rows
-        sheet1.mergeCells("A1:M1");
+        sheet1.mergeCells("A1:N1");
         sheet1.getCell(
           "A1"
         ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
         sheet1.getCell("A1").font = { bold: true, size: 14 };
         sheet1.getCell("A1").alignment = { horizontal: "center" };
 
-        sheet1.mergeCells("A2:M2");
+        sheet1.mergeCells("A2:N2");
         sheet1.getCell("A2").value = `Địa bàn: ${
           territoryName || "Chưa xác định"
         }`;
         sheet1.getCell("A2").font = { bold: true, size: 12 };
         sheet1.getCell("A2").alignment = { horizontal: "center" };
 
-        sheet1.mergeCells("A3:M3");
+        sheet1.mergeCells("A3:N3");
         sheet1.getCell(
           "A3"
         ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
@@ -451,6 +451,7 @@ export default function StoreSurveyList() {
           "Tên Cửa hàng",
           "Ngày thăm",
           "Tên + SDT",
+          "Tên sản phẩm",
           "Loại XM",
           "Giá mua",
           "Giá bán",
@@ -496,6 +497,7 @@ export default function StoreSurveyList() {
                 isFirstRow ? firstSurvey.StoreName || "" : "",
                 isFirstRow ? formatDate(firstSurvey.AuditDate) : "",
                 product.ContactPersonPhone || "",
+                product.ProductType || "",
                 product.CementProductName || "",
                 formatVND(product.PurchasePrice),
                 formatVND(product.SellingPrice),
@@ -529,6 +531,7 @@ export default function StoreSurveyList() {
           { width: 25 },
           { width: 12 },
           { width: 20 },
+          { width: 18 },
           { width: 20 },
           { width: 12 },
           { width: 12 },
@@ -855,24 +858,25 @@ export default function StoreSurveyList() {
       {/* Thông tin bán hàng (Title 3) */}
       {surveys.filter((survey) => survey.products && survey.products.length > 0)
         .length > 0 && (
-      <div className="table-container">
+        <div className="table-container">
           <h3 className="table-section-title">Thông tin bán hàng</h3>
-        <table className="survey-list-table">
-          <thead>
-            <tr>
-              <th>Stt</th>
-              <th>Tên cửa hàng</th>
-              <th>Ngày thăm</th>
-              <th>Người tiếp xúc</th>
-              <th>Loại XM</th>
-              <th>Giá mua</th>
-              <th>Giá bán</th>
-              <th>Số lượng tồn bình quân (tấn/tháng)</th>
-              <th>Mua qua NPP</th>
-              <th>Thao tác</th>
-            </tr>
-          </thead>
-          <tbody>
+          <table className="survey-list-table">
+            <thead>
+              <tr>
+                <th>Stt</th>
+                <th>Tên cửa hàng</th>
+                <th>Ngày thăm</th>
+                <th>Người tiếp xúc</th>
+                <th>Tên sản phẩm</th>
+                <th>Loại XM</th>
+                <th>Giá mua</th>
+                <th>Giá bán</th>
+                <th>Số lượng tồn bình quân (tấn/tháng)</th>
+                <th>Mua qua NPP</th>
+                <th>Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
               {surveys
                 .filter(
                   (survey) => survey.products && survey.products.length > 0
@@ -885,6 +889,7 @@ export default function StoreSurveyList() {
                       <td>{survey.StoreName || "-"}</td>
                       <td>{formatDate(survey.AuditDate) || "-"}</td>
                       <td>{mainProduct?.ContactPersonPhone || "-"}</td>
+                      <td>{mainProduct?.ProductType || "-"}</td>
                       <td>{mainProduct?.CementProductName || "-"}</td>
                       <td>
                         {formatVND(mainProduct?.PurchasePrice || null) || "-"}
@@ -910,9 +915,9 @@ export default function StoreSurveyList() {
                     </tr>
                   );
                 })}
-          </tbody>
-        </table>
-      </div>
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

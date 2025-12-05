@@ -283,6 +283,9 @@ export default function StoreSurveyScreen() {
 
   const handleAddProduct = () => {
     const newIndex = surveyData.products.length;
+    // Autofill contactPersonPhone from first product if available
+    const firstProductContact =
+      surveyData.products[0]?.contactPersonPhone || "";
     setSurveyData((prev) => ({
       ...prev,
       products: [
@@ -290,7 +293,7 @@ export default function StoreSurveyScreen() {
         {
           productType: "",
           cementProductId: null,
-          contactPersonPhone: "",
+          contactPersonPhone: firstProductContact,
           purchasePrice: "",
           sellingPrice: "",
           roadTransportFee: "",

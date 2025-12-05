@@ -176,7 +176,7 @@ export default function StoreSurveyDetail() {
       const sheet1 = workbook.addWorksheet("Thông tin bán hàng");
 
       // Title rows
-      sheet1.mergeCells("A1:M1");
+      sheet1.mergeCells("A1:N1");
       sheet1.getCell(
         "A1"
       ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
@@ -203,6 +203,7 @@ export default function StoreSurveyDetail() {
         "Tên Cửa hàng",
         "Ngày thăm",
         "Tên + SDT",
+        "Tên sản phẩm",
         "Loại XM",
         "Giá mua",
         "Giá bán",
@@ -234,6 +235,7 @@ export default function StoreSurveyDetail() {
             survey.StoreName || "",
             formatDate(survey.AuditDate),
             product.ContactPersonPhone || "",
+            product.ProductType || "",
             product.CementProductName || "",
             formatVND(product.PurchasePrice),
             formatVND(product.SellingPrice),
@@ -290,6 +292,7 @@ export default function StoreSurveyDetail() {
         { width: 25 },
         { width: 12 },
         { width: 20 },
+        { width: 18 },
         { width: 20 },
         { width: 12 },
         { width: 12 },
@@ -477,6 +480,7 @@ export default function StoreSurveyDetail() {
                     <th>Tên Cửa hàng</th>
                     <th>Ngày thăm</th>
                     <th>Tên + SDT</th>
+                    <th>Tên sản phẩm</th>
                     <th>Loại XM</th>
                     <th>Giá mua</th>
                     <th>Giá bán</th>
@@ -495,6 +499,7 @@ export default function StoreSurveyDetail() {
                       <td>{survey.StoreName}</td>
                       <td>{formatDate(survey.AuditDate)}</td>
                       <td>{product.ContactPersonPhone || ""}</td>
+                      <td>{product.ProductType || ""}</td>
                       <td>{product.CementProductName || ""}</td>
                       <td>{formatVND(product.PurchasePrice)}</td>
                       <td>{formatVND(product.SellingPrice)}</td>
