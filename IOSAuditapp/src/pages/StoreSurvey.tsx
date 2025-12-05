@@ -655,13 +655,23 @@ const StoreSurvey = () => {
         });
       }
 
-      // Clear saved data from localStorage
+      // Keep form defaults for next store, but clear tên + SĐT fields
+      const nextSurveyData: SurveyData = {
+        ...surveyData,
+        products: surveyData.products.map((p) => ({
+          ...p,
+          contactPersonPhone: "",
+        })),
+      };
+
+      setSurveyData(nextSurveyData);
+
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          localStorage.removeItem(storageKey);
+          localStorage.setItem(storageKey, JSON.stringify(nextSurveyData));
         } catch (error) {
-          console.error("Error clearing saved survey data:", error);
+          console.error("Error saving survey defaults for next store:", error);
         }
       }
 

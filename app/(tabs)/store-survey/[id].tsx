@@ -668,14 +668,25 @@ export default function StoreSurveyScreen() {
         });
       }
 
-      // Clear survey data and saved data from AsyncStorage
+      // Clear captured data (images/notes) but keep form defaults for next store
       clearSurveyData();
+
+      const nextSurveyData: SurveyData = {
+        ...surveyData,
+        products: surveyData.products.map((p) => ({
+          ...p,
+          contactPersonPhone: "",
+        })),
+      };
+
+      setSurveyData(nextSurveyData);
+
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.removeItem(storageKey);
+          await AsyncStorage.setItem(storageKey, JSON.stringify(nextSurveyData));
         } catch (error) {
-          console.error("Error clearing saved survey data:", error);
+          console.error("Error saving survey defaults for next store:", error);
         }
       }
 

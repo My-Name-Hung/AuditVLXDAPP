@@ -320,4 +320,3 @@ module.exports = {
   updateStoreSurvey,
   deleteStoreSurvey,
 };
-
