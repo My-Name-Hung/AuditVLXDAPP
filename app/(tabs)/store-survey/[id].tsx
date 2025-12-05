@@ -1489,7 +1489,7 @@ export default function StoreSurveyScreen() {
 
                 <View style={styles.field}>
                   <Text style={[styles.label, { color: colors.text }]}>
-                    Ý kiến/Ghi chú
+                    Ý kiến của cửa hàng
                   </Text>
                   <TextInput
                     style={[
@@ -1504,7 +1504,7 @@ export default function StoreSurveyScreen() {
                     onChangeText={(value) =>
                       handleInputChange("storeComment", value)
                     }
-                    placeholder="Nhập ý kiến/Ghi chú (không bắt buộc)"
+                    placeholder="Nhập ý kiến của cửa hàng (không bắt buộc)"
                     placeholderTextColor={colors.icon}
                     multiline
                     numberOfLines={3}

@@ -7,7 +7,7 @@ const ExcelJS = require("exceljs");
 const getAllStores = async (req, res) => {
   try {
     const {
-      status: statusParam,
+      status,
       territoryId,
       userId,
       rank,
@@ -20,9 +20,9 @@ const getAllStores = async (req, res) => {
 
     // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole =
-      req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
+    if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
     if (userId) {
       // If explicit userId is provided (e.g. Admin web filter), always respect it
@@ -43,13 +43,8 @@ const getAllStores = async (req, res) => {
     const limit = parseInt(pageSize) || 50;
     const offset = (currentPage - 1) * limit;
 
-    // For status filtering we need to compute status after enrichment (per-day),
-    // so we fetch full dataset and slice manually for pagination.
-    const shouldFilterStatus = !!statusParam;
-    if (!shouldFilterStatus) {
-      filters.limit = limit;
-      filters.offset = offset;
-    }
+    filters.limit = limit;
+    filters.offset = offset;
 
     const [stores, total] = await Promise.all([
       Store.findAll(filters),
@@ -75,7 +70,7 @@ const getAllStores = async (req, res) => {
     const primaryUsersMap = await getPrimaryUsersMap(pool, stores);
     const latestAuditMap = await getLatestAuditMap(pool, storeIds);
 
-    let computedStores = stores.map((store) => {
+    for (const store of stores) {
       let assignedUsers = storeUsersMap.get(store.Id) || [];
 
       if (assignedUsers.length === 0 && store.UserId) {
@@ -110,32 +105,15 @@ const getAllStores = async (req, res) => {
       } else if (!store.Status) {
         store.Status = "not_audited";
       }
-      return store;
-    });
-
-    // Apply status filtering after computing per-user, per-day statuses.
-    if (shouldFilterStatus) {
-      computedStores = computedStores.filter((store) => {
-        if (statusParam === "audited") {
-          return store.Status && store.Status !== "not_audited";
-        }
-        return store.Status === "not_audited";
-      });
     }
 
-    // Manual pagination when status filter is applied
-    const totalItems = shouldFilterStatus ? computedStores.length : total;
-    const paginatedStores = shouldFilterStatus
-      ? computedStores.slice(offset, offset + limit)
-      : computedStores;
-
     res.json({
-      data: paginatedStores,
+      data: stores,
       pagination: {
         page: currentPage,
         pageSize: limit,
-        total: totalItems,
-        totalPages: Math.ceil(totalItems / limit),
+        total: total,
+        totalPages: Math.ceil(total / limit),
       },
     });
   } catch (error) {
@@ -755,15 +733,12 @@ const getLatestAuditMap = async (pool, storeIds) => {
           StoreId,
           UserId,
           Result,
-          AuditDate,
           ROW_NUMBER() OVER (
             PARTITION BY StoreId, UserId
             ORDER BY AuditDate DESC, CreatedAt DESC
           ) AS RowNum
         FROM Audits
-        WHERE 
-          StoreId IN (${inClause})
-          AND CAST(AuditDate AS DATE) = CAST(GETDATE() AS DATE)
+        WHERE StoreId IN (${inClause})
       )
       SELECT StoreId, UserId, Result
       FROM RankedAudits
@@ -879,55 +854,36 @@ const getStoreById = async (req, res) => {
     }
 
     // Filter audits by current user
-    const todayKey = new Date().toISOString().slice(0, 10);
-    const isSameDay = (value) => {
-      if (!value) return false;
-      const date = new Date(value);
-      if (Number.isNaN(date.getTime())) return false;
-      return date.toISOString().slice(0, 10) === todayKey;
-    };
-
     const userAudits = currentUserId
-      ? audits.filter(
-          (audit) =>
-            audit.UserId === currentUserId || audit.userId === currentUserId
-        )
+      ? audits.filter((audit) => audit.UserId === currentUserId)
       : audits;
 
-    // Calculate user-specific status based on today's audit (per-day status)
+    // Calculate user-specific status based on latest audit
     let userStatus = "not_audited";
     let userFailedReason = null;
     let userLatitude = storeDetails.Latitude;
     let userLongitude = storeDetails.Longitude;
 
     if (currentUserId && userAudits.length > 0) {
-      const todaysAudit = [...userAudits]
-        .filter((audit) => isSameDay(audit.AuditDate))
-        .sort((a, b) => new Date(b.AuditDate) - new Date(a.AuditDate))[0];
-
-      const latestAuditAnyDay = [...userAudits].sort(
+      // Get latest audit for this user
+      const latestAudit = userAudits.sort(
         (a, b) => new Date(b.AuditDate) - new Date(a.AuditDate)
       )[0];
 
-      const auditForStatus = todaysAudit;
-      const auditForLocation = todaysAudit || latestAuditAnyDay;
-
-      if (auditForStatus) {
-        if (auditForStatus.Result === "pass") {
-          userStatus = "passed";
-          userFailedReason = null;
-        } else if (auditForStatus.Result === "fail") {
-          userStatus = "failed";
-          userFailedReason = auditForStatus.FailedReason;
-        } else if (auditForStatus.Result === "audited") {
-          userStatus = "audited";
-          userFailedReason = null;
-        }
+      if (latestAudit.Result === "pass") {
+        userStatus = "passed";
+        userFailedReason = null;
+      } else if (latestAudit.Result === "fail") {
+        userStatus = "failed";
+        userFailedReason = latestAudit.FailedReason;
+      } else if (latestAudit.Result === "audited") {
+        userStatus = "audited";
+        userFailedReason = null;
       }
 
-      // Get latitude/longitude from audit's first image (prefer today's audit)
-      if (auditForLocation?.Images && auditForLocation.Images.length > 0) {
-        const firstImage = auditForLocation.Images[0];
+      // Get latitude/longitude from latest audit's first image
+      if (latestAudit.Images && latestAudit.Images.length > 0) {
+        const firstImage = latestAudit.Images[0];
         if (firstImage.Latitude && firstImage.Longitude) {
           userLatitude = firstImage.Latitude;
           userLongitude = firstImage.Longitude;
@@ -970,15 +926,12 @@ const getStoreById = async (req, res) => {
           UserId,
           Result,
           FailedReason,
-          AuditDate,
           ROW_NUMBER() OVER (
             PARTITION BY UserId
             ORDER BY AuditDate DESC, CreatedAt DESC
           ) AS rn
         FROM Audits
-        WHERE 
-          StoreId = @StoreId
-          AND CAST(AuditDate AS DATE) = CAST(GETDATE() AS DATE)
+        WHERE StoreId = @StoreId
       )
       SELECT UserId, Result, FailedReason
       FROM RankedAudits
