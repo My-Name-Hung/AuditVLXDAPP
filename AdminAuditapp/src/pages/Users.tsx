@@ -544,10 +544,10 @@ export default function Users() {
       <div className="users-header">
         <h1>Danh sách tài khoản</h1>
         <div className="users-actions">
-          <button className="btn-add" onClick={() => navigate("/users/new")}>
+          <button className="btn-add-user" onClick={() => navigate("/users/new")}>
             <HiPlus /> Thêm tài khoản
           </button>
-          <button className="btn-download" onClick={handleExportUsers}>
+          <button className="btn-download-user" onClick={handleExportUsers}>
             <HiArrowDownTray /> Xuất Excel
           </button>
         </div>

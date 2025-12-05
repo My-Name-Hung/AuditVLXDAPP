@@ -23,8 +23,8 @@
   color: var(--text-primary);
 }
 
-.btn-export {
-  background-color: var(--primary-color);
+.btn-export-dashboard {
+  background-color: #3A5A40;
   color: white;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -35,8 +35,8 @@
   transition: background-color 0.15s ease;
 }
 
-.btn-export:hover {
-  background-color: #0129a0;
+.btn-export-dashboard:hover {
+  background-color: #588157;
 }
 
 .dashboard-filters {

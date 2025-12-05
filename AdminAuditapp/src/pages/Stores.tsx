@@ -652,10 +652,10 @@ export default function Stores() {
           </button>
         </div>
         <div className="stores-actions">
-          <button className="btn-add" onClick={() => navigate("/stores/new")}>
+          <button className="btn-add-store" onClick={() => navigate("/stores/new")}>
             <HiPlus /> Thêm cửa hàng
           </button>
-          <button className="btn-download" onClick={handleExportStores}>
+          <button className="btn-download-store" onClick={handleExportStores}>
             <HiArrowDownTray /> Xuất Excel
           </button>
         </div>

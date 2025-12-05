@@ -17,9 +17,9 @@
   color: #333;
 }
 
-.btn-export {
+.btn-export-survey {
   padding: 10px 20px;
-  background: #0138c3;
+  background: #3a5a40;
   color: #fff;
   border: none;
   border-radius: 4px;
@@ -29,11 +29,11 @@
   transition: opacity 0.2s;
 }
 
-.btn-export:hover:not(:disabled) {
+.btn-export-survey:hover:not(:disabled) {
   opacity: 0.9;
 }
 
-.btn-export:disabled {
+.btn-export-survey:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
@@ -163,12 +163,28 @@
   text-align: center;
 }
 
-/* Cột Loại XM - hiển thị trên 1 dòng */
+/* Cột Tên sản phẩm - hiển thị trên 1 dòng */
 .survey-list-table tbody tr td:nth-child(5) {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 300px;
+}
+
+/* Cột Loại XM - giới hạn xuống nhiều dòng */
+.survey-list-table tbody tr td:nth-child(6) {
+  max-width: 250px;
+  word-wrap: break-word;
+  white-space: normal;
+  line-height: 1.4;
+  max-height: 4.2em; /* Giới hạn khoảng 3 dòng (1.4em * 3) */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  text-align: left;
+  padding: 8px 12px;
 }
 
 .survey-list-table tbody tr:hover {

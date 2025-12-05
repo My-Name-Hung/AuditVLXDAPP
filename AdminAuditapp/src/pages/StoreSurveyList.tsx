@@ -652,7 +652,7 @@ export default function StoreSurveyList() {
       <div className="store-survey-list-header">
         <h1>Danh sách khảo sát</h1>
         <button
-          className="btn-export"
+          className="btn-export-survey"
           onClick={handleExportExcel}
           disabled={exportLoading}
         >

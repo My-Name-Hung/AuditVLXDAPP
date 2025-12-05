@@ -291,6 +291,10 @@ export default function StoreDetailScreen() {
       return;
     }
     if (hasUserTodayAudit) {
+      // Clear captured images if user has completed audit today (navigated back from survey)
+      setCapturedImages([undefined, undefined, undefined]);
+      setNotes("");
+      setCachedLocation(null);
       setShowNewAuditModal(false);
       promptedDateRef.current = formatDateKey(new Date());
       setAllowNewAudit(false);

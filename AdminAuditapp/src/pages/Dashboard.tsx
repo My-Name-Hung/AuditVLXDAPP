@@ -497,7 +497,7 @@ export default function Dashboard() {
           <p className="page-kicker">Thống kê</p>
           <h2>Tổng quan hoạt động</h2>
         </div>
-        <button className="btn-export" onClick={handleExport}>
+        <button className="btn-export-dashboard" onClick={handleExport}>
           Tải báo cáo
         </button>
       </div>

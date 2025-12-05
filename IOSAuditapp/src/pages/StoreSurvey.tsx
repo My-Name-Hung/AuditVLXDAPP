@@ -606,9 +606,8 @@ const StoreSurvey = () => {
       });
 
       // Step 3: Create survey
-      const newProductImportQty = surveyData.newProductImportQuantity?.trim()
-        ? parseVND(surveyData.newProductImportQuantity)
-        : null;
+      const newProductImportQty =
+        surveyData.newProductImportQuantity?.trim() || null;
 
       await api.post("/store-surveys", {
         storeId: parsedStoreId,
@@ -1571,17 +1570,23 @@ const StoreSurvey = () => {
         <div className="store-survey-modal-backdrop">
           <div
             className="store-survey-modal"
-            style={{ maxWidth: "500px", width: "90%" }}
+            style={{ maxWidth: "400px", width: "85%" }}
           >
-            <h2 style={{ color: colors.text, marginBottom: "16px" }}>
+            <h2
+              style={{
+                color: colors.text,
+                fontSize: "20px",
+                fontWeight: "bold",
+                marginBottom: "8px",
+              }}
+            >
               Cảnh báo
             </h2>
             <p
               style={{
-                color: colors.text,
-                marginBottom: "24px",
-                lineHeight: "1.6",
-                textAlign: "center",
+                color: colors.icon,
+                marginBottom: "16px",
+                fontSize: "14px",
               }}
             >
               Vui lòng điền đầy đủ tất cả các thông tin khảo sát, bao gồm cả 2
@@ -1592,7 +1597,6 @@ const StoreSurvey = () => {
               style={{
                 display: "flex",
                 gap: "12px",
-                justifyContent: "center",
               }}
             >
               <button
@@ -1600,22 +1604,21 @@ const StoreSurvey = () => {
                 onClick={() => setShowValidationModal(false)}
                 style={{
                   flex: 1,
-                  padding: "12px 24px",
-                  borderRadius: "6px",
-                  border: "1px solid #1d4ed8",
-                  backgroundColor: "#dbeafe",
-                  color: "#1d4ed8",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: "#f1f5f9",
+                  color: colors.text,
                   fontWeight: "600",
-                  fontSize: "14px",
+                  fontSize: "16px",
                   cursor: "pointer",
-                  boxShadow: "0 0 0 1px rgba(29, 78, 216, 0.15)",
                   transition: "background-color 0.2s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#bfdbfe";
+                  e.currentTarget.style.backgroundColor = "#e2e8f0";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#dbeafe";
+                  e.currentTarget.style.backgroundColor = "#f1f5f9";
                 }}
               >
                 Tiếp tục điền
@@ -1628,22 +1631,21 @@ const StoreSurvey = () => {
                 }}
                 style={{
                   flex: 1,
-                  padding: "12px 24px",
-                  borderRadius: "6px",
-                  border: "1px solid #1d4ed8",
-                  backgroundColor: "#dbeafe",
-                  color: "#1d4ed8",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: colors.primary,
+                  color: "#fff",
                   fontWeight: "600",
-                  fontSize: "14px",
+                  fontSize: "16px",
                   cursor: "pointer",
-                  boxShadow: "0 0 0 1px rgba(29, 78, 216, 0.15)",
                   transition: "background-color 0.2s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = "#bfdbfe";
+                  e.currentTarget.style.backgroundColor = "#1e40af";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = "#dbeafe";
+                  e.currentTarget.style.backgroundColor = colors.primary;
                 }}
               >
                 Xác nhận hoàn thành

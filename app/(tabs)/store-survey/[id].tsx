@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -619,9 +619,8 @@ export default function StoreSurveyScreen() {
       });
 
       // Step 3: Create survey
-      const newProductImportQty = surveyData.newProductImportQuantity?.trim()
-        ? parseVND(surveyData.newProductImportQuantity)
-        : null;
+      const newProductImportQty =
+        surveyData.newProductImportQuantity?.trim() || null;
 
       await api.post("/store-surveys", {
         storeId: storeId,
@@ -684,7 +683,10 @@ export default function StoreSurveyScreen() {
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.setItem(storageKey, JSON.stringify(nextSurveyData));
+          await AsyncStorage.setItem(
+            storageKey,
+            JSON.stringify(nextSurveyData)
+          );
         } catch (error) {
           console.error("Error saving survey defaults for next store:", error);
         }
@@ -2024,7 +2026,10 @@ export default function StoreSurveyScreen() {
               Cảnh báo
             </Text>
             <Text
-              style={[styles.validationModalMessage, { color: colors.text }]}
+              style={[
+                styles.validationModalMessage,
+                { color: colors.icon, marginTop: 8 },
+              ]}
             >
               Vui lòng điền đầy đủ tất cả các thông tin khảo sát, bao gồm cả 2
               phần liên quan đến cửa hàng để hoàn tất quá trình đánh giá.
@@ -2033,17 +2038,15 @@ export default function StoreSurveyScreen() {
               <TouchableOpacity
                 style={[
                   styles.validationModalButton,
-                  {
-                    backgroundColor: "#dbeafe",
-                    borderColor: "#1d4ed8",
-                  },
+                  styles.validationModalButtonCancel,
+                  { backgroundColor: colors.icon + "20" },
                 ]}
                 onPress={() => setShowValidationModal(false)}
               >
                 <Text
                   style={[
                     styles.validationModalButtonText,
-                    { color: "#1d4ed8" },
+                    { color: colors.text },
                   ]}
                 >
                   Tiếp tục điền
@@ -2052,22 +2055,15 @@ export default function StoreSurveyScreen() {
               <TouchableOpacity
                 style={[
                   styles.validationModalButton,
-                  {
-                    backgroundColor: "#dbeafe",
-                    borderColor: "#1d4ed8",
-                  },
+                  styles.validationModalButtonConfirm,
+                  { backgroundColor: colors.primary },
                 ]}
                 onPress={() => {
                   setShowValidationModal(false);
                   submitSurvey();
                 }}
               >
-                <Text
-                  style={[
-                    styles.validationModalButtonText,
-                    { color: "#1d4ed8" },
-                  ]}
-                >
+                <Text style={styles.validationModalButtonTextConfirm}>
                   Xác nhận hoàn thành
                 </Text>
               </TouchableOpacity>
@@ -2366,43 +2362,42 @@ const styles = StyleSheet.create({
   validationModalContent: {
     width: "85%",
     maxWidth: 400,
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 24,
-    alignItems: "center",
   },
   validationModalTitle: {
     fontSize: 20,
-    fontWeight: "600",
-    marginBottom: 16,
-    textAlign: "center",
+    fontWeight: "bold",
+    marginBottom: 8,
   },
   validationModalMessage: {
     fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 24,
-    textAlign: "center",
+    marginBottom: 16,
   },
   validationModalActions: {
     flexDirection: "row",
     gap: 12,
-    width: "100%",
   },
   validationModalButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 6,
-    borderWidth: 1,
+    padding: 12,
+    borderRadius: 8,
     alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#1d4ed8",
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.15,
-    shadowRadius: 1,
-    elevation: 2,
+  },
+  validationModalButtonCancel: {
+    backgroundColor: "#f1f5f9",
+  },
+  validationModalButtonConfirm: {
+    backgroundColor: "#1d4ed8",
   },
   validationModalButtonText: {
-    fontSize: 14,
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  validationModalButtonTextConfirm: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "600",
   },
   uploadProgressModalContent: {

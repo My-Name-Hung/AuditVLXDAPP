@@ -118,7 +118,7 @@
 }
 
 .btn-add,
-.btn-download {
+.btn-download-store {
   display: flex;
   align-items: center;
   gap: 0.25rem;
@@ -129,20 +129,21 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
-  background: #dc2626;
+  /* background: #dc2626; */
   color: white;
   white-space: nowrap;
 }
 
+.btn-download-store 
+
 .btn-add svg,
-.btn-download svg {
+.btn-download-store svg {
   width: 18px;
   height: 18px;
   flex-shrink: 0;
 }
 
-.btn-add:hover,
-.btn-download:hover {
+.btn-add:hover {
   background: #b91c1c;
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);

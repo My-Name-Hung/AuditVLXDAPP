@@ -28,7 +28,7 @@ interface StoreSurvey {
   DebtPeriod: string | null;
   WhyNotSellNewProduct: string | null;
   TimeToSellNewProduct: string | null;
-  NewProductImportQuantity: number | null;
+  NewProductImportQuantity: string | null;
   ImportedBySalesperson: string | null;
   NewProductSellingPrice: number | null;
   FutureImportPrediction: number | null;

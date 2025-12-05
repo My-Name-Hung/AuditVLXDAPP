@@ -42,7 +42,7 @@ class StoreSurvey {
     request.input('DebtPeriod', sql.NVarChar(100), DebtPeriod || null);
     request.input('WhyNotSellNewProduct', sql.NVarChar(1000), WhyNotSellNewProduct || null);
     request.input('TimeToSellNewProduct', sql.DateTime, TimeToSellNewProduct || null);
-    request.input('NewProductImportQuantity', sql.Decimal(18, 2), NewProductImportQuantity || null);
+    request.input('NewProductImportQuantity', sql.NVarChar(500), NewProductImportQuantity || null);
     request.input('ImportedBySalesperson', sql.NVarChar(200), ImportedBySalesperson || null);
     request.input('StoreComment', sql.NVarChar(1000), StoreComment || null);
 
@@ -296,7 +296,7 @@ class StoreSurvey {
     request.input('DebtPeriod', sql.NVarChar(100), DebtPeriod || null);
     request.input('WhyNotSellNewProduct', sql.NVarChar(1000), WhyNotSellNewProduct || null);
     request.input('TimeToSellNewProduct', sql.DateTime, TimeToSellNewProduct || null);
-    request.input('NewProductImportQuantity', sql.Decimal(18, 2), NewProductImportQuantity || null);
+    request.input('NewProductImportQuantity', sql.NVarChar(500), NewProductImportQuantity || null);
     request.input('ImportedBySalesperson', sql.NVarChar(200), ImportedBySalesperson || null);
     request.input('StoreComment', sql.NVarChar(1000), StoreComment || null);
 
