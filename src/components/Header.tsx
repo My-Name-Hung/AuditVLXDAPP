@@ -41,15 +41,24 @@ export default function Header({ title }: HeaderProps) {
           <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
         )}
 
-        <View style={styles.logoContainer}>
-          <Image
-            source={require('@/assets/images/icon.jpg')}
-            style={[
-              styles.logo,
-              isDarkMode && { tintColor: '#FFFFFF' }
-            ]}
-            resizeMode="contain"
-          />
+        <View style={styles.rightSection}>
+          <TouchableOpacity
+            style={styles.dashboardButton}
+            onPress={() => router.push('/(tabs)/dashboard')}
+          >
+            <Ionicons name="bar-chart-outline" size={24} color={colors.primary} />
+            <Text style={[styles.dashboardText, { color: colors.text }]}>Thống kê</Text>
+          </TouchableOpacity>
+          <View style={styles.logoContainer}>
+            <Image
+              source={require('@/assets/images/icon.jpg')}
+              style={[
+                styles.logo,
+                isDarkMode && { tintColor: '#FFFFFF' }
+              ]}
+              resizeMode="contain"
+            />
+          </View>
         </View>
       </View>
     </SafeAreaView>
@@ -88,6 +97,22 @@ const styles = StyleSheet.create({
     flex: 1,
     textAlign: 'center',
     marginHorizontal: 16,
+  },
+  rightSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dashboardButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  dashboardText: {
+    fontSize: 12,
+    fontWeight: '500',
   },
   logoContainer: {
     width: 40,

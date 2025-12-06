@@ -11,6 +11,7 @@ import Stores from './pages/Stores';
 import StoreDetail from './pages/StoreDetail';
 import StoreSurvey from './pages/StoreSurvey';
 import Profile from './pages/Profile';
+import Dashboard from './pages/Dashboard';
 import './App.css';
 
 function ProtectedRoute({ children, allowPasswordChange = false }: { children: React.ReactNode; allowPasswordChange?: boolean }) {
@@ -156,6 +157,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
             </ProtectedRoute>
           }
         />

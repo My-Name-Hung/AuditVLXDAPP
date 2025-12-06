@@ -345,8 +345,257 @@ async function exportReport(req, res) {
   }
 }
 
+// Get stores by date (for bar chart) - số cửa hàng đã/chưa thực hiện theo ngày
+async function getStoresByDate(req, res) {
+  try {
+    const { startDate, endDate, territoryId } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    // Build territory filter
+    let territoryFilter = "";
+    if (territoryId) {
+      territoryFilter = " AND s.TerritoryId = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
+    // Get total stores count (for calculating not audited)
+    let totalStoresQuery = `
+      SELECT COUNT(DISTINCT s.Id) as TotalStores
+      FROM Stores s
+      WHERE 1=1 ${territoryFilter}
+    `;
+    const totalStoresResult = await request.query(totalStoresQuery);
+    const totalStores = totalStoresResult.recordset[0].TotalStores || 0;
+
+    // Get audited stores by date
+    let query = `
+      SELECT 
+        CAST(a.AuditDate AS DATE) as AuditDate,
+        COUNT(DISTINCT a.StoreId) as AuditedCount
+      FROM Audits a
+      INNER JOIN Stores s ON a.StoreId = s.Id
+      INNER JOIN Images img ON a.Id = img.AuditId
+      WHERE img.ImageUrl IS NOT NULL 
+        AND img.ImageUrl != ''
+        AND CAST(a.AuditDate AS DATE) IS NOT NULL
+    `;
+
+    if (territoryId) {
+      query += " AND s.TerritoryId = @territoryId";
+    }
+
+    if (startDate) {
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    query += `
+      GROUP BY CAST(a.AuditDate AS DATE)
+      ORDER BY AuditDate ASC
+    `;
+
+    const result = await request.query(query);
+
+    // Calculate not audited count for each date
+    // Not audited = Total stores - stores audited up to that date
+    const processedData = result.recordset.map((row) => {
+      // For each date, not audited = total - audited on that date
+      // This is a simplified calculation - in reality, we might want cumulative counts
+      return {
+        AuditDate: row.AuditDate,
+        AuditedCount: row.AuditedCount,
+        NotAuditedCount: Math.max(0, totalStores - row.AuditedCount),
+      };
+    });
+
+    res.json({
+      success: true,
+      data: processedData,
+    });
+  } catch (error) {
+    console.error("Error fetching stores by date:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching stores by date",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
+// Get product prices (for pie chart) - giá mua/giá bán theo loại sản phẩm
+async function getProductPrices(req, res) {
+  try {
+    const { cementProductId } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    if (!cementProductId) {
+      return res.status(400).json({
+        success: false,
+        message: "cementProductId is required",
+      });
+    }
+
+    let query = `
+      SELECT 
+        ssp.PurchasePrice,
+        ssp.SellingPrice,
+        COUNT(*) as Count
+      FROM StoreSurveyProducts ssp
+      INNER JOIN StoreSurveys ss ON ssp.StoreSurveyId = ss.Id
+      WHERE ssp.CementProductId = @cementProductId
+        AND ssp.PurchasePrice IS NOT NULL
+        AND ssp.SellingPrice IS NOT NULL
+    `;
+
+    request.input("cementProductId", sql.Int, parseInt(cementProductId, 10));
+
+    query += `
+      GROUP BY ssp.PurchasePrice, ssp.SellingPrice
+      ORDER BY ssp.PurchasePrice ASC, ssp.SellingPrice ASC
+    `;
+
+    const result = await request.query(query);
+
+    // Calculate totals for pie chart
+    const totalPurchase = result.recordset.reduce(
+      (sum, row) => sum + (row.PurchasePrice || 0) * (row.Count || 0),
+      0
+    );
+    const totalSelling = result.recordset.reduce(
+      (sum, row) => sum + (row.SellingPrice || 0) * (row.Count || 0),
+      0
+    );
+
+    res.json({
+      success: true,
+      data: {
+        prices: result.recordset,
+        totalPurchase,
+        totalSelling,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching product prices:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching product prices",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
+// Get summary table - table tổng hợp cửa hàng, audit status, sản phẩm, giá
+async function getSummaryTable(req, res) {
+  try {
+    const { page = 1, pageSize = 20, territoryId, startDate, endDate } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    const offset = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
+    const limit = parseInt(pageSize, 10);
+
+    let query = `
+      SELECT 
+        s.Id as StoreId,
+        s.StoreCode,
+        s.StoreName,
+        s.TerritoryName,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM Audits a
+            INNER JOIN Images img ON a.Id = img.AuditId
+            WHERE a.StoreId = s.Id
+              AND img.ImageUrl IS NOT NULL
+              AND img.ImageUrl != ''
+          ) THEN 'Đã thực hiện'
+          ELSE 'Chưa thực hiện'
+        END as AuditStatus,
+        cp.Name as ProductName,
+        ssp.PurchasePrice,
+        ssp.SellingPrice
+      FROM Stores s
+      LEFT JOIN StoreSurveys ss ON s.Id = ss.StoreId
+      LEFT JOIN StoreSurveyProducts ssp ON ss.Id = ssp.StoreSurveyId
+      LEFT JOIN CementProducts cp ON ssp.CementProductId = cp.Id
+      WHERE 1=1
+    `;
+
+    if (territoryId) {
+      query += " AND s.TerritoryId = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
+    if (startDate) {
+      query += " AND (ss.AuditDate IS NULL OR CAST(ss.AuditDate AS DATE) >= @startDate)";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      query += " AND (ss.AuditDate IS NULL OR CAST(ss.AuditDate AS DATE) <= @endDate)";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    // Count total
+    const countQuery = query.replace(
+      /SELECT[\s\S]*?FROM/,
+      "SELECT COUNT(DISTINCT s.Id) as Total FROM"
+    );
+    const countRequest = pool.request();
+    if (territoryId) {
+      countRequest.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+    if (startDate) {
+      countRequest.input("startDate", sql.Date, startDate);
+    }
+    if (endDate) {
+      countRequest.input("endDate", sql.Date, endDate);
+    }
+    const countResult = await countRequest.query(countQuery);
+    const total = countResult.recordset[0].Total || 0;
+
+    query += `
+      ORDER BY s.StoreName ASC, cp.Name ASC
+      OFFSET @offset ROWS
+      FETCH NEXT @limit ROWS ONLY
+    `;
+
+    request.input("offset", sql.Int, offset);
+    request.input("limit", sql.Int, limit);
+
+    const result = await request.query(query);
+
+    res.json({
+      success: true,
+      data: result.recordset,
+      pagination: {
+        page: parseInt(page, 10),
+        pageSize: limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching summary table:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching summary table",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
 module.exports = {
   getSummary,
   getUserDetail,
   exportReport,
+  getStoresByDate,
+  getProductPrices,
+  getSummaryTable,
 };
