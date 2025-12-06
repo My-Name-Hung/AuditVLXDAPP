@@ -630,7 +630,11 @@ async function getSummaryTable(req, res) {
     const countResult = await countRequest.query(countQuery);
     const total = countResult.recordset[0].Total || 0;
 
-    // Build ORDER BY clause to prioritize "Đã thực hiện" stores first
+    // Build ORDER BY clause to prioritize:
+    // 1. "Đã thực hiện" stores with purchase/selling prices
+    // 2. "Đã thực hiện" stores without prices
+    // 3. "Chưa thực hiện" stores with prices
+    // 4. "Chưa thực hiện" stores without prices
     query += `
       ORDER BY 
         CASE 
@@ -641,6 +645,10 @@ async function getSummaryTable(req, res) {
               AND img.ImageUrl IS NOT NULL
               AND img.ImageUrl != ''
           ) THEN 0
+          ELSE 1
+        END ASC,
+        CASE 
+          WHEN ssp.PurchasePrice IS NOT NULL AND ssp.SellingPrice IS NOT NULL THEN 0
           ELSE 1
         END ASC,
         s.StoreName ASC, 
