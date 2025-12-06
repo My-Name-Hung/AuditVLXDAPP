@@ -682,5 +682,6 @@ module.exports = {
   exportReport,
   getStoresByDate,
   getProductPrices,
+  getProductTypes,
   getSummaryTable,
 };
