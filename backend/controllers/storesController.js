@@ -20,7 +20,8 @@ const getAllStores = async (req, res) => {
 
     // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
 
     if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
@@ -865,19 +866,24 @@ const getStoreById = async (req, res) => {
     let userLongitude = storeDetails.Longitude;
 
     if (currentUserId && userAudits.length > 0) {
-      // Get latest audit for this user
-      const latestAudit = userAudits.sort(
-        (a, b) => new Date(b.AuditDate) - new Date(a.AuditDate)
-      )[0];
+      // Get latest audit for this user (sort by AuditDate DESC, then CreatedAt DESC to match getAllStores logic)
+      const latestAudit = userAudits.sort((a, b) => {
+        const dateA = new Date(a.AuditDate);
+        const dateB = new Date(b.AuditDate);
+        if (dateB.getTime() !== dateA.getTime()) {
+          return dateB.getTime() - dateA.getTime();
+        }
+        // If same AuditDate, sort by CreatedAt
+        const createdA = new Date(a.AuditCreatedAt || a.CreatedAt || 0);
+        const createdB = new Date(b.AuditCreatedAt || b.CreatedAt || 0);
+        return createdB.getTime() - createdA.getTime();
+      })[0];
 
-      if (latestAudit.Result === "pass") {
-        userStatus = "passed";
-        userFailedReason = null;
-      } else if (latestAudit.Result === "fail") {
-        userStatus = "failed";
+      // Use mapAuditResultToStatus to ensure consistency with getAllStores
+      userStatus = mapAuditResultToStatus(latestAudit.Result);
+      if (latestAudit.Result === "fail") {
         userFailedReason = latestAudit.FailedReason;
-      } else if (latestAudit.Result === "audited") {
-        userStatus = "audited";
+      } else {
         userFailedReason = null;
       }
 
