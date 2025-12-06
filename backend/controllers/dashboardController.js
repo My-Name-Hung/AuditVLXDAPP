@@ -506,7 +506,7 @@ async function getSummaryTable(req, res) {
         s.Id as StoreId,
         s.StoreCode,
         s.StoreName,
-        s.TerritoryName,
+        t.TerritoryName,
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM Audits a
@@ -521,6 +521,7 @@ async function getSummaryTable(req, res) {
         ssp.PurchasePrice,
         ssp.SellingPrice
       FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
       LEFT JOIN StoreSurveys ss ON s.Id = ss.StoreId
       LEFT JOIN StoreSurveyProducts ssp ON ss.Id = ssp.StoreSurveyId
       LEFT JOIN CementProducts cp ON ssp.CementProductId = cp.Id
@@ -532,21 +533,63 @@ async function getSummaryTable(req, res) {
       request.input("territoryId", sql.Int, parseInt(territoryId, 10));
     }
 
-    if (startDate) {
-      query += " AND (ss.AuditDate IS NULL OR CAST(ss.AuditDate AS DATE) >= @startDate)";
-      request.input("startDate", sql.Date, startDate);
+    // Date filters should apply to audit date
+    // If date filters are provided, only show stores that have audits in that date range
+    // OR stores that have no audits at all (so they appear in the "Chưa thực hiện" status)
+    if (startDate || endDate) {
+      query += ` AND (
+        NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
+        OR EXISTS (
+          SELECT 1 FROM Audits a2
+          INNER JOIN Images img2 ON a2.Id = img2.AuditId
+          WHERE a2.StoreId = s.Id
+            AND img2.ImageUrl IS NOT NULL
+            AND img2.ImageUrl != ''
+      `;
+      if (startDate) {
+        query += " AND CAST(a2.AuditDate AS DATE) >= @startDate";
+        request.input("startDate", sql.Date, startDate);
+      }
+      if (endDate) {
+        query += " AND CAST(a2.AuditDate AS DATE) <= @endDate";
+        request.input("endDate", sql.Date, endDate);
+      }
+      query += " )";
+      query += " )";
     }
 
-    if (endDate) {
-      query += " AND (ss.AuditDate IS NULL OR CAST(ss.AuditDate AS DATE) <= @endDate)";
-      request.input("endDate", sql.Date, endDate);
+    // Count total - build separate count query
+    let countQuery = `
+      SELECT COUNT(DISTINCT s.Id) as Total
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      WHERE 1=1
+    `;
+    
+    if (territoryId) {
+      countQuery += " AND s.TerritoryId = @territoryId";
     }
-
-    // Count total
-    const countQuery = query.replace(
-      /SELECT[\s\S]*?FROM/,
-      "SELECT COUNT(DISTINCT s.Id) as Total FROM"
-    );
+    
+    if (startDate || endDate) {
+      countQuery += ` AND (
+        NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
+        OR EXISTS (
+          SELECT 1 FROM Audits a2
+          INNER JOIN Images img2 ON a2.Id = img2.AuditId
+          WHERE a2.StoreId = s.Id
+            AND img2.ImageUrl IS NOT NULL
+            AND img2.ImageUrl != ''
+      `;
+      if (startDate) {
+        countQuery += " AND CAST(a2.AuditDate AS DATE) >= @startDate";
+      }
+      if (endDate) {
+        countQuery += " AND CAST(a2.AuditDate AS DATE) <= @endDate";
+      }
+      countQuery += " )";
+      countQuery += " )";
+    }
+    
     const countRequest = pool.request();
     if (territoryId) {
       countRequest.input("territoryId", sql.Int, parseInt(territoryId, 10));
