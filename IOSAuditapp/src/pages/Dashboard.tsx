@@ -111,9 +111,18 @@ export default function Dashboard() {
   const fetchTerritories = async () => {
     try {
       const response = await api.get("/territories");
-      setTerritories(response.data.data || []);
+      console.log("Territories response:", response.data);
+      // Handle different response structures
+      if (Array.isArray(response.data)) {
+        setTerritories(response.data);
+      } else if (response.data && Array.isArray(response.data.data)) {
+        setTerritories(response.data.data);
+      } else {
+        setTerritories([]);
+      }
     } catch (error) {
       console.error("Error fetching territories:", error);
+      setTerritories([]);
     }
   };
 
@@ -136,9 +145,15 @@ export default function Dashboard() {
       if (selectedTerritory) params.territoryId = selectedTerritory;
 
       const response = await api.get("/dashboard/stores-by-date", { params });
-      setStoresByDate(response.data.data || []);
+      console.log("Stores by date response:", response.data);
+      if (response.data && response.data.success) {
+        setStoresByDate(response.data.data || []);
+      } else {
+        setStoresByDate(response.data || []);
+      }
     } catch (error) {
       console.error("Error fetching stores by date:", error);
+      setStoresByDate([]);
     }
   };
 
@@ -147,9 +162,15 @@ export default function Dashboard() {
       const response = await api.get("/dashboard/product-prices", {
         params: { cementProductId: selectedProduct },
       });
-      setProductPrices(response.data.data || null);
+      console.log("Product prices response:", response.data);
+      if (response.data && response.data.success) {
+        setProductPrices(response.data.data || null);
+      } else {
+        setProductPrices(response.data || null);
+      }
     } catch (error) {
       console.error("Error fetching product prices:", error);
+      setProductPrices(null);
     }
   };
 
@@ -164,10 +185,18 @@ export default function Dashboard() {
       if (endDate) params.endDate = endDate;
 
       const response = await api.get("/dashboard/summary-table", { params });
-      setTableData(response.data.data || []);
-      setTableTotalPages(response.data.pagination?.totalPages || 1);
+      console.log("Summary table response:", response.data);
+      if (response.data && response.data.success) {
+        setTableData(response.data.data || []);
+        setTableTotalPages(response.data.pagination?.totalPages || 1);
+      } else {
+        setTableData(response.data?.data || response.data || []);
+        setTableTotalPages(response.data?.pagination?.totalPages || 1);
+      }
     } catch (error) {
       console.error("Error fetching summary table:", error);
+      setTableData([]);
+      setTableTotalPages(1);
     }
   };
 
@@ -258,26 +287,32 @@ export default function Dashboard() {
             <label className="filter-label" style={{ color: colors.text }}>
               Từ ngày:
             </label>
-            <input
-              type="date"
-              className="date-input"
-              style={{ borderColor: colors.icon + "40", color: colors.text }}
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+            <div className="date-input-container" style={{ borderColor: colors.icon + "40" }}>
+              <input
+                type="date"
+                className="date-input"
+                style={{ color: colors.text }}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+              <span className="calendar-icon" style={{ color: colors.primary }}>📅</span>
+            </div>
           </div>
 
           <div className="filter-row">
             <label className="filter-label" style={{ color: colors.text }}>
               Đến ngày:
             </label>
-            <input
-              type="date"
-              className="date-input"
-              style={{ borderColor: colors.icon + "40", color: colors.text }}
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+            <div className="date-input-container" style={{ borderColor: colors.icon + "40" }}>
+              <input
+                type="date"
+                className="date-input"
+                style={{ color: colors.text }}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+              <span className="calendar-icon" style={{ color: colors.primary }}>📅</span>
+            </div>
           </div>
         </div>
 

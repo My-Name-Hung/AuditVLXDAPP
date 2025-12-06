@@ -7,8 +7,8 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Dimensions,
-  FlatList,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -16,6 +16,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { BarChart, PieChart } from "react-native-chart-kit";
 
 interface Territory {
@@ -102,9 +103,18 @@ export default function DashboardScreen() {
   const fetchTerritories = async () => {
     try {
       const response = await api.get("/territories");
-      setTerritories(response.data || []);
+      console.log("Territories response:", response.data);
+      // Handle different response structures
+      if (Array.isArray(response.data)) {
+        setTerritories(response.data);
+      } else if (response.data && Array.isArray(response.data.data)) {
+        setTerritories(response.data.data);
+      } else {
+        setTerritories([]);
+      }
     } catch (error) {
       console.error("Error fetching territories:", error);
+      setTerritories([]);
     }
   };
 
@@ -138,9 +148,15 @@ export default function DashboardScreen() {
       const response = await api.get("/dashboard/product-prices", {
         params: { cementProductId: selectedProduct },
       });
-      setProductPrices(response.data.data || null);
+      console.log("Product prices response:", response.data);
+      if (response.data && response.data.success) {
+        setProductPrices(response.data.data || null);
+      } else {
+        setProductPrices(response.data || null);
+      }
     } catch (error) {
       console.error("Error fetching product prices:", error);
+      setProductPrices(null);
     }
   };
 
@@ -155,10 +171,18 @@ export default function DashboardScreen() {
       if (endDate) params.endDate = endDate;
 
       const response = await api.get("/dashboard/summary-table", { params });
-      setTableData(response.data.data || []);
-      setTableTotalPages(response.data.pagination?.totalPages || 1);
+      console.log("Summary table response:", response.data);
+      if (response.data && response.data.success) {
+        setTableData(response.data.data || []);
+        setTableTotalPages(response.data.pagination?.totalPages || 1);
+      } else {
+        setTableData(response.data?.data || response.data || []);
+        setTableTotalPages(response.data?.pagination?.totalPages || 1);
+      }
     } catch (error) {
       console.error("Error fetching summary table:", error);
+      setTableData([]);
+      setTableTotalPages(1);
     }
   };
 
@@ -208,7 +232,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
               >
                 <Text style={[styles.dropdownText, { color: colors.text }]}>
-                  {selectedTerritory
+                  {selectedTerritory && territories && Array.isArray(territories)
                     ? territories.find((t) => t.Id.toString() === selectedTerritory)?.TerritoryName || "Tất cả"
                     : "Tất cả"}
                 </Text>
@@ -231,11 +255,13 @@ export default function DashboardScreen() {
                       Tất cả
                     </Text>
                   </TouchableOpacity>
-                  <FlatList
-                    data={territories}
-                    keyExtractor={(item) => item.Id.toString()}
-                    renderItem={({ item }) => (
+                  <ScrollView
+                    nestedScrollEnabled={true}
+                    style={styles.dropdownList}
+                  >
+                    {territories && Array.isArray(territories) && territories.map((item) => (
                       <TouchableOpacity
+                        key={item.Id.toString()}
                         style={styles.dropdownItem}
                         onPress={() => {
                           setSelectedTerritory(item.Id.toString());
@@ -246,9 +272,8 @@ export default function DashboardScreen() {
                           {item.TerritoryName}
                         </Text>
                       </TouchableOpacity>
-                    )}
-                    style={styles.dropdownList}
-                  />
+                    ))}
+                  </ScrollView>
                 </View>
               )}
             </View>
@@ -258,26 +283,72 @@ export default function DashboardScreen() {
             <Text style={[styles.filterLabel, { color: colors.text }]}>
               Từ ngày:
             </Text>
-            <TextInput
-              style={[styles.dateInput, { borderColor: colors.icon + "40", color: colors.text }]}
-              value={startDate}
-              onChangeText={setStartDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.icon + "80"}
-            />
+            <View style={[styles.dateInputContainer, { borderColor: colors.icon + "40" }]}>
+              <TextInput
+                style={[styles.dateInput, { color: colors.text }]}
+                value={startDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.icon + "80"}
+                editable={false}
+              />
+              <TouchableOpacity
+                onPress={() => setShowStartDatePicker(true)}
+                style={styles.calendarIconButton}
+              >
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={startDateValue || new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
+                  setShowStartDatePicker(Platform.OS === "ios");
+                  if (selectedDate) {
+                    setStartDateValue(selectedDate);
+                    const formattedDate = selectedDate.toISOString().split("T")[0];
+                    setStartDate(formattedDate);
+                  }
+                }}
+              />
+            )}
           </View>
 
           <View style={styles.filterRow}>
             <Text style={[styles.filterLabel, { color: colors.text }]}>
               Đến ngày:
             </Text>
-            <TextInput
-              style={[styles.dateInput, { borderColor: colors.icon + "40", color: colors.text }]}
-              value={endDate}
-              onChangeText={setEndDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.icon + "80"}
-            />
+            <View style={[styles.dateInputContainer, { borderColor: colors.icon + "40" }]}>
+              <TextInput
+                style={[styles.dateInput, { color: colors.text }]}
+                value={endDate}
+                placeholder="YYYY-MM-DD"
+                placeholderTextColor={colors.icon + "80"}
+                editable={false}
+              />
+              <TouchableOpacity
+                onPress={() => setShowEndDatePicker(true)}
+                style={styles.calendarIconButton}
+              >
+                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
+              </TouchableOpacity>
+            </View>
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={endDateValue || new Date()}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
+                  setShowEndDatePicker(Platform.OS === "ios");
+                  if (selectedDate) {
+                    setEndDateValue(selectedDate);
+                    const formattedDate = selectedDate.toISOString().split("T")[0];
+                    setEndDate(formattedDate);
+                  }
+                }}
+              />
+            )}
           </View>
         </View>
 
@@ -329,7 +400,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowProductDropdown(!showProductDropdown)}
               >
                 <Text style={[styles.dropdownText, { color: colors.text }]}>
-                  {selectedProduct
+                  {selectedProduct && cementProducts && Array.isArray(cementProducts)
                     ? cementProducts.find((p) => p.Id.toString() === selectedProduct)?.Name || "Chọn sản phẩm"
                     : "Chọn sản phẩm"}
                 </Text>
@@ -352,11 +423,13 @@ export default function DashboardScreen() {
                       Chọn sản phẩm
                     </Text>
                   </TouchableOpacity>
-                  <FlatList
-                    data={cementProducts}
-                    keyExtractor={(item) => item.Id.toString()}
-                    renderItem={({ item }) => (
+                  <ScrollView
+                    nestedScrollEnabled={true}
+                    style={styles.dropdownList}
+                  >
+                    {cementProducts && Array.isArray(cementProducts) && cementProducts.map((item) => (
                       <TouchableOpacity
+                        key={item.Id.toString()}
                         style={styles.dropdownItem}
                         onPress={() => {
                           setSelectedProduct(item.Id.toString());
@@ -367,9 +440,8 @@ export default function DashboardScreen() {
                           {item.Name}
                         </Text>
                       </TouchableOpacity>
-                    )}
-                    style={styles.dropdownList}
-                  />
+                    ))}
+                  </ScrollView>
                 </View>
               )}
             </View>
@@ -578,13 +650,23 @@ const styles = StyleSheet.create({
   dropdownItemText: {
     fontSize: 14,
   },
+  dateInputContainer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingRight: 8,
+  },
   dateInput: {
     flex: 1,
     height: 40,
-    borderWidth: 1,
-    borderRadius: 4,
+    borderWidth: 0,
     paddingHorizontal: 12,
     fontSize: 14,
+  },
+  calendarIconButton: {
+    padding: 4,
   },
   chartSection: {
     padding: 16,

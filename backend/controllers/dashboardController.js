@@ -614,6 +614,8 @@ async function getSummaryTable(req, res) {
 
     const result = await request.query(query);
 
+    // Set UTF-8 encoding for response
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
     res.json({
       success: true,
       data: result.recordset,
