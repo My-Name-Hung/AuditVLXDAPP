@@ -66,7 +66,8 @@ export default function Dashboard() {
   const [selectedProductType, setSelectedProductType] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [territorySearch, setTerritorySearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   // Chart data
@@ -232,56 +233,25 @@ export default function Dashboard() {
           <h3 className="section-title" style={{ color: colors.text }}>Bộ lọc</h3>
 
           <div className="filter-row">
-            <label className="filter-label" style={{ color: colors.text }}>
-              Địa bàn:
-            </label>
-            <div className="dropdown-container">
-              <div
-                className="dropdown"
-                style={{ borderColor: colors.icon + "40", backgroundColor: colors.background }}
-                onClick={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
-              >
-                <span className="dropdown-text" style={{ color: colors.text }}>
-                  {selectedTerritory
-                    ? territories.find((t) => t.Id.toString() === selectedTerritory)?.TerritoryName || "Tất cả"
-                    : "Tất cả"}
-                </span>
-                <span style={{ color: colors.icon }}>
-                  {showTerritoryDropdown ? "▲" : "▼"}
-                </span>
+            <div style={{ flex: 1 }}>
+              <label className="filter-label" style={{ color: colors.text }}>
+                Địa bàn:
+              </label>
+              <div className="filter-hint" style={{ color: colors.icon }}>
+                Chọn địa bàn để lọc dữ liệu thống kê
               </div>
-              {showTerritoryDropdown && (
-                <div
-                  className="dropdown-menu"
-                  style={{ backgroundColor: colors.background, borderColor: colors.icon + "40" }}
-                >
-                  <div
-                    className="dropdown-item"
-                    onClick={() => {
-                      setSelectedTerritory("");
-                      setShowTerritoryDropdown(false);
-                    }}
-                  >
-                    <span className="dropdown-item-text" style={{ color: colors.text }}>
-                      Tất cả
-                    </span>
-                  </div>
-                  {territories.map((territory) => (
-                    <div
-                      key={territory.Id}
-                      className="dropdown-item"
-                      onClick={() => {
-                        setSelectedTerritory(territory.Id.toString());
-                        setShowTerritoryDropdown(false);
-                      }}
-                    >
-                      <span className="dropdown-item-text" style={{ color: colors.text }}>
-                        {territory.TerritoryName}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+            </div>
+            <div
+              className="dropdown"
+              style={{ borderColor: colors.icon + "40", backgroundColor: colors.background, cursor: "pointer" }}
+              onClick={() => setShowTerritoryModal(true)}
+            >
+              <span className="dropdown-text" style={{ color: colors.text }}>
+                {selectedTerritory
+                  ? territories.find((t) => t.Id.toString() === selectedTerritory)?.TerritoryName || "Tất cả"
+                  : "Tất cả"}
+              </span>
+              <span style={{ color: colors.icon }}>▼</span>
             </div>
           </div>
 
@@ -335,15 +305,15 @@ export default function Dashboard() {
                     {
                       label: "Đã thực hiện",
                       data: storesByDate.map((item) => item.AuditedCount),
-                      backgroundColor: "rgba(33, 150, 243, 0.8)",
-                      borderColor: "rgba(33, 150, 243, 1)",
+                      backgroundColor: "rgba(16, 185, 129, 0.8)", // Emerald green
+                      borderColor: "rgba(16, 185, 129, 1)",
                       borderWidth: 1,
                     },
                     {
                       label: "Chưa thực hiện",
                       data: storesByDate.map((item) => item.NotAuditedCount),
-                      backgroundColor: "rgba(255, 152, 0, 0.8)",
-                      borderColor: "rgba(255, 152, 0, 1)",
+                      backgroundColor: "rgba(245, 158, 11, 0.8)", // Amber
+                      borderColor: "rgba(245, 158, 11, 1)",
                       borderWidth: 1,
                     },
                   ],
@@ -387,13 +357,13 @@ export default function Dashboard() {
             </div>
             <div className="chart-legend">
               <div className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: "#2196F3" }}></div>
+                <div className="legend-color" style={{ backgroundColor: "#10B981" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
                   Đã thực hiện: {storesByDate.reduce((sum, item) => sum + item.AuditedCount, 0)}
                 </span>
               </div>
               <div className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: "#FF9800" }}></div>
+                <div className="legend-color" style={{ backgroundColor: "#F59E0B" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
                   Chưa thực hiện: {storesByDate.reduce((sum, item) => sum + item.NotAuditedCount, 0)}
                 </span>
@@ -476,12 +446,12 @@ export default function Dashboard() {
                   data={{
                     labels: ["Giá mua", "Giá bán"],
                     datasets: [
-                      {
-                        data: [productPrices.totalPurchase, productPrices.totalSelling],
-                        backgroundColor: ["rgba(33, 150, 243, 0.8)", "rgba(76, 175, 80, 0.8)"],
-                        borderColor: ["rgba(33, 150, 243, 1)", "rgba(76, 175, 80, 1)"],
-                        borderWidth: 1,
-                      },
+                    {
+                      data: [productPrices.totalPurchase, productPrices.totalSelling],
+                      backgroundColor: ["rgba(59, 130, 246, 0.8)", "rgba(16, 185, 129, 0.8)"],
+                      borderColor: ["rgba(59, 130, 246, 1)", "rgba(16, 185, 129, 1)"],
+                      borderWidth: 1,
+                    },
                     ],
                   }}
                   options={{
@@ -600,6 +570,90 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Territory Picker Modal */}
+      {showTerritoryModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowTerritoryModal(false);
+          setTerritorySearch("");
+        }}>
+          <div className="modal-content" style={{ backgroundColor: colors.background }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h3 className="modal-title" style={{ color: colors.text, margin: 0 }}>
+                Chọn địa bàn
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "24px", color: colors.icon }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              className="modal-search-input"
+              style={{
+                backgroundColor: colors.background,
+                color: colors.text,
+                borderColor: colors.icon + "40",
+                marginBottom: "12px",
+              }}
+              value={territorySearch}
+              onChange={(e) => setTerritorySearch(e.target.value)}
+              placeholder="Tìm kiếm địa bàn"
+            />
+            <div className="modal-scroll-view">
+              <div
+                className="modal-option"
+                style={{
+                  backgroundColor: !selectedTerritory ? colors.primary + "20" : "transparent",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  setSelectedTerritory("");
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+              >
+                <span className="modal-option-text" style={{ color: colors.text }}>
+                  Tất cả
+                </span>
+              </div>
+              {territories
+                .filter((territory) =>
+                  territory.TerritoryName.toLowerCase().includes(
+                    territorySearch.toLowerCase()
+                  )
+                )
+                .map((territory) => (
+                  <div
+                    key={territory.Id}
+                    className="modal-option"
+                    style={{
+                      backgroundColor:
+                        selectedTerritory === territory.Id.toString()
+                          ? colors.primary + "20"
+                          : "transparent",
+                      cursor: "pointer",
+                    }}
+                    onClick={() => {
+                      setSelectedTerritory(territory.Id.toString());
+                      setShowTerritoryModal(false);
+                      setTerritorySearch("");
+                    }}
+                  >
+                    <span className="modal-option-text" style={{ color: colors.text }}>
+                      {territory.TerritoryName}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

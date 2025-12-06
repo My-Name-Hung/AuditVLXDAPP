@@ -352,6 +352,23 @@ async function getStoresByDate(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+
+    // Build user filter - only show stores assigned to current user (unless admin)
+    let userFilter = "";
+    if (currentUserId && currentUserRole !== "admin") {
+      userFilter = ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
     // Build territory filter
     let territoryFilter = "";
     if (territoryId) {
@@ -363,7 +380,7 @@ async function getStoresByDate(req, res) {
     let totalStoresQuery = `
       SELECT COUNT(DISTINCT s.Id) as TotalStores
       FROM Stores s
-      WHERE 1=1 ${territoryFilter}
+      WHERE 1=1 ${userFilter} ${territoryFilter}
     `;
     const totalStoresResult = await request.query(totalStoresQuery);
     const totalStores = totalStoresResult.recordset[0].TotalStores || 0;
@@ -380,6 +397,16 @@ async function getStoresByDate(req, res) {
         AND img.ImageUrl != ''
         AND CAST(a.AuditDate AS DATE) IS NOT NULL
     `;
+
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+    }
 
     if (territoryId) {
       query += " AND s.TerritoryId = @territoryId";
@@ -435,6 +462,10 @@ async function getProductPrices(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+
     let query = `
       SELECT 
         ssp.PurchasePrice,
@@ -442,9 +473,22 @@ async function getProductPrices(req, res) {
         COUNT(*) as Count
       FROM StoreSurveyProducts ssp
       INNER JOIN StoreSurveys ss ON ssp.StoreSurveyId = ss.Id
+      INNER JOIN Stores s ON ss.StoreId = s.Id
       WHERE ssp.PurchasePrice IS NOT NULL
         AND ssp.SellingPrice IS NOT NULL
     `;
+
+    // Filter by user - only show stores assigned to current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
 
     // Filter by ProductType if provided, otherwise get all
     if (productType && productType.trim() !== "") {
@@ -525,6 +569,10 @@ async function getSummaryTable(req, res) {
     const pool = await getPool();
     const request = pool.request();
 
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+
     const offset = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const limit = parseInt(pageSize, 10);
 
@@ -554,6 +602,30 @@ async function getSummaryTable(req, res) {
       LEFT JOIN CementProducts cp ON ssp.CementProductId = cp.Id
       WHERE 1=1
     `;
+
+    // Filter by user - only show stores assigned to current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
+    // Filter by user - only show stores assigned to current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
 
     if (territoryId) {
       query += " AND s.TerritoryId = @territoryId";
@@ -593,6 +665,17 @@ async function getSummaryTable(req, res) {
       WHERE 1=1
     `;
     
+    // Apply user filter to count query
+    if (currentUserId && currentUserRole !== "admin") {
+      countQuery += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+    }
+    
     if (territoryId) {
       countQuery += " AND s.TerritoryId = @territoryId";
     }
@@ -618,6 +701,9 @@ async function getSummaryTable(req, res) {
     }
     
     const countRequest = pool.request();
+    if (currentUserId && currentUserRole !== "admin") {
+      countRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
     if (territoryId) {
       countRequest.input("territoryId", sql.Int, parseInt(territoryId, 10));
     }

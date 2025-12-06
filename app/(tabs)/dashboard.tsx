@@ -63,7 +63,8 @@ export default function DashboardScreen() {
   const [selectedProductType, setSelectedProductType] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
-  const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [territorySearch, setTerritorySearch] = useState("");
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
@@ -244,63 +245,28 @@ export default function DashboardScreen() {
           </Text>
           
           <View style={styles.filterRow}>
-            <Text style={[styles.filterLabel, { color: colors.text }]}>
-              Địa bàn:
-            </Text>
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.dropdown,
-                  { borderColor: colors.icon + "40", backgroundColor: colors.background },
-                ]}
-                onPress={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
-              >
-                <Text style={[styles.dropdownText, { color: colors.text }]}>
-                  {selectedTerritory && territories && Array.isArray(territories)
-                    ? territories.find((t) => t.Id.toString() === selectedTerritory)?.TerritoryName || "Tất cả"
-                    : "Tất cả"}
-                </Text>
-                <Ionicons
-                  name={showTerritoryDropdown ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={colors.icon}
-                />
-              </TouchableOpacity>
-              {showTerritoryDropdown && (
-                <View style={[styles.dropdownMenu, { backgroundColor: colors.background, borderColor: colors.icon + "40" }]}>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedTerritory("");
-                      setShowTerritoryDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { color: colors.text }]}>
-                      Tất cả
-                    </Text>
-                  </TouchableOpacity>
-                  <ScrollView
-                    nestedScrollEnabled={true}
-                    style={styles.dropdownList}
-                  >
-                    {territories && Array.isArray(territories) && territories.map((item) => (
-                      <TouchableOpacity
-                        key={item.Id.toString()}
-                        style={styles.dropdownItem}
-                        onPress={() => {
-                          setSelectedTerritory(item.Id.toString());
-                          setShowTerritoryDropdown(false);
-                        }}
-                      >
-                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>
-                          {item.TerritoryName}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.filterLabel, { color: colors.text }]}>
+                Địa bàn:
+              </Text>
+              <Text style={[styles.filterHint, { color: colors.icon }]}>
+                Chọn địa bàn để lọc dữ liệu thống kê
+              </Text>
             </View>
+            <TouchableOpacity
+              style={[
+                styles.dropdown,
+                { borderColor: colors.icon + "40", backgroundColor: colors.background },
+              ]}
+              onPress={() => setShowTerritoryModal(true)}
+            >
+              <Text style={[styles.dropdownText, { color: colors.text }]}>
+                {selectedTerritory && territories && Array.isArray(territories)
+                  ? territories.find((t) => t.Id.toString() === selectedTerritory)?.TerritoryName || "Tất cả"
+                  : "Tất cả"}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={colors.icon} />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.filterRow}>
@@ -392,12 +358,12 @@ export default function DashboardScreen() {
                   datasets: [
                     {
                       data: storesByDate.map((item) => item.AuditedCount),
-                      color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`, // Blue for audited
+                      color: (opacity = 1) => `rgba(16, 185, 129, ${opacity})`, // Emerald green for audited
                       strokeWidth: 2,
                     },
                     {
                       data: storesByDate.map((item) => item.NotAuditedCount),
-                      color: (opacity = 1) => `rgba(255, 152, 0, ${opacity})`, // Orange for not audited
+                      color: (opacity = 1) => `rgba(245, 158, 11, ${opacity})`, // Amber for not audited
                       strokeWidth: 2,
                     },
                   ],
@@ -432,13 +398,13 @@ export default function DashboardScreen() {
             </ScrollView>
             <View style={styles.chartLegend}>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: "#2196F3" }]} />
+                <View style={[styles.legendColor, { backgroundColor: "#10B981" }]} />
                 <Text style={[styles.legendText, { color: colors.text }]}>
                   Đã thực hiện: {storesByDate.reduce((sum, item) => sum + item.AuditedCount, 0)}
                 </Text>
               </View>
               <View style={styles.legendItem}>
-                <View style={[styles.legendColor, { backgroundColor: "#FF9800" }]} />
+                <View style={[styles.legendColor, { backgroundColor: "#F59E0B" }]} />
                 <Text style={[styles.legendText, { color: colors.text }]}>
                   Chưa thực hiện: {storesByDate.reduce((sum, item) => sum + item.NotAuditedCount, 0)}
                 </Text>
@@ -527,14 +493,14 @@ export default function DashboardScreen() {
                   {
                     name: "Giá mua",
                     population: productPrices.totalPurchase,
-                    color: "#2196F3",
+                    color: "#3B82F6",
                     legendFontColor: colors.text,
                     legendFontSize: 12,
                   },
                   {
                     name: "Giá bán",
                     population: productPrices.totalSelling,
-                    color: "#4CAF50",
+                    color: "#10B981",
                     legendFontColor: colors.text,
                     legendFontSize: 12,
                   },
@@ -640,6 +606,117 @@ export default function DashboardScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Territory Picker Modal */}
+      <Modal
+        visible={showTerritoryModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowTerritoryModal(false);
+          setTerritorySearch("");
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Chọn địa bàn
+              </Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+              >
+                <Ionicons name="close" size={24} color={colors.icon} />
+              </TouchableOpacity>
+            </View>
+            <TextInput
+              style={[
+                styles.modalSearchInput,
+                {
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  marginBottom: 12,
+                },
+              ]}
+              value={territorySearch}
+              onChangeText={setTerritorySearch}
+              placeholder="Tìm kiếm địa bàn"
+              placeholderTextColor={colors.icon + "80"}
+            />
+            <ScrollView style={styles.modalScrollView}>
+              <TouchableOpacity
+                style={[
+                  styles.modalOption,
+                  {
+                    backgroundColor:
+                      !selectedTerritory
+                        ? colors.primary + "20"
+                        : "transparent",
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedTerritory("");
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+              >
+                <Text style={[styles.modalOptionText, { color: colors.text }]}>
+                  Tất cả
+                </Text>
+              </TouchableOpacity>
+              {territories &&
+                Array.isArray(territories) &&
+                territories
+                  .filter((territory) =>
+                    territory.TerritoryName.toLowerCase().includes(
+                      territorySearch.toLowerCase()
+                    )
+                  )
+                  .map((territory) => (
+                    <TouchableOpacity
+                      key={territory.Id.toString()}
+                      style={[
+                        styles.modalOption,
+                        {
+                          backgroundColor:
+                            selectedTerritory === territory.Id.toString()
+                              ? colors.primary + "20"
+                              : "transparent",
+                        },
+                      ]}
+                      onPress={() => {
+                        setSelectedTerritory(territory.Id.toString());
+                        setShowTerritoryModal(false);
+                        setTerritorySearch("");
+                      }}
+                    >
+                      <Text
+                        style={[styles.modalOptionText, { color: colors.text }]}
+                      >
+                        {territory.TerritoryName}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -856,6 +933,41 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 14,
     fontWeight: "500",
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    maxHeight: "80%",
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  modalSearchInput: {
+    height: 40,
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  modalScrollView: {
+    maxHeight: 400,
+  },
+  modalOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  modalOptionText: {
+    fontSize: 14,
   },
 });
 
