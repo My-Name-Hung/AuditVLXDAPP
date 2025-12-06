@@ -146,7 +146,7 @@ const StoreSurvey = () => {
     products: [],
   });
 
-  // Load saved survey data from localStorage (only form template, not store-specific data)
+  // Load saved survey data from localStorage for autofill (form data, not audit results)
   useEffect(() => {
     const loadSavedSurveyData = () => {
       try {
@@ -155,29 +155,30 @@ const StoreSurvey = () => {
           const savedData = localStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
-            // Only load form template, clear store-specific fields
+            // Load form data for autofill, but clear contactPersonPhone (store-specific)
             setSurveyData({
               ...parsed,
-              whyNotSellNewProduct: "",
-              timeToSellNewProduct: "",
-              newProductImportQuantity: "",
-              supplierName: "",
-              storeComment: "",
+              // Keep all form fields for autofill, only clear contactPersonPhone
               products:
                 parsed.products && Array.isArray(parsed.products)
-                  ? parsed.products.map(() => ({
-                      productType: "",
-                      cementProductId: null,
-                      contactPersonPhone: "",
-                      purchasePrice: "",
-                      sellingPrice: "",
-                      roadTransportFee: "",
-                      waterTransportFee: "",
-                      quantityReceived: "",
-                      importedFromNPP: "",
-                      discountPromotion: "",
-                      averageStockQuantity: "",
-                    }))
+                  ? parsed.products.map(
+                      (p: {
+                        productType?: string;
+                        cementProductId?: number | null;
+                        contactPersonPhone?: string;
+                        purchasePrice?: string;
+                        sellingPrice?: string;
+                        roadTransportFee?: string;
+                        waterTransportFee?: string;
+                        quantityReceived?: string;
+                        importedFromNPP?: string;
+                        discountPromotion?: string;
+                        averageStockQuantity?: string;
+                      }) => ({
+                        ...p,
+                        contactPersonPhone: "", // Clear only this field (store-specific)
+                      })
+                    )
                   : [],
             });
           }
@@ -189,7 +190,7 @@ const StoreSurvey = () => {
     loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, [user?.id, storeId]); // Add storeId to reset when store changes
+  }, [user?.id]); // Remove storeId dependency to allow autofill across stores
 
   // Note: Auto-save removed to prevent saving store-specific data
   // Survey data is only saved after successful submission as a template
@@ -664,37 +665,24 @@ const StoreSurvey = () => {
         });
       }
 
-      // Only save form template (importedBySalesperson), not store-specific data
-      const templateData: SurveyData = {
-        whyNotSellNewProduct: "",
-        timeToSellNewProduct: "",
-        newProductImportQuantity: "",
-        supplierName: "",
-        importedBySalesperson: surveyData.importedBySalesperson || "", // Keep only this field
-        storeComment: "",
-        products: surveyData.products.map(() => ({
-          productType: "",
-          cementProductId: null,
-          contactPersonPhone: "",
-          purchasePrice: "",
-          sellingPrice: "",
-          roadTransportFee: "",
-          waterTransportFee: "",
-          quantityReceived: "",
-          importedFromNPP: "",
-          discountPromotion: "",
-          averageStockQuantity: "",
+      // Save form data for autofill next store (excluding contactPersonPhone which is store-specific)
+      const nextSurveyData: SurveyData = {
+        ...surveyData,
+        // Clear only contactPersonPhone (store-specific), keep all other fields for autofill
+        products: surveyData.products.map((p) => ({
+          ...p,
+          contactPersonPhone: "", // Clear only this field
         })),
       };
 
-      setSurveyData(templateData);
+      setSurveyData(nextSurveyData);
 
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          localStorage.setItem(storageKey, JSON.stringify(templateData));
+          localStorage.setItem(storageKey, JSON.stringify(nextSurveyData));
         } catch (error) {
-          console.error("Error saving survey template for next store:", error);
+          console.error("Error saving survey data for next store:", error);
         }
       }
 

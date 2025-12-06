@@ -184,6 +184,79 @@ export default function Stores() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-refresh stores list when page comes into focus (e.g., navigating back from store detail)
+  useEffect(() => {
+    let isRefreshing = false;
+    let wasHidden = document.hidden;
+    
+    const handleVisibilityChange = () => {
+      // Only refresh when page becomes visible (user navigated back)
+      if (!document.hidden && wasHidden) {
+        wasHidden = false;
+        refreshStores();
+      } else if (document.hidden) {
+        wasHidden = true;
+      }
+    };
+    
+    const handleFocus = () => {
+      // Only refresh if page was previously hidden
+      if (wasHidden) {
+        wasHidden = false;
+        refreshStores();
+      }
+    };
+    
+    // Refresh stores in background without blocking UI
+    const refreshStores = async () => {
+      // Prevent multiple simultaneous refreshes
+      if (isRefreshing) return;
+      
+      try {
+        isRefreshing = true;
+        // Small delay to ensure navigation completes
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        
+        const params: Record<string, string | number> = {
+          page: 1,
+          pageSize: 50,
+        };
+
+        if (searchText.trim()) {
+          params.storeName = searchText.trim();
+        }
+        if (selectedTerritory) {
+          params.territoryId = selectedTerritory;
+        }
+        if (selectedStatus) {
+          params.status = selectedStatus;
+        }
+
+        const response = await api.get("/stores", { params });
+        const data = response.data.data || [];
+        const sortedData = sortStoresByStatus(data);
+        const filteredData = filterStoresByStatus(sortedData, selectedStatus);
+        
+        // Update stores silently without showing loading state
+        setStores(filteredData);
+      } catch (error) {
+        // Silent fail - don't show error to user
+        console.error("Background refresh stores error:", error);
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    // Listen for page visibility change and window focus
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [searchText, selectedTerritory, selectedStatus]);
+
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);

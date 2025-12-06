@@ -154,7 +154,7 @@ export default function StoreSurveyScreen() {
     products: [],
   });
 
-  // Load saved survey data from AsyncStorage (only form template, not store-specific data)
+  // Load saved survey data from AsyncStorage for autofill (form data, not audit results)
   useEffect(() => {
     const loadSavedSurveyData = async () => {
       try {
@@ -163,28 +163,14 @@ export default function StoreSurveyScreen() {
           const savedData = await AsyncStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
-            // Only load form template, clear store-specific fields
+            // Load form data for autofill, but clear contactPersonPhone (store-specific)
             setSurveyData({
               ...parsed,
-              whyNotSellNewProduct: "",
-              timeToSellNewProduct: "",
-              newProductImportQuantity: "",
-              supplierName: "",
-              storeComment: "",
+              // Keep all form fields for autofill, only clear contactPersonPhone
               products:
                 parsed.products?.map((p: any) => ({
                   ...p,
-                  contactPersonPhone: "",
-                  productType: "",
-                  cementProductId: null,
-                  purchasePrice: "",
-                  sellingPrice: "",
-                  roadTransportFee: "",
-                  waterTransportFee: "",
-                  quantityReceived: "",
-                  importedFromNPP: "",
-                  discountPromotion: "",
-                  averageStockQuantity: "",
+                  contactPersonPhone: "", // Clear only this field (store-specific)
                 })) || [],
             });
           }
@@ -196,7 +182,7 @@ export default function StoreSurveyScreen() {
     loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, [user?.id, id]); // Add id to dependencies to reset when store changes
+  }, [user?.id]); // Remove id dependency to allow autofill across stores
 
   // Note: Auto-save removed to prevent saving store-specific data
   // Survey data is only saved after successful submission as a template
@@ -676,40 +662,30 @@ export default function StoreSurveyScreen() {
         });
       }
 
-      // Clear captured data (images/notes) and store-specific form data
+      // Clear captured data (images/notes) but keep form data for autofill
       clearSurveyData();
 
-      // Only save form template (importedBySalesperson), not store-specific data
-      const templateData: SurveyData = {
-        whyNotSellNewProduct: "",
-        timeToSellNewProduct: "",
-        newProductImportQuantity: "",
-        supplierName: "",
-        importedBySalesperson: surveyData.importedBySalesperson || "", // Keep only this field
-        storeComment: "",
+      // Save form data for autofill next store (excluding contactPersonPhone which is store-specific)
+      const nextSurveyData: SurveyData = {
+        ...surveyData,
+        // Clear only contactPersonPhone (store-specific), keep all other fields for autofill
         products: surveyData.products.map((p) => ({
-          productType: "",
-          cementProductId: null,
-          contactPersonPhone: "",
-          purchasePrice: "",
-          sellingPrice: "",
-          roadTransportFee: "",
-          waterTransportFee: "",
-          quantityReceived: "",
-          importedFromNPP: "",
-          discountPromotion: "",
-          averageStockQuantity: "",
+          ...p,
+          contactPersonPhone: "", // Clear only this field
         })),
       };
 
-      setSurveyData(templateData);
+      setSurveyData(nextSurveyData);
 
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.setItem(storageKey, JSON.stringify(templateData));
+          await AsyncStorage.setItem(
+            storageKey,
+            JSON.stringify(nextSurveyData)
+          );
         } catch (error) {
-          console.error("Error saving survey template for next store:", error);
+          console.error("Error saving survey data for next store:", error);
         }
       }
 

@@ -334,7 +334,7 @@ export default function StoreSurveyDetail() {
           "Tên sản phẩm muốn nhập – Số lượng",
           "Mua qua NPP",
           "Nhập bởi thương vụ",
-          "Ý kiến của cửa hàng",
+          "Ý kiến/Ghi chú",
         ];
 
         const headerRow2 = sheet.addRow(headers2);
@@ -527,7 +527,7 @@ export default function StoreSurveyDetail() {
                     <th>Tên sản phẩm muốn nhập – Số lượng</th>
                     <th>Mua qua NPP</th>
                     <th>Nhập bởi thương vụ</th>
-                    <th>Ý kiến của cửa hàng</th>
+                    <th>Ý kiến/Ghi chú</th>
                   </tr>
                 </thead>
                 <tbody>

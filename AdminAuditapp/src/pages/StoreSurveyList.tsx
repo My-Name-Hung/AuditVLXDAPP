@@ -576,7 +576,7 @@ export default function StoreSurveyList() {
             "Tên sản phẩm muốn nhập – Số lượng",
             "Mua qua NPP",
             "Nhập bởi thương vụ",
-            "Ý kiến của cửa hàng",
+            "Ý kiến/Ghi chú",
           ];
 
           const headerRow2 = sheet.addRow(headers2);

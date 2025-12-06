@@ -3,7 +3,7 @@ import Header from "@/src/components/Header";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -142,6 +142,59 @@ export default function StoresScreen() {
     fetchTerritories();
     fetchStores();
   }, []);
+
+  // Auto-refresh stores list when screen comes into focus (e.g., navigating back from store detail)
+  useFocusEffect(
+    React.useCallback(() => {
+      let isRefreshing = false;
+      
+      // Refresh stores in background without blocking UI
+      const refreshStores = async () => {
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) return;
+        
+        try {
+          isRefreshing = true;
+          // Small delay to ensure navigation completes
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          
+          // Refresh stores silently in background
+          const params: any = {
+            page: 1,
+            pageSize: 50,
+          };
+
+          if (searchText.trim()) {
+            params.storeName = searchText.trim();
+          }
+          if (selectedTerritory) {
+            params.territoryId = selectedTerritory;
+          }
+          if (selectedStatus) {
+            params.status = selectedStatus;
+          }
+
+          const response = await api.get("/stores", { params });
+          const data = response.data.data || [];
+          const sortedData = sortStoresByStatus(data);
+          const filteredData = filterStoresByStatus(sortedData, selectedStatus);
+          
+          // Update stores silently without showing loading state
+          setStores(filteredData);
+        } catch (error) {
+          // Silent fail - don't show error to user
+          console.error("Background refresh stores error:", error);
+        } finally {
+          isRefreshing = false;
+        }
+      };
+
+      // Only refresh if stores list is not empty (user has been here before)
+      if (stores.length > 0) {
+        refreshStores();
+      }
+    }, [searchText, selectedTerritory, selectedStatus, stores.length])
+  );
 
   useEffect(() => {
     // Debounce search and show searching state
