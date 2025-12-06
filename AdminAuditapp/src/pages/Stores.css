@@ -135,7 +135,7 @@
 
 
 .btn-download-store:hover {
-  background: #588157;
+  background: #207245;
 }
 
 
@@ -147,7 +147,7 @@
 }
 
 .btn-add-store:hover {
-  background: #588157;
+  background: #207245;
   transform: translateY(-1px);
   box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
 }

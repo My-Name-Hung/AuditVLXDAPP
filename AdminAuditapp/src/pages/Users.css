@@ -37,15 +37,15 @@
 
 
 .btn-download-user {
-  background: #3A5A40;
+  background: #3D805F;
   color: white;
 }
 
 .btn-download-user:hover {
-  background: #588157;
+  background: #207245;
 }
 .btn-add-user:hover {
-  background: #588157;
+  background: #207245;
 }
 /* Filter Section */
 .users-filters {

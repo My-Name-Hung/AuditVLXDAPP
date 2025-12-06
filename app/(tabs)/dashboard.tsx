@@ -58,13 +58,17 @@ export default function DashboardScreen() {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
   const [territories, setTerritories] = useState<Territory[]>([]);
-  const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
-  const [selectedProduct, setSelectedProduct] = useState<string>("");
+  const [selectedProductType, setSelectedProductType] = useState<string>("");
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
   const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
   const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [startDateValue, setStartDateValue] = useState<Date | null>(null);
+  const [endDateValue, setEndDateValue] = useState<Date | null>(null);
   
   // Chart data
   const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
@@ -81,20 +85,20 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     fetchTerritories();
-    fetchCementProducts();
+    fetchProductTypes();
+    // Fetch all product prices by default
+    fetchProductPrices();
   }, []);
 
   useEffect(() => {
-    if (startDate && endDate) {
-      fetchStoresByDate();
-    }
+    // Fetch stores by date - if no dates, fetch all data
+    fetchStoresByDate();
   }, [startDate, endDate, selectedTerritory]);
 
   useEffect(() => {
-    if (selectedProduct) {
-      fetchProductPrices();
-    }
-  }, [selectedProduct]);
+    // Fetch product prices when productType changes (including empty for "all")
+    fetchProductPrices();
+  }, [selectedProductType]);
 
   useEffect(() => {
     fetchSummaryTable();
@@ -104,8 +108,10 @@ export default function DashboardScreen() {
     try {
       const response = await api.get("/territories");
       console.log("Territories response:", response.data);
-      // Handle different response structures
-      if (Array.isArray(response.data)) {
+      // Handle different response structures - API returns {success: true, data: [...]}
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        setTerritories(response.data.data);
+      } else if (Array.isArray(response.data)) {
         setTerritories(response.data);
       } else if (response.data && Array.isArray(response.data.data)) {
         setTerritories(response.data.data);
@@ -118,13 +124,19 @@ export default function DashboardScreen() {
     }
   };
 
-  const fetchCementProducts = async () => {
+  const fetchProductTypes = async () => {
     try {
-      const response = await api.get("/cement-products");
-      setCementProducts(response.data || []);
+      const response = await api.get("/dashboard/product-types");
+      console.log("Product types response:", response.data);
+      if (response.data && response.data.success) {
+        setProductTypes(response.data.data || []);
+      } else {
+        setProductTypes(response.data || []);
+      }
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching cement products:", error);
+      console.error("Error fetching product types:", error);
+      setProductTypes([]);
       setLoading(false);
     }
   };
@@ -132,22 +144,34 @@ export default function DashboardScreen() {
   const fetchStoresByDate = async () => {
     try {
       const params: any = {};
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
+      // Only add date params if both are provided, otherwise fetch all
+      if (startDate && endDate) {
+        params.startDate = startDate;
+        params.endDate = endDate;
+      }
       if (selectedTerritory) params.territoryId = selectedTerritory;
 
       const response = await api.get("/dashboard/stores-by-date", { params });
-      setStoresByDate(response.data.data || []);
+      console.log("Stores by date response:", response.data);
+      if (response.data && response.data.success) {
+        setStoresByDate(response.data.data || []);
+      } else {
+        setStoresByDate(response.data || []);
+      }
     } catch (error) {
       console.error("Error fetching stores by date:", error);
+      setStoresByDate([]);
     }
   };
 
   const fetchProductPrices = async () => {
     try {
-      const response = await api.get("/dashboard/product-prices", {
-        params: { cementProductId: selectedProduct },
-      });
+      const params: any = {};
+      // Only add productType if selected, otherwise fetch all
+      if (selectedProductType) {
+        params.productType = selectedProductType;
+      }
+      const response = await api.get("/dashboard/product-prices", { params });
       console.log("Product prices response:", response.data);
       if (response.data && response.data.success) {
         setProductPrices(response.data.data || null);
@@ -358,16 +382,67 @@ export default function DashboardScreen() {
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Biểu đồ số cửa hàng theo ngày
             </Text>
-            <View style={styles.chartPlaceholder}>
-              <Text style={[styles.chartPlaceholderText, { color: colors.icon }]}>
-                Bar Chart sẽ được hiển thị ở đây
-              </Text>
-              <Text style={[styles.chartInfo, { color: colors.text }]}>
-                Đã thực hiện: {storesByDate.reduce((sum, item) => sum + item.AuditedCount, 0)}
-              </Text>
-              <Text style={[styles.chartInfo, { color: colors.text }]}>
-                Chưa thực hiện: {storesByDate.reduce((sum, item) => sum + item.NotAuditedCount, 0)}
-              </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <BarChart
+                data={{
+                  labels: storesByDate.map((item) => {
+                    const date = new Date(item.AuditDate);
+                    return `${date.getDate()}/${date.getMonth() + 1}`;
+                  }),
+                  datasets: [
+                    {
+                      data: storesByDate.map((item) => item.AuditedCount),
+                      color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`, // Blue for audited
+                      strokeWidth: 2,
+                    },
+                    {
+                      data: storesByDate.map((item) => item.NotAuditedCount),
+                      color: (opacity = 1) => `rgba(255, 152, 0, ${opacity})`, // Orange for not audited
+                      strokeWidth: 2,
+                    },
+                  ],
+                  legend: ["Đã thực hiện", "Chưa thực hiện"],
+                }}
+                width={Math.max(Dimensions.get("window").width - 64, Math.max(storesByDate.length * 60, 300))}
+                height={220}
+                chartConfig={{
+                  backgroundColor: colors.background,
+                  backgroundGradientFrom: colors.background,
+                  backgroundGradientTo: colors.background,
+                  decimalPlaces: 0,
+                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+                  style: {
+                    borderRadius: 16,
+                  },
+                  propsForBackgroundLines: {
+                    strokeDasharray: "",
+                    stroke: colors.icon + "40",
+                  },
+                }}
+                style={{
+                  marginVertical: 8,
+                  borderRadius: 16,
+                }}
+                yAxisLabel=""
+                yAxisSuffix=""
+                showValuesOnTopOfBars
+                fromZero
+              />
+            </ScrollView>
+            <View style={styles.chartLegend}>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: "#2196F3" }]} />
+                <Text style={[styles.legendText, { color: colors.text }]}>
+                  Đã thực hiện: {storesByDate.reduce((sum, item) => sum + item.AuditedCount, 0)}
+                </Text>
+              </View>
+              <View style={styles.legendItem}>
+                <View style={[styles.legendColor, { backgroundColor: "#FF9800" }]} />
+                <Text style={[styles.legendText, { color: colors.text }]}>
+                  Chưa thực hiện: {storesByDate.reduce((sum, item) => sum + item.NotAuditedCount, 0)}
+                </Text>
+              </View>
             </View>
           </View>
         ) : (
@@ -376,7 +451,7 @@ export default function DashboardScreen() {
               Biểu đồ số cửa hàng theo ngày
             </Text>
             <Text style={[styles.noDataText, { color: colors.icon }]}>
-              Chưa có dữ liệu. Vui lòng chọn khoảng thời gian.
+              Chưa có dữ liệu.
             </Text>
           </View>
         )}
@@ -389,7 +464,7 @@ export default function DashboardScreen() {
           
           <View style={styles.filterRow}>
             <Text style={[styles.filterLabel, { color: colors.text }]}>
-              Chọn sản phẩm:
+              Chọn loại sản phẩm:
             </Text>
             <View style={styles.dropdownContainer}>
               <TouchableOpacity
@@ -400,9 +475,7 @@ export default function DashboardScreen() {
                 onPress={() => setShowProductDropdown(!showProductDropdown)}
               >
                 <Text style={[styles.dropdownText, { color: colors.text }]}>
-                  {selectedProduct && cementProducts && Array.isArray(cementProducts)
-                    ? cementProducts.find((p) => p.Id.toString() === selectedProduct)?.Name || "Chọn sản phẩm"
-                    : "Chọn sản phẩm"}
+                  {selectedProductType || "Tất cả"}
                 </Text>
                 <Ionicons
                   name={showProductDropdown ? "chevron-up" : "chevron-down"}
@@ -415,29 +488,29 @@ export default function DashboardScreen() {
                   <TouchableOpacity
                     style={styles.dropdownItem}
                     onPress={() => {
-                      setSelectedProduct("");
+                      setSelectedProductType("");
                       setShowProductDropdown(false);
                     }}
                   >
                     <Text style={[styles.dropdownItemText, { color: colors.text }]}>
-                      Chọn sản phẩm
+                      Tất cả
                     </Text>
                   </TouchableOpacity>
                   <ScrollView
                     nestedScrollEnabled={true}
                     style={styles.dropdownList}
                   >
-                    {cementProducts && Array.isArray(cementProducts) && cementProducts.map((item) => (
+                    {productTypes && Array.isArray(productTypes) && productTypes.map((productType, index) => (
                       <TouchableOpacity
-                        key={item.Id.toString()}
+                        key={index}
                         style={styles.dropdownItem}
                         onPress={() => {
-                          setSelectedProduct(item.Id.toString());
+                          setSelectedProductType(productType);
                           setShowProductDropdown(false);
                         }}
                       >
                         <Text style={[styles.dropdownItemText, { color: colors.text }]}>
-                          {item.Name}
+                          {productType}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -447,7 +520,7 @@ export default function DashboardScreen() {
             </View>
           </View>
 
-          {productPrices && productPrices.prices.length > 0 ? (
+          {productPrices && productPrices.totalPurchase > 0 && productPrices.totalSelling > 0 ? (
             <View style={styles.pieChartContainer}>
               <PieChart
                 data={[
@@ -514,7 +587,9 @@ export default function DashboardScreen() {
                       {item.StoreName}
                     </Text>
                     <Text style={[styles.tableCell, { color: colors.text }]}>
-                      {item.AuditStatus}
+                      {item.AuditStatus === "Chua th?c hi?n" ? "Chưa thực hiện" : 
+                       item.AuditStatus === "Ðã th?c hi?n" ? "Đã thực hiện" : 
+                       item.AuditStatus}
                     </Text>
                     <Text style={[styles.tableCell, { color: colors.text }]} numberOfLines={1}>
                       {item.ProductName || "-"}

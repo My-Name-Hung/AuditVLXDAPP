@@ -428,19 +428,12 @@ async function getStoresByDate(req, res) {
   }
 }
 
-// Get product prices (for pie chart) - giá mua/giá bán theo loại sản phẩm
+// Get product prices (for pie chart) - giá mua/giá bán theo loại sản phẩm (ProductType)
 async function getProductPrices(req, res) {
   try {
-    const { cementProductId } = req.query;
+    const { productType } = req.query;
     const pool = await getPool();
     const request = pool.request();
-
-    if (!cementProductId) {
-      return res.status(400).json({
-        success: false,
-        message: "cementProductId is required",
-      });
-    }
 
     let query = `
       SELECT 
@@ -449,12 +442,15 @@ async function getProductPrices(req, res) {
         COUNT(*) as Count
       FROM StoreSurveyProducts ssp
       INNER JOIN StoreSurveys ss ON ssp.StoreSurveyId = ss.Id
-      WHERE ssp.CementProductId = @cementProductId
-        AND ssp.PurchasePrice IS NOT NULL
+      WHERE ssp.PurchasePrice IS NOT NULL
         AND ssp.SellingPrice IS NOT NULL
     `;
 
-    request.input("cementProductId", sql.Int, parseInt(cementProductId, 10));
+    // Filter by ProductType if provided, otherwise get all
+    if (productType && productType.trim() !== "") {
+      query += " AND ssp.ProductType = @productType";
+      request.input("productType", sql.NVarChar(100), productType.trim());
+    }
 
     query += `
       GROUP BY ssp.PurchasePrice, ssp.SellingPrice
@@ -486,6 +482,37 @@ async function getProductPrices(req, res) {
     res.status(500).json({
       success: false,
       message: "Error fetching product prices",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
+// Get product types (for dropdown) - lấy danh sách loại sản phẩm
+async function getProductTypes(req, res) {
+  try {
+    const pool = await getPool();
+    const request = pool.request();
+
+    const query = `
+      SELECT DISTINCT ProductType
+      FROM StoreSurveyProducts
+      WHERE ProductType IS NOT NULL
+        AND ProductType != ''
+      ORDER BY ProductType ASC
+    `;
+
+    const result = await request.query(query);
+    const productTypes = result.recordset.map((row) => row.ProductType);
+
+    res.json({
+      success: true,
+      data: productTypes,
+    });
+  } catch (error) {
+    console.error("Error fetching product types:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching product types",
       error: process.env.NODE_ENV === "development" ? error.message : undefined,
     });
   }
@@ -603,8 +630,21 @@ async function getSummaryTable(req, res) {
     const countResult = await countRequest.query(countQuery);
     const total = countResult.recordset[0].Total || 0;
 
+    // Build ORDER BY clause to prioritize "Đã thực hiện" stores first
     query += `
-      ORDER BY s.StoreName ASC, cp.Name ASC
+      ORDER BY 
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM Audits a
+            INNER JOIN Images img ON a.Id = img.AuditId
+            WHERE a.StoreId = s.Id
+              AND img.ImageUrl IS NOT NULL
+              AND img.ImageUrl != ''
+          ) THEN 0
+          ELSE 1
+        END ASC,
+        s.StoreName ASC, 
+        cp.Name ASC
       OFFSET @offset ROWS
       FETCH NEXT @limit ROWS ONLY
     `;

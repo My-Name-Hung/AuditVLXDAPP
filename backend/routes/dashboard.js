@@ -8,6 +8,7 @@ router.get('/user/:userId', authenticateToken, dashboardController.getUserDetail
 router.get('/export', authenticateToken, dashboardController.exportReport);
 router.get('/stores-by-date', authenticateToken, dashboardController.getStoresByDate);
 router.get('/product-prices', authenticateToken, dashboardController.getProductPrices);
+router.get('/product-types', authenticateToken, dashboardController.getProductTypes);
 router.get('/summary-table', authenticateToken, dashboardController.getSummaryTable);
 
 module.exports = router;

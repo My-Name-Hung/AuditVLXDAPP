@@ -24,7 +24,7 @@
 }
 
 .btn-export-dashboard {
-  background-color: #3A5A40;
+  background-color: #3D805F;
   color: white;
   padding: 0.75rem 1.5rem;
   border: none;
@@ -36,7 +36,7 @@
 }
 
 .btn-export-dashboard:hover {
-  background-color: #588157;
+  background-color: #207245;
 }
 
 .dashboard-filters {
