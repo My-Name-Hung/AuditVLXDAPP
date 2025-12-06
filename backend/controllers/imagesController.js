@@ -73,7 +73,7 @@ const uploadImage = async (req, res) => {
         userAgent.includes("iPad") ||
         source === "web");
 
-    const fontSize = isWebIOS ? 10 : 35; // 10 for web iosauditapp, 60 for mobile app
+    const fontSize = isWebIOS ? 10 : 30; // 10 for web iosauditapp, 60 for mobile app
 
     const uploadResult = await uploadImageWithWatermark(
       req.file.buffer,
