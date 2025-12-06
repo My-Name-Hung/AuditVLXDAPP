@@ -220,22 +220,12 @@ export default function StoreDetailScreen() {
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
 
-      // Merge with existing audits to avoid duplicates and preserve optimistic updates
-      setAudits((prev) => {
-        // Create a map of existing audits by AuditId
-        const existingMap = new Map(prev.map((a) => [a.AuditId, a]));
-
-        // Update or add audits from server
-        auditData.forEach((audit: AuditHistory) => {
-          existingMap.set(audit.AuditId, audit);
-        });
-
-        // Convert back to array and sort by date
-        return Array.from(existingMap.values()).sort(
-          (a, b) =>
-            new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
-        );
-      });
+      // Replace audits completely (don't merge) to prevent showing previous store's audits
+      const sortedAudits = auditData.sort(
+        (a: AuditHistory, b: AuditHistory) =>
+          new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+      );
+      setAudits(sortedAudits);
 
       // Filter audits by current user to check if user has any audits
       const userAuditData = auditData.filter((audit: AuditHistory) => {
@@ -266,7 +256,13 @@ export default function StoreDetailScreen() {
   );
 
   useEffect(() => {
+    // Clear all state when store ID changes (navigating to different store)
     promptedDateRef.current = null;
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    setCachedLocation(null);
+    setAudits([]); // Clear audits to prevent showing previous store's audits
+    setStore(null); // Clear store data
   }, [id]);
 
   useEffect(() => {

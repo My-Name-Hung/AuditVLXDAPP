@@ -154,7 +154,7 @@ export default function StoreSurveyScreen() {
     products: [],
   });
 
-  // Load saved survey data from AsyncStorage
+  // Load saved survey data from AsyncStorage (only form template, not store-specific data)
   useEffect(() => {
     const loadSavedSurveyData = async () => {
       try {
@@ -163,7 +163,30 @@ export default function StoreSurveyScreen() {
           const savedData = await AsyncStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
-            setSurveyData(parsed);
+            // Only load form template, clear store-specific fields
+            setSurveyData({
+              ...parsed,
+              whyNotSellNewProduct: "",
+              timeToSellNewProduct: "",
+              newProductImportQuantity: "",
+              supplierName: "",
+              storeComment: "",
+              products:
+                parsed.products?.map((p: any) => ({
+                  ...p,
+                  contactPersonPhone: "",
+                  productType: "",
+                  cementProductId: null,
+                  purchasePrice: "",
+                  sellingPrice: "",
+                  roadTransportFee: "",
+                  waterTransportFee: "",
+                  quantityReceived: "",
+                  importedFromNPP: "",
+                  discountPromotion: "",
+                  averageStockQuantity: "",
+                })) || [],
+            });
           }
         }
       } catch (error) {
@@ -173,24 +196,10 @@ export default function StoreSurveyScreen() {
     loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, [user?.id]);
+  }, [user?.id, id]); // Add id to dependencies to reset when store changes
 
-  // Auto-save survey data to AsyncStorage whenever it changes
-  useEffect(() => {
-    const saveSurveyData = async () => {
-      try {
-        if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.setItem(storageKey, JSON.stringify(surveyData));
-        }
-      } catch (error) {
-        console.error("Error saving survey data:", error);
-      }
-    };
-    // Debounce save to avoid too frequent writes
-    const timeoutId = setTimeout(saveSurveyData, 500);
-    return () => clearTimeout(timeoutId);
-  }, [surveyData, user?.id]);
+  // Note: Auto-save removed to prevent saving store-specific data
+  // Survey data is only saved after successful submission as a template
 
   // Autofill current user into "Nhập bởi thương vụ"
   useEffect(() => {
@@ -667,28 +676,40 @@ export default function StoreSurveyScreen() {
         });
       }
 
-      // Clear captured data (images/notes) but keep form defaults for next store
+      // Clear captured data (images/notes) and store-specific form data
       clearSurveyData();
 
-      const nextSurveyData: SurveyData = {
-        ...surveyData,
+      // Only save form template (importedBySalesperson), not store-specific data
+      const templateData: SurveyData = {
+        whyNotSellNewProduct: "",
+        timeToSellNewProduct: "",
+        newProductImportQuantity: "",
+        supplierName: "",
+        importedBySalesperson: surveyData.importedBySalesperson || "", // Keep only this field
+        storeComment: "",
         products: surveyData.products.map((p) => ({
-          ...p,
+          productType: "",
+          cementProductId: null,
           contactPersonPhone: "",
+          purchasePrice: "",
+          sellingPrice: "",
+          roadTransportFee: "",
+          waterTransportFee: "",
+          quantityReceived: "",
+          importedFromNPP: "",
+          discountPromotion: "",
+          averageStockQuantity: "",
         })),
       };
 
-      setSurveyData(nextSurveyData);
+      setSurveyData(templateData);
 
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          await AsyncStorage.setItem(
-            storageKey,
-            JSON.stringify(nextSurveyData)
-          );
+          await AsyncStorage.setItem(storageKey, JSON.stringify(templateData));
         } catch (error) {
-          console.error("Error saving survey defaults for next store:", error);
+          console.error("Error saving survey template for next store:", error);
         }
       }
 

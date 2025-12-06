@@ -146,7 +146,7 @@ const StoreSurvey = () => {
     products: [],
   });
 
-  // Load saved survey data from localStorage
+  // Load saved survey data from localStorage (only form template, not store-specific data)
   useEffect(() => {
     const loadSavedSurveyData = () => {
       try {
@@ -155,7 +155,31 @@ const StoreSurvey = () => {
           const savedData = localStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
-            setSurveyData(parsed);
+            // Only load form template, clear store-specific fields
+            setSurveyData({
+              ...parsed,
+              whyNotSellNewProduct: "",
+              timeToSellNewProduct: "",
+              newProductImportQuantity: "",
+              supplierName: "",
+              storeComment: "",
+              products:
+                parsed.products && Array.isArray(parsed.products)
+                  ? parsed.products.map(() => ({
+                      productType: "",
+                      cementProductId: null,
+                      contactPersonPhone: "",
+                      purchasePrice: "",
+                      sellingPrice: "",
+                      roadTransportFee: "",
+                      waterTransportFee: "",
+                      quantityReceived: "",
+                      importedFromNPP: "",
+                      discountPromotion: "",
+                      averageStockQuantity: "",
+                    }))
+                  : [],
+            });
           }
         }
       } catch (error) {
@@ -165,24 +189,10 @@ const StoreSurvey = () => {
     loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, [user?.id]);
+  }, [user?.id, storeId]); // Add storeId to reset when store changes
 
-  // Auto-save survey data to localStorage whenever it changes
-  useEffect(() => {
-    const saveSurveyData = () => {
-      try {
-        if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
-          localStorage.setItem(storageKey, JSON.stringify(surveyData));
-        }
-      } catch (error) {
-        console.error("Error saving survey data:", error);
-      }
-    };
-    // Debounce save to avoid too frequent writes
-    const timeoutId = setTimeout(saveSurveyData, 500);
-    return () => clearTimeout(timeoutId);
-  }, [surveyData, user?.id]);
+  // Note: Auto-save removed to prevent saving store-specific data
+  // Survey data is only saved after successful submission as a template
 
   // Autofill current user into "Nhập bởi thương vụ"
   useEffect(() => {
@@ -654,23 +664,37 @@ const StoreSurvey = () => {
         });
       }
 
-      // Keep form defaults for next store, but clear tên + SĐT fields
-      const nextSurveyData: SurveyData = {
-        ...surveyData,
-        products: surveyData.products.map((p) => ({
-          ...p,
+      // Only save form template (importedBySalesperson), not store-specific data
+      const templateData: SurveyData = {
+        whyNotSellNewProduct: "",
+        timeToSellNewProduct: "",
+        newProductImportQuantity: "",
+        supplierName: "",
+        importedBySalesperson: surveyData.importedBySalesperson || "", // Keep only this field
+        storeComment: "",
+        products: surveyData.products.map(() => ({
+          productType: "",
+          cementProductId: null,
           contactPersonPhone: "",
+          purchasePrice: "",
+          sellingPrice: "",
+          roadTransportFee: "",
+          waterTransportFee: "",
+          quantityReceived: "",
+          importedFromNPP: "",
+          discountPromotion: "",
+          averageStockQuantity: "",
         })),
       };
 
-      setSurveyData(nextSurveyData);
+      setSurveyData(templateData);
 
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}`;
-          localStorage.setItem(storageKey, JSON.stringify(nextSurveyData));
+          localStorage.setItem(storageKey, JSON.stringify(templateData));
         } catch (error) {
-          console.error("Error saving survey defaults for next store:", error);
+          console.error("Error saving survey template for next store:", error);
         }
       }
 

@@ -214,7 +214,14 @@ export default function StoreDetail() {
       const storeData = response.data;
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
-      setAudits(auditData);
+      
+      // Replace audits completely (don't merge) to prevent showing previous store's audits
+      const sortedAudits = auditData.sort(
+        (a: AuditHistory, b: AuditHistory) =>
+          new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+      );
+      setAudits(sortedAudits);
+      
       // Filter audits by current user to check if user has any audits
       const userAuditData = auditData.filter((audit: AuditHistory) => {
         return audit.UserId === user?.id || audit.userId === user?.id;
@@ -247,7 +254,12 @@ export default function StoreDetail() {
   }, [fetchStore]);
 
   useEffect(() => {
+    // Clear all state when store ID changes (navigating to different store)
     promptedDateRef.current = null;
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    setAudits([]); // Clear audits to prevent showing previous store's audits
+    setStore(null); // Clear store data
   }, [id]);
 
   useEffect(() => {
