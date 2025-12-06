@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HiArrowLeft } from "react-icons/hi2";
+import { HiArrowLeft, HiArrowDownTray } from "react-icons/hi2";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import "./StoreSurveyDetail.css";
@@ -210,8 +210,8 @@ export default function StoreSurveyDetail() {
         "Phí VC đường bộ",
         "Phí VC đường thủy",
         "SL nhận hàng (tấn/tháng)",
-        "Nhập từ NPP",
         "Số lượng tồn bình quân (tấn/tháng)",
+        "Nhập từ NPP",
         "Ý kiến/Ghi chú",
       ];
 
@@ -229,7 +229,21 @@ export default function StoreSurveyDetail() {
 
       // Data rows - Show products from Title 3
       if (survey.products && survey.products.length > 0) {
+        let totalPurchasePrice = 0;
+        let totalSellingPrice = 0;
+        let totalRoadTransportFee = 0;
+        let totalWaterTransportFee = 0;
+        let totalQuantityReceived = 0;
+        let totalAverageStockQuantity = 0;
+
         survey.products.forEach((product, index) => {
+          totalPurchasePrice += product.PurchasePrice || 0;
+          totalSellingPrice += product.SellingPrice || 0;
+          totalRoadTransportFee += product.RoadTransportFee || 0;
+          totalWaterTransportFee += product.WaterTransportFee || 0;
+          totalQuantityReceived += product.QuantityReceived || 0;
+          totalAverageStockQuantity += product.AverageStockQuantity || 0;
+
           const row = sheet.addRow([
             index + 1,
             survey.StoreName || "",
@@ -242,8 +256,8 @@ export default function StoreSurveyDetail() {
             formatVND(product.RoadTransportFee),
             formatVND(product.WaterTransportFee),
             product.QuantityReceived || "",
-            product.ImportedFromNPP || "",
             product.AverageStockQuantity || "",
+            product.ImportedFromNPP || "",
             survey.StoreComment || "",
           ]);
 
@@ -257,6 +271,48 @@ export default function StoreSurveyDetail() {
             cell.alignment = { vertical: "middle" };
           });
         });
+
+        // Add summary row
+        const summaryRow = sheet.addRow([
+          "",
+          "",
+          "",
+          "",
+          "",
+          `Tổng sản lượng bình quân của cửa hàng: ${survey.StoreName || ""}`,
+          formatVND(totalPurchasePrice),
+          formatVND(totalSellingPrice),
+          formatVND(totalRoadTransportFee),
+          formatVND(totalWaterTransportFee),
+          totalQuantityReceived,
+          totalAverageStockQuantity,
+          "",
+          "",
+        ]);
+
+        summaryRow.eachCell((cell) => {
+          cell.border = {
+            top: { style: "thin" },
+            bottom: { style: "thin" },
+            left: { style: "thin" },
+            right: { style: "thin" },
+          };
+          cell.alignment = { vertical: "middle" };
+        });
+
+        // Style summary row
+        summaryRow.getCell(6).font = { bold: true };
+        summaryRow.getCell(7).font = { bold: true };
+        summaryRow.getCell(8).font = { bold: true };
+        summaryRow.getCell(9).font = { bold: true };
+        summaryRow.getCell(10).font = { bold: true };
+        summaryRow.getCell(11).font = { bold: true };
+        summaryRow.getCell(12).font = { bold: true };
+        summaryRow.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFF0F7FF" },
+        };
       } else {
         // Fallback if no products
         const row = sheet.addRow([
@@ -421,6 +477,7 @@ export default function StoreSurveyDetail() {
           onClick={handleExportExcel}
           disabled={exportLoading}
         >
+          <HiArrowDownTray />
           {exportLoading ? "Đang xuất..." : "Xuất Excel"}
         </button>
       </div>
@@ -476,8 +533,8 @@ export default function StoreSurveyDetail() {
                     <th>Phí VC đường bộ</th>
                     <th>Phí VC đường thủy</th>
                     <th>SL nhận hàng (tấn/tháng)</th>
-                    <th>Nhập từ NPP</th>
                     <th>Số lượng tồn bình quân (tấn/tháng)</th>
+                    <th>Nhập từ NPP</th>
                     <th>Ý kiến/Ghi chú</th>
                   </tr>
                 </thead>
@@ -495,11 +552,66 @@ export default function StoreSurveyDetail() {
                       <td>{formatVND(product.RoadTransportFee)}</td>
                       <td>{formatVND(product.WaterTransportFee)}</td>
                       <td>{product.QuantityReceived || ""}</td>
-                      <td>{product.ImportedFromNPP || ""}</td>
                       <td>{product.AverageStockQuantity || ""}</td>
+                      <td>{product.ImportedFromNPP || ""}</td>
                       <td>{survey.StoreComment || ""}</td>
                     </tr>
                   ))}
+                  {/* Summary row */}
+                  {(() => {
+                    const totalPurchasePrice =
+                      survey.products.reduce(
+                        (sum, p) => sum + (p.PurchasePrice || 0),
+                        0
+                      ) || 0;
+                    const totalSellingPrice =
+                      survey.products.reduce(
+                        (sum, p) => sum + (p.SellingPrice || 0),
+                        0
+                      ) || 0;
+                    const totalRoadTransportFee =
+                      survey.products.reduce(
+                        (sum, p) => sum + (p.RoadTransportFee || 0),
+                        0
+                      ) || 0;
+                    const totalWaterTransportFee =
+                      survey.products.reduce(
+                        (sum, p) => sum + (p.WaterTransportFee || 0),
+                        0
+                      ) || 0;
+                    const totalQuantityReceived =
+                      survey.products.reduce(
+                        (sum, p) => sum + (p.QuantityReceived || 0),
+                        0
+                      ) || 0;
+                    const totalAverageStockQuantity =
+                      survey.products.reduce(
+                        (sum, p) => sum + (p.AverageStockQuantity || 0),
+                        0
+                      ) || 0;
+
+                    return (
+                      <tr
+                        className="summary-row"
+                        style={{
+                          backgroundColor: "#f0f7ff",
+                          fontWeight: "bold",
+                        }}
+                      >
+                        <td colSpan={6} style={{ textAlign: "right" }}>
+                          Tổng sản lượng bình quân của cửa hàng:{" "}
+                          {survey.StoreName}
+                        </td>
+                        <td>{formatVND(totalPurchasePrice)}</td>
+                        <td>{formatVND(totalSellingPrice)}</td>
+                        <td>{formatVND(totalRoadTransportFee)}</td>
+                        <td>{formatVND(totalWaterTransportFee)}</td>
+                        <td>{totalQuantityReceived}</td>
+                        <td>{totalAverageStockQuantity}</td>
+                        <td colSpan={2}></td>
+                      </tr>
+                    );
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -516,7 +628,7 @@ export default function StoreSurveyDetail() {
           <div className="survey-section">
             <h2>Khảo sát sản phẩm XMTĐ</h2>
             <div className="survey-table-container">
-              <table className="survey-table">
+              <table className="survey-table survey-table-xmtd">
                 <thead>
                   <tr>
                     <th>Stt</th>

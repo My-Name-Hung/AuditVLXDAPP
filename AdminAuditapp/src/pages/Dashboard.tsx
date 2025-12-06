@@ -9,6 +9,7 @@ import {
 } from "chart.js";
 import { useEffect, useRef, useState } from "react";
 import { Bar } from "react-chartjs-2";
+import { HiArrowDownTray } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import MultiSelect from "../components/MultiSelect";
@@ -498,7 +499,8 @@ export default function Dashboard() {
           <h2>Tổng quan hoạt động</h2>
         </div>
         <button className="btn-export-dashboard" onClick={handleExport}>
-          Tải báo cáo
+          <HiArrowDownTray />
+          Xuất báo cáo
         </button>
       </div>
 

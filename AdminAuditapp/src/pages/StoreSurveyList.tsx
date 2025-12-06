@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { HiEye } from "react-icons/hi";
+import { HiArrowDownTray } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import "./StoreSurveyList.css";
@@ -458,8 +459,8 @@ export default function StoreSurveyList() {
           "Phí VC đường bộ",
           "Phí VC đường thủy",
           "SL nhận hàng (tấn/tháng)",
-          "Nhập từ NPP",
           "Số lượng tồn bình quân (tấn/tháng)",
+          "Nhập từ NPP",
           "Ý kiến/Ghi chú",
         ];
 
@@ -488,14 +489,27 @@ export default function StoreSurveyList() {
         storeGroups.forEach((storeSurveys) => {
           const firstSurvey = storeSurveys[0];
           let isFirstRow = true;
+          let totalPurchasePrice = 0;
+          let totalSellingPrice = 0;
+          let totalRoadTransportFee = 0;
+          let totalWaterTransportFee = 0;
+          let totalQuantityReceived = 0;
+          let totalAverageStockQuantity = 0;
 
           // Show products from Title 3
           if (firstSurvey.products && firstSurvey.products.length > 0) {
             firstSurvey.products.forEach((product) => {
+              totalPurchasePrice += product.PurchasePrice || 0;
+              totalSellingPrice += product.SellingPrice || 0;
+              totalRoadTransportFee += product.RoadTransportFee || 0;
+              totalWaterTransportFee += product.WaterTransportFee || 0;
+              totalQuantityReceived += product.QuantityReceived || 0;
+              totalAverageStockQuantity += product.AverageStockQuantity || 0;
+
               const row = sheet.addRow([
                 isFirstRow ? sttCounter : "",
-                isFirstRow ? firstSurvey.StoreName || "" : "",
-                isFirstRow ? formatDate(firstSurvey.AuditDate) : "",
+                firstSurvey.StoreName || "",
+                formatDate(firstSurvey.AuditDate),
                 product.ContactPersonPhone || "",
                 product.ProductType || "",
                 product.CementProductName || "",
@@ -504,8 +518,8 @@ export default function StoreSurveyList() {
                 formatVND(product.RoadTransportFee),
                 formatVND(product.WaterTransportFee),
                 product.QuantityReceived || "",
-                product.ImportedFromNPP || "",
                 product.AverageStockQuantity || "",
+                product.ImportedFromNPP || "",
                 isFirstRow ? firstSurvey.StoreComment || "" : "",
               ]);
 
@@ -520,6 +534,50 @@ export default function StoreSurveyList() {
               });
               isFirstRow = false;
             });
+
+            // Add summary row
+            const summaryRow = sheet.addRow([
+              "",
+              "",
+              "",
+              "",
+              "",
+              `Tổng sản lượng bình quân của cửa hàng: ${
+                firstSurvey.StoreName || ""
+              }`,
+              formatVND(totalPurchasePrice),
+              formatVND(totalSellingPrice),
+              formatVND(totalRoadTransportFee),
+              formatVND(totalWaterTransportFee),
+              totalQuantityReceived,
+              totalAverageStockQuantity,
+              "",
+              "",
+            ]);
+
+            summaryRow.eachCell((cell) => {
+              cell.border = {
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" },
+              };
+              cell.alignment = { vertical: "middle" };
+            });
+
+            // Style summary row
+            summaryRow.getCell(6).font = { bold: true };
+            summaryRow.getCell(7).font = { bold: true };
+            summaryRow.getCell(8).font = { bold: true };
+            summaryRow.getCell(9).font = { bold: true };
+            summaryRow.getCell(10).font = { bold: true };
+            summaryRow.getCell(11).font = { bold: true };
+            summaryRow.getCell(12).font = { bold: true };
+            summaryRow.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF0F7FF" },
+            };
           }
 
           sttCounter++;
@@ -656,6 +714,7 @@ export default function StoreSurveyList() {
           onClick={handleExportExcel}
           disabled={exportLoading}
         >
+          <HiArrowDownTray />
           {exportLoading ? "Đang xuất..." : "Xuất Excel"}
         </button>
       </div>
@@ -851,44 +910,115 @@ export default function StoreSurveyList() {
               </tr>
             </thead>
             <tbody>
-              {surveys
-                .filter(
-                  (survey) => survey.products && survey.products.length > 0
-                )
-                .map((survey, index) => {
-                  const mainProduct = survey.products[0];
-                  return (
-                    <tr key={survey.Id}>
-                      <td>{index + 1}</td>
-                      <td>{survey.StoreName || "-"}</td>
-                      <td>{formatDate(survey.AuditDate) || "-"}</td>
-                      <td>{mainProduct?.ContactPersonPhone || "-"}</td>
-                      <td>{mainProduct?.ProductType || "-"}</td>
-                      <td>{mainProduct?.CementProductName || "-"}</td>
-                      <td>
-                        {formatVND(mainProduct?.PurchasePrice || null) || "-"}
+              {(() => {
+                const allItems = surveys
+                  .filter(
+                    (survey) => survey.products && survey.products.length > 0
+                  )
+                  .flatMap((survey) =>
+                    survey.products.map((product, productIndex) => ({
+                      survey,
+                      product,
+                      productIndex,
+                    }))
+                  );
+
+                // Group items by store
+                const storeGroups = new Map<
+                  number,
+                  Array<{
+                    survey: StoreSurveyListItem;
+                    product: StoreSurveyListItem["products"][0];
+                    productIndex: number;
+                  }>
+                >();
+
+                allItems.forEach((item) => {
+                  const { survey } = item;
+                  if (!storeGroups.has(survey.StoreId)) {
+                    storeGroups.set(survey.StoreId, []);
+                  }
+                  storeGroups.get(survey.StoreId)!.push(item);
+                });
+
+                // Render rows grouped by store
+                let globalIndex = 0;
+                const rows: React.ReactElement[] = [];
+
+                storeGroups.forEach((items, storeId) => {
+                  const firstItem = items[0];
+                  const storeName = firstItem.survey.StoreName || "-";
+
+                  // Calculate totals for this store
+                  let totalPurchasePrice = 0;
+                  let totalSellingPrice = 0;
+                  let totalAverageStockQuantity = 0;
+
+                  // Add product rows for this store
+                  items.forEach((item) => {
+                    const { survey, product } = item;
+                    totalPurchasePrice += product?.PurchasePrice || 0;
+                    totalSellingPrice += product?.SellingPrice || 0;
+                    totalAverageStockQuantity +=
+                      product?.AverageStockQuantity || 0;
+
+                    globalIndex++;
+                    rows.push(
+                      <tr key={`${survey.Id}-${product.Id}-${globalIndex}`}>
+                        <td>{globalIndex}</td>
+                        <td>{survey.StoreName || "-"}</td>
+                        <td>{formatDate(survey.AuditDate) || "-"}</td>
+                        <td>{product?.ContactPersonPhone || "-"}</td>
+                        <td>{product?.ProductType || "-"}</td>
+                        <td>{product?.CementProductName || "-"}</td>
+                        <td>
+                          {formatVND(product?.PurchasePrice || null) || "-"}
+                        </td>
+                        <td>
+                          {formatVND(product?.SellingPrice || null) || "-"}
+                        </td>
+                        <td>{product?.AverageStockQuantity ?? "-"}</td>
+                        <td>{product?.ImportedFromNPP || "-"}</td>
+                        <td>
+                          <button
+                            className="btn-view-survey-list"
+                            onClick={() =>
+                              navigate(
+                                `/stores/${survey.StoreId}/survey?auditId=${survey.AuditId}&userId=${survey.UserId}`
+                              )
+                            }
+                            title="Xem chi tiết"
+                          >
+                            <HiEye />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  });
+
+                  // Add summary row for this store
+                  rows.push(
+                    <tr
+                      key={`total-${storeId}`}
+                      className="summary-row"
+                      style={{
+                        backgroundColor: "#f0f7ff",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      <td colSpan={6} style={{ textAlign: "right" }}>
+                        Tổng sản lượng bình quân của cửa hàng: {storeName}
                       </td>
-                      <td>
-                        {formatVND(mainProduct?.SellingPrice || null) || "-"}
-                      </td>
-                      <td>{mainProduct?.AverageStockQuantity ?? "-"}</td>
-                      <td>{mainProduct?.ImportedFromNPP || "-"}</td>
-                      <td>
-                        <button
-                          className="btn-view-survey-list"
-                          onClick={() =>
-                            navigate(
-                              `/stores/${survey.StoreId}/survey?auditId=${survey.AuditId}&userId=${survey.UserId}`
-                            )
-                          }
-                          title="Xem chi tiết"
-                        >
-                          <HiEye />
-                        </button>
-                      </td>
+                      <td>{formatVND(totalPurchasePrice)}</td>
+                      <td>{formatVND(totalSellingPrice)}</td>
+                      <td>{totalAverageStockQuantity}</td>
+                      <td colSpan={2}></td>
                     </tr>
                   );
-                })}
+                });
+
+                return <>{rows}</>;
+              })()}
             </tbody>
           </table>
         </div>

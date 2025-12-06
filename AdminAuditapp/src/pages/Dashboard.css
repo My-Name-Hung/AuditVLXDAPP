@@ -24,15 +24,28 @@
 }
 
 .btn-export-dashboard {
-  background-color: #3D805F;
+  background: #3d805f;
   color: white;
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+}
+
+.btn-export-dashboard:hover {
+  background: #207245;
+}
+
+.btn-export-dashboard svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
 }
 
 .btn-export-dashboard:hover {
@@ -150,7 +163,7 @@
 
 .user-name-link:hover {
   color: #0129a0;
-  background: none
+  background: none;
 }
 
 .total-row {

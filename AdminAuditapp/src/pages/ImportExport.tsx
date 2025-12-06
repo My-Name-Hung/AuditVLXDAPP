@@ -1490,10 +1490,10 @@ export default function ImportExport() {
             </div>
 
             <div className="history-section">
-              <h2>Lịch sử import</h2>
+              <h2>Lịch sử tải lên</h2>
               <div className="history-list">
                 {storesHistory.length === 0 ? (
-                  <p className="no-history">Chưa có lịch sử import</p>
+                  <p className="no-history">Chưa có lịch sử tải lên</p>
                 ) : (
                   storesHistory.map((history) => (
                     <div key={history.Id} className="history-item">
@@ -1696,7 +1696,7 @@ export default function ImportExport() {
               <div className="export-card">
                 <HiDocumentText className="export-icon" />
                 <h3>Báo cáo tổng hợp</h3>
-                <p>Xuất báo cáo từ Dashboard</p>
+                <p>Xuất báo cáo từ Tổng quan</p>
                 <button
                   className="btn-primary"
                   onClick={() => handleExportReport("dashboard")}
