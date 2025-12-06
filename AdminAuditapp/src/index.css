@@ -88,7 +88,7 @@ button {
 
 button:hover {
   transform: translateY(-1px);
-  background-color: #588157;
+  /* background-color: #588157; */
 }
 
 button:focus,

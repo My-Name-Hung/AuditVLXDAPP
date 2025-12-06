@@ -77,6 +77,33 @@ interface DashboardDetailItem {
   Notes: string | null;
 }
 
+interface StoreSurveyItem {
+  Id: number;
+  StoreId: number;
+  AuditId: number;
+  StoreName: string;
+  TerritoryName?: string;
+  AuditDate: string | null;
+  WhyNotSellNewProduct?: string | null;
+  TimeToSellNewProduct?: string | null;
+  NewProductImportQuantity?: string | null;
+  SupplierName?: string | null;
+  ImportedBySalesperson?: string | null;
+  StoreComment?: string | null;
+  products: Array<{
+    ContactPersonPhone: string | null;
+    ProductType: string | null;
+    CementProductName: string | null;
+    PurchasePrice: number | null;
+    SellingPrice: number | null;
+    RoadTransportFee: number | null;
+    WaterTransportFee: number | null;
+    QuantityReceived: number | null;
+    ImportedFromNPP: string | null;
+    AverageStockQuantity: number | null;
+  }>;
+}
+
 type TabType =
   | "import-stores"
   | "import-users"
@@ -484,7 +511,9 @@ export default function ImportExport() {
     return labels[status] || status;
   };
 
-  const handleExportReport = async (type: "dashboard" | "stores" | "users") => {
+  const handleExportReport = async (
+    type: "dashboard" | "stores" | "users" | "surveys"
+  ) => {
     try {
       setExportLoading(true);
       setExportProgress(0);
@@ -528,6 +557,31 @@ export default function ImportExport() {
           await generateStoresExcel(res.data.data || [], setExportProgress);
           setExportProgress(100);
         }
+      } else if (type === "surveys") {
+        // Export surveys list - same logic as StoreSurveyList.tsx
+        setExportProgress(20);
+        const res = await api.get("/store-surveys", {
+          params: { page: 1, pageSize: 1000 },
+        });
+        setExportProgress(30);
+
+        // Fetch products for each survey
+        const surveysWithProducts = await Promise.all(
+          res.data.map(async (survey: StoreSurveyItem) => {
+            try {
+              const productsRes = await api.get(
+                `/store-survey-products/survey/${survey.Id}`
+              );
+              return { ...survey, products: productsRes.data || [] };
+            } catch {
+              return { ...survey, products: [] };
+            }
+          })
+        );
+        setExportProgress(50);
+
+        await generateSurveysExcel(surveysWithProducts, setExportProgress);
+        setExportProgress(100);
       } else {
         // Export users list
         setExportProgress(20);
@@ -1024,6 +1078,308 @@ export default function ImportExport() {
     });
   };
 
+  // Format date for survey export (date only)
+  const formatSurveyDate = (dateString: string | null): string => {
+    if (!dateString) return "";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("vi-VN");
+  };
+
+  // Format VND for survey export
+  const formatSurveyVND = (value: number | null): string => {
+    if (value === null || value === undefined) return "";
+    return value.toLocaleString("vi-VN");
+  };
+
+  // Generate Surveys Excel - same logic as StoreSurveyList.tsx
+  const generateSurveysExcel = async (
+    surveys: StoreSurveyItem[],
+    progressCallback?: (progress: number) => void
+  ) => {
+    const ExcelJS = (await import("exceljs")).default;
+    const workbook = new ExcelJS.Workbook();
+
+    if (progressCallback) progressCallback(60);
+
+    // Calculate week number in month and week number in year
+    const now = new Date();
+    const year = now.getFullYear();
+    const day = now.getDate();
+
+    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+    const weekNumberInMonth = Math.ceil(day / 7);
+
+    // Week number in year: calculate from January 1st
+    const januaryFirst = new Date(year, 0, 1);
+    const firstDayOfWeek = januaryFirst.getDay();
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    const daysSinceYearStart = Math.floor(
+      (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const weekNumberInYear = Math.ceil(
+      (daysSinceYearStart + firstMondayOffset + 1) / 7
+    );
+
+    // Filter only XMTĐ products (Title 2 + 3)
+    const xmtdSurveys = surveys.filter(
+      (survey) =>
+        survey.WhyNotSellNewProduct ||
+        (survey.products && survey.products.length > 0)
+    );
+
+    // Group by TerritoryName
+    const territoryGroups = new Map<string, StoreSurveyItem[]>();
+    xmtdSurveys.forEach((survey) => {
+      const territory = survey.TerritoryName || "Chưa xác định";
+      if (!territoryGroups.has(territory)) {
+        territoryGroups.set(territory, []);
+      }
+      territoryGroups.get(territory)!.push(survey);
+    });
+
+    // Header style
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern" as const,
+        pattern: "solid" as const,
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: {
+        horizontal: "center" as const,
+        vertical: "middle" as const,
+      },
+      border: {
+        top: { style: "thin" as const },
+        bottom: { style: "thin" as const },
+        left: { style: "thin" as const },
+        right: { style: "thin" as const },
+      },
+    };
+
+    // Create sheets for each territory (gộp 2 bảng vào 1 sheet)
+    territoryGroups.forEach((territorySurveys, territoryName) => {
+      // Single sheet with both tables
+      const sheet = workbook.addWorksheet(
+        `${territoryName || "Chưa xác định"}`
+      );
+
+      // Title rows
+      sheet.mergeCells("A1:N1");
+      sheet.getCell(
+        "A1"
+      ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+      sheet.getCell("A1").font = { bold: true, size: 14 };
+      sheet.getCell("A1").alignment = { horizontal: "center" };
+
+      sheet.mergeCells("A2:N2");
+      sheet.getCell("A2").value = `Địa bàn: ${
+        territoryName || "Chưa xác định"
+      }`;
+      sheet.getCell("A2").font = { bold: true, size: 12 };
+      sheet.getCell("A2").alignment = { horizontal: "center" };
+
+      sheet.mergeCells("A3:N3");
+      sheet.getCell(
+        "A3"
+      ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+      sheet.getCell("A3").font = { bold: true, size: 12 };
+      sheet.getCell("A3").alignment = { horizontal: "left" };
+
+      // Table headers
+      const headers = [
+        "Stt",
+        "Tên Cửa hàng",
+        "Ngày thăm",
+        "Tên + SDT",
+        "Tên sản phẩm",
+        "Loại XM",
+        "Giá mua",
+        "Giá bán",
+        "Phí VC đường bộ",
+        "Phí VC đường thủy",
+        "SL nhận hàng (tấn/tháng)",
+        "Nhập từ NPP",
+        "Số lượng tồn bình quân (tấn/tháng)",
+        "Ý kiến/Ghi chú",
+      ];
+
+      sheet.getRow(5).values = headers;
+      sheet.getRow(5).height = 40;
+      sheet.getRow(5).eachCell((cell) => {
+        cell.style = {
+          ...headerStyle,
+          alignment: {
+            ...headerStyle.alignment,
+            wrapText: true,
+          },
+        };
+      });
+
+      // Data rows - Group by store and show multiple products
+      let sttCounter = 1;
+      const storeGroups = new Map<number, StoreSurveyItem[]>();
+      territorySurveys.forEach((survey) => {
+        if (!storeGroups.has(survey.StoreId)) {
+          storeGroups.set(survey.StoreId, []);
+        }
+        storeGroups.get(survey.StoreId)!.push(survey);
+      });
+
+      storeGroups.forEach((storeSurveys) => {
+        const firstSurvey = storeSurveys[0];
+        let isFirstRow = true;
+
+        // Show products from Title 3
+        if (firstSurvey.products && firstSurvey.products.length > 0) {
+          firstSurvey.products.forEach((product) => {
+            const row = sheet.addRow([
+              isFirstRow ? sttCounter : "",
+              isFirstRow ? firstSurvey.StoreName || "" : "",
+              isFirstRow ? formatSurveyDate(firstSurvey.AuditDate) : "",
+              product.ContactPersonPhone || "",
+              product.ProductType || "",
+              product.CementProductName || "",
+              formatSurveyVND(product.PurchasePrice),
+              formatSurveyVND(product.SellingPrice),
+              formatSurveyVND(product.RoadTransportFee),
+              formatSurveyVND(product.WaterTransportFee),
+              product.QuantityReceived || "",
+              product.ImportedFromNPP || "",
+              product.AverageStockQuantity || "",
+              isFirstRow ? firstSurvey.StoreComment || "" : "",
+            ]);
+
+            row.eachCell((cell) => {
+              cell.border = {
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" },
+              };
+              cell.alignment = { vertical: "middle" };
+            });
+            isFirstRow = false;
+          });
+        }
+
+        sttCounter++;
+      });
+
+      // Column widths for Title 3 table
+      sheet.columns = [
+        { width: 8 },
+        { width: 25 },
+        { width: 12 },
+        { width: 20 },
+        { width: 18 },
+        { width: 20 },
+        { width: 12 },
+        { width: 12 },
+        { width: 15 },
+        { width: 15 },
+        { width: 20 },
+        { width: 18 },
+        { width: 25 },
+        { width: 30 },
+      ];
+
+      // Add spacing between tables
+      sheet.addRow([]);
+      sheet.addRow([]);
+
+      // Table 2: Khảo sát sản phẩm XMTĐ (Title 2) - Below Title 3
+      const title2Surveys = territorySurveys.filter(
+        (survey) =>
+          survey.WhyNotSellNewProduct ||
+          survey.TimeToSellNewProduct ||
+          survey.NewProductImportQuantity ||
+          survey.SupplierName ||
+          survey.ImportedBySalesperson ||
+          survey.StoreComment
+      );
+
+      if (title2Surveys.length > 0) {
+        // Title for Table 2
+        const title2Row = sheet.rowCount + 1;
+        sheet.mergeCells(`A${title2Row}:I${title2Row}`);
+        sheet.getCell(`A${title2Row}`).value = `2. KHẢO SÁT SẢN PHẨM XMTĐ`;
+        sheet.getCell(`A${title2Row}`).font = { bold: true, size: 12 };
+        sheet.getCell(`A${title2Row}`).alignment = { horizontal: "left" };
+
+        // Table headers for Title 2
+        const headers2 = [
+          "Stt",
+          "Tên Cửa hàng",
+          "Ngày thăm",
+          "Tại sao không bán sản phẩm mới",
+          "Thời gian để bán sản phẩm mới",
+          "Tên sản phẩm muốn nhập – Số lượng",
+          "Mua qua NPP",
+          "Nhập bởi thương vụ",
+          "Ý kiến/Ghi chú",
+        ];
+
+        const headerRow2 = sheet.addRow(headers2);
+        headerRow2.height = 40;
+        headerRow2.eachCell((cell) => {
+          cell.style = {
+            ...headerStyle,
+            alignment: {
+              ...headerStyle.alignment,
+              wrapText: true,
+            },
+          };
+        });
+
+        // Data rows for Title 2
+        let sttCounter2 = 1;
+        title2Surveys.forEach((survey) => {
+          const row2 = sheet.addRow([
+            sttCounter2,
+            survey.StoreName || "",
+            formatSurveyDate(survey.AuditDate),
+            survey.WhyNotSellNewProduct || "",
+            survey.TimeToSellNewProduct
+              ? formatSurveyDate(survey.TimeToSellNewProduct)
+              : "",
+            survey.NewProductImportQuantity || "",
+            survey.SupplierName || "",
+            survey.ImportedBySalesperson || "",
+            survey.StoreComment || "",
+          ]);
+
+          row2.eachCell((cell) => {
+            cell.border = {
+              top: { style: "thin" },
+              bottom: { style: "thin" },
+              left: { style: "thin" },
+              right: { style: "thin" },
+            };
+            cell.alignment = { vertical: "middle", wrapText: true };
+          });
+          sttCounter2++;
+        });
+      }
+    });
+
+    if (progressCallback) progressCallback(90);
+
+    // Export
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `BaoCaoKhaoSat_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="import-export-container">
       <div className="import-export-header">
@@ -1370,6 +1726,19 @@ export default function ImportExport() {
                 <button
                   className="btn-primary"
                   onClick={() => handleExportReport("users")}
+                  disabled={exportLoading}
+                >
+                  <HiArrowDownTray /> Xuất Excel
+                </button>
+              </div>
+
+              <div className="export-card">
+                <HiDocumentText className="export-icon" />
+                <h3>Danh sách khảo sát</h3>
+                <p>Xuất toàn bộ danh sách khảo sát</p>
+                <button
+                  className="btn-primary"
+                  onClick={() => handleExportReport("surveys")}
                   disabled={exportLoading}
                 >
                   <HiArrowDownTray /> Xuất Excel
