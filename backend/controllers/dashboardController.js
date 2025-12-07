@@ -781,28 +781,18 @@ async function getStoresWithAuditStatus(req, res) {
     const currentUserId = req.user?.id || req.user?.userId;
     const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
-    let query = `
+    // Get all stores first
+    let storesQuery = `
       SELECT DISTINCT
         s.Id as StoreId,
-        s.StoreName,
-        CASE 
-          WHEN EXISTS (
-            SELECT 1 FROM Audits a
-            INNER JOIN Images img ON a.Id = img.AuditId
-            WHERE a.StoreId = s.Id
-              AND CAST(a.AuditDate AS DATE) BETWEEN @startDate AND @endDate
-              AND img.ImageUrl IS NOT NULL
-              AND img.ImageUrl != ''
-          ) THEN 1
-          ELSE 0
-        END as IsAudited
+        s.StoreName
       FROM Stores s
       WHERE 1=1
     `;
 
     // Filter by user - only show stores assigned to current user (unless admin)
     if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND (
+      storesQuery += ` AND (
         s.UserId = @currentUserId
         OR EXISTS (
           SELECT 1 FROM StoreUsers su
@@ -813,13 +803,49 @@ async function getStoresWithAuditStatus(req, res) {
     }
 
     if (territoryId) {
-      query += " AND s.TerritoryId = @territoryId";
+      storesQuery += " AND s.TerritoryId = @territoryId";
       request.input("territoryId", sql.Int, parseInt(territoryId, 10));
     }
 
     if (storeId) {
-      query += " AND s.Id = @storeId";
+      storesQuery += " AND s.Id = @storeId";
       request.input("storeId", sql.Int, parseInt(storeId, 10));
+    }
+
+    storesQuery += ` ORDER BY s.StoreName ASC`;
+
+    const storesResult = await request.query(storesQuery);
+    const allStores = storesResult.recordset;
+
+    // Get audited stores in date range
+    let auditedQuery = `
+      SELECT DISTINCT
+        a.StoreId,
+        CAST(a.AuditDate AS DATE) as AuditDate
+      FROM Audits a
+      INNER JOIN Stores s ON a.StoreId = s.Id
+      INNER JOIN Images img ON a.Id = img.AuditId
+      WHERE img.ImageUrl IS NOT NULL 
+        AND img.ImageUrl != ''
+        AND CAST(a.AuditDate AS DATE) IS NOT NULL
+    `;
+
+    if (currentUserId && currentUserRole !== "admin") {
+      auditedQuery += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+    }
+
+    if (territoryId) {
+      auditedQuery += " AND s.TerritoryId = @territoryId";
+    }
+
+    if (storeId) {
+      auditedQuery += " AND s.Id = @storeId";
     }
 
     // Set date range
@@ -828,17 +854,40 @@ async function getStoresWithAuditStatus(req, res) {
     request.input("startDate", sql.Date, start);
     request.input("endDate", sql.Date, end);
 
-    query += ` ORDER BY s.StoreName ASC`;
+    auditedQuery += `
+      AND CAST(a.AuditDate AS DATE) BETWEEN @startDate AND @endDate
+      ORDER BY a.StoreId, CAST(a.AuditDate AS DATE)
+    `;
 
-    const result = await request.query(query);
+    const auditedResult = await request.query(auditedQuery);
+    const auditedStoresMap = new Map<number, Set<string>>(); // StoreId -> Set of dates
+
+    auditedResult.recordset.forEach((row: any) => {
+      const storeId = row.StoreId;
+      const auditDate = row.AuditDate instanceof Date 
+        ? row.AuditDate.toISOString().split("T")[0]
+        : new Date(row.AuditDate).toISOString().split("T")[0];
+      
+      if (!auditedStoresMap.has(storeId)) {
+        auditedStoresMap.set(storeId, new Set());
+      }
+      auditedStoresMap.get(storeId)!.add(auditDate);
+    });
+
+    // Build result - mark stores as audited if they have audit in the date range
+    const result = allStores.map((store: any) => {
+      const hasAudit = auditedStoresMap.has(store.StoreId);
+      return {
+        StoreId: store.StoreId,
+        StoreName: store.StoreName,
+        IsAudited: hasAudit,
+        AuditDates: hasAudit ? Array.from(auditedStoresMap.get(store.StoreId)!) : [],
+      };
+    });
 
     res.json({
       success: true,
-      data: result.recordset.map((row) => ({
-        StoreId: row.StoreId,
-        StoreName: row.StoreName,
-        IsAudited: row.IsAudited === 1,
-      })),
+      data: result,
     });
   } catch (error) {
     console.error("Error fetching stores with audit status:", error);

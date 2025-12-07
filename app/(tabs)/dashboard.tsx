@@ -169,76 +169,173 @@ export default function DashboardScreen() {
   const fetchDayData = async () => {
     try {
       const dates = getDatesInWeeks(selectedWeeks, selectedYear, selectedMonth);
-      const allDayData: DayData[] = [];
+      if (dates.length === 0) {
+        setDayData([]);
+        setHasSurveyData(false);
+        return;
+      }
+
+      // Get date range for all selected weeks
+      const startDate = dates[0];
+      const endDate = dates[dates.length - 1];
+
+      console.log("Fetching dashboard data:", { 
+        selectedWeeks, 
+        selectedMonth, 
+        selectedYear, 
+        startDate, 
+        endDate,
+        dates 
+      });
+
+      const params: any = {
+        startDate: startDate,
+        endDate: endDate,
+      };
+      if (selectedTerritory) params.territoryId = selectedTerritory;
+      if (selectedStore) params.storeId = selectedStore;
+
+      // Fetch stores by date for the entire range
+      const storesResponse = await api.get("/dashboard/stores-by-date", { params });
+      const storesData = storesResponse.data?.success 
+        ? storesResponse.data.data || []
+        : storesResponse.data || [];
+
+      console.log("Stores by date response:", storesData);
+
+      // Fetch stores with audit status for the entire range
+      const auditStatusParams = { ...params };
+      const auditStatusResponse = await api.get("/dashboard/stores-with-audit-status", { params: auditStatusParams }).catch(() => null);
+      
+      // Fetch survey details for the entire range
+      const surveyParams = { ...params };
+      const surveyResponse = await api.get("/dashboard/store-survey-details", { params: surveyParams }).catch(() => null);
+      
+      // Create a map of date -> data
+      const dateDataMap = new Map<string, { auditedCount: number; notAuditedCount: number; storeDetails: StoreSurveyDetail[] }>();
+      
+      // Initialize all dates with 0 counts
+      dates.forEach((date) => {
+        dateDataMap.set(date, {
+          auditedCount: 0,
+          notAuditedCount: 0,
+          storeDetails: [],
+        });
+      });
+
+      // Process stores by date data
+      storesData.forEach((item: StoresByDate) => {
+        // Normalize AuditDate to YYYY-MM-DD format
+        let auditDateStr: string;
+        try {
+          if (item.AuditDate instanceof Date) {
+            auditDateStr = item.AuditDate.toISOString().split("T")[0];
+          } else if (typeof item.AuditDate === "string") {
+            // Handle different date string formats (YYYY-MM-DD or Date object string)
+            if (item.AuditDate.includes("T")) {
+              auditDateStr = item.AuditDate.split("T")[0];
+            } else {
+              const dateObj = new Date(item.AuditDate);
+              if (!isNaN(dateObj.getTime())) {
+                auditDateStr = dateObj.toISOString().split("T")[0];
+              } else {
+                return;
+              }
+            }
+          } else {
+            return;
+          }
+
+          if (dateDataMap.has(auditDateStr)) {
+            const dayData = dateDataMap.get(auditDateStr)!;
+            dayData.auditedCount += item.AuditedCount || 0;
+            dayData.notAuditedCount += item.NotAuditedCount || 0;
+          }
+        } catch (error) {
+          console.error("Error processing audit date:", item.AuditDate, error);
+        }
+      });
+
+      // Process survey data
+      const surveyDataMap = new Map<number, any>();
       let hasAnySurveyData = false;
 
-      for (const date of dates) {
-        const params: any = {
-          startDate: date,
-          endDate: date,
-        };
-        if (selectedTerritory) params.territoryId = selectedTerritory;
-        if (selectedStore) params.storeId = selectedStore;
-
-        // Fetch stores by date for counts
-        const storesResponse = await api.get("/dashboard/stores-by-date", { params });
-        const storesData = storesResponse.data?.success 
-          ? storesResponse.data.data || []
-          : storesResponse.data || [];
-
-        let auditedCount = 0;
-        let notAuditedCount = 0;
-
-        storesData.forEach((item: StoresByDate) => {
-          if (item.AuditDate === date) {
-            auditedCount += item.AuditedCount || 0;
-            notAuditedCount += item.NotAuditedCount || 0;
-          }
-        });
-
-        // Fetch stores with audit status for this date
-        const auditStatusParams = { ...params };
-        const auditStatusResponse = await api.get("/dashboard/stores-with-audit-status", { params: auditStatusParams }).catch(() => null);
-        
-        // Fetch survey details for this date
-        const surveyParams = { ...params };
-        const surveyResponse = await api.get("/dashboard/store-survey-details", { params: surveyParams }).catch(() => null);
-        
-        const storeDetails: StoreSurveyDetail[] = [];
-        const surveyDataMap = new Map<number, any>();
-
-        if (surveyResponse?.data?.success && surveyResponse.data.data) {
-          hasAnySurveyData = true;
-          surveyResponse.data.data.forEach((store: any) => {
-            surveyDataMap.set(store.StoreId, store);
-          });
-        }
-
-        // Combine audit status with survey data
-        if (auditStatusResponse?.data?.success && auditStatusResponse.data.data) {
-          auditStatusResponse.data.data.forEach((store: any) => {
-            const surveyData = surveyDataMap.get(store.StoreId);
-            storeDetails.push({
-              StoreId: store.StoreId,
-              StoreName: store.StoreName,
-              PurchasePrice: surveyData?.PurchasePrice || null,
-              SellingPrice: surveyData?.SellingPrice || null,
-              AverageStockQuantity: surveyData?.AverageStockQuantity || null,
-              QuantityReceived: surveyData?.QuantityReceived || null,
-              IsAudited: store.IsAudited,
-            });
-          });
-        }
-
-        const dateObj = new Date(date);
-        allDayData.push({
-          date,
-          dateLabel: `${dateObj.getDate()}/${dateObj.getMonth() + 1}`,
-          auditedCount,
-          notAuditedCount,
-          storeDetails,
+      if (surveyResponse?.data?.success && surveyResponse.data.data) {
+        hasAnySurveyData = true;
+        surveyResponse.data.data.forEach((store: any) => {
+          surveyDataMap.set(store.StoreId, store);
         });
       }
+
+      // Process audit status data - track which stores were audited on which dates
+      if (auditStatusResponse?.data?.success && auditStatusResponse.data.data) {
+        auditStatusResponse.data.data.forEach((store: any) => {
+          const surveyData = surveyDataMap.get(store.StoreId);
+          const storeDetail: StoreSurveyDetail = {
+            StoreId: store.StoreId,
+            StoreName: store.StoreName,
+            PurchasePrice: surveyData?.PurchasePrice || null,
+            SellingPrice: surveyData?.SellingPrice || null,
+            AverageStockQuantity: surveyData?.AverageStockQuantity || null,
+            QuantityReceived: surveyData?.QuantityReceived || null,
+            IsAudited: store.IsAudited,
+          };
+
+          // If store has audit dates, add to those specific dates
+          if (store.AuditDates && Array.isArray(store.AuditDates) && store.AuditDates.length > 0) {
+            store.AuditDates.forEach((auditDate: string) => {
+              if (dateDataMap.has(auditDate)) {
+                const dayData = dateDataMap.get(auditDate)!;
+                if (!dayData.storeDetails.find((s) => s.StoreId === store.StoreId)) {
+                  dayData.storeDetails.push(storeDetail);
+                }
+              }
+            });
+          } else if (store.IsAudited) {
+            // If audited but no specific dates, add to dates that have audit data
+            dates.forEach((date) => {
+              const dayData = dateDataMap.get(date)!;
+              // Check if this store appears in storesData for this date
+              const hasDataForDate = storesData.some((item: StoresByDate) => {
+                let itemDateStr: string;
+                if (item.AuditDate instanceof Date) {
+                  itemDateStr = item.AuditDate.toISOString().split("T")[0];
+                } else if (typeof item.AuditDate === "string") {
+                  itemDateStr = new Date(item.AuditDate).toISOString().split("T")[0];
+                } else {
+                  return false;
+                }
+                return itemDateStr === date && item.AuditedCount > 0;
+              });
+              
+              if (hasDataForDate && !dayData.storeDetails.find((s) => s.StoreId === store.StoreId)) {
+                dayData.storeDetails.push(storeDetail);
+              }
+            });
+          } else {
+            // Not audited stores - add to all dates
+            dates.forEach((date) => {
+              const dayData = dateDataMap.get(date)!;
+              if (!dayData.storeDetails.find((s) => s.StoreId === store.StoreId)) {
+                dayData.storeDetails.push(storeDetail);
+              }
+            });
+          }
+        });
+      }
+
+      // Convert map to array
+      const allDayData: DayData[] = dates.map((date) => {
+        const dayData = dateDataMap.get(date)!;
+        const dateObj = new Date(date);
+        return {
+          date,
+          dateLabel: `${dateObj.getDate()}/${dateObj.getMonth() + 1}`,
+          auditedCount: dayData.auditedCount,
+          notAuditedCount: dayData.notAuditedCount,
+          storeDetails: dayData.storeDetails,
+        };
+      });
 
       setHasSurveyData(hasAnySurveyData);
       setDayData(allDayData);
