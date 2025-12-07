@@ -212,6 +212,11 @@ class StoreSurvey {
       request.input('UserName', sql.NVarChar(200), `%${filters.userName}%`);
     }
 
+    if (filters.territoryId) {
+      query += ' AND s.TerritoryId = @TerritoryId';
+      request.input('TerritoryId', sql.Int, filters.territoryId);
+    }
+
     if (filters.cementProductName) {
       query += ' AND cp.Name LIKE @CementProductName';
       request.input('CementProductName', sql.NVarChar(500), `%${filters.cementProductName}%`);
