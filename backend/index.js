@@ -95,6 +95,45 @@ const isLastDayOfQuarter = (date) => {
   return nextDay.getMonth() !== month;
 };
 
+// Helper: check if a date is exactly 10 days after the last day of its quarter
+// This allows for backup period before automatic deletion
+const isLastDayOfQuarterPlus10 = (date) => {
+  const check = new Date(date);
+  const year = check.getFullYear();
+  const month = check.getMonth(); // 0-based: 0 = Jan, 11 = Dec
+  const day = check.getDate();
+
+  // Calculate the last day of each quarter
+  // Q1 ends: March 31 (month 2, day 31)
+  // Q2 ends: June 30 (month 5, day 30)
+  // Q3 ends: September 30 (month 8, day 30)
+  // Q4 ends: December 31 (month 11, day 31)
+  const quarterEndDates = [
+    { month: 2, day: 31 }, // March 31
+    { month: 5, day: 30 }, // June 30
+    { month: 8, day: 30 }, // September 30
+    { month: 11, day: 31 }, // December 31
+  ];
+
+  // Check if current date is exactly 10 days after any quarter end
+  for (const quarterEnd of quarterEndDates) {
+    const quarterEndDate = new Date(year, quarterEnd.month, quarterEnd.day);
+    const targetDate = new Date(quarterEndDate);
+    targetDate.setDate(targetDate.getDate() + 10);
+
+    // Compare year, month, and day
+    if (
+      check.getFullYear() === targetDate.getFullYear() &&
+      check.getMonth() === targetDate.getMonth() &&
+      check.getDate() === targetDate.getDate()
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+};
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -185,14 +224,14 @@ app.listen(PORT, async () => {
     });
   }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
 
-  // Schedule quarterly audit reset at 23:59 every day, only execute on last day of quarter
+  // Schedule quarterly audit reset at 23:59 every day, only execute on last day of quarter + 10 days (for backup period)
   cron.schedule("0 59 23 * * *", async () => {
     const now = new Date();
-    if (!isLastDayOfQuarter(now)) {
+    if (!isLastDayOfQuarterPlus10(now)) {
       return;
     }
 
-    console.log("🗓️  Running quarterly audit reset job...");
+    console.log("🗓️  Running quarterly audit reset job (quarter + 10 days backup period)...");
     try {
       const result = await resetAllStoreAudits();
       console.log(
@@ -206,7 +245,7 @@ app.listen(PORT, async () => {
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);
   console.log(`🧹 Import history cleanup scheduled (runs every 24 hours)`);
-  console.log(`🗓️  Quarterly audit reset scheduled (23:59 on last day of quarter)`);
+  console.log(`🗓️  Quarterly audit reset scheduled (23:59 on last day of quarter + 10 days for backup)`);
   console.log("=".repeat(50));
 });
 

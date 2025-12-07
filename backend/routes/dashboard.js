@@ -10,6 +10,7 @@ router.get('/stores-by-date', authenticateToken, dashboardController.getStoresBy
 router.get('/product-prices', authenticateToken, dashboardController.getProductPrices);
 router.get('/product-types', authenticateToken, dashboardController.getProductTypes);
 router.get('/summary-table', authenticateToken, dashboardController.getSummaryTable);
+router.get('/store-survey-details', authenticateToken, dashboardController.getStoreSurveyDetails);
 
 module.exports = router;
 

@@ -1,16 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
   BarElement,
-  ArcElement,
   Title,
   Tooltip,
   Legend,
 } from "chart.js";
-import { Bar, Pie } from "react-chartjs-2";
+import { Bar } from "react-chartjs-2";
 import Header from "../components/Header";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
@@ -21,7 +20,6 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
-  ArcElement,
   Title,
   Tooltip,
   Legend
@@ -32,82 +30,103 @@ interface Territory {
   TerritoryName: string;
 }
 
-
 interface StoresByDate {
   AuditDate: string;
   AuditedCount: number;
   NotAuditedCount: number;
 }
 
-interface ProductPrice {
-  PurchasePrice: number;
-  SellingPrice: number;
-  Count: number;
-}
-
-interface SummaryTableItem {
+interface StoreSurveyDetail {
   StoreId: number;
-  StoreCode: string;
   StoreName: string;
-  TerritoryName: string;
-  AuditStatus: string;
-  ProductName: string | null;
   PurchasePrice: number | null;
   SellingPrice: number | null;
+  AverageStockQuantity: number | null;
+  QuantityReceived: number | null;
 }
+
+interface WeekData {
+  week: number;
+  weekLabel: string;
+  startDate: string;
+  endDate: string;
+  auditedCount: number;
+  notAuditedCount: number;
+  totalPurchasePrice: number;
+  totalSellingPrice: number;
+  storeDetails: StoreSurveyDetail[];
+}
+
+// Helper function to get week number in month (1-4)
+const getWeekInMonth = (date: Date): number => {
+  const day = date.getDate();
+  if (day <= 7) return 1;
+  if (day <= 14) return 2;
+  if (day <= 21) return 3;
+  return 4;
+};
+
+// Helper function to get start and end date of a week in current month
+const getWeekDates = (week: number, year: number, month: number) => {
+  let startDay: number;
+  let endDay: number;
+  
+  if (week === 1) {
+    startDay = 1;
+    endDay = 7;
+  } else if (week === 2) {
+    startDay = 8;
+    endDay = 14;
+  } else if (week === 3) {
+    startDay = 15;
+    endDay = 21;
+  } else {
+    startDay = 22;
+    endDay = new Date(year, month + 1, 0).getDate(); // Last day of month
+  }
+  
+  const startDate = new Date(year, month, startDay);
+  const endDate = new Date(year, month, endDay);
+  
+  return {
+    start: startDate.toISOString().split("T")[0],
+    end: endDate.toISOString().split("T")[0],
+  };
+};
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
   const [territories, setTerritories] = useState<Territory[]>([]);
-  const [productTypes, setProductTypes] = useState<string[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
-  const [selectedProductType, setSelectedProductType] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-
+  
+  // Week filter - default to current week
+  const now = new Date();
+  const currentWeek = getWeekInMonth(now);
+  const [selectedWeeks, setSelectedWeeks] = useState<number[]>([currentWeek]);
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
+  
   // Chart data
-  const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
-  const [productPrices, setProductPrices] = useState<{
-    prices: ProductPrice[];
-    totalPurchase: number;
-    totalSelling: number;
-  } | null>(null);
-
-  // Table data
-  const [tableData, setTableData] = useState<SummaryTableItem[]>([]);
-  const [tablePage, setTablePage] = useState(1);
-  const [tableTotalPages, setTableTotalPages] = useState(1);
+  const [weekData, setWeekData] = useState<WeekData[]>([]);
+  const [hasSurveyData, setHasSurveyData] = useState(false);
 
   useEffect(() => {
     fetchTerritories();
-    fetchCementProducts();
   }, []);
 
   useEffect(() => {
-    if (startDate && endDate) {
-      fetchStoresByDate();
+    if (selectedWeeks.length > 0) {
+      fetchWeekData();
     }
-  }, [startDate, endDate, selectedTerritory]);
-
-  useEffect(() => {
-    // Fetch product prices when productType changes (including empty for "all")
-    fetchProductPrices();
-  }, [selectedProductType]);
-
-  useEffect(() => {
-    fetchSummaryTable();
-  }, [tablePage, selectedTerritory, startDate, endDate]);
+  }, [selectedWeeks, selectedMonth, selectedYear, selectedTerritory]);
 
   const fetchTerritories = async () => {
     try {
       const response = await api.get("/territories");
-      console.log("Territories response:", response.data);
-      // Handle different response structures - API returns {success: true, data: [...]}
       if (response.data && response.data.success && Array.isArray(response.data.data)) {
         setTerritories(response.data.data);
       } else if (Array.isArray(response.data)) {
@@ -117,90 +136,112 @@ export default function Dashboard() {
       } else {
         setTerritories([]);
       }
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching territories:", error);
       setTerritories([]);
-    }
-  };
-
-  const fetchCementProducts = async () => {
-    try {
-      const response = await api.get("/cement-products");
-      setCementProducts(response.data || []);
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching cement products:", error);
       setLoading(false);
     }
   };
 
-  const fetchStoresByDate = async () => {
+  const fetchWeekData = async () => {
     try {
-      const params: any = {};
-      // Only add date params if both are provided, otherwise fetch all
-      if (startDate && endDate) {
-        params.startDate = startDate;
-        params.endDate = endDate;
-      }
-      if (selectedTerritory) params.territoryId = selectedTerritory;
+      const allWeekData: WeekData[] = [];
+      let hasAnySurveyData = false;
 
-      const response = await api.get("/dashboard/stores-by-date", { params });
-      console.log("Stores by date response:", response.data);
-      if (response.data && response.data.success) {
-        setStoresByDate(response.data.data || []);
-      } else {
-        setStoresByDate(response.data || []);
+      for (const week of selectedWeeks) {
+        const weekDates = getWeekDates(week, selectedYear, selectedMonth);
+        
+        const params: any = {
+          startDate: weekDates.start,
+          endDate: weekDates.end,
+        };
+        if (selectedTerritory) params.territoryId = selectedTerritory;
+
+        // Fetch stores by date
+        const storesResponse = await api.get("/dashboard/stores-by-date", { params });
+        const storesData = storesResponse.data?.success 
+          ? storesResponse.data.data || []
+          : storesResponse.data || [];
+
+        // Calculate totals for the week
+        let auditedCount = 0;
+        let notAuditedCount = 0;
+
+        storesData.forEach((item: StoresByDate) => {
+          const date = new Date(item.AuditDate);
+          const itemWeek = getWeekInMonth(date);
+          if (itemWeek === week) {
+            auditedCount += item.AuditedCount || 0;
+            notAuditedCount += item.NotAuditedCount || 0;
+          }
+        });
+
+        // Fetch survey details for this week
+        const surveyParams = { ...params };
+        const surveyResponse = await api.get("/dashboard/store-survey-details", { params: surveyParams }).catch(() => null);
+        
+        let totalPurchasePrice = 0;
+        let totalSellingPrice = 0;
+        const storeDetails: StoreSurveyDetail[] = [];
+
+        if (surveyResponse?.data?.success && surveyResponse.data.data) {
+          hasAnySurveyData = true;
+          const surveyData = surveyResponse.data.data;
+          
+          surveyData.forEach((store: any) => {
+            if (store.PurchasePrice) totalPurchasePrice += store.PurchasePrice;
+            if (store.SellingPrice) totalSellingPrice += store.SellingPrice;
+            
+            storeDetails.push({
+              StoreId: store.StoreId,
+              StoreName: store.StoreName,
+              PurchasePrice: store.PurchasePrice,
+              SellingPrice: store.SellingPrice,
+              AverageStockQuantity: store.AverageStockQuantity,
+              QuantityReceived: store.QuantityReceived,
+            });
+          });
+        }
+
+        allWeekData.push({
+          week,
+          weekLabel: `Tuần ${week}`,
+          startDate: weekDates.start,
+          endDate: weekDates.end,
+          auditedCount,
+          notAuditedCount,
+          totalPurchasePrice,
+          totalSellingPrice,
+          storeDetails,
+        });
       }
+
+      setHasSurveyData(hasAnySurveyData);
+      setWeekData(allWeekData);
     } catch (error) {
-      console.error("Error fetching stores by date:", error);
-      setStoresByDate([]);
+      console.error("Error fetching week data:", error);
+      setWeekData([]);
+      setHasSurveyData(false);
     }
   };
 
-  const fetchProductPrices = async () => {
-    try {
-      const params: any = {};
-      // Only add productType if selected, otherwise fetch all
-      if (selectedProductType) {
-        params.productType = selectedProductType;
-      }
-      const response = await api.get("/dashboard/product-prices", { params });
-      console.log("Product prices response:", response.data);
-      if (response.data && response.data.success) {
-        setProductPrices(response.data.data || null);
+  const toggleWeek = (week: number) => {
+    setSelectedWeeks((prev) => {
+      if (prev.includes(week)) {
+        // Don't allow deselecting if it's the only selected week
+        if (prev.length === 1) return prev;
+        return prev.filter((w) => w !== week);
       } else {
-        setProductPrices(response.data || null);
+        // Max 4 weeks
+        if (prev.length >= 4) return prev;
+        return [...prev, week].sort();
       }
-    } catch (error) {
-      console.error("Error fetching product prices:", error);
-      setProductPrices(null);
-    }
+    });
   };
 
-  const fetchSummaryTable = async () => {
-    try {
-      const params: any = {
-        page: tablePage,
-        pageSize: 20,
-      };
-      if (selectedTerritory) params.territoryId = selectedTerritory;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-
-      const response = await api.get("/dashboard/summary-table", { params });
-      console.log("Summary table response:", response.data);
-      if (response.data && response.data.success) {
-        setTableData(response.data.data || []);
-        setTableTotalPages(response.data.pagination?.totalPages || 1);
-      } else {
-        setTableData(response.data?.data || response.data || []);
-        setTableTotalPages(response.data?.pagination?.totalPages || 1);
-      }
-    } catch (error) {
-      console.error("Error fetching summary table:", error);
-      setTableData([]);
-      setTableTotalPages(1);
-    }
+  const selectAllWeeks = () => {
+    setSelectedWeeks([1, 2, 3, 4]);
   };
 
   if (loading) {
@@ -214,32 +255,40 @@ export default function Dashboard() {
     );
   }
 
-    return (
-      <div className="dashboard-container" style={{ backgroundColor: colors.background }}>
-        <Header />
-        <div className="back-button-container">
-          <div
-            className="back-button"
-            style={{ borderColor: colors.icon + "40", cursor: "pointer" }}
-            onClick={() => navigate("/stores")}
-          >
-            <span style={{ fontSize: "16px" }}>←</span>
-            <span style={{ color: colors.text }}>Quay lại</span>
-          </div>
+  // Prepare chart data
+  const chartLabels = weekData.map((w) => w.weekLabel);
+  const auditedData = weekData.map((w) => w.auditedCount);
+  const notAuditedData = weekData.map((w) => w.notAuditedCount);
+  const purchasePriceData = weekData.map((w) => Math.round(w.totalPurchasePrice / 1000000)); // Convert to millions
+  const sellingPriceData = weekData.map((w) => Math.round(w.totalSellingPrice / 1000000));
+
+  // Get all store details for survey chart
+  const allStoreDetails = weekData.flatMap((w) => w.storeDetails);
+
+  return (
+    <div className="dashboard-container" style={{ backgroundColor: colors.background }}>
+      <Header />
+      <div className="back-button-container">
+        <div
+          className="back-button"
+          style={{ borderColor: colors.icon + "40", cursor: "pointer" }}
+          onClick={() => navigate("/stores")}
+        >
+          <span style={{ fontSize: "16px" }}>←</span>
+          <span style={{ color: colors.text }}>Quay lại</span>
         </div>
-        <div className="dashboard-content">
+      </div>
+      <div className="dashboard-content">
         {/* Filters */}
         <div className="filter-section" style={{ borderColor: colors.icon + "20" }}>
           <h3 className="section-title" style={{ color: colors.text }}>Bộ lọc</h3>
 
+          {/* Territory Filter */}
           <div className="filter-row">
             <div style={{ flex: 1 }}>
               <label className="filter-label" style={{ color: colors.text }}>
                 Địa bàn:
               </label>
-              <div className="filter-hint" style={{ color: colors.icon }}>
-                Chọn địa bàn để lọc dữ liệu thống kê
-              </div>
             </div>
             <div
               className="dropdown"
@@ -255,65 +304,80 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="filter-row">
-            <label className="filter-label" style={{ color: colors.text }}>
-              Từ ngày:
-            </label>
-            <div className="date-input-container" style={{ borderColor: colors.icon + "40" }}>
-              <input
-                type="date"
-                className="date-input"
-                style={{ color: colors.text }}
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-              />
-              <span className="calendar-icon" style={{ color: colors.primary }}>📅</span>
+          {/* Week Filter */}
+          <div className="week-filter-container">
+            <div className="week-filter-header">
+              <label className="filter-label" style={{ color: colors.text }}>
+                Chọn tuần trong tháng:
+              </label>
+              <button
+                type="button"
+                onClick={selectAllWeeks}
+                className="select-all-button"
+                style={{ backgroundColor: colors.primary + "20", color: colors.primary }}
+              >
+                Chọn tất cả
+              </button>
             </div>
-          </div>
-
-          <div className="filter-row">
-            <label className="filter-label" style={{ color: colors.text }}>
-              Đến ngày:
-            </label>
-            <div className="date-input-container" style={{ borderColor: colors.icon + "40" }}>
-              <input
-                type="date"
-                className="date-input"
-                style={{ color: colors.text }}
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-              />
-              <span className="calendar-icon" style={{ color: colors.primary }}>📅</span>
+            <div className="week-checkbox-container">
+              {[1, 2, 3, 4].map((week) => (
+                <button
+                  key={week}
+                  type="button"
+                  className="week-checkbox"
+                  style={{
+                    backgroundColor: selectedWeeks.includes(week)
+                      ? colors.primary
+                      : colors.background,
+                    borderColor: colors.icon + "40",
+                    color: selectedWeeks.includes(week) ? "#fff" : colors.text,
+                  }}
+                  onClick={() => toggleWeek(week)}
+                >
+                  {selectedWeeks.includes(week) ? "✓" : "☐"} Tuần {week}
+                </button>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Bar Chart Section */}
-        {storesByDate.length > 0 ? (
+        {/* Main Bar Chart - Stores by Week */}
+        {weekData.length > 0 ? (
           <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
             <h3 className="section-title" style={{ color: colors.text }}>
-              Biểu đồ số cửa hàng theo ngày
+              Thống kê cửa hàng theo tuần
             </h3>
             <div className="chart-container">
               <Bar
                 data={{
-                  labels: storesByDate.map((item) => {
-                    const date = new Date(item.AuditDate);
-                    return `${date.getDate()}/${date.getMonth() + 1}`;
-                  }),
+                  labels: chartLabels,
                   datasets: [
                     {
                       label: "Đã thực hiện",
-                      data: storesByDate.map((item) => item.AuditedCount),
-                      backgroundColor: "rgba(16, 185, 129, 0.8)", // Emerald green
+                      data: auditedData,
+                      backgroundColor: "rgba(16, 185, 129, 0.8)",
                       borderColor: "rgba(16, 185, 129, 1)",
                       borderWidth: 1,
                     },
                     {
                       label: "Chưa thực hiện",
-                      data: storesByDate.map((item) => item.NotAuditedCount),
-                      backgroundColor: "rgba(245, 158, 11, 0.8)", // Amber
+                      data: notAuditedData,
+                      backgroundColor: "rgba(245, 158, 11, 0.8)",
                       borderColor: "rgba(245, 158, 11, 1)",
+                      borderWidth: 1,
+                    },
+                    {
+                      label: "Giá mua (triệu VNĐ)",
+                      data: purchasePriceData,
+                      backgroundColor: "rgba(59, 130, 246, 0.8)",
+                      borderColor: "rgba(59, 130, 246, 1)",
+                      borderWidth: 1,
+                    },
+                    {
+                      label: "Giá bán (triệu VNĐ)",
+                      data: sellingPriceData,
+                      backgroundColor: "rgba(139, 92, 246, 0.8)",
+                      borderColor: "rgba(139, 92, 246, 1)",
                       borderWidth: 1,
                     },
                   ],
@@ -359,13 +423,25 @@ export default function Dashboard() {
               <div className="legend-item">
                 <div className="legend-color" style={{ backgroundColor: "#10B981" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
-                  Đã thực hiện: {storesByDate.reduce((sum, item) => sum + item.AuditedCount, 0)}
+                  Đã thực hiện: {weekData.reduce((sum, w) => sum + w.auditedCount, 0)}
                 </span>
               </div>
               <div className="legend-item">
                 <div className="legend-color" style={{ backgroundColor: "#F59E0B" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
-                  Chưa thực hiện: {storesByDate.reduce((sum, item) => sum + item.NotAuditedCount, 0)}
+                  Chưa thực hiện: {weekData.reduce((sum, w) => sum + w.notAuditedCount, 0)}
+                </span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#3B82F6" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Tổng giá mua: {weekData.reduce((sum, w) => sum + w.totalPurchasePrice, 0).toLocaleString("vi-VN")} VNĐ
+                </span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#8B5CF6" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Tổng giá bán: {weekData.reduce((sum, w) => sum + w.totalSellingPrice, 0).toLocaleString("vi-VN")} VNĐ
                 </span>
               </div>
             </div>
@@ -373,7 +449,7 @@ export default function Dashboard() {
         ) : (
           <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
             <h3 className="section-title" style={{ color: colors.text }}>
-              Biểu đồ số cửa hàng theo ngày
+              Thống kê cửa hàng theo tuần
             </h3>
             <p className="no-data-text" style={{ color: colors.icon }}>
               Chưa có dữ liệu.
@@ -381,194 +457,114 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Pie Chart Section */}
-        <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
-          <h3 className="section-title" style={{ color: colors.text }}>
-            Biểu đồ giá sản phẩm
-          </h3>
-
-          <div className="filter-row">
-            <label className="filter-label" style={{ color: colors.text }}>
-              Chọn loại sản phẩm:
-            </label>
-            <div className="dropdown-container">
-              <div
-                className="dropdown"
-                style={{ borderColor: colors.icon + "40", backgroundColor: colors.background }}
-                onClick={() => setShowProductDropdown(!showProductDropdown)}
-              >
-                <span className="dropdown-text" style={{ color: colors.text }}>
-                  {selectedProductType || "Tất cả"}
-                </span>
-                <span style={{ color: colors.icon }}>
-                  {showProductDropdown ? "▲" : "▼"}
-                </span>
-              </div>
-              {showProductDropdown && (
-                <div
-                  className="dropdown-menu"
-                  style={{ backgroundColor: colors.background, borderColor: colors.icon + "40" }}
-                >
-                  <div
-                    className="dropdown-item"
-                    onClick={() => {
-                      setSelectedProductType("");
-                      setShowProductDropdown(false);
-                    }}
-                  >
-                    <span className="dropdown-item-text" style={{ color: colors.text }}>
-                      Tất cả
-                    </span>
-                  </div>
-                  {productTypes.map((productType, index) => (
-                    <div
-                      key={index}
-                      className="dropdown-item"
-                      onClick={() => {
-                        setSelectedProductType(productType);
-                        setShowProductDropdown(false);
-                      }}
-                    >
-                      <span className="dropdown-item-text" style={{ color: colors.text }}>
-                        {productType}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {productPrices && productPrices.totalPurchase > 0 && productPrices.totalSelling > 0 ? (
-            <div className="pie-chart-container">
-              <div className="chart-container">
-                <Pie
-                  data={{
-                    labels: ["Giá mua", "Giá bán"],
-                    datasets: [
+        {/* Survey Details Bar Chart - Only show if has survey data */}
+        {hasSurveyData && allStoreDetails.length > 0 && (
+          <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
+            <h3 className="section-title" style={{ color: colors.text }}>
+              Chi tiết khảo sát cửa hàng
+            </h3>
+            <div className="chart-container">
+              <Bar
+                data={{
+                  labels: allStoreDetails.map((s) => s.StoreName.length > 10 ? s.StoreName.substring(0, 10) + "..." : s.StoreName),
+                  datasets: [
                     {
-                      data: [productPrices.totalPurchase, productPrices.totalSelling],
-                      backgroundColor: ["rgba(59, 130, 246, 0.8)", "rgba(16, 185, 129, 0.8)"],
-                      borderColor: ["rgba(59, 130, 246, 1)", "rgba(16, 185, 129, 1)"],
+                      label: "Giá mua (nghìn VNĐ)",
+                      data: allStoreDetails.map((s) => s.PurchasePrice ? Math.round(s.PurchasePrice / 1000) : 0),
+                      backgroundColor: "rgba(59, 130, 246, 0.8)",
+                      borderColor: "rgba(59, 130, 246, 1)",
                       borderWidth: 1,
                     },
-                    ],
-                  }}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: "bottom" as const,
-                        labels: {
-                          color: colors.text,
-                          padding: 15,
-                        },
-                      },
-                      tooltip: {
-                        callbacks: {
-                          label: function (context) {
-                            const label = context.label || "";
-                            const value = context.parsed || 0;
-                            return `${label}: ${value.toLocaleString("vi-VN")} VNĐ`;
-                          },
-                        },
+                    {
+                      label: "Giá bán (nghìn VNĐ)",
+                      data: allStoreDetails.map((s) => s.SellingPrice ? Math.round(s.SellingPrice / 1000) : 0),
+                      backgroundColor: "rgba(139, 92, 246, 0.8)",
+                      borderColor: "rgba(139, 92, 246, 1)",
+                      borderWidth: 1,
+                    },
+                    {
+                      label: "Tồn bình quân (tấn)",
+                      data: allStoreDetails.map((s) => s.AverageStockQuantity || 0),
+                      backgroundColor: "rgba(16, 185, 129, 0.8)",
+                      borderColor: "rgba(16, 185, 129, 1)",
+                      borderWidth: 1,
+                    },
+                    {
+                      label: "Sản lượng (tấn)",
+                      data: allStoreDetails.map((s) => s.QuantityReceived || 0),
+                      backgroundColor: "rgba(245, 158, 11, 0.8)",
+                      borderColor: "rgba(245, 158, 11, 1)",
+                      borderWidth: 1,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "top" as const,
+                      labels: {
+                        color: colors.text,
                       },
                     },
-                  }}
-                  style={{ height: "300px" }}
-                />
+                    title: {
+                      display: false,
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        color: colors.text,
+                      },
+                      grid: {
+                        color: colors.icon + "20",
+                      },
+                    },
+                    x: {
+                      ticks: {
+                        color: colors.text,
+                        maxRotation: 45,
+                        minRotation: 45,
+                      },
+                      grid: {
+                        color: colors.icon + "20",
+                      },
+                    },
+                  },
+                }}
+                style={{ height: "300px" }}
+              />
+            </div>
+            <div className="chart-legend">
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#3B82F6" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Giá mua (nghìn VNĐ)
+                </span>
               </div>
-              <div className="chart-info-container">
-                <p className="chart-info" style={{ color: colors.text }}>
-                  Tổng giá mua: {productPrices.totalPurchase.toLocaleString("vi-VN")} VNĐ
-                </p>
-                <p className="chart-info" style={{ color: colors.text }}>
-                  Tổng giá bán: {productPrices.totalSelling.toLocaleString("vi-VN")} VNĐ
-                </p>
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#8B5CF6" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Giá bán (nghìn VNĐ)
+                </span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#10B981" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Tồn bình quân (tấn)
+                </span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#F59E0B" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Sản lượng (tấn)
+                </span>
               </div>
             </div>
-          ) : (
-            <p className="no-data-text" style={{ color: colors.icon }}>
-              Chưa có dữ liệu. Vui lòng chọn sản phẩm.
-            </p>
-          )}
-        </div>
-
-        {/* Summary Table */}
-        <div className="table-section" style={{ borderColor: colors.icon + "20" }}>
-          <h3 className="section-title" style={{ color: colors.text }}>
-            Bảng tổng hợp
-          </h3>
-
-          {tableData.length > 0 ? (
-            <>
-              <table className="summary-table">
-                <thead>
-                  <tr style={{ backgroundColor: colors.primary + "20" }}>
-                    <th style={{ color: colors.text }}>Cửa hàng</th>
-                    <th style={{ color: colors.text }}>Trạng thái</th>
-                    <th style={{ color: colors.text }}>Sản phẩm</th>
-                    <th style={{ color: colors.text }}>Giá mua</th>
-                    <th style={{ color: colors.text }}>Giá bán</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableData.map((item, index) => (
-                    <tr key={index} style={{ borderTopColor: colors.icon + "20" }}>
-                      <td style={{ color: colors.text }}>{item.StoreName}</td>
-                      <td style={{ color: colors.text }}>
-                        {item.AuditStatus === "Chua th?c hi?n" ? "Chưa thực hiện" : 
-                         item.AuditStatus === "Ðã th?c hi?n" ? "Đã thực hiện" : 
-                         item.AuditStatus}
-                      </td>
-                      <td style={{ color: colors.text }}>{item.ProductName || "-"}</td>
-                      <td style={{ color: colors.text }}>
-                        {item.PurchasePrice ? item.PurchasePrice.toLocaleString("vi-VN") : "-"}
-                      </td>
-                      <td style={{ color: colors.text }}>
-                        {item.SellingPrice ? item.SellingPrice.toLocaleString("vi-VN") : "-"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* Pagination */}
-              <div className="pagination">
-                <button
-                  className="pagination-button"
-                  style={{
-                    backgroundColor: colors.primary,
-                    opacity: tablePage === 1 ? 0.5 : 1,
-                  }}
-                  onClick={() => setTablePage(Math.max(1, tablePage - 1))}
-                  disabled={tablePage === 1}
-                >
-                  Trước
-                </button>
-                <span className="pagination-text" style={{ color: colors.text }}>
-                  Trang {tablePage} / {tableTotalPages}
-                </span>
-                <button
-                  className="pagination-button"
-                  style={{
-                    backgroundColor: colors.primary,
-                    opacity: tablePage >= tableTotalPages ? 0.5 : 1,
-                  }}
-                  onClick={() => setTablePage(Math.min(tableTotalPages, tablePage + 1))}
-                  disabled={tablePage >= tableTotalPages}
-                >
-                  Sau
-                </button>
-              </div>
-            </>
-          ) : (
-            <p className="no-data-text" style={{ color: colors.icon }}>
-              Chưa có dữ liệu.
-            </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Territory Picker Modal */}
@@ -657,4 +653,3 @@ export default function Dashboard() {
     </div>
   );
 }
-

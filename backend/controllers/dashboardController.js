@@ -770,6 +770,87 @@ async function getSummaryTable(req, res) {
   }
 }
 
+// Get store survey details - chi tiết khảo sát cửa hàng
+async function getStoreSurveyDetails(req, res) {
+  try {
+    const { startDate, endDate, territoryId } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+
+    let query = `
+      SELECT DISTINCT
+        s.Id as StoreId,
+        s.StoreName,
+        AVG(ssp.PurchasePrice) as PurchasePrice,
+        AVG(ssp.SellingPrice) as SellingPrice,
+        AVG(ssp.AverageStockQuantity) as AverageStockQuantity,
+        AVG(ssp.QuantityReceived) as QuantityReceived
+      FROM StoreSurveys ss
+      INNER JOIN Stores s ON ss.StoreId = s.Id
+      INNER JOIN StoreSurveyProducts ssp ON ss.Id = ssp.StoreSurveyId
+      INNER JOIN Audits a ON ss.AuditId = a.Id
+      WHERE 1=1
+    `;
+
+    // Filter by user - only show stores assigned to current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
+    if (territoryId) {
+      query += " AND s.TerritoryId = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
+    if (startDate) {
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    query += `
+      GROUP BY s.Id, s.StoreName
+      ORDER BY s.StoreName ASC
+    `;
+
+    const result = await request.query(query);
+
+    res.json({
+      success: true,
+      data: result.recordset.map((row) => ({
+        StoreId: row.StoreId,
+        StoreName: row.StoreName,
+        PurchasePrice: row.PurchasePrice ? Math.round(row.PurchasePrice) : null,
+        SellingPrice: row.SellingPrice ? Math.round(row.SellingPrice) : null,
+        AverageStockQuantity: row.AverageStockQuantity ? Math.round(row.AverageStockQuantity * 100) / 100 : null,
+        QuantityReceived: row.QuantityReceived ? Math.round(row.QuantityReceived * 100) / 100 : null,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching store survey details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching store survey details",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
 module.exports = {
   getSummary,
   getUserDetail,
@@ -778,4 +859,5 @@ module.exports = {
   getProductPrices,
   getProductTypes,
   getSummaryTable,
+  getStoreSurveyDetails,
 };
