@@ -171,7 +171,6 @@ const getAllStoreSurveys = async (req, res) => {
       storeName,
       userName,
       cementProductName,
-      territoryId,
       priceFrom,
       priceTo,
       productType,
@@ -186,7 +185,6 @@ const getAllStoreSurveys = async (req, res) => {
     if (storeName) filters.storeName = storeName;
     if (userName) filters.userName = userName;
     if (cementProductName) filters.cementProductName = cementProductName;
-    if (territoryId) filters.territoryId = parseInt(territoryId);
     if (priceFrom) filters.priceFrom = parseFloat(priceFrom);
     if (priceTo) filters.priceTo = parseFloat(priceTo);
     if (productType) filters.productType = productType; // 'xmtd' or 'non-xmtd'
