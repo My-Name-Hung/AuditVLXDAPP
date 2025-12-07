@@ -30,6 +30,12 @@ interface Territory {
   TerritoryName: string;
 }
 
+interface Store {
+  Id: number;
+  StoreCode: string;
+  StoreName: string;
+}
+
 interface StoresByDate {
   AuditDate: string;
   AuditedCount: number;
@@ -43,17 +49,14 @@ interface StoreSurveyDetail {
   SellingPrice: number | null;
   AverageStockQuantity: number | null;
   QuantityReceived: number | null;
+  IsAudited: boolean;
 }
 
-interface WeekData {
-  week: number;
-  weekLabel: string;
-  startDate: string;
-  endDate: string;
+interface DayData {
+  date: string;
+  dateLabel: string;
   auditedCount: number;
   notAuditedCount: number;
-  totalPurchasePrice: number;
-  totalSellingPrice: number;
   storeDetails: StoreSurveyDetail[];
 }
 
@@ -66,32 +69,35 @@ const getWeekInMonth = (date: Date): number => {
   return 4;
 };
 
-// Helper function to get start and end date of a week in current month
-const getWeekDates = (week: number, year: number, month: number) => {
-  let startDay: number;
-  let endDay: number;
+// Helper function to get all dates in selected weeks
+const getDatesInWeeks = (weeks: number[], year: number, month: number): string[] => {
+  const dates: string[] = [];
   
-  if (week === 1) {
-    startDay = 1;
-    endDay = 7;
-  } else if (week === 2) {
-    startDay = 8;
-    endDay = 14;
-  } else if (week === 3) {
-    startDay = 15;
-    endDay = 21;
-  } else {
-    startDay = 22;
-    endDay = new Date(year, month + 1, 0).getDate(); // Last day of month
-  }
+  weeks.forEach((week) => {
+    let startDay: number;
+    let endDay: number;
+    
+    if (week === 1) {
+      startDay = 1;
+      endDay = 7;
+    } else if (week === 2) {
+      startDay = 8;
+      endDay = 14;
+    } else if (week === 3) {
+      startDay = 15;
+      endDay = 21;
+    } else {
+      startDay = 22;
+      endDay = new Date(year, month + 1, 0).getDate();
+    }
+    
+    for (let day = startDay; day <= endDay; day++) {
+      const date = new Date(year, month, day);
+      dates.push(date.toISOString().split("T")[0]);
+    }
+  });
   
-  const startDate = new Date(year, month, startDay);
-  const endDate = new Date(year, month, endDay);
-  
-  return {
-    start: startDate.toISOString().split("T")[0],
-    end: endDate.toISOString().split("T")[0],
-  };
+  return dates.sort();
 };
 
 export default function Dashboard() {
@@ -99,9 +105,13 @@ export default function Dashboard() {
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
   const [territories, setTerritories] = useState<Territory[]>([]);
+  const [stores, setStores] = useState<Store[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
+  const [selectedStore, setSelectedStore] = useState<string>("");
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
+  const [showStoreModal, setShowStoreModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
+  const [storeSearch, setStoreSearch] = useState("");
   
   // Week filter - default to current week
   const now = new Date();
@@ -110,19 +120,20 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth());
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   
-  // Chart data
-  const [weekData, setWeekData] = useState<WeekData[]>([]);
+  // Chart data - by day instead of week
+  const [dayData, setDayData] = useState<DayData[]>([]);
   const [hasSurveyData, setHasSurveyData] = useState(false);
 
   useEffect(() => {
     fetchTerritories();
+    fetchStores();
   }, []);
 
   useEffect(() => {
     if (selectedWeeks.length > 0) {
-      fetchWeekData();
+      fetchDayData();
     }
-  }, [selectedWeeks, selectedMonth, selectedYear, selectedTerritory]);
+  }, [selectedWeeks, selectedMonth, selectedYear, selectedTerritory, selectedStore]);
 
   const fetchTerritories = async () => {
     try {
@@ -144,84 +155,104 @@ export default function Dashboard() {
     }
   };
 
-  const fetchWeekData = async () => {
+  const fetchStores = async () => {
     try {
-      const allWeekData: WeekData[] = [];
+      const response = await api.get("/stores", {
+        params: { page: 1, pageSize: 1000 },
+      });
+      const data = response.data?.data || response.data || [];
+      setStores(
+        data.map((s: { Id: number; StoreCode?: string; StoreName?: string }) => ({
+          Id: s.Id,
+          StoreCode: s.StoreCode || "",
+          StoreName: s.StoreName || "",
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching stores:", error);
+      setStores([]);
+    }
+  };
+
+  const fetchDayData = async () => {
+    try {
+      const dates = getDatesInWeeks(selectedWeeks, selectedYear, selectedMonth);
+      const allDayData: DayData[] = [];
       let hasAnySurveyData = false;
 
-      for (const week of selectedWeeks) {
-        const weekDates = getWeekDates(week, selectedYear, selectedMonth);
-        
+      for (const date of dates) {
         const params: any = {
-          startDate: weekDates.start,
-          endDate: weekDates.end,
+          startDate: date,
+          endDate: date,
         };
         if (selectedTerritory) params.territoryId = selectedTerritory;
+        if (selectedStore) params.storeId = selectedStore;
 
-        // Fetch stores by date
+        // Fetch stores by date for counts
         const storesResponse = await api.get("/dashboard/stores-by-date", { params });
         const storesData = storesResponse.data?.success 
           ? storesResponse.data.data || []
           : storesResponse.data || [];
 
-        // Calculate totals for the week
         let auditedCount = 0;
         let notAuditedCount = 0;
 
         storesData.forEach((item: StoresByDate) => {
-          const date = new Date(item.AuditDate);
-          const itemWeek = getWeekInMonth(date);
-          if (itemWeek === week) {
+          if (item.AuditDate === date) {
             auditedCount += item.AuditedCount || 0;
             notAuditedCount += item.NotAuditedCount || 0;
           }
         });
 
-        // Fetch survey details for this week
+        // Fetch stores with audit status for this date
+        const auditStatusParams = { ...params };
+        const auditStatusResponse = await api.get("/dashboard/stores-with-audit-status", { params: auditStatusParams }).catch(() => null);
+        
+        // Fetch survey details for this date
         const surveyParams = { ...params };
         const surveyResponse = await api.get("/dashboard/store-survey-details", { params: surveyParams }).catch(() => null);
         
-        let totalPurchasePrice = 0;
-        let totalSellingPrice = 0;
         const storeDetails: StoreSurveyDetail[] = [];
+        const surveyDataMap = new Map<number, any>();
 
         if (surveyResponse?.data?.success && surveyResponse.data.data) {
           hasAnySurveyData = true;
-          const surveyData = surveyResponse.data.data;
-          
-          surveyData.forEach((store: any) => {
-            if (store.PurchasePrice) totalPurchasePrice += store.PurchasePrice;
-            if (store.SellingPrice) totalSellingPrice += store.SellingPrice;
-            
+          surveyResponse.data.data.forEach((store: any) => {
+            surveyDataMap.set(store.StoreId, store);
+          });
+        }
+
+        // Combine audit status with survey data
+        if (auditStatusResponse?.data?.success && auditStatusResponse.data.data) {
+          auditStatusResponse.data.data.forEach((store: any) => {
+            const surveyData = surveyDataMap.get(store.StoreId);
             storeDetails.push({
               StoreId: store.StoreId,
               StoreName: store.StoreName,
-              PurchasePrice: store.PurchasePrice,
-              SellingPrice: store.SellingPrice,
-              AverageStockQuantity: store.AverageStockQuantity,
-              QuantityReceived: store.QuantityReceived,
+              PurchasePrice: surveyData?.PurchasePrice || null,
+              SellingPrice: surveyData?.SellingPrice || null,
+              AverageStockQuantity: surveyData?.AverageStockQuantity || null,
+              QuantityReceived: surveyData?.QuantityReceived || null,
+              IsAudited: store.IsAudited,
             });
           });
         }
 
-        allWeekData.push({
-          week,
-          weekLabel: `Tuần ${week}`,
-          startDate: weekDates.start,
-          endDate: weekDates.end,
+        const dateObj = new Date(date);
+        allDayData.push({
+          date,
+          dateLabel: `${dateObj.getDate()}/${dateObj.getMonth() + 1}`,
           auditedCount,
           notAuditedCount,
-          totalPurchasePrice,
-          totalSellingPrice,
           storeDetails,
         });
       }
 
       setHasSurveyData(hasAnySurveyData);
-      setWeekData(allWeekData);
+      setDayData(allDayData);
     } catch (error) {
-      console.error("Error fetching week data:", error);
-      setWeekData([]);
+      console.error("Error fetching day data:", error);
+      setDayData([]);
       setHasSurveyData(false);
     }
   };
@@ -229,11 +260,9 @@ export default function Dashboard() {
   const toggleWeek = (week: number) => {
     setSelectedWeeks((prev) => {
       if (prev.includes(week)) {
-        // Don't allow deselecting if it's the only selected week
         if (prev.length === 1) return prev;
         return prev.filter((w) => w !== week);
       } else {
-        // Max 4 weeks
         if (prev.length >= 4) return prev;
         return [...prev, week].sort();
       }
@@ -255,15 +284,30 @@ export default function Dashboard() {
     );
   }
 
-  // Prepare chart data
-  const chartLabels = weekData.map((w) => w.weekLabel);
-  const auditedData = weekData.map((w) => w.auditedCount);
-  const notAuditedData = weekData.map((w) => w.notAuditedCount);
-  const purchasePriceData = weekData.map((w) => Math.round(w.totalPurchasePrice / 1000000)); // Convert to millions
-  const sellingPriceData = weekData.map((w) => Math.round(w.totalSellingPrice / 1000000));
+  // Prepare chart data - by day
+  const chartLabels = dayData.map((d) => d.dateLabel);
+  const auditedData = dayData.map((d) => d.auditedCount);
+  const notAuditedData = dayData.map((d) => d.notAuditedCount);
 
-  // Get all store details for survey chart
-  const allStoreDetails = weekData.flatMap((w) => w.storeDetails);
+  // Get all store details for charts
+  const allStoreDetails = dayData.flatMap((d) => d.storeDetails);
+  
+  // Separate stores by audit status
+  const auditedStores = allStoreDetails.filter((s) => s.IsAudited);
+  const notAuditedStores = allStoreDetails.filter((s) => !s.IsAudited);
+  
+  // For store detail chart - show audited vs not audited
+  const storeDetailLabels = allStoreDetails.map((s) => 
+    s.StoreName.length > 10 ? s.StoreName.substring(0, 10) + "..." : s.StoreName
+  );
+  const storeAuditedData = allStoreDetails.map((s) => s.IsAudited ? 1 : 0);
+  const storeNotAuditedData = allStoreDetails.map((s) => s.IsAudited ? 0 : 1);
+
+  // Filter stores
+  const filteredStores = stores.filter((store) =>
+    store.StoreName.toLowerCase().includes(storeSearch.toLowerCase()) ||
+    store.StoreCode.toLowerCase().includes(storeSearch.toLowerCase())
+  );
 
   return (
     <div className="dashboard-container" style={{ backgroundColor: colors.background }}>
@@ -298,6 +342,27 @@ export default function Dashboard() {
               <span className="dropdown-text" style={{ color: colors.text }}>
                 {selectedTerritory
                   ? territories.find((t) => t.Id.toString() === selectedTerritory)?.TerritoryName || "Tất cả"
+                  : "Tất cả"}
+              </span>
+              <span style={{ color: colors.icon }}>▼</span>
+            </div>
+          </div>
+
+          {/* Store Filter */}
+          <div className="filter-row">
+            <div style={{ flex: 1 }}>
+              <label className="filter-label" style={{ color: colors.text }}>
+                Cửa hàng:
+              </label>
+            </div>
+            <div
+              className="dropdown"
+              style={{ borderColor: colors.icon + "40", backgroundColor: colors.background, cursor: "pointer" }}
+              onClick={() => setShowStoreModal(true)}
+            >
+              <span className="dropdown-text" style={{ color: colors.text }}>
+                {selectedStore
+                  ? stores.find((s) => s.Id.toString() === selectedStore)?.StoreName || "Tất cả"
                   : "Tất cả"}
               </span>
               <span style={{ color: colors.icon }}>▼</span>
@@ -341,11 +406,11 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Main Bar Chart - Stores by Week */}
-        {weekData.length > 0 ? (
+        {/* Main Bar Chart - Stores by Day (Đã/Chưa thực hiện) */}
+        {dayData.length > 0 ? (
           <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
             <h3 className="section-title" style={{ color: colors.text }}>
-              Thống kê cửa hàng theo tuần
+              Thống kê cửa hàng theo ngày
             </h3>
             <div className="chart-container">
               <Bar
@@ -364,20 +429,6 @@ export default function Dashboard() {
                       data: notAuditedData,
                       backgroundColor: "rgba(245, 158, 11, 0.8)",
                       borderColor: "rgba(245, 158, 11, 1)",
-                      borderWidth: 1,
-                    },
-                    {
-                      label: "Giá mua (triệu VNĐ)",
-                      data: purchasePriceData,
-                      backgroundColor: "rgba(59, 130, 246, 0.8)",
-                      borderColor: "rgba(59, 130, 246, 1)",
-                      borderWidth: 1,
-                    },
-                    {
-                      label: "Giá bán (triệu VNĐ)",
-                      data: sellingPriceData,
-                      backgroundColor: "rgba(139, 92, 246, 0.8)",
-                      borderColor: "rgba(139, 92, 246, 1)",
                       borderWidth: 1,
                     },
                   ],
@@ -423,25 +474,13 @@ export default function Dashboard() {
               <div className="legend-item">
                 <div className="legend-color" style={{ backgroundColor: "#10B981" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
-                  Đã thực hiện: {weekData.reduce((sum, w) => sum + w.auditedCount, 0)}
+                  Đã thực hiện: {dayData.reduce((sum, d) => sum + d.auditedCount, 0)}
                 </span>
               </div>
               <div className="legend-item">
                 <div className="legend-color" style={{ backgroundColor: "#F59E0B" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
-                  Chưa thực hiện: {weekData.reduce((sum, w) => sum + w.notAuditedCount, 0)}
-                </span>
-              </div>
-              <div className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: "#3B82F6" }}></div>
-                <span className="legend-text" style={{ color: colors.text }}>
-                  Tổng giá mua: {weekData.reduce((sum, w) => sum + w.totalPurchasePrice, 0).toLocaleString("vi-VN")} VNĐ
-                </span>
-              </div>
-              <div className="legend-item">
-                <div className="legend-color" style={{ backgroundColor: "#8B5CF6" }}></div>
-                <span className="legend-text" style={{ color: colors.text }}>
-                  Tổng giá bán: {weekData.reduce((sum, w) => sum + w.totalSellingPrice, 0).toLocaleString("vi-VN")} VNĐ
+                  Chưa thực hiện: {dayData.reduce((sum, d) => sum + d.notAuditedCount, 0)}
                 </span>
               </div>
             </div>
@@ -449,7 +488,7 @@ export default function Dashboard() {
         ) : (
           <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
             <h3 className="section-title" style={{ color: colors.text }}>
-              Thống kê cửa hàng theo tuần
+              Thống kê cửa hàng theo ngày
             </h3>
             <p className="no-data-text" style={{ color: colors.icon }}>
               Chưa có dữ liệu.
@@ -457,8 +496,91 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Survey Details Bar Chart - Only show if has survey data */}
-        {hasSurveyData && allStoreDetails.length > 0 && (
+        {/* Store Details Bar Chart - Đã/Chưa thực hiện */}
+        {allStoreDetails.length > 0 && (
+          <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
+            <h3 className="section-title" style={{ color: colors.text }}>
+              Chi tiết cửa hàng
+            </h3>
+            <div className="chart-container">
+              <Bar
+                data={{
+                  labels: storeDetailLabels,
+                  datasets: [
+                    {
+                      label: "Đã thực hiện",
+                      data: storeAuditedData,
+                      backgroundColor: "rgba(16, 185, 129, 0.8)",
+                      borderColor: "rgba(16, 185, 129, 1)",
+                      borderWidth: 1,
+                    },
+                    {
+                      label: "Chưa thực hiện",
+                      data: storeNotAuditedData,
+                      backgroundColor: "rgba(245, 158, 11, 0.8)",
+                      borderColor: "rgba(245, 158, 11, 1)",
+                      borderWidth: 1,
+                    },
+                  ],
+                }}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "top" as const,
+                      labels: {
+                        color: colors.text,
+                      },
+                    },
+                    title: {
+                      display: false,
+                    },
+                  },
+                  scales: {
+                    y: {
+                      beginAtZero: true,
+                      ticks: {
+                        color: colors.text,
+                      },
+                      grid: {
+                        color: colors.icon + "20",
+                      },
+                    },
+                    x: {
+                      ticks: {
+                        color: colors.text,
+                        maxRotation: 45,
+                        minRotation: 45,
+                      },
+                      grid: {
+                        color: colors.icon + "20",
+                      },
+                    },
+                  },
+                }}
+                style={{ height: "300px" }}
+              />
+            </div>
+            <div className="chart-legend">
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#10B981" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Đã thực hiện: {auditedStores.length}
+                </span>
+              </div>
+              <div className="legend-item">
+                <div className="legend-color" style={{ backgroundColor: "#F59E0B" }}></div>
+                <span className="legend-text" style={{ color: colors.text }}>
+                  Chưa thực hiện: {notAuditedStores.length}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Survey Details Bar Chart - Tách nhiều cột */}
+        {hasSurveyData && auditedStores.length > 0 && (
           <div className="chart-section" style={{ borderColor: colors.icon + "20" }}>
             <h3 className="section-title" style={{ color: colors.text }}>
               Chi tiết khảo sát cửa hàng
@@ -466,32 +588,32 @@ export default function Dashboard() {
             <div className="chart-container">
               <Bar
                 data={{
-                  labels: allStoreDetails.map((s) => s.StoreName.length > 10 ? s.StoreName.substring(0, 10) + "..." : s.StoreName),
+                  labels: auditedStores.map((s) => s.StoreName.length > 10 ? s.StoreName.substring(0, 10) + "..." : s.StoreName),
                   datasets: [
                     {
                       label: "Giá mua (nghìn VNĐ)",
-                      data: allStoreDetails.map((s) => s.PurchasePrice ? Math.round(s.PurchasePrice / 1000) : 0),
+                      data: auditedStores.map((s) => s.PurchasePrice ? Math.round(s.PurchasePrice / 1000) : 0),
                       backgroundColor: "rgba(59, 130, 246, 0.8)",
                       borderColor: "rgba(59, 130, 246, 1)",
                       borderWidth: 1,
                     },
                     {
                       label: "Giá bán (nghìn VNĐ)",
-                      data: allStoreDetails.map((s) => s.SellingPrice ? Math.round(s.SellingPrice / 1000) : 0),
+                      data: auditedStores.map((s) => s.SellingPrice ? Math.round(s.SellingPrice / 1000) : 0),
                       backgroundColor: "rgba(139, 92, 246, 0.8)",
                       borderColor: "rgba(139, 92, 246, 1)",
                       borderWidth: 1,
                     },
                     {
                       label: "Tồn bình quân (tấn)",
-                      data: allStoreDetails.map((s) => s.AverageStockQuantity || 0),
+                      data: auditedStores.map((s) => s.AverageStockQuantity || 0),
                       backgroundColor: "rgba(16, 185, 129, 0.8)",
                       borderColor: "rgba(16, 185, 129, 1)",
                       borderWidth: 1,
                     },
                     {
                       label: "Sản lượng (tấn)",
-                      data: allStoreDetails.map((s) => s.QuantityReceived || 0),
+                      data: auditedStores.map((s) => s.QuantityReceived || 0),
                       backgroundColor: "rgba(245, 158, 11, 0.8)",
                       borderColor: "rgba(245, 158, 11, 1)",
                       borderWidth: 1,
@@ -646,6 +768,84 @@ export default function Dashboard() {
                     </span>
                   </div>
                 ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Store Picker Modal */}
+      {showStoreModal && (
+        <div className="modal-overlay" onClick={() => {
+          setShowStoreModal(false);
+          setStoreSearch("");
+        }}>
+          <div className="modal-content" style={{ backgroundColor: colors.background }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h3 className="modal-title" style={{ color: colors.text, margin: 0 }}>
+                Chọn cửa hàng
+              </h3>
+              <button
+                onClick={() => {
+                  setShowStoreModal(false);
+                  setStoreSearch("");
+                }}
+                style={{ background: "none", border: "none", cursor: "pointer", fontSize: "24px", color: colors.icon }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              className="modal-search-input"
+              style={{
+                backgroundColor: colors.background,
+                color: colors.text,
+                borderColor: colors.icon + "40",
+                marginBottom: "12px",
+              }}
+              value={storeSearch}
+              onChange={(e) => setStoreSearch(e.target.value)}
+              placeholder="Tìm kiếm cửa hàng"
+            />
+            <div className="modal-scroll-view">
+              <div
+                className="modal-option"
+                style={{
+                  backgroundColor: !selectedStore ? colors.primary + "20" : "transparent",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  setSelectedStore("");
+                  setShowStoreModal(false);
+                  setStoreSearch("");
+                }}
+              >
+                <span className="modal-option-text" style={{ color: colors.text }}>
+                  Tất cả
+                </span>
+              </div>
+              {filteredStores.map((store) => (
+                <div
+                  key={store.Id}
+                  className="modal-option"
+                  style={{
+                    backgroundColor:
+                      selectedStore === store.Id.toString()
+                        ? colors.primary + "20"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    setSelectedStore(store.Id.toString());
+                    setShowStoreModal(false);
+                    setStoreSearch("");
+                  }}
+                >
+                  <span className="modal-option-text" style={{ color: colors.text }}>
+                    {store.StoreName} ({store.StoreCode})
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>

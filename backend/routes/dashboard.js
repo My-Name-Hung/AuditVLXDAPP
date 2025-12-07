@@ -11,6 +11,7 @@ router.get('/product-prices', authenticateToken, dashboardController.getProductP
 router.get('/product-types', authenticateToken, dashboardController.getProductTypes);
 router.get('/summary-table', authenticateToken, dashboardController.getSummaryTable);
 router.get('/store-survey-details', authenticateToken, dashboardController.getStoreSurveyDetails);
+router.get('/stores-with-audit-status', authenticateToken, dashboardController.getStoresWithAuditStatus);
 
 module.exports = router;
 

@@ -770,6 +770,86 @@ async function getSummaryTable(req, res) {
   }
 }
 
+// Get stores with audit status by date - lấy danh sách cửa hàng với trạng thái audit theo ngày
+async function getStoresWithAuditStatus(req, res) {
+  try {
+    const { startDate, endDate, territoryId, storeId } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+
+    let query = `
+      SELECT DISTINCT
+        s.Id as StoreId,
+        s.StoreName,
+        CASE 
+          WHEN EXISTS (
+            SELECT 1 FROM Audits a
+            INNER JOIN Images img ON a.Id = img.AuditId
+            WHERE a.StoreId = s.Id
+              AND CAST(a.AuditDate AS DATE) BETWEEN @startDate AND @endDate
+              AND img.ImageUrl IS NOT NULL
+              AND img.ImageUrl != ''
+          ) THEN 1
+          ELSE 0
+        END as IsAudited
+      FROM Stores s
+      WHERE 1=1
+    `;
+
+    // Filter by user - only show stores assigned to current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
+    if (territoryId) {
+      query += " AND s.TerritoryId = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
+    if (storeId) {
+      query += " AND s.Id = @storeId";
+      request.input("storeId", sql.Int, parseInt(storeId, 10));
+    }
+
+    // Set date range
+    const start = startDate || new Date().toISOString().split("T")[0];
+    const end = endDate || new Date().toISOString().split("T")[0];
+    request.input("startDate", sql.Date, start);
+    request.input("endDate", sql.Date, end);
+
+    query += ` ORDER BY s.StoreName ASC`;
+
+    const result = await request.query(query);
+
+    res.json({
+      success: true,
+      data: result.recordset.map((row) => ({
+        StoreId: row.StoreId,
+        StoreName: row.StoreName,
+        IsAudited: row.IsAudited === 1,
+      })),
+    });
+  } catch (error) {
+    console.error("Error fetching stores with audit status:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching stores with audit status",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
 // Get store survey details - chi tiết khảo sát cửa hàng
 async function getStoreSurveyDetails(req, res) {
   try {
@@ -860,4 +940,5 @@ module.exports = {
   getProductTypes,
   getSummaryTable,
   getStoreSurveyDetails,
+  getStoresWithAuditStatus,
 };
