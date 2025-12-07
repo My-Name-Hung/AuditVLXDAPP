@@ -860,9 +860,9 @@ async function getStoresWithAuditStatus(req, res) {
     `;
 
     const auditedResult = await request.query(auditedQuery);
-    const auditedStoresMap = new Map<number, Set<string>>(); // StoreId -> Set of dates
+    const auditedStoresMap = new Map(); // StoreId -> Set of dates
 
-    auditedResult.recordset.forEach((row: any) => {
+    auditedResult.recordset.forEach((row) => {
       const storeId = row.StoreId;
       const auditDate = row.AuditDate instanceof Date 
         ? row.AuditDate.toISOString().split("T")[0]
@@ -871,17 +871,17 @@ async function getStoresWithAuditStatus(req, res) {
       if (!auditedStoresMap.has(storeId)) {
         auditedStoresMap.set(storeId, new Set());
       }
-      auditedStoresMap.get(storeId)!.add(auditDate);
+      auditedStoresMap.get(storeId).add(auditDate);
     });
 
     // Build result - mark stores as audited if they have audit in the date range
-    const result = allStores.map((store: any) => {
+    const result = allStores.map((store) => {
       const hasAudit = auditedStoresMap.has(store.StoreId);
       return {
         StoreId: store.StoreId,
         StoreName: store.StoreName,
         IsAudited: hasAudit,
-        AuditDates: hasAudit ? Array.from(auditedStoresMap.get(store.StoreId)!) : [],
+        AuditDates: hasAudit ? Array.from(auditedStoresMap.get(store.StoreId)) : [],
       };
     });
 
