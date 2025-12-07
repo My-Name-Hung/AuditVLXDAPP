@@ -429,17 +429,32 @@ async function getStoresByDate(req, res) {
 
     const result = await request.query(query);
 
+    // Format date to YYYY-MM-DD string format
+    const formatDate = (dateValue) => {
+      if (!dateValue) return null;
+      const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
+      if (isNaN(date.getTime())) return null;
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
+
     // Calculate not audited count for each date
-    // Not audited = Total stores - stores audited up to that date
+    // Not audited = Total stores - stores audited on that specific date
     const processedData = result.recordset.map((row) => {
-      // For each date, not audited = total - audited on that date
-      // This is a simplified calculation - in reality, we might want cumulative counts
+      const formattedDate = formatDate(row.AuditDate);
+      if (!formattedDate) return null;
+      
       return {
-        AuditDate: row.AuditDate,
-        AuditedCount: row.AuditedCount,
-        NotAuditedCount: Math.max(0, totalStores - row.AuditedCount),
+        AuditDate: formattedDate,
+        AuditedCount: row.AuditedCount || 0,
+        NotAuditedCount: Math.max(0, totalStores - (row.AuditedCount || 0)),
       };
-    });
+    }).filter(item => item !== null);
+
+    console.log("getStoresByDate - Total stores:", totalStores);
+    console.log("getStoresByDate - Processed data:", processedData);
 
     res.json({
       success: true,

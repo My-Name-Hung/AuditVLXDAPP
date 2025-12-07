@@ -12,22 +12,14 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
-import DateTimePicker from "@react-native-community/datetimepicker";
-import { BarChart, PieChart } from "react-native-chart-kit";
+import { BarChart } from "react-native-chart-kit";
 
 interface Territory {
   Id: number;
   TerritoryName: string;
-}
-
-interface CementProduct {
-  Id: number;
-  Code: string;
-  Name: string;
 }
 
 interface StoresByDate {
@@ -36,80 +28,69 @@ interface StoresByDate {
   NotAuditedCount: number;
 }
 
-interface ProductPrice {
-  PurchasePrice: number;
-  SellingPrice: number;
-  Count: number;
-}
-
-interface SummaryTableItem {
-  StoreId: number;
-  StoreCode: string;
-  StoreName: string;
-  TerritoryName: string;
-  AuditStatus: string;
-  ProductName: string | null;
-  PurchasePrice: number | null;
-  SellingPrice: number | null;
-}
+// Helper function to get week dates (7 days) for a given month and week number
+const getWeekDates = (year: number, month: number, weekNumber: number): string[] => {
+  // Month is 0-indexed in JavaScript Date (0 = January, 11 = December)
+  const monthIndex = month - 1;
+  
+  // Calculate start day of the week
+  // Week 1: days 1-7, Week 2: days 8-14, Week 3: days 15-21, Week 4: days 22-end
+  let startDay: number;
+  if (weekNumber === 1) {
+    startDay = 1;
+  } else if (weekNumber === 2) {
+    startDay = 8;
+  } else if (weekNumber === 3) {
+    startDay = 15;
+  } else {
+    startDay = 22;
+  }
+  
+  const dates: string[] = [];
+  const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+  
+  for (let i = 0; i < 7; i++) {
+    const day = startDay + i;
+    if (day <= daysInMonth) {
+      const date = new Date(year, monthIndex, day);
+      dates.push(date.toISOString().split("T")[0]);
+    } else {
+      // If week extends beyond month, use last day of month
+      const date = new Date(year, monthIndex, daysInMonth);
+      dates.push(date.toISOString().split("T")[0]);
+      break;
+    }
+  }
+  
+  return dates;
+};
 
 export default function DashboardScreen() {
   const router = useRouter();
   const { colors } = useTheme();
   const [loading, setLoading] = useState(true);
   const [territories, setTerritories] = useState<Territory[]>([]);
-  const [productTypes, setProductTypes] = useState<string[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
-  const [selectedProductType, setSelectedProductType] = useState<string>("");
-  const [startDate, setStartDate] = useState<string>("");
-  const [endDate, setEndDate] = useState<string>("");
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedWeek, setSelectedWeek] = useState<number>(1);
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
-  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [startDateValue, setStartDateValue] = useState<Date | null>(null);
-  const [endDateValue, setEndDateValue] = useState<Date | null>(null);
   
   // Chart data
   const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
-  const [productPrices, setProductPrices] = useState<{
-    prices: ProductPrice[];
-    totalPurchase: number;
-    totalSelling: number;
-  } | null>(null);
-  
-  // Table data
-  const [tableData, setTableData] = useState<SummaryTableItem[]>([]);
-  const [tablePage, setTablePage] = useState(1);
-  const [tableTotalPages, setTableTotalPages] = useState(1);
 
   useEffect(() => {
     fetchTerritories();
-    fetchProductTypes();
-    // Fetch all product prices by default
-    fetchProductPrices();
   }, []);
 
   useEffect(() => {
-    // Fetch stores by date - if no dates, fetch all data
     fetchStoresByDate();
-  }, [startDate, endDate, selectedTerritory]);
-
-  useEffect(() => {
-    // Fetch product prices when productType changes (including empty for "all")
-    fetchProductPrices();
-  }, [selectedProductType]);
-
-  useEffect(() => {
-    fetchSummaryTable();
-  }, [tablePage, selectedTerritory, startDate, endDate]);
+  }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
 
   const fetchTerritories = async () => {
     try {
       const response = await api.get("/territories");
-      console.log("Territories response:", response.data);
-      // Handle different response structures - API returns {success: true, data: [...]}
       if (response.data && response.data.success && Array.isArray(response.data.data)) {
         setTerritories(response.data.data);
       } else if (Array.isArray(response.data)) {
@@ -119,96 +100,89 @@ export default function DashboardScreen() {
       } else {
         setTerritories([]);
       }
+      setLoading(false);
     } catch (error) {
       console.error("Error fetching territories:", error);
       setTerritories([]);
-    }
-  };
-
-  const fetchProductTypes = async () => {
-    try {
-      const response = await api.get("/dashboard/product-types");
-      console.log("Product types response:", response.data);
-      if (response.data && response.data.success) {
-        setProductTypes(response.data.data || []);
-      } else {
-        setProductTypes(response.data || []);
-      }
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching product types:", error);
-      setProductTypes([]);
       setLoading(false);
     }
   };
 
   const fetchStoresByDate = async () => {
     try {
-      const params: any = {};
-      // Only add date params if both are provided, otherwise fetch all
-      if (startDate && endDate) {
-        params.startDate = startDate;
-        params.endDate = endDate;
+      const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
+      if (weekDates.length === 0) {
+        setStoresByDate([]);
+        return;
       }
+      
+      const startDate = weekDates[0];
+      const endDate = weekDates[weekDates.length - 1];
+      
+      const params: any = {
+        startDate,
+        endDate,
+      };
       if (selectedTerritory) params.territoryId = selectedTerritory;
 
       const response = await api.get("/dashboard/stores-by-date", { params });
-      console.log("Stores by date response:", response.data);
-      if (response.data && response.data.success) {
-        setStoresByDate(response.data.data || []);
-      } else {
-        setStoresByDate(response.data || []);
-      }
+      
+      // Create a map of dates from API response
+      // Normalize dates to YYYY-MM-DD format for comparison
+      const normalizeDate = (dateStr: string | Date): string => {
+        if (!dateStr) return "";
+        const date = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
+        if (isNaN(date.getTime())) return "";
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        return `${year}-${month}-${day}`;
+      };
+      
+      const dataMap = new Map<string, StoresByDate>();
+      const responseData = response.data?.success ? response.data.data : response.data || [];
+      
+      console.log("API Response data:", responseData);
+      console.log("Week dates:", weekDates);
+      
+      responseData.forEach((item: StoresByDate) => {
+        const normalizedDate = normalizeDate(item.AuditDate);
+        if (normalizedDate) {
+          dataMap.set(normalizedDate, {
+            ...item,
+            AuditDate: normalizedDate,
+          });
+        }
+      });
+      
+      // Fill in all 7 days of the week, even if no data
+      const filledData: StoresByDate[] = weekDates.map((date) => {
+        const existing = dataMap.get(date);
+        return existing || {
+          AuditDate: date,
+          AuditedCount: 0,
+          NotAuditedCount: 0,
+        };
+      });
+      
+      console.log("Filled data:", filledData);
+      setStoresByDate(filledData);
     } catch (error) {
       console.error("Error fetching stores by date:", error);
       setStoresByDate([]);
     }
   };
 
-  const fetchProductPrices = async () => {
-    try {
-      const params: any = {};
-      // Only add productType if selected, otherwise fetch all
-      if (selectedProductType) {
-        params.productType = selectedProductType;
-      }
-      const response = await api.get("/dashboard/product-prices", { params });
-      console.log("Product prices response:", response.data);
-      if (response.data && response.data.success) {
-        setProductPrices(response.data.data || null);
-      } else {
-        setProductPrices(response.data || null);
-      }
-    } catch (error) {
-      console.error("Error fetching product prices:", error);
-      setProductPrices(null);
-    }
+  const getMonthName = (month: number): string => {
+    const months = [
+      "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+      "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12"
+    ];
+    return months[month - 1] || "";
   };
 
-  const fetchSummaryTable = async () => {
-    try {
-      const params: any = {
-        page: tablePage,
-        pageSize: 20,
-      };
-      if (selectedTerritory) params.territoryId = selectedTerritory;
-      if (startDate) params.startDate = startDate;
-      if (endDate) params.endDate = endDate;
-
-      const response = await api.get("/dashboard/summary-table", { params });
-      console.log("Summary table response:", response.data);
-      if (response.data && response.data.success) {
-        setTableData(response.data.data || []);
-        setTableTotalPages(response.data.pagination?.totalPages || 1);
-      } else {
-        setTableData(response.data?.data || response.data || []);
-        setTableTotalPages(response.data?.pagination?.totalPages || 1);
-      }
-    } catch (error) {
-      console.error("Error fetching summary table:", error);
-      setTableData([]);
-      setTableTotalPages(1);
-    }
+  const getWeekLabel = (week: number): string => {
+    return `Tuần ${week}`;
   };
 
   if (loading) {
@@ -238,21 +212,17 @@ export default function DashboardScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
       >
-        {/* Filters */}
-        <View style={[styles.filterSection, { borderColor: colors.icon + "20" }]}>
+        {/* Filters Section */}
+        <View style={[styles.filterSection, { borderColor: colors.icon + "20", backgroundColor: colors.secondary }]}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Bộ lọc
           </Text>
           
+          {/* Territory Filter */}
           <View style={styles.filterRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.filterLabel, { color: colors.text }]}>
-                Địa bàn:
-              </Text>
-              <Text style={[styles.filterHint, { color: colors.icon }]}>
-                Chọn địa bàn để lọc dữ liệu thống kê
-              </Text>
-            </View>
+            <Text style={[styles.filterLabel, { color: colors.text }]}>
+              Địa bàn:
+            </Text>
             <TouchableOpacity
               style={[
                 styles.dropdown,
@@ -269,91 +239,92 @@ export default function DashboardScreen() {
             </TouchableOpacity>
           </View>
 
+          {/* Month Filter */}
           <View style={styles.filterRow}>
             <Text style={[styles.filterLabel, { color: colors.text }]}>
-              Từ ngày:
+              Tháng:
             </Text>
-            <View style={[styles.dateInputContainer, { borderColor: colors.icon + "40" }]}>
-              <TextInput
-                style={[styles.dateInput, { color: colors.text }]}
-                value={startDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.icon + "80"}
-                editable={false}
-              />
+            <View style={styles.monthYearContainer}>
               <TouchableOpacity
-                onPress={() => setShowStartDatePicker(true)}
-                style={styles.calendarIconButton}
-              >
-                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              </TouchableOpacity>
-            </View>
-            {showStartDatePicker && (
-              <DateTimePicker
-                value={startDateValue || new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, selectedDate) => {
-                  setShowStartDatePicker(Platform.OS === "ios");
-                  if (selectedDate) {
-                    setStartDateValue(selectedDate);
-                    const formattedDate = selectedDate.toISOString().split("T")[0];
-                    setStartDate(formattedDate);
+                style={[styles.monthButton, { backgroundColor: colors.background, borderColor: colors.icon + "40" }]}
+                onPress={() => {
+                  if (selectedMonth > 1) {
+                    setSelectedMonth(selectedMonth - 1);
+                  } else {
+                    setSelectedMonth(12);
+                    setSelectedYear(selectedYear - 1);
                   }
                 }}
-              />
-            )}
+              >
+                <Ionicons name="chevron-back" size={18} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.monthYearText, { color: colors.text }]}>
+                {getMonthName(selectedMonth)} {selectedYear}
+              </Text>
+              <TouchableOpacity
+                style={[styles.monthButton, { backgroundColor: colors.background, borderColor: colors.icon + "40" }]}
+                onPress={() => {
+                  if (selectedMonth < 12) {
+                    setSelectedMonth(selectedMonth + 1);
+                  } else {
+                    setSelectedMonth(1);
+                    setSelectedYear(selectedYear + 1);
+                  }
+                }}
+              >
+                <Ionicons name="chevron-forward" size={18} color={colors.text} />
+              </TouchableOpacity>
+            </View>
           </View>
 
+          {/* Week Filter */}
           <View style={styles.filterRow}>
             <Text style={[styles.filterLabel, { color: colors.text }]}>
-              Đến ngày:
+              Tuần:
             </Text>
-            <View style={[styles.dateInputContainer, { borderColor: colors.icon + "40" }]}>
-              <TextInput
-                style={[styles.dateInput, { color: colors.text }]}
-                value={endDate}
-                placeholder="YYYY-MM-DD"
-                placeholderTextColor={colors.icon + "80"}
-                editable={false}
-              />
-              <TouchableOpacity
-                onPress={() => setShowEndDatePicker(true)}
-                style={styles.calendarIconButton}
-              >
-                <Ionicons name="calendar-outline" size={20} color={colors.primary} />
-              </TouchableOpacity>
+            <View style={styles.weekContainer}>
+              {[1, 2, 3, 4].map((week) => (
+                <TouchableOpacity
+                  key={week}
+                  style={[
+                    styles.weekButton,
+                    {
+                      backgroundColor: selectedWeek === week ? colors.primary : colors.background,
+                      borderColor: colors.icon + "40",
+                    },
+                  ]}
+                  onPress={() => setSelectedWeek(week)}
+                >
+                  <Text
+                    style={[
+                      styles.weekButtonText,
+                      { color: selectedWeek === week ? "#fff" : colors.text },
+                    ]}
+                  >
+                    {getWeekLabel(week)}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-            {showEndDatePicker && (
-              <DateTimePicker
-                value={endDateValue || new Date()}
-                mode="date"
-                display={Platform.OS === "ios" ? "spinner" : "default"}
-                onChange={(event, selectedDate) => {
-                  setShowEndDatePicker(Platform.OS === "ios");
-                  if (selectedDate) {
-                    setEndDateValue(selectedDate);
-                    const formattedDate = selectedDate.toISOString().split("T")[0];
-                    setEndDate(formattedDate);
-                  }
-                }}
-              />
-            )}
           </View>
         </View>
 
         {/* Bar Chart Section */}
         {storesByDate.length > 0 ? (
-          <View style={[styles.chartSection, { borderColor: colors.icon + "20" }]}>
+          <View style={[styles.chartSection, { borderColor: colors.icon + "20", backgroundColor: colors.secondary }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Biểu đồ số cửa hàng theo ngày
+              Thống kê cửa hàng theo tuần
+            </Text>
+            <Text style={[styles.chartSubtitle, { color: colors.icon }]}>
+              {getWeekLabel(selectedWeek)} - {getMonthName(selectedMonth)} {selectedYear}
             </Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <BarChart
                 data={{
                   labels: storesByDate.map((item) => {
                     const date = new Date(item.AuditDate);
-                    return `${date.getDate()}/${date.getMonth() + 1}`;
+                    const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][date.getDay()];
+                    return `${dayName}\n${date.getDate()}/${date.getMonth() + 1}`;
                   }),
                   datasets: [
                     {
@@ -369,8 +340,8 @@ export default function DashboardScreen() {
                   ],
                   legend: ["Đã thực hiện", "Chưa thực hiện"],
                 }}
-                width={Math.max(Dimensions.get("window").width - 64, Math.max(storesByDate.length * 60, 300))}
-                height={220}
+                width={Math.max(Dimensions.get("window").width - 64, 7 * 60)}
+                height={280}
                 chartConfig={{
                   backgroundColor: colors.background,
                   backgroundGradientFrom: colors.background,
@@ -385,6 +356,8 @@ export default function DashboardScreen() {
                     strokeDasharray: "",
                     stroke: colors.icon + "40",
                   },
+                  barPercentage: 0.7,
+                  categoryPercentage: 0.8,
                 }}
                 style={{
                   marginVertical: 8,
@@ -394,6 +367,9 @@ export default function DashboardScreen() {
                 yAxisSuffix=""
                 showValuesOnTopOfBars
                 fromZero
+                withInnerLines={false}
+                withVerticalLabels={true}
+                withHorizontalLabels={true}
               />
             </ScrollView>
             <View style={styles.chartLegend}>
@@ -412,199 +388,15 @@ export default function DashboardScreen() {
             </View>
           </View>
         ) : (
-          <View style={[styles.chartSection, { borderColor: colors.icon + "20" }]}>
+          <View style={[styles.chartSection, { borderColor: colors.icon + "20", backgroundColor: colors.secondary }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Biểu đồ số cửa hàng theo ngày
+              Thống kê cửa hàng theo tuần
             </Text>
             <Text style={[styles.noDataText, { color: colors.icon }]}>
               Chưa có dữ liệu.
             </Text>
           </View>
         )}
-
-        {/* Pie Chart Section */}
-        <View style={[styles.chartSection, { borderColor: colors.icon + "20" }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Biểu đồ giá sản phẩm
-          </Text>
-          
-          <View style={styles.filterRow}>
-            <Text style={[styles.filterLabel, { color: colors.text }]}>
-              Chọn loại sản phẩm:
-            </Text>
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.dropdown,
-                  { borderColor: colors.icon + "40", backgroundColor: colors.background },
-                ]}
-                onPress={() => setShowProductDropdown(!showProductDropdown)}
-              >
-                <Text style={[styles.dropdownText, { color: colors.text }]}>
-                  {selectedProductType || "Tất cả"}
-                </Text>
-                <Ionicons
-                  name={showProductDropdown ? "chevron-up" : "chevron-down"}
-                  size={20}
-                  color={colors.icon}
-                />
-              </TouchableOpacity>
-              {showProductDropdown && (
-                <View style={[styles.dropdownMenu, { backgroundColor: colors.background, borderColor: colors.icon + "40" }]}>
-                  <TouchableOpacity
-                    style={styles.dropdownItem}
-                    onPress={() => {
-                      setSelectedProductType("");
-                      setShowProductDropdown(false);
-                    }}
-                  >
-                    <Text style={[styles.dropdownItemText, { color: colors.text }]}>
-                      Tất cả
-                    </Text>
-                  </TouchableOpacity>
-                  <ScrollView
-                    nestedScrollEnabled={true}
-                    style={styles.dropdownList}
-                  >
-                    {productTypes && Array.isArray(productTypes) && productTypes.map((productType, index) => (
-                      <TouchableOpacity
-                        key={index}
-                        style={styles.dropdownItem}
-                        onPress={() => {
-                          setSelectedProductType(productType);
-                          setShowProductDropdown(false);
-                        }}
-                      >
-                        <Text style={[styles.dropdownItemText, { color: colors.text }]}>
-                          {productType}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-          </View>
-
-          {productPrices && productPrices.totalPurchase > 0 && productPrices.totalSelling > 0 ? (
-            <View style={styles.pieChartContainer}>
-              <PieChart
-                data={[
-                  {
-                    name: "Giá mua",
-                    population: productPrices.totalPurchase,
-                    color: "#3B82F6",
-                    legendFontColor: colors.text,
-                    legendFontSize: 12,
-                  },
-                  {
-                    name: "Giá bán",
-                    population: productPrices.totalSelling,
-                    color: "#10B981",
-                    legendFontColor: colors.text,
-                    legendFontSize: 12,
-                  },
-                ]}
-                width={Dimensions.get("window").width - 64}
-                height={220}
-                chartConfig={{
-                  color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-                }}
-                accessor="population"
-                backgroundColor="transparent"
-                paddingLeft="15"
-                absolute
-              />
-              <View style={styles.chartInfoContainer}>
-                <Text style={[styles.chartInfo, { color: colors.text }]}>
-                  Tổng giá mua: {productPrices.totalPurchase.toLocaleString("vi-VN")} VNĐ
-                </Text>
-                <Text style={[styles.chartInfo, { color: colors.text }]}>
-                  Tổng giá bán: {productPrices.totalSelling.toLocaleString("vi-VN")} VNĐ
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <Text style={[styles.noDataText, { color: colors.icon }]}>
-              Chưa có dữ liệu. Vui lòng chọn sản phẩm.
-            </Text>
-          )}
-        </View>
-
-        {/* Summary Table */}
-        <View style={[styles.tableSection, { borderColor: colors.icon + "20" }]}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>
-            Bảng tổng hợp
-          </Text>
-          
-          {tableData.length > 0 ? (
-            <>
-              <View style={styles.table}>
-                <View style={[styles.tableRow, styles.tableHeader, { backgroundColor: colors.primary + "20" }]}>
-                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>Cửa hàng</Text>
-                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>Trạng thái</Text>
-                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>Sản phẩm</Text>
-                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>Giá mua</Text>
-                  <Text style={[styles.tableHeaderText, { color: colors.text }]}>Giá bán</Text>
-                </View>
-                {tableData.map((item, index) => (
-                  <View key={index} style={[styles.tableRow, { borderTopColor: colors.icon + "20" }]}>
-                    <Text style={[styles.tableCell, { color: colors.text }]} numberOfLines={1}>
-                      {item.StoreName}
-                    </Text>
-                    <Text style={[styles.tableCell, { color: colors.text }]}>
-                      {item.AuditStatus === "Chua th?c hi?n" ? "Chưa thực hiện" : 
-                       item.AuditStatus === "Ðã th?c hi?n" ? "Đã thực hiện" : 
-                       item.AuditStatus}
-                    </Text>
-                    <Text style={[styles.tableCell, { color: colors.text }]} numberOfLines={1}>
-                      {item.ProductName || "-"}
-                    </Text>
-                    <Text style={[styles.tableCell, { color: colors.text }]}>
-                      {item.PurchasePrice ? item.PurchasePrice.toLocaleString("vi-VN") : "-"}
-                    </Text>
-                    <Text style={[styles.tableCell, { color: colors.text }]}>
-                      {item.SellingPrice ? item.SellingPrice.toLocaleString("vi-VN") : "-"}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-
-              {/* Pagination */}
-              <View style={styles.pagination}>
-                <TouchableOpacity
-                  style={[
-                    styles.paginationButton,
-                    { backgroundColor: colors.primary },
-                    tablePage === 1 && styles.paginationButtonDisabled,
-                  ]}
-                  onPress={() => setTablePage(Math.max(1, tablePage - 1))}
-                  disabled={tablePage === 1}
-                >
-                  <Text style={styles.paginationButtonText}>Trước</Text>
-                </TouchableOpacity>
-                <Text style={[styles.paginationText, { color: colors.text }]}>
-                  Trang {tablePage} / {tableTotalPages}
-                </Text>
-                <TouchableOpacity
-                  style={[
-                    styles.paginationButton,
-                    { backgroundColor: colors.primary },
-                    tablePage >= tableTotalPages && styles.paginationButtonDisabled,
-                  ]}
-                  onPress={() => setTablePage(Math.min(tableTotalPages, tablePage + 1))}
-                  disabled={tablePage >= tableTotalPages}
-                >
-                  <Text style={styles.paginationButtonText}>Sau</Text>
-                </TouchableOpacity>
-              </View>
-            </>
-          ) : (
-            <Text style={[styles.noDataText, { color: colors.icon }]}>
-              Chưa có dữ liệu.
-            </Text>
-          )}
-        </View>
       </ScrollView>
 
       {/* Territory Picker Modal */}
@@ -644,21 +436,6 @@ export default function DashboardScreen() {
                 <Ionicons name="close" size={24} color={colors.icon} />
               </TouchableOpacity>
             </View>
-            <TextInput
-              style={[
-                styles.modalSearchInput,
-                {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.icon + "40",
-                  marginBottom: 12,
-                },
-              ]}
-              value={territorySearch}
-              onChangeText={setTerritorySearch}
-              placeholder="Tìm kiếm địa bàn"
-              placeholderTextColor={colors.icon + "80"}
-            />
             <ScrollView style={styles.modalScrollView}>
               <TouchableOpacity
                 style={[
@@ -738,15 +515,15 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   filterSection: {
-    padding: 16,
-    borderRadius: 8,
+    padding: 20,
+    borderRadius: 12,
     borderWidth: 1,
-    gap: 12,
+    gap: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: "600",
-    marginBottom: 8,
+    marginBottom: 4,
   },
   filterRow: {
     flexDirection: "row",
@@ -755,81 +532,78 @@ const styles = StyleSheet.create({
   },
   filterLabel: {
     fontSize: 14,
+    fontWeight: "500",
     minWidth: 80,
   },
-  dropdownContainer: {
-    flex: 1,
-    position: "relative",
-    zIndex: 10,
-  },
   dropdown: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    height: 40,
+    height: 44,
     borderWidth: 1,
-    borderRadius: 4,
+    borderRadius: 8,
     paddingHorizontal: 12,
   },
   dropdownText: {
     flex: 1,
     fontSize: 14,
   },
-  dropdownMenu: {
-    position: "absolute",
-    top: 42,
-    left: 0,
-    right: 0,
-    maxHeight: 200,
-    borderWidth: 1,
-    borderRadius: 4,
-    zIndex: 1000,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-  },
-  dropdownList: {
-    maxHeight: 200,
-  },
-  dropdownItem: {
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(0,0,0,0.1)",
-  },
-  dropdownItemText: {
-    fontSize: 14,
-  },
-  dateInputContainer: {
+  monthYearContainer: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderRadius: 4,
-    paddingRight: 8,
+    justifyContent: "center",
+    gap: 12,
   },
-  dateInput: {
-    flex: 1,
+  monthButton: {
+    width: 40,
     height: 40,
-    borderWidth: 0,
-    paddingHorizontal: 12,
-    fontSize: 14,
-  },
-  calendarIconButton: {
-    padding: 4,
-  },
-  chartSection: {
-    padding: 16,
     borderRadius: 8,
     borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  monthYearText: {
+    fontSize: 16,
+    fontWeight: "600",
+    minWidth: 120,
+    textAlign: "center",
+  },
+  weekContainer: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  weekButton: {
+    flex: 1,
+    minWidth: 70,
+    height: 40,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  weekButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  chartSection: {
+    padding: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  chartSubtitle: {
+    fontSize: 14,
+    marginBottom: 16,
+    textAlign: "center",
   },
   chartLegend: {
     flexDirection: "row",
     justifyContent: "center",
-    gap: 16,
-    marginTop: 12,
+    gap: 20,
+    marginTop: 16,
     flexWrap: "wrap",
   },
   legendItem: {
@@ -843,76 +617,14 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   legendText: {
-    fontSize: 12,
-  },
-  pieChartContainer: {
-    alignItems: "center",
-    marginTop: 8,
-  },
-  chartInfoContainer: {
-    marginTop: 12,
-    alignItems: "center",
-    gap: 4,
-  },
-  chartInfo: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "500",
   },
   noDataText: {
     fontSize: 14,
     fontStyle: "italic",
     textAlign: "center",
     padding: 20,
-  },
-  tableSection: {
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  table: {
-    marginTop: 8,
-  },
-  tableRow: {
-    flexDirection: "row",
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderTopWidth: 1,
-  },
-  tableHeader: {
-    paddingVertical: 12,
-    borderTopWidth: 0,
-  },
-  tableHeaderText: {
-    flex: 1,
-    fontSize: 12,
-    fontWeight: "600",
-    textAlign: "center",
-  },
-  tableCell: {
-    flex: 1,
-    fontSize: 12,
-    textAlign: "center",
-  },
-  pagination: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 16,
-    gap: 12,
-  },
-  paginationButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 4,
-  },
-  paginationButtonDisabled: {
-    opacity: 0.5,
-  },
-  paginationButtonText: {
-    color: "#fff",
-    fontWeight: "600",
-  },
-  paginationText: {
-    fontSize: 14,
   },
   backButtonContainer: {
     paddingHorizontal: 16,
@@ -950,13 +662,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
   },
-  modalSearchInput: {
-    height: 40,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    fontSize: 14,
-  },
   modalScrollView: {
     maxHeight: 400,
   },
@@ -970,4 +675,3 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
-
