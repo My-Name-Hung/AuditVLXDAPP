@@ -318,21 +318,31 @@ export default function Dashboard() {
               <Bar
                 data={{
                   labels: storesByDate.map((item) => {
-                    const date = new Date(item.AuditDate);
-                    const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][date.getDay()];
-                    return `${dayName}\n${date.getDate()}/${date.getMonth() + 1}`;
+                    try {
+                      const date = new Date(item.AuditDate + "T00:00:00");
+                      if (isNaN(date.getTime())) {
+                        return "N/A";
+                      }
+                      const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][date.getDay()] || "N/A";
+                      const day = date.getDate();
+                      const month = date.getMonth() + 1;
+                      return `${dayName}\n${day}/${month}`;
+                    } catch (error) {
+                      console.error("Error formatting date:", error, item.AuditDate);
+                      return "N/A";
+                    }
                   }),
                   datasets: [
                     {
                       label: "Đã thực hiện",
-                      data: storesByDate.map((item) => item.AuditedCount),
+                      data: storesByDate.map((item) => item.AuditedCount || 0),
                       backgroundColor: "rgba(16, 185, 129, 0.8)", // Emerald green
                       borderColor: "rgba(16, 185, 129, 1)",
                       borderWidth: 1,
                     },
                     {
                       label: "Chưa thực hiện",
-                      data: storesByDate.map((item) => item.NotAuditedCount),
+                      data: storesByDate.map((item) => item.NotAuditedCount || 0),
                       backgroundColor: "rgba(245, 158, 11, 0.8)", // Amber
                       borderColor: "rgba(245, 158, 11, 1)",
                       borderWidth: 1,
@@ -342,6 +352,10 @@ export default function Dashboard() {
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
+                  interaction: {
+                    mode: "index" as const,
+                    intersect: false,
+                  },
                   plugins: {
                     legend: {
                       position: "top" as const,
@@ -351,10 +365,17 @@ export default function Dashboard() {
                         font: {
                           size: 13,
                         },
+                        usePointStyle: true,
+                        pointStyle: "rect",
                       },
                     },
                     title: {
                       display: false,
+                    },
+                    tooltip: {
+                      enabled: true,
+                      mode: "index" as const,
+                      intersect: false,
                     },
                   },
                   scales: {
@@ -363,6 +384,7 @@ export default function Dashboard() {
                       ticks: {
                         color: colors.text,
                         stepSize: 1,
+                        precision: 0,
                       },
                       grid: {
                         color: colors.icon + "20",
@@ -371,16 +393,18 @@ export default function Dashboard() {
                     x: {
                       ticks: {
                         color: colors.text,
+                        maxRotation: 0,
+                        minRotation: 0,
                       },
                       grid: {
                         display: false,
                       },
                     },
                   },
-                  barPercentage: 0.7,
-                  categoryPercentage: 0.8,
+                  barPercentage: 0.6,
+                  categoryPercentage: 0.7,
                 }}
-                style={{ height: "350px" }}
+                style={{ height: "380px" }}
               />
             </div>
             <div className="chart-legend">

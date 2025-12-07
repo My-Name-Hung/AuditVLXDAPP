@@ -90,10 +90,8 @@ export default function StoreSurveyList() {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [cementSearch, setCementSearch] = useState("");
-  const [territorySearch, setTerritorySearch] = useState("");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCementDropdown, setShowCementDropdown] = useState(false);
-  const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -118,7 +116,6 @@ export default function StoreSurveyList() {
     const handleClickOutside = () => {
       setShowUserDropdown(false);
       setShowCementDropdown(false);
-      setShowTerritoryDropdown(false);
     };
     document.addEventListener("click", handleClickOutside);
     return () => {
@@ -310,7 +307,6 @@ export default function StoreSurveyList() {
     setFilters(emptyFilters);
     setUserSearch("");
     setCementSearch("");
-    setTerritorySearch("");
     // Fetch with empty filters immediately
     fetchSurveysWithFilters(emptyFilters);
   };
@@ -393,12 +389,6 @@ export default function StoreSurveyList() {
     (product) =>
       product.Name.toLowerCase().includes(cementSearch.toLowerCase()) ||
       product.Code.toLowerCase().includes(cementSearch.toLowerCase())
-  );
-
-  const filteredTerritories = territories.filter((territory) =>
-    territory.TerritoryName.toLowerCase().includes(
-      territorySearch.toLowerCase()
-    )
   );
 
   const handleExportExcel = async () => {
@@ -913,69 +903,28 @@ export default function StoreSurveyList() {
           </div>
           <div className="filter-item">
             <label>Địa bàn:</label>
-            <div style={{ position: "relative" }}>
-              <input
-                type="text"
-                value={filters.territoryName || territorySearch}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setTerritorySearch(value);
-                  handleFilterChange("territoryName", value);
-                  setShowTerritoryDropdown(true);
-                }}
-                onFocus={(e) => {
-                  e.stopPropagation();
-                  setShowTerritoryDropdown(true);
-                }}
-                onClick={(e) => e.stopPropagation()}
-                placeholder="Tìm kiếm địa bàn"
-              />
-              {showTerritoryDropdown && filteredTerritories.length > 0 && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    backgroundColor: "#fff",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    zIndex: 1000,
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                  }}
-                >
-                  {filteredTerritories.map((territory) => (
-                    <div
-                      key={territory.Id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFilterChange(
-                          "territoryName",
-                          territory.TerritoryName
-                        );
-                        setTerritorySearch(territory.TerritoryName);
-                        setShowTerritoryDropdown(false);
-                      }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        borderBottom: "1px solid #eee",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }}
-                    >
-                      {territory.TerritoryName}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+            <select
+              value={filters.territoryName || ""}
+              onChange={(e) =>
+                handleFilterChange("territoryName", e.target.value)
+              }
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+                fontSize: "14px",
+                backgroundColor: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              <option value="">Tất cả</option>
+              {territories.map((territory) => (
+                <option key={territory.Id} value={territory.TerritoryName}>
+                  {territory.TerritoryName}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="filter-item">
             <label>Giá từ:</label>
