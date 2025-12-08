@@ -866,6 +866,13 @@ async function getStoresByTerritory(req, res) {
       request.input("endDate", sql.Date, endDate);
     }
 
+    // Filter by territory if provided
+    const territoryId = req.query.territoryId;
+    if (territoryId) {
+      query += " AND t.Id = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
     query += `
       GROUP BY t.Id, t.TerritoryName
       ORDER BY t.TerritoryName ASC

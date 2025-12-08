@@ -210,7 +210,7 @@ export default function StoreSurveyDetail() {
         "Phí VC đường bộ",
         "Phí VC đường thủy",
         "SL nhận hàng (tấn/tháng)",
-        "Số lượng tồn bình quân (tấn/tháng)",
+        "Sản lượng bình quân (tấn/tháng)",
         "Nhập từ NPP",
         "Ý kiến/Ghi chú",
       ];
@@ -533,7 +533,7 @@ export default function StoreSurveyDetail() {
                     <th>Phí VC đường bộ</th>
                     <th>Phí VC đường thủy</th>
                     <th>SL nhận hàng (tấn/tháng)</th>
-                    <th>Số lượng tồn bình quân (tấn/tháng)</th>
+                    <th>Sản lượng bình quân (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
                     <th>Ý kiến/Ghi chú</th>
                   </tr>

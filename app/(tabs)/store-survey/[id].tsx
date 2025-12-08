@@ -484,7 +484,7 @@ export default function StoreSurveyScreen() {
         }
         if (!product.averageStockQuantity) {
           errors.push(
-            `Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`
+            `Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`
           );
         }
       });
@@ -1259,7 +1259,7 @@ export default function StoreSurveyScreen() {
 
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: colors.text }]}>
-                            Số lượng tồn bình quân (tấn/tháng)
+                            Sản lượng bình quân (tấn/tháng)
                           </Text>
                           <TextInput
                             style={[
@@ -1278,7 +1278,7 @@ export default function StoreSurveyScreen() {
                                 value
                               )
                             }
-                            placeholder="Nhập số lượng tồn bình quân"
+                            placeholder="Nhập sản lượng bình quân (tấn/tháng)"
                             placeholderTextColor={colors.icon}
                             keyboardType="numeric"
                           />

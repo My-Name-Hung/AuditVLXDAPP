@@ -490,7 +490,7 @@ const StoreSurvey = () => {
         }
         if (!product.averageStockQuantity) {
           errors.push(
-            `Sản phẩm ${index + 1}: Số lượng tồn bình quân (tấn/tháng)`
+            `Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`
           );
         }
       });
@@ -1176,7 +1176,7 @@ const StoreSurvey = () => {
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
-                          Số lượng tồn bình quân (tấn/tháng)
+                          Sản lượng bình quân (tấn/tháng)
                         </label>
                         <input
                           type="text"
@@ -1188,7 +1188,7 @@ const StoreSurvey = () => {
                               e.target.value
                             )
                           }
-                          placeholder="Nhập số lượng tồn bình quân"
+                          placeholder="Nhập sản lượng bình quân (tấn/tháng)"
                           style={{
                             backgroundColor: colors.background,
                             color: colors.text,

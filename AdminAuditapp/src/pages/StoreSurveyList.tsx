@@ -502,7 +502,7 @@ export default function StoreSurveyList() {
           "Phí VC đường bộ",
           "Phí VC đường thủy",
           "SL nhận hàng (tấn/tháng)",
-          "Số lượng tồn bình quân (tấn/tháng)",
+          "Sản lượng bình quân (tấn/tháng)",
           "Nhập từ NPP",
           "Ý kiến/Ghi chú",
         ];
@@ -972,7 +972,7 @@ export default function StoreSurveyList() {
                 <th>Loại XM</th>
                 <th>Giá mua</th>
                 <th>Giá bán</th>
-                <th>Số lượng tồn bình quân (tấn/tháng)</th>
+                <th>Sản lượng bình quân (tấn/tháng)</th>
                 <th>Mua qua NPP</th>
                 <th>Thao tác</th>
               </tr>

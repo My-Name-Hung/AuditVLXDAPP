@@ -298,353 +298,9 @@ const TerritoryBarChart = ({
   );
 };
 
-const GroupedBarChart = ({
-  data,
-  width,
-  height,
-  colors: themeColors,
-}: {
-  data: StoresByDate[];
-  width: number;
-  height: number;
-  colors: any;
-}) => {
-  const chartHeight = height - 80; // Reserve space for labels (60 for chart + 20 for X-axis labels)
-  const chartWidth = width - 50; // Reserve space for Y-axis labels
-  const maxValue = Math.max(
-    ...data.map((item) =>
-      Math.max(item.AuditedCount || 0, item.NotAuditedCount || 0)
-    ),
-    1
-  );
-
-  // Calculate bar dimensions
-  // Each group contains 2 bars side by side
-  const totalGroups = data.length;
-  const availableWidth = chartWidth;
-  const groupWidth = availableWidth / totalGroups; // Width for each group (2 bars + spacing)
-  const barWidth = groupWidth * 0.35; // Each bar takes 35% of group width
-  const barGap = groupWidth * 0.05; // Gap between bars in a group (5% of group width)
-  // No extra spacing between groups - groups are adjacent
-
-  return (
-    <View
-      style={{
-        width,
-        height,
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        overflow: "visible",
-      }}
-    >
-      {/* Y-axis labels and grid lines */}
-      <View
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 10,
-          bottom: 50,
-          width: 35,
-          justifyContent: "space-between",
-        }}
-      >
-        {[0, 1, 2, 3, 4].map((segment) => {
-          const value = Math.round((maxValue / 4) * (4 - segment));
-          return (
-            <View key={segment} style={{ alignItems: "flex-end" }}>
-              <Text
-                style={{
-                  fontSize: 11,
-                  color: themeColors.text,
-                  fontWeight: "500",
-                }}
-              >
-                {value}
-              </Text>
-            </View>
-          );
-        })}
-      </View>
-
-      {/* Grid lines */}
-      <View
-        style={{
-          marginLeft: 40,
-          marginRight: 10,
-          height: chartHeight,
-          position: "absolute",
-          top: 10,
-          left: 0,
-          right: 0,
-        }}
-      >
-        {[0, 1, 2, 3, 4].map((segment) => {
-          const yPosition = (chartHeight / 4) * segment;
-          return (
-            <View
-              key={segment}
-              style={{
-                position: "absolute",
-                top: yPosition,
-                left: 0,
-                right: 0,
-                height: 1,
-                backgroundColor: themeColors.icon + "20",
-              }}
-            />
-          );
-        })}
-      </View>
-
-      {/* Chart area with bars */}
-      <View
-        style={{
-          marginLeft: 40,
-          marginRight: 10,
-          height: chartHeight,
-          justifyContent: "flex-end",
-        }}
-      >
-        <View
-          style={{
-            flexDirection: "row",
-            alignItems: "flex-end",
-            height: chartHeight,
-            width: chartWidth,
-          }}
-        >
-          {data.map((item, index) => {
-            const auditedValue = item.AuditedCount || 0;
-            const notAuditedValue = item.NotAuditedCount || 0;
-            const auditedHeight =
-              maxValue > 0 ? (auditedValue / maxValue) * chartHeight : 0;
-            const notAuditedHeight =
-              maxValue > 0 ? (notAuditedValue / maxValue) * chartHeight : 0;
-
-            return (
-              <View
-                key={index}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "flex-end",
-                  gap: barGap,
-                  width: groupWidth,
-                }}
-              >
-                {/* Audited bar (green) */}
-                <View
-                  style={{
-                    alignItems: "center",
-                    width: barWidth,
-                    position: "relative",
-                  }}
-                >
-                  {auditedValue > 0 && auditedHeight < 20 && (
-                    <Text
-                      style={{
-                        position: "absolute",
-                        top: -16,
-                        fontSize: 10,
-                        color: themeColors.text,
-                        fontWeight: "600",
-                        textAlign: "center",
-                        width: barWidth,
-                      }}
-                    >
-                      {auditedValue}
-                    </Text>
-                  )}
-                  <View
-                    style={{
-                      width: barWidth,
-                      height: Math.max(auditedHeight, auditedValue > 0 ? 2 : 0),
-                      backgroundColor: "#10B981",
-                      borderRadius: 4,
-                      borderTopLeftRadius: 4,
-                      borderTopRightRadius: 4,
-                      justifyContent: "flex-start",
-                      alignItems: "center",
-                      paddingTop: auditedHeight >= 20 ? 2 : 0,
-                    }}
-                  >
-                    {auditedValue > 0 && auditedHeight >= 20 && (
-                      <Text
-                        style={{
-                          fontSize: 9,
-                          color: "#fff",
-                          fontWeight: "700",
-                          textAlign: "center",
-                          textShadowColor: "rgba(0, 0, 0, 0.3)",
-                          textShadowOffset: { width: 0, height: 1 },
-                          textShadowRadius: 2,
-                        }}
-                      >
-                        {auditedValue}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-                {/* Not Audited bar (orange) */}
-                <View
-                  style={{
-                    alignItems: "center",
-                    width: barWidth,
-                    position: "relative",
-                  }}
-                >
-                  {notAuditedValue > 0 && notAuditedHeight < 20 && (
-                    <Text
-                      style={{
-                        position: "absolute",
-                        top: -16,
-                        fontSize: 10,
-                        color: themeColors.text,
-                        fontWeight: "600",
-                        textAlign: "center",
-                        width: barWidth,
-                      }}
-                    >
-                      {notAuditedValue}
-                    </Text>
-                  )}
-                  <View
-                    style={{
-                      width: barWidth,
-                      height: Math.max(
-                        notAuditedHeight,
-                        notAuditedValue > 0 ? 2 : 0
-                      ),
-                      backgroundColor: "#F59E0B",
-                      borderRadius: 4,
-                      borderTopLeftRadius: 4,
-                      borderTopRightRadius: 4,
-                      justifyContent: "flex-start",
-                      alignItems: "center",
-                      paddingTop: notAuditedHeight >= 20 ? 2 : 0,
-                    }}
-                  >
-                    {notAuditedValue > 0 && notAuditedHeight >= 20 && (
-                      <Text
-                        style={{
-                          fontSize: 9,
-                          color: "#fff",
-                          fontWeight: "700",
-                          textAlign: "center",
-                          textShadowColor: "rgba(0, 0, 0, 0.3)",
-                          textShadowOffset: { width: 0, height: 1 },
-                          textShadowRadius: 2,
-                        }}
-                      >
-                        {notAuditedValue}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-      </View>
-
-      {/* X-axis labels - Aligned with bar groups */}
-      <View
-        style={{
-          position: "absolute",
-          left: 60, // paddingHorizontal (20) + marginLeft (40)
-          right: 30, // paddingHorizontal (20) + marginRight (10)
-          top: chartHeight + 20, // chartHeight + top padding (10) + spacing (10)
-          flexDirection: "row",
-          width: chartWidth,
-          height: 30, // Fixed height for labels
-        }}
-      >
-        {data.map((item, index) => {
-          try {
-            const date = new Date(item.AuditDate + "T00:00:00");
-            if (isNaN(date.getTime())) {
-              return (
-                <View
-                  key={index}
-                  style={{
-                    width: groupWidth,
-                    alignItems: "center",
-                    justifyContent: "center",
-                  }}
-                >
-                  <Text
-                    style={{
-                      fontSize: 12,
-                      color: themeColors.text,
-                      textAlign: "center",
-                      fontWeight: "600",
-                    }}
-                  >
-                    N/A
-                  </Text>
-                </View>
-              );
-            }
-            const day = date.getDate();
-            const month = date.getMonth() + 1;
-            return (
-              <View
-                key={index}
-                style={{
-                  width: groupWidth,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: themeColors.text,
-                    textAlign: "center",
-                    fontWeight: "600",
-                  }}
-                >
-                  {day}/{month}
-                </Text>
-              </View>
-            );
-          } catch {
-            return (
-              <View
-                key={index}
-                style={{
-                  width: groupWidth,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Text
-                  style={{
-                    fontSize: 12,
-                    color: themeColors.text,
-                    textAlign: "center",
-                    fontWeight: "600",
-                  }}
-                >
-                  N/A
-                </Text>
-              </View>
-            );
-          }
-        })}
-      </View>
-    </View>
-  );
-};
-
 interface Territory {
   Id: number;
   TerritoryName: string;
-}
-
-interface StoresByDate {
-  AuditDate: string;
-  AuditedCount: number;
-  NotAuditedCount: number;
 }
 
 interface TerritorySummary {
@@ -737,12 +393,13 @@ export default function DashboardScreen() {
   const [selectedYear, setSelectedYear] = useState<number>(
     new Date().getFullYear()
   );
-  const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  const [selectedWeek, setSelectedWeek] = useState<number>(0); // 0 = Tất cả, 1-4 = Tuần 1-4
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
 
   // Chart data
-  const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
+  // Removed storesByDate - chart now always shows by territory
+  // const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
   const [territorySummary, setTerritorySummary] =
     useState<TerritorySummaryResponse | null>(null);
 
@@ -750,15 +407,12 @@ export default function DashboardScreen() {
     fetchTerritories();
   }, []);
 
-  useEffect(() => {
-    fetchStoresByDate();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
+  // Removed fetchStoresByDate - chart now always shows by territory
 
   useEffect(() => {
     fetchStoresByTerritory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
 
   const fetchTerritories = async () => {
     try {
@@ -784,83 +438,40 @@ export default function DashboardScreen() {
     }
   };
 
-  const fetchStoresByDate = async () => {
-    try {
-      const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
-      if (weekDates.length === 0) {
-        setStoresByDate([]);
-        return;
-      }
-
-      const startDate = weekDates[0];
-      const endDate = weekDates[weekDates.length - 1];
-
-      const params: any = {
-        startDate,
-        endDate,
-      };
-      if (selectedTerritory) params.territoryId = selectedTerritory;
-
-      const response = await api.get("/dashboard/stores-by-date", { params });
-
-      // Create a map of dates from API response
-      // Normalize dates to YYYY-MM-DD format for comparison
-      const normalizeDate = (dateStr: string | Date): string => {
-        if (!dateStr) return "";
-        const date = typeof dateStr === "string" ? new Date(dateStr) : dateStr;
-        if (isNaN(date.getTime())) return "";
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, "0");
-        const day = String(date.getDate()).padStart(2, "0");
-        return `${year}-${month}-${day}`;
-      };
-
-      const dataMap = new Map<string, StoresByDate>();
-      const responseData = response.data?.success
-        ? response.data.data
-        : response.data || [];
-
-      console.log("API Response data:", responseData);
-      console.log("Week dates:", weekDates);
-
-      responseData.forEach((item: StoresByDate) => {
-        const normalizedDate = normalizeDate(item.AuditDate);
-        if (normalizedDate) {
-          dataMap.set(normalizedDate, {
-            ...item,
-            AuditDate: normalizedDate,
-          });
-        }
-      });
-
-      // Fill in all 7 days of the week, even if no data
-      const filledData: StoresByDate[] = weekDates.map((date) => {
-        const existing = dataMap.get(date);
-        return (
-          existing || {
-            AuditDate: date,
-            AuditedCount: 0,
-            NotAuditedCount: 0,
-          }
-        );
-      });
-
-      console.log("Filled data:", filledData);
-      setStoresByDate(filledData);
-    } catch (error) {
-      console.error("Error fetching stores by date:", error);
-      setStoresByDate([]);
-    }
-  };
-
   const fetchStoresByTerritory = async () => {
     try {
-      const { startDate, endDate } = getMonthDates(selectedYear, selectedMonth);
+      let startDate: string;
+      let endDate: string;
+
+      // Nếu selectedWeek = 0 (Tất cả), dùng date range của cả tháng
+      // Nếu selectedWeek > 0, dùng date range của tuần đó
+      if (selectedWeek === 0) {
+        const monthDates = getMonthDates(selectedYear, selectedMonth);
+        startDate = monthDates.startDate;
+        endDate = monthDates.endDate;
+      } else {
+        const weekDates = getWeekDates(
+          selectedYear,
+          selectedMonth,
+          selectedWeek
+        );
+        if (weekDates.length === 0) {
+          setTerritorySummary(null);
+          return;
+        }
+        startDate = weekDates[0];
+        endDate = weekDates[weekDates.length - 1];
+      }
 
       const params: any = {
         startDate,
         endDate,
       };
+
+      // Thêm filter theo địa bàn nếu có
+      if (selectedTerritory) {
+        params.territoryId = selectedTerritory;
+      }
 
       const response = await api.get("/dashboard/stores-by-territory", {
         params,
@@ -1031,6 +642,26 @@ export default function DashboardScreen() {
               Tuần:
             </Text>
             <View style={styles.weekContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.weekButton,
+                  {
+                    backgroundColor:
+                      selectedWeek === 0 ? colors.primary : colors.background,
+                    borderColor: colors.icon + "40",
+                  },
+                ]}
+                onPress={() => setSelectedWeek(0)}
+              >
+                <Text
+                  style={[
+                    styles.weekButtonText,
+                    { color: selectedWeek === 0 ? "#fff" : colors.text },
+                  ]}
+                >
+                  Tất cả
+                </Text>
+              </TouchableOpacity>
               {[1, 2, 3, 4].map((week) => (
                 <TouchableOpacity
                   key={week}
@@ -1060,7 +691,7 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Bar Chart Section - By Territory */}
+        {/* Bar Chart Section - Luôn hiển thị theo địa bàn */}
         {territorySummary &&
         territorySummary.territories &&
         territorySummary.territories.length > 0 ? (
@@ -1077,7 +708,11 @@ export default function DashboardScreen() {
               Thống kê theo địa bàn
             </Text>
             <Text style={[styles.chartSubtitle, { color: colors.icon }]}>
-              {getMonthName(selectedMonth)} {selectedYear}
+              {selectedWeek === 0
+                ? `${getMonthName(selectedMonth)} ${selectedYear}`
+                : `${getWeekLabel(selectedWeek)} - ${getMonthName(
+                    selectedMonth
+                  )} ${selectedYear}`}
             </Text>
             <View style={{ alignItems: "center", minHeight: 360 }}>
               <TerritoryBarChart
@@ -1119,6 +754,13 @@ export default function DashboardScreen() {
           >
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Thống kê theo địa bàn
+            </Text>
+            <Text style={[styles.chartSubtitle, { color: colors.icon }]}>
+              {selectedWeek === 0
+                ? `${getMonthName(selectedMonth)} ${selectedYear}`
+                : `${getWeekLabel(selectedWeek)} - ${getMonthName(
+                    selectedMonth
+                  )} ${selectedYear}`}
             </Text>
             <Text style={[styles.noDataText, { color: colors.icon }]}>
               Chưa có dữ liệu.
@@ -1281,16 +923,16 @@ export default function DashboardScreen() {
                       styles.tableFooterText,
                       { color: colors.text, flex: 0.3, textAlign: "center" },
                     ]}
-                  >
-                    Tổng
-                  </Text>
+                    numberOfLines={1}
+                  ></Text>
                   <Text
                     style={[
                       styles.tableFooterText,
-                      { color: colors.text, flex: 1 },
+                      { color: colors.text, flex: 1, textAlign: "center" },
                     ]}
+                    numberOfLines={1}
                   >
-                    -
+                    Tổng
                   </Text>
                   <Text
                     style={[

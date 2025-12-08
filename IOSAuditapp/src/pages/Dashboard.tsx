@@ -115,7 +115,7 @@ export default function Dashboard() {
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
-  const [selectedWeek, setSelectedWeek] = useState<number>(1);
+  const [selectedWeek, setSelectedWeek] = useState<number>(0); // 0 = Tất cả, 1-4 = Tuần 1-4
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
 
@@ -133,7 +133,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchStoresByTerritory();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
 
   const fetchTerritories = async () => {
     try {
@@ -157,6 +157,12 @@ export default function Dashboard() {
 
   const fetchStoresByDate = async () => {
     try {
+      // Nếu selectedWeek = 0 (Tất cả), không fetch data theo tuần
+      if (selectedWeek === 0) {
+        setStoresByDate([]);
+        return;
+      }
+      
       const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
       if (weekDates.length === 0) {
         setStoresByDate([]);
@@ -222,12 +228,34 @@ export default function Dashboard() {
 
   const fetchStoresByTerritory = async () => {
     try {
-      const { startDate, endDate } = getMonthDates(selectedYear, selectedMonth);
+      let startDate: string;
+      let endDate: string;
+
+      // Nếu selectedWeek = 0 (Tất cả), dùng date range của cả tháng
+      // Nếu selectedWeek > 0, dùng date range của tuần đó
+      if (selectedWeek === 0) {
+        const monthDates = getMonthDates(selectedYear, selectedMonth);
+        startDate = monthDates.startDate;
+        endDate = monthDates.endDate;
+      } else {
+        const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
+        if (weekDates.length === 0) {
+          setTerritorySummary(null);
+          return;
+        }
+        startDate = weekDates[0];
+        endDate = weekDates[weekDates.length - 1];
+      }
 
       const params: any = {
         startDate,
         endDate,
       };
+
+      // Thêm filter theo địa bàn nếu có
+      if (selectedTerritory) {
+        params.territoryId = selectedTerritory;
+      }
 
       const response = await api.get("/dashboard/stores-by-territory", { params });
 
@@ -351,6 +379,17 @@ export default function Dashboard() {
               Tuần:
             </label>
             <div className="week-container">
+              <button
+                className="week-button"
+                style={{
+                  backgroundColor: selectedWeek === 0 ? colors.primary : colors.background,
+                  borderColor: colors.icon + "40",
+                  color: selectedWeek === 0 ? "#fff" : colors.text,
+                }}
+                onClick={() => setSelectedWeek(0)}
+              >
+                Tất cả
+              </button>
               {[1, 2, 3, 4].map((week) => (
                 <button
                   key={week}
@@ -369,14 +408,16 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bar Chart Section - By Territory */}
+        {/* Bar Chart Section - Luôn hiển thị theo địa bàn */}
         {territorySummary && territorySummary.territories && territorySummary.territories.length > 0 ? (
           <div className="chart-section" style={{ borderColor: colors.icon + "20", backgroundColor: colors.secondary }}>
             <h3 className="section-title" style={{ color: colors.text }}>
               Thống kê theo địa bàn
             </h3>
             <p className="chart-subtitle" style={{ color: colors.icon }}>
-              {getMonthName(selectedMonth)} {selectedYear}
+              {selectedWeek === 0
+                ? `${getMonthName(selectedMonth)} ${selectedYear}`
+                : `${getWeekLabel(selectedWeek)} - ${getMonthName(selectedMonth)} ${selectedYear}`}
             </p>
             <div className="chart-container">
               <Bar
@@ -477,6 +518,11 @@ export default function Dashboard() {
             <h3 className="section-title" style={{ color: colors.text }}>
               Thống kê theo địa bàn
             </h3>
+            <p className="chart-subtitle" style={{ color: colors.icon }}>
+              {selectedWeek === 0
+                ? `${getMonthName(selectedMonth)} ${selectedYear}`
+                : `${getWeekLabel(selectedWeek)} - ${getMonthName(selectedMonth)} ${selectedYear}`}
+            </p>
             <p className="no-data-text" style={{ color: colors.icon }}>
               Chưa có dữ liệu.
             </p>
