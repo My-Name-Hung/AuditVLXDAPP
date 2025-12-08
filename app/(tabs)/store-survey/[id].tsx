@@ -789,7 +789,7 @@ export default function StoreSurveyScreen() {
                   { color: expandedTitles.title3 ? "#fff" : colors.text },
                 ]}
               >
-                Thông tin bán hàng <Text style={{ color: "#FF0000" }}>*</Text>
+                Thông tin bán hàng <Text style={{ color: "#ff4d00" }}>*</Text>
               </Text>
               <Ionicons
                 name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
@@ -1327,7 +1327,7 @@ export default function StoreSurveyScreen() {
                 ]}
               >
                 Khảo sát sản phẩm của XMTĐ{" "}
-                <Text style={{ color: "#FF0000" }}>*</Text>
+                <Text style={{ color: "#ff4d00" }}>*</Text>
               </Text>
               <Ionicons
                 name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}
