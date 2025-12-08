@@ -477,15 +477,15 @@ export default function StoreSurveyScreen() {
           errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
         }
         if (!product.quantityReceived) {
-          errors.push(`Sản phẩm ${index + 1}: Số lượng nhập hàng bình quân (tấn/tháng)`);
+          errors.push(
+            `Sản phẩm ${index + 1}: Số lượng nhập hàng bình quân (tấn/tháng)`
+          );
         }
         if (!product.importedFromNPP) {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
         }
         if (!product.averageStockQuantity) {
-          errors.push(
-            `Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`
-          );
+          errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
         }
       });
     }
@@ -789,7 +789,7 @@ export default function StoreSurveyScreen() {
                   { color: expandedTitles.title3 ? "#fff" : colors.text },
                 ]}
               >
-                Thông tin bán hàng *
+                Thông tin bán hàng <Text style={{ color: "#FF0000" }}>*</Text>
               </Text>
               <Ionicons
                 name={expandedTitles.title3 ? "chevron-up" : "chevron-down"}
@@ -1326,7 +1326,8 @@ export default function StoreSurveyScreen() {
                   { color: expandedTitles.title2 ? "#fff" : colors.text },
                 ]}
               >
-                Khảo sát sản phẩm của XMTĐ *
+                Khảo sát sản phẩm của XMTĐ{" "}
+                <Text style={{ color: "#FF0000" }}>*</Text>
               </Text>
               <Ionicons
                 name={expandedTitles.title2 ? "chevron-up" : "chevron-down"}

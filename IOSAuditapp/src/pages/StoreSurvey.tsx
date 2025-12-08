@@ -483,15 +483,15 @@ const StoreSurvey = () => {
           errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
         }
         if (!product.quantityReceived) {
-          errors.push(`Sản phẩm ${index + 1}: Số lượng nhập hàng bình quân (tấn/tháng)`);
+          errors.push(
+            `Sản phẩm ${index + 1}: Số lượng nhập hàng bình quân (tấn/tháng)`
+          );
         }
         if (!product.importedFromNPP) {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
         }
         if (!product.averageStockQuantity) {
-          errors.push(
-            `Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`
-          );
+          errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
         }
       });
     }
@@ -762,7 +762,7 @@ const StoreSurvey = () => {
             }}
           >
             <h2 style={{ color: expandedTitles.title3 ? "#fff" : colors.text }}>
-              Thông tin bán hàng *
+              Thông tin bán hàng <span style={{ color: "#FF0000" }}>*</span>
             </h2>
             <span
               style={{ color: expandedTitles.title3 ? "#fff" : colors.icon }}
@@ -1234,7 +1234,8 @@ const StoreSurvey = () => {
             }}
           >
             <h2 style={{ color: expandedTitles.title2 ? "#fff" : colors.text }}>
-              Khảo sát sản phẩm của XMTĐ *
+              Khảo sát sản phẩm của XMTĐ{" "}
+              <span style={{ color: "#FF0000" }}>*</span>
             </h2>
             <span
               style={{ color: expandedTitles.title2 ? "#fff" : colors.icon }}
