@@ -105,7 +105,9 @@ export default function StoreSurveyList() {
 
   // Week filter state
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
-  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+  const [currentYear, setCurrentYear] = useState<number>(
+    new Date().getFullYear()
+  );
 
   useEffect(() => {
     fetchSurveys();
@@ -433,89 +435,81 @@ export default function StoreSurveyList() {
   };
 
   // Helper function to get all weeks in the current year
-  const getWeeksInYear = (year: number): Array<{ value: string; label: string }> => {
+  const getWeeksInYear = (
+    year: number
+  ): Array<{ value: string; label: string }> => {
     const weeks: Array<{ value: string; label: string }> = [];
-    
+
     // Get the first day of the year
     const januaryFirst = new Date(year, 0, 1);
     const firstDayOfWeek = januaryFirst.getDay();
     const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-    
+
     // Get the last day of the year
     const decemberLast = new Date(year, 11, 31);
-    const daysInYear = Math.floor(
-      (decemberLast.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-    ) + 1;
-    
+    const daysInYear =
+      Math.floor(
+        (decemberLast.getTime() - januaryFirst.getTime()) /
+          (1000 * 60 * 60 * 24)
+      ) + 1;
+
     // Calculate total weeks
     const totalWeeks = Math.ceil((daysInYear + firstMondayOffset) / 7);
-    
+
     for (let week = 1; week <= totalWeeks; week++) {
       // Calculate week start date (Monday)
       const weekStartDays = (week - 1) * 7 - firstMondayOffset;
       const weekStart = new Date(januaryFirst);
       weekStart.setDate(januaryFirst.getDate() + weekStartDays);
-      
+
       // Calculate week end date (Sunday)
       const weekEnd = new Date(weekStart);
       weekEnd.setDate(weekStart.getDate() + 6);
-      
-      const startDateStr = weekStart.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
-      const endDateStr = weekEnd.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
-      
+
+      const startDateStr = weekStart.toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+      });
+      const endDateStr = weekEnd.toLocaleDateString("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+      });
+
       weeks.push({
         value: week.toString(),
-        label: `Tuần ${week} (${startDateStr} - ${endDateStr})`
+        label: `Tuần ${week} (${startDateStr} - ${endDateStr})`,
       });
     }
-    
+
     return weeks;
   };
 
   // Helper function to check if a date is in a specific week
-  const isDateInWeek = (dateString: string | null, weekNumber: number, year: number): boolean => {
+  const isDateInWeek = (
+    dateString: string | null,
+    weekNumber: number,
+    year: number
+  ): boolean => {
     if (!dateString || weekNumber === 0) return true; // "all" weeks
     const date = new Date(dateString);
-    
+
     // Get the first day of the year
     const januaryFirst = new Date(year, 0, 1);
     const firstDayOfWeek = januaryFirst.getDay();
     const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-    
+
     // Calculate week start date (Monday)
     const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
     const weekStart = new Date(januaryFirst);
     weekStart.setDate(januaryFirst.getDate() + weekStartDays);
     weekStart.setHours(0, 0, 0, 0);
-    
+
     // Calculate week end date (Sunday)
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
-    
-    // Check if date is within the week
-    return date >= weekStart && date <= weekEnd;
-  };
 
-  // Helper function to check if a date is in the current week
-  const isDateInCurrentWeek = (dateString: string | null): boolean => {
-    if (!dateString) return false;
-    const date = new Date(dateString);
-    const now = new Date();
-    
-    // Get current week start (Monday)
-    const currentDay = now.getDay();
-    const diff = currentDay === 0 ? 6 : currentDay - 1; // Monday = 0
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - diff);
-    weekStart.setHours(0, 0, 0, 0);
-    
-    // Get current week end (Sunday)
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-    
-    // Check if date is within current week
+    // Check if date is within the week
     return date >= weekStart && date <= weekEnd;
   };
 
@@ -532,11 +526,11 @@ export default function StoreSurveyList() {
         setSelectedWeek("all");
       }
     };
-    
+
     // Check on mount and set interval to check daily
     checkYear();
     const interval = setInterval(checkYear, 24 * 60 * 60 * 1000); // Check every 24 hours
-    
+
     return () => clearInterval(interval);
   }, [currentYear]);
 
@@ -550,7 +544,7 @@ export default function StoreSurveyList() {
       let weekNumberInMonth: number;
       let weekNumberInYear: number;
       let year: number;
-      
+
       if (selectedWeek !== "all") {
         // Use selected week
         const weekNumber = parseInt(selectedWeek, 10);
@@ -561,26 +555,65 @@ export default function StoreSurveyList() {
         const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
         const weekStart = new Date(januaryFirst);
         weekStart.setDate(januaryFirst.getDate() + weekStartDays);
-        
+
         const weekNumbers = calculateWeekNumbers(weekStart);
         weekNumberInMonth = weekNumbers.weekNumberInMonth;
         weekNumberInYear = weekNumbers.weekNumberInYear;
         year = weekNumbers.year;
       } else {
-        // Use current date
-        const now = new Date();
-        const weekNumbers = calculateWeekNumbers(now);
-        weekNumberInMonth = weekNumbers.weekNumberInMonth;
-        weekNumberInYear = weekNumbers.weekNumberInYear;
-        year = weekNumbers.year;
+        // Use current date for year
+        year = currentYear;
+        weekNumberInMonth = 0; // Not used when "all"
+        weekNumberInYear = 0; // Not used when "all"
       }
 
-      // When selectedWeek === "all", use allSurveys filtered by other filters (not week)
+      // When selectedWeek === "all", fetch all data without week filter
       // When selectedWeek !== "all", use surveys (already filtered by week)
-      const surveysToExport = selectedWeek === "all" 
-        ? filterSurveys(allSurveys, filters) 
-        : surveys;
-      
+      let surveysToExport: StoreSurveyListItem[];
+
+      if (selectedWeek === "all") {
+        // Fetch all surveys without week filter for export
+        // This ensures we get all data from all weeks, not just current week
+        const params: Record<string, string | number> = {
+          page: 1,
+          pageSize: 10000, // Large page size to get all data
+        };
+
+        if (filters.storeName) params.storeName = filters.storeName;
+        if (filters.userName) params.userName = filters.userName;
+        if (filters.cementProductName)
+          params.cementProductName = filters.cementProductName;
+        if (filters.territoryName) params.territoryName = filters.territoryName;
+        if (filters.priceFrom) {
+          const priceFromValue = filters.priceFrom.replace(/[^\d]/g, "");
+          if (priceFromValue) params.priceFrom = priceFromValue;
+        }
+        if (filters.priceTo) {
+          const priceToValue = filters.priceTo.replace(/[^\d]/g, "");
+          if (priceToValue) params.priceTo = priceToValue;
+        }
+
+        const res = await api.get("/store-surveys", { params });
+
+        // Fetch products for each survey
+        const surveysWithProducts = await Promise.all(
+          res.data.map(async (survey: StoreSurveyListItem) => {
+            try {
+              const productsRes = await api.get(
+                `/store-survey-products/survey/${survey.Id}`
+              );
+              return { ...survey, products: productsRes.data || [] };
+            } catch {
+              return { ...survey, products: [] };
+            }
+          })
+        );
+
+        surveysToExport = surveysWithProducts;
+      } else {
+        surveysToExport = surveys;
+      }
+
       // Filter only XMTĐ products (Title 2 + 3)
       const xmtdSurveys = surveysToExport.filter(
         (survey) =>
@@ -627,9 +660,11 @@ export default function StoreSurveyList() {
 
         // Title rows
         sheet.mergeCells("A1:O1");
-        sheet.getCell(
-          "A1"
-        ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+        const mainTitle =
+          selectedWeek === "all"
+            ? "BÁO CÁO THĂM CỬA HÀNG"
+            : `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+        sheet.getCell("A1").value = mainTitle;
         sheet.getCell("A1").font = { bold: true, size: 14 };
         sheet.getCell("A1").alignment = { horizontal: "center" };
 
@@ -641,9 +676,10 @@ export default function StoreSurveyList() {
         sheet.getCell("A2").alignment = { horizontal: "center" };
 
         sheet.mergeCells("A3:O3");
-        const reportTitle = selectedWeek === "all"
-          ? `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NĂM ${year}`
-          : `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+        const reportTitle =
+          selectedWeek === "all"
+            ? `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NĂM ${year}`
+            : `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
         sheet.getCell("A3").value = reportTitle;
         sheet.getCell("A3").font = { bold: true, size: 12 };
         sheet.getCell("A3").alignment = { horizontal: "left" };
@@ -660,7 +696,7 @@ export default function StoreSurveyList() {
           "Giá bán",
           "Phí VC đường bộ",
           "Phí VC đường thủy",
-          "SL nhận hàng (tấn/tháng)",
+          "SL nhập hàng bình quân (tấn/tháng)",
           "Sản lượng bình quân (tấn/tháng)",
           "Nhập từ NPP",
           "Chương trình chiết khấu - khuyến mãi",
@@ -690,7 +726,13 @@ export default function StoreSurveyList() {
         });
 
         storeGroups.forEach((storeSurveys) => {
-          const firstSurvey = storeSurveys[0];
+          // Sort surveys by AuditDate to ensure consistent ordering
+          const sortedSurveys = [...storeSurveys].sort((a, b) => {
+            const dateA = a.AuditDate ? new Date(a.AuditDate).getTime() : 0;
+            const dateB = b.AuditDate ? new Date(b.AuditDate).getTime() : 0;
+            return dateA - dateB;
+          });
+
           let isFirstRow = true;
           let totalPurchasePrice = 0;
           let totalSellingPrice = 0;
@@ -698,57 +740,60 @@ export default function StoreSurveyList() {
           let totalWaterTransportFee = 0;
           let totalQuantityReceived = 0;
           let totalAverageStockQuantity = 0;
+          const storeName = sortedSurveys[0]?.StoreName || "";
 
-          // Show products from Title 3
-          if (firstSurvey.products && firstSurvey.products.length > 0) {
-            firstSurvey.products.forEach((product) => {
-              totalPurchasePrice += product.PurchasePrice || 0;
-              totalSellingPrice += product.SellingPrice || 0;
-              totalRoadTransportFee += product.RoadTransportFee || 0;
-              totalWaterTransportFee += product.WaterTransportFee || 0;
-              totalQuantityReceived += product.QuantityReceived || 0;
-              totalAverageStockQuantity += product.AverageStockQuantity || 0;
+          // Show products from Title 3 - iterate through ALL surveys for this store
+          sortedSurveys.forEach((survey) => {
+            if (survey.products && survey.products.length > 0) {
+              survey.products.forEach((product) => {
+                totalPurchasePrice += product.PurchasePrice || 0;
+                totalSellingPrice += product.SellingPrice || 0;
+                totalRoadTransportFee += product.RoadTransportFee || 0;
+                totalWaterTransportFee += product.WaterTransportFee || 0;
+                totalQuantityReceived += product.QuantityReceived || 0;
+                totalAverageStockQuantity += product.AverageStockQuantity || 0;
 
-              const row = sheet.addRow([
-                isFirstRow ? sttCounter : "",
-                firstSurvey.StoreName || "",
-                formatDate(firstSurvey.AuditDate),
-                product.ContactPersonPhone || "",
-                product.ProductType || "",
-                product.CementProductName || "",
-                formatVND(product.PurchasePrice),
-                formatVND(product.SellingPrice),
-                formatVND(product.RoadTransportFee),
-                formatVND(product.WaterTransportFee),
-                product.QuantityReceived || "",
-                product.AverageStockQuantity || "",
-                product.ImportedFromNPP || "",
-                product.DiscountPromotion || "",
-                isFirstRow ? firstSurvey.StoreComment || "" : "",
-              ]);
+                const row = sheet.addRow([
+                  isFirstRow ? sttCounter : "",
+                  storeName,
+                  formatDate(survey.AuditDate),
+                  product.ContactPersonPhone || "",
+                  product.ProductType || "",
+                  product.CementProductName || "",
+                  formatVND(product.PurchasePrice),
+                  formatVND(product.SellingPrice),
+                  formatVND(product.RoadTransportFee),
+                  formatVND(product.WaterTransportFee),
+                  product.QuantityReceived || "",
+                  product.AverageStockQuantity || "",
+                  product.ImportedFromNPP || "",
+                  product.DiscountPromotion || "",
+                  isFirstRow ? survey.StoreComment || "" : "",
+                ]);
 
-              row.eachCell((cell) => {
-                cell.border = {
-                  top: { style: "thin" },
-                  bottom: { style: "thin" },
-                  left: { style: "thin" },
-                  right: { style: "thin" },
-                };
-                cell.alignment = { vertical: "middle" };
+                row.eachCell((cell) => {
+                  cell.border = {
+                    top: { style: "thin" },
+                    bottom: { style: "thin" },
+                    left: { style: "thin" },
+                    right: { style: "thin" },
+                  };
+                  cell.alignment = { vertical: "middle" };
+                });
+                isFirstRow = false;
               });
-              isFirstRow = false;
-            });
+            }
+          });
 
-            // Add summary row
+          // Add summary row only if there are products
+          if (!isFirstRow) {
             const summaryRow = sheet.addRow([
               "",
               "",
               "",
               "",
               "",
-              `Tổng sản lượng bình quân của cửa hàng: ${
-                firstSurvey.StoreName || ""
-              }`,
+              `Tổng sản lượng bình quân của cửa hàng: ${storeName}`,
               formatVND(totalPurchasePrice),
               formatVND(totalSellingPrice),
               formatVND(totalRoadTransportFee),
@@ -813,20 +858,25 @@ export default function StoreSurveyList() {
 
         // Table 2: Khảo sát sản phẩm XMTĐ (Title 2) - Below Title 3
         // Filter by selected week to match the week number in the title
-        const title2Surveys = territorySurveys.filter(
-          (survey) => {
-            const weekMatch = selectedWeek === "all" 
-              ? true 
-              : isDateInWeek(survey.AuditDate, parseInt(selectedWeek, 10), currentYear);
-            return weekMatch &&
-              (survey.WhyNotSellNewProduct ||
-                survey.TimeToSellNewProduct ||
-                survey.NewProductImportQuantity ||
-                survey.SupplierName ||
-                survey.ImportedBySalesperson ||
-                survey.StoreComment);
-          }
-        );
+        const title2Surveys = territorySurveys.filter((survey) => {
+          const weekMatch =
+            selectedWeek === "all"
+              ? true
+              : isDateInWeek(
+                  survey.AuditDate,
+                  parseInt(selectedWeek, 10),
+                  currentYear
+                );
+          return (
+            weekMatch &&
+            (survey.WhyNotSellNewProduct ||
+              survey.TimeToSellNewProduct ||
+              survey.NewProductImportQuantity ||
+              survey.SupplierName ||
+              survey.ImportedBySalesperson ||
+              survey.StoreComment)
+          );
+        });
 
         if (title2Surveys.length > 0) {
           // Title for Table 2

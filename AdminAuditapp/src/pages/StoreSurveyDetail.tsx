@@ -156,8 +156,11 @@ export default function StoreSurveyDetail() {
       const workbook = new ExcelJS.Workbook();
 
       // Calculate week number from survey's AuditDate, not current date
-      const surveyDate = survey.AuditDate ? new Date(survey.AuditDate) : new Date();
-      const { weekNumberInMonth, weekNumberInYear, year } = calculateWeekNumbers(surveyDate);
+      const surveyDate = survey.AuditDate
+        ? new Date(survey.AuditDate)
+        : new Date();
+      const { weekNumberInMonth, weekNumberInYear, year } =
+        calculateWeekNumbers(surveyDate);
 
       // Header style
       const headerStyle = {
@@ -216,7 +219,7 @@ export default function StoreSurveyDetail() {
         "Giá bán",
         "Phí VC đường bộ",
         "Phí VC đường thủy",
-        "SL nhận hàng (tấn/tháng)",
+        "SL nhập hàng bình quân (tấn/tháng)",
         "Sản lượng bình quân (tấn/tháng)",
         "Nhập từ NPP",
         "Chương trình chiết khấu - khuyến mãi",
@@ -543,7 +546,7 @@ export default function StoreSurveyDetail() {
                     <th>Giá bán</th>
                     <th>Phí VC đường bộ</th>
                     <th>Phí VC đường thủy</th>
-                    <th>SL nhận hàng (tấn/tháng)</th>
+                    <th>SL nhập hàng bình quân (tấn/tháng)</th>
                     <th>Sản lượng bình quân (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
                     <th>Chương trình chiết khấu - khuyến mãi</th>
