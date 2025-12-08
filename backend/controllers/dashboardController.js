@@ -820,40 +820,15 @@ async function getStoresByTerritory(req, res) {
     const currentUserRole =
       req.user?.role || req.user?.Role || req.user?.RoleName;
 
-    // Build user filter - only show stores assigned to current user (unless admin)
-    let userFilter = "";
-    if (currentUserId && currentUserRole !== "admin") {
-      userFilter = ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
-    }
-
-    // Get total stores by territory
-    let totalStoresQuery = `
+    // Get stores checkin count and checkin days by territory (within date range if provided)
+    // StoresChecked: COUNT(a.StoreId) - không DISTINCT (đếm tất cả lần checkin)
+    // CheckinDays: COUNT(DISTINCT CAST(a.AuditDate AS DATE)) - đếm số ngày khác nhau
+    let query = `
       SELECT 
         t.Id as TerritoryId,
         t.TerritoryName,
-        COUNT(DISTINCT s.Id) as TotalStores
-      FROM Stores s
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      WHERE t.Id IS NOT NULL
-        ${userFilter}
-      GROUP BY t.Id, t.TerritoryName
-      ORDER BY t.TerritoryName ASC
-    `;
-    const totalStoresResult = await request.query(totalStoresQuery);
-
-    // Get audited stores by territory (within date range if provided)
-    let auditedQuery = `
-      SELECT 
-        t.Id as TerritoryId,
-        t.TerritoryName,
-        COUNT(DISTINCT a.StoreId) as AuditedCount
+        COUNT(a.StoreId) as StoresChecked,
+        COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as CheckinDays
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
       INNER JOIN Images img ON a.Id = img.AuditId
@@ -865,12 +840,12 @@ async function getStoresByTerritory(req, res) {
 
     // Filter audits by current user (unless admin)
     if (currentUserId && currentUserRole !== "admin") {
-      auditedQuery += ` AND a.UserId = @currentUserId`;
+      query += ` AND a.UserId = @currentUserId`;
     }
 
     // Also filter stores by current user (unless admin)
     if (currentUserId && currentUserRole !== "admin") {
-      auditedQuery += ` AND (
+      query += ` AND (
         s.UserId = @currentUserId
         OR EXISTS (
           SELECT 1 FROM StoreUsers su
@@ -880,57 +855,37 @@ async function getStoresByTerritory(req, res) {
     }
 
     if (startDate) {
-      auditedQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
       request.input("startDate", sql.Date, startDate);
     }
 
     if (endDate) {
-      auditedQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       request.input("endDate", sql.Date, endDate);
     }
 
-    auditedQuery += `
+    query += `
       GROUP BY t.Id, t.TerritoryName
       ORDER BY t.TerritoryName ASC
     `;
 
-    const auditedResult = await request.query(auditedQuery);
+    const result = await request.query(query);
 
-    // Combine data
-    const territoryMap = {};
-    totalStoresResult.recordset.forEach((row) => {
-      territoryMap[row.TerritoryId] = {
-        TerritoryId: row.TerritoryId,
-        TerritoryName: row.TerritoryName,
-        TotalStores: row.TotalStores || 0,
-        AuditedCount: 0,
-        NotAuditedCount: row.TotalStores || 0,
-      };
-    });
-
-    auditedResult.recordset.forEach((row) => {
-      if (territoryMap[row.TerritoryId]) {
-        territoryMap[row.TerritoryId].AuditedCount = row.AuditedCount || 0;
-        territoryMap[row.TerritoryId].NotAuditedCount =
-          territoryMap[row.TerritoryId].TotalStores - (row.AuditedCount || 0);
-      }
-    });
-
-    const data = Object.values(territoryMap).map((item) => ({
-      TerritoryId: item.TerritoryId,
-      TerritoryName: item.TerritoryName,
-      AuditedCount: item.AuditedCount,
-      NotAuditedCount: Math.max(0, item.NotAuditedCount),
+    const data = result.recordset.map((row) => ({
+      TerritoryId: row.TerritoryId,
+      TerritoryName: row.TerritoryName,
+      StoresChecked: row.StoresChecked || 0,
+      CheckinDays: row.CheckinDays || 0,
     }));
 
     // Calculate totals
     const totals = data.reduce(
       (acc, item) => {
-        acc.AuditedCount += item.AuditedCount || 0;
-        acc.NotAuditedCount += item.NotAuditedCount || 0;
+        acc.StoresChecked += item.StoresChecked || 0;
+        acc.CheckinDays += item.CheckinDays || 0;
         return acc;
       },
-      { AuditedCount: 0, NotAuditedCount: 0 }
+      { StoresChecked: 0, CheckinDays: 0 }
     );
 
     console.log("getStoresByTerritory - Data:", {

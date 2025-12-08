@@ -39,15 +39,15 @@ interface StoresByDate {
 interface TerritorySummary {
   TerritoryId: number;
   TerritoryName: string;
-  AuditedCount: number;
-  NotAuditedCount: number;
+  StoresChecked: number;
+  CheckinDays: number;
 }
 
 interface TerritorySummaryResponse {
   territories: TerritorySummary[];
   totals: {
-    AuditedCount: number;
-    NotAuditedCount: number;
+    StoresChecked: number;
+    CheckinDays: number;
   };
 }
 
@@ -369,44 +369,30 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Bar Chart Section */}
-        {storesByDate.length > 0 ? (
+        {/* Bar Chart Section - By Territory */}
+        {territorySummary && territorySummary.territories && territorySummary.territories.length > 0 ? (
           <div className="chart-section" style={{ borderColor: colors.icon + "20", backgroundColor: colors.secondary }}>
             <h3 className="section-title" style={{ color: colors.text }}>
-              Thống kê cửa hàng theo tuần
+              Thống kê theo địa bàn
             </h3>
             <p className="chart-subtitle" style={{ color: colors.icon }}>
-              {getWeekLabel(selectedWeek)} - {getMonthName(selectedMonth)} {selectedYear}
+              {getMonthName(selectedMonth)} {selectedYear}
             </p>
             <div className="chart-container">
               <Bar
                 data={{
-                  labels: storesByDate.map((item) => {
-                    try {
-                      const date = new Date(item.AuditDate + "T00:00:00");
-                      if (isNaN(date.getTime())) {
-                        return "N/A";
-                      }
-                      const dayName = ["CN", "T2", "T3", "T4", "T5", "T6", "T7"][date.getDay()] || "N/A";
-                      const day = date.getDate();
-                      const month = date.getMonth() + 1;
-                      return `${dayName}\n${day}/${month}`;
-                    } catch (error) {
-                      console.error("Error formatting date:", error, item.AuditDate);
-                      return "N/A";
-                    }
-                  }),
+                  labels: territorySummary.territories.map((item) => item.TerritoryName),
                   datasets: [
                     {
-                      label: "Đã thực hiện",
-                      data: storesByDate.map((item) => item.AuditedCount || 0),
+                      label: "Số cửa hàng checkin",
+                      data: territorySummary.territories.map((item) => item.StoresChecked || 0),
                       backgroundColor: "rgba(16, 185, 129, 0.8)", // Emerald green
                       borderColor: "rgba(16, 185, 129, 1)",
                       borderWidth: 1,
                     },
                     {
-                      label: "Chưa thực hiện",
-                      data: storesByDate.map((item) => item.NotAuditedCount || 0),
+                      label: "Số ngày checkin",
+                      data: territorySummary.territories.map((item) => item.CheckinDays || 0),
                       backgroundColor: "rgba(245, 158, 11, 0.8)", // Amber
                       borderColor: "rgba(245, 158, 11, 1)",
                       borderWidth: 1,
@@ -475,13 +461,13 @@ export default function Dashboard() {
               <div className="legend-item">
                 <div className="legend-color" style={{ backgroundColor: "#10B981" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
-                  Đã thực hiện: {storesByDate.reduce((sum, item) => sum + item.AuditedCount, 0)}
+                  Số cửa hàng checkin: {territorySummary.totals?.StoresChecked || 0}
                 </span>
               </div>
               <div className="legend-item">
                 <div className="legend-color" style={{ backgroundColor: "#F59E0B" }}></div>
                 <span className="legend-text" style={{ color: colors.text }}>
-                  Chưa thực hiện: {storesByDate.reduce((sum, item) => sum + item.NotAuditedCount, 0)}
+                  Số ngày checkin: {territorySummary.totals?.CheckinDays || 0}
                 </span>
               </div>
             </div>
@@ -489,7 +475,7 @@ export default function Dashboard() {
         ) : (
           <div className="chart-section" style={{ borderColor: colors.icon + "20", backgroundColor: colors.secondary }}>
             <h3 className="section-title" style={{ color: colors.text }}>
-              Thống kê cửa hàng theo tuần
+              Thống kê theo địa bàn
             </h3>
             <p className="no-data-text" style={{ color: colors.icon }}>
               Chưa có dữ liệu.
@@ -512,8 +498,8 @@ export default function Dashboard() {
                   <tr className="table-header-row" style={{ backgroundColor: colors.primary + "15" }}>
                     <th className="table-header-cell" style={{ color: colors.text, width: "10%" }}>STT</th>
                     <th className="table-header-cell" style={{ color: colors.text, width: "40%" }}>Địa bàn</th>
-                    <th className="table-header-cell" style={{ color: colors.text, width: "25%", textAlign: "center" }}>Đã thực hiện</th>
-                    <th className="table-header-cell" style={{ color: colors.text, width: "25%", textAlign: "center" }}>Chưa thực hiện</th>
+                    <th className="table-header-cell" style={{ color: colors.text, width: "25%", textAlign: "center" }}>Số cửa hàng checkin</th>
+                    <th className="table-header-cell" style={{ color: colors.text, width: "25%", textAlign: "center" }}>Số ngày checkin</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -522,8 +508,8 @@ export default function Dashboard() {
                       <tr key={item.TerritoryId} className="table-row">
                         <td className="table-cell" style={{ color: colors.text, textAlign: "center" }}>{index + 1}</td>
                         <td className="table-cell" style={{ color: colors.text }}>{item.TerritoryName}</td>
-                        <td className="table-cell" style={{ color: "#10B981", textAlign: "center", fontWeight: "600" }}>{item.AuditedCount}</td>
-                        <td className="table-cell" style={{ color: "#F59E0B", textAlign: "center", fontWeight: "600" }}>{item.NotAuditedCount}</td>
+                        <td className="table-cell" style={{ color: "#10B981", textAlign: "center", fontWeight: "600" }}>{item.StoresChecked}</td>
+                        <td className="table-cell" style={{ color: "#F59E0B", textAlign: "center", fontWeight: "600" }}>{item.CheckinDays}</td>
                       </tr>
                     ))
                   ) : (
@@ -539,8 +525,8 @@ export default function Dashboard() {
                   <tr className="table-footer-row" style={{ backgroundColor: colors.primary + "10", borderTop: `2px solid ${colors.primary}` }}>
                     <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600", textAlign: "center" }}>Tổng</td>
                     <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600" }}>-</td>
-                    <td className="table-footer-cell" style={{ color: "#10B981", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.AuditedCount}</td>
-                    <td className="table-footer-cell" style={{ color: "#F59E0B", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.NotAuditedCount}</td>
+                    <td className="table-footer-cell" style={{ color: "#10B981", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.StoresChecked}</td>
+                    <td className="table-footer-cell" style={{ color: "#F59E0B", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.CheckinDays}</td>
                   </tr>
                 </tfoot>
                 )}

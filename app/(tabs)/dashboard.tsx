@@ -15,6 +15,289 @@ import {
   View,
 } from "react-native";
 // Custom Grouped Bar Chart Component for Mobile
+// Chart component for territory data
+const TerritoryBarChart = ({
+  data,
+  width,
+  height,
+  colors: themeColors,
+}: {
+  data: TerritorySummary[];
+  width: number;
+  height: number;
+  colors: any;
+}) => {
+  const chartHeight = height - 80;
+  const chartWidth = width - 50;
+  const maxValue = Math.max(
+    ...data.map((item) =>
+      Math.max(item.StoresChecked || 0, item.CheckinDays || 0)
+    ),
+    1
+  );
+
+  const totalGroups = data.length;
+  const availableWidth = chartWidth;
+  const groupWidth = availableWidth / totalGroups;
+  const barWidth = groupWidth * 0.35;
+  const barGap = groupWidth * 0.05;
+
+  return (
+    <View
+      style={{
+        width,
+        height,
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        overflow: "visible",
+      }}
+    >
+      {/* Y-axis labels and grid lines */}
+      <View
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 10,
+          bottom: 50,
+          width: 35,
+          justifyContent: "space-between",
+        }}
+      >
+        {[0, 1, 2, 3, 4].map((segment) => {
+          const value = Math.round((maxValue / 4) * (4 - segment));
+          return (
+            <View key={segment} style={{ alignItems: "flex-end" }}>
+              <Text
+                style={{
+                  fontSize: 11,
+                  color: themeColors.text,
+                  fontWeight: "500",
+                }}
+              >
+                {value}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+
+      {/* Grid lines */}
+      <View
+        style={{
+          marginLeft: 40,
+          marginRight: 10,
+          height: chartHeight,
+          position: "absolute",
+          top: 10,
+          left: 0,
+          right: 0,
+        }}
+      >
+        {[0, 1, 2, 3, 4].map((segment) => {
+          const yPosition = (chartHeight / 4) * segment;
+          return (
+            <View
+              key={segment}
+              style={{
+                position: "absolute",
+                top: yPosition,
+                left: 0,
+                right: 0,
+                height: 1,
+                backgroundColor: themeColors.icon + "20",
+              }}
+            />
+          );
+        })}
+      </View>
+
+      {/* Chart area with bars */}
+      <View
+        style={{
+          marginLeft: 40,
+          marginRight: 10,
+          height: chartHeight,
+          justifyContent: "flex-end",
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "flex-end",
+            height: chartHeight,
+            width: chartWidth,
+          }}
+        >
+          {data.map((item, index) => {
+            const storesValue = item.StoresChecked || 0;
+            const daysValue = item.CheckinDays || 0;
+            const storesHeight =
+              maxValue > 0 ? (storesValue / maxValue) * chartHeight : 0;
+            const daysHeight =
+              maxValue > 0 ? (daysValue / maxValue) * chartHeight : 0;
+
+            return (
+              <View
+                key={index}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "flex-end",
+                  gap: barGap,
+                  width: groupWidth,
+                }}
+              >
+                {/* Stores checked bar (green) */}
+                <View
+                  style={{
+                    alignItems: "center",
+                    width: barWidth,
+                    position: "relative",
+                  }}
+                >
+                  {storesValue > 0 && storesHeight < 20 && (
+                    <Text
+                      style={{
+                        position: "absolute",
+                        top: -16,
+                        fontSize: 10,
+                        color: themeColors.text,
+                        fontWeight: "600",
+                        textAlign: "center",
+                        width: barWidth,
+                      }}
+                    >
+                      {storesValue}
+                    </Text>
+                  )}
+                  <View
+                    style={{
+                      width: barWidth,
+                      height: Math.max(storesHeight, storesValue > 0 ? 2 : 0),
+                      backgroundColor: "#10B981",
+                      borderRadius: 4,
+                      borderTopLeftRadius: 4,
+                      borderTopRightRadius: 4,
+                      justifyContent: "flex-start",
+                      alignItems: "center",
+                      paddingTop: storesHeight >= 20 ? 2 : 0,
+                    }}
+                  >
+                    {storesValue > 0 && storesHeight >= 20 && (
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          color: "#fff",
+                          fontWeight: "700",
+                          textAlign: "center",
+                          textShadowColor: "rgba(0, 0, 0, 0.3)",
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2,
+                        }}
+                      >
+                        {storesValue}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+                {/* Checkin days bar (orange) */}
+                <View
+                  style={{
+                    alignItems: "center",
+                    width: barWidth,
+                    position: "relative",
+                  }}
+                >
+                  {daysValue > 0 && daysHeight < 20 && (
+                    <Text
+                      style={{
+                        position: "absolute",
+                        top: -16,
+                        fontSize: 10,
+                        color: themeColors.text,
+                        fontWeight: "600",
+                        textAlign: "center",
+                        width: barWidth,
+                      }}
+                    >
+                      {daysValue}
+                    </Text>
+                  )}
+                  <View
+                    style={{
+                      width: barWidth,
+                      height: Math.max(daysHeight, daysValue > 0 ? 2 : 0),
+                      backgroundColor: "#F59E0B",
+                      borderRadius: 4,
+                      borderTopLeftRadius: 4,
+                      borderTopRightRadius: 4,
+                      justifyContent: "flex-start",
+                      alignItems: "center",
+                      paddingTop: daysHeight >= 20 ? 2 : 0,
+                    }}
+                  >
+                    {daysValue > 0 && daysHeight >= 20 && (
+                      <Text
+                        style={{
+                          fontSize: 9,
+                          color: "#fff",
+                          fontWeight: "700",
+                          textAlign: "center",
+                          textShadowColor: "rgba(0, 0, 0, 0.3)",
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2,
+                        }}
+                      >
+                        {daysValue}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+
+      {/* X-axis labels - Territory names */}
+      <View
+        style={{
+          position: "absolute",
+          left: 60,
+          right: 30,
+          top: chartHeight + 20,
+          flexDirection: "row",
+          width: chartWidth,
+          height: 30,
+        }}
+      >
+        {data.map((item, index) => (
+          <View
+            key={index}
+            style={{
+              width: groupWidth,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <Text
+              style={{
+                fontSize: 11,
+                color: themeColors.text,
+                textAlign: "center",
+                fontWeight: "600",
+              }}
+              numberOfLines={2}
+              ellipsizeMode="tail"
+            >
+              {item.TerritoryName}
+            </Text>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+};
+
 const GroupedBarChart = ({
   data,
   width,
@@ -367,15 +650,15 @@ interface StoresByDate {
 interface TerritorySummary {
   TerritoryId: number;
   TerritoryName: string;
-  AuditedCount: number;
-  NotAuditedCount: number;
+  StoresChecked: number;
+  CheckinDays: number;
 }
 
 interface TerritorySummaryResponse {
   territories: TerritorySummary[];
   totals: {
-    AuditedCount: number;
-    NotAuditedCount: number;
+    StoresChecked: number;
+    CheckinDays: number;
   };
 }
 
@@ -777,8 +1060,10 @@ export default function DashboardScreen() {
           </View>
         </View>
 
-        {/* Bar Chart Section */}
-        {storesByDate.length > 0 ? (
+        {/* Bar Chart Section - By Territory */}
+        {territorySummary &&
+        territorySummary.territories &&
+        territorySummary.territories.length > 0 ? (
           <View
             style={[
               styles.chartSection,
@@ -789,15 +1074,14 @@ export default function DashboardScreen() {
             ]}
           >
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Thống kê cửa hàng theo tuần
+              Thống kê theo địa bàn
             </Text>
             <Text style={[styles.chartSubtitle, { color: colors.icon }]}>
-              {getWeekLabel(selectedWeek)} - {getMonthName(selectedMonth)}{" "}
-              {selectedYear}
+              {getMonthName(selectedMonth)} {selectedYear}
             </Text>
             <View style={{ alignItems: "center", minHeight: 360 }}>
-              <GroupedBarChart
-                data={storesByDate}
+              <TerritoryBarChart
+                data={territorySummary.territories}
                 width={Dimensions.get("window").width - 32}
                 height={360}
                 colors={colors}
@@ -809,11 +1093,8 @@ export default function DashboardScreen() {
                   style={[styles.legendColor, { backgroundColor: "#10B981" }]}
                 />
                 <Text style={[styles.legendText, { color: colors.text }]}>
-                  Đã thực hiện:{" "}
-                  {storesByDate.reduce(
-                    (sum, item) => sum + item.AuditedCount,
-                    0
-                  )}
+                  Số cửa hàng checkin:{" "}
+                  {territorySummary.totals?.StoresChecked || 0}
                 </Text>
               </View>
               <View style={styles.legendItem}>
@@ -821,11 +1102,7 @@ export default function DashboardScreen() {
                   style={[styles.legendColor, { backgroundColor: "#F59E0B" }]}
                 />
                 <Text style={[styles.legendText, { color: colors.text }]}>
-                  Chưa thực hiện:{" "}
-                  {storesByDate.reduce(
-                    (sum, item) => sum + item.NotAuditedCount,
-                    0
-                  )}
+                  Số ngày checkin: {territorySummary.totals?.CheckinDays || 0}
                 </Text>
               </View>
             </View>
@@ -841,7 +1118,7 @@ export default function DashboardScreen() {
             ]}
           >
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Thống kê cửa hàng theo tuần
+              Thống kê theo địa bàn
             </Text>
             <Text style={[styles.noDataText, { color: colors.icon }]}>
               Chưa có dữ liệu.
@@ -908,7 +1185,7 @@ export default function DashboardScreen() {
                     { color: colors.text, flex: 0.8, textAlign: "center" },
                   ]}
                 >
-                  Đã thực hiện
+                  Số cửa hàng checkin
                 </Text>
                 <Text
                   style={[
@@ -916,7 +1193,7 @@ export default function DashboardScreen() {
                     { color: colors.text, flex: 0.8, textAlign: "center" },
                   ]}
                 >
-                  Chưa thực hiện
+                  Số ngày checkin
                 </Text>
               </View>
               {/* Table Rows */}
@@ -957,7 +1234,7 @@ export default function DashboardScreen() {
                         },
                       ]}
                     >
-                      {item.AuditedCount}
+                      {item.StoresChecked}
                     </Text>
                     <Text
                       style={[
@@ -970,7 +1247,7 @@ export default function DashboardScreen() {
                         },
                       ]}
                     >
-                      {item.NotAuditedCount}
+                      {item.CheckinDays}
                     </Text>
                   </View>
                 ))
@@ -1026,7 +1303,7 @@ export default function DashboardScreen() {
                       },
                     ]}
                   >
-                    {territorySummary.totals.AuditedCount}
+                    {territorySummary.totals.StoresChecked}
                   </Text>
                   <Text
                     style={[
@@ -1039,7 +1316,7 @@ export default function DashboardScreen() {
                       },
                     ]}
                   >
-                    {territorySummary.totals.NotAuditedCount}
+                    {territorySummary.totals.CheckinDays}
                   </Text>
                 </View>
               )}
