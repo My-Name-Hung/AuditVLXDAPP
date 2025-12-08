@@ -841,6 +841,7 @@ async function getStoresByTerritory(req, res) {
     // Filter audits by current user (unless admin)
     if (currentUserId && currentUserRole !== "admin") {
       query += ` AND a.UserId = @currentUserId`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
     }
 
     // Also filter stores by current user (unless admin)
@@ -852,6 +853,7 @@ async function getStoresByTerritory(req, res) {
           WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
         )
       )`;
+      // Note: currentUserId already declared above, no need to declare again
     }
 
     if (startDate) {
