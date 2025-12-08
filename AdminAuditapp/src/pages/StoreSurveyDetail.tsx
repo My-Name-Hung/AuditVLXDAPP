@@ -219,7 +219,7 @@ export default function StoreSurveyDetail() {
         "Giá bán",
         "Phí VC đường bộ",
         "Phí VC đường thủy",
-        "SL nhập hàng bình quân (tấn/tháng)",
+        "Số lượng nhập hàng (tấn/đợt)",
         "Sản lượng bình quân (tấn/tháng)",
         "Nhập từ NPP",
         "Chương trình chiết khấu - khuyến mãi",
@@ -546,7 +546,7 @@ export default function StoreSurveyDetail() {
                     <th>Giá bán</th>
                     <th>Phí VC đường bộ</th>
                     <th>Phí VC đường thủy</th>
-                    <th>SL nhập hàng bình quân (tấn/tháng)</th>
+                    <th>Số lượng nhập hàng (tấn/đợt)</th>
                     <th>Sản lượng bình quân (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
                     <th>Chương trình chiết khấu - khuyến mãi</th>

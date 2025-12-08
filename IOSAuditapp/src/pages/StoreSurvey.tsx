@@ -484,7 +484,7 @@ const StoreSurvey = () => {
         }
         if (!product.quantityReceived) {
           errors.push(
-            `Sản phẩm ${index + 1}: Số lượng nhập hàng bình quân (tấn/tháng)`
+            `Sản phẩm ${index + 1}: Số lượng nhập hàng (tấn/đợt)`
           );
         }
         if (!product.importedFromNPP) {
@@ -1107,7 +1107,7 @@ const StoreSurvey = () => {
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
-                          Số lượng nhập hàng bình quân (tấn/tháng)
+                          Số lượng nhập hàng (tấn/đợt)
                         </label>
                         <input
                           type="text"

@@ -478,7 +478,7 @@ export default function StoreSurveyScreen() {
         }
         if (!product.quantityReceived) {
           errors.push(
-            `Sản phẩm ${index + 1}: Số lượng nhập hàng bình quân (tấn/tháng)`
+            `Sản phẩm ${index + 1}: Số lượng nhập hàng (tấn/đợt)`
           );
         }
         if (!product.importedFromNPP) {
@@ -1180,7 +1180,7 @@ export default function StoreSurveyScreen() {
 
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: colors.text }]}>
-                            Số lượng nhập hàng bình quân (tấn/tháng)
+                            Số lượng nhập hàng (tấn/đợt)
                           </Text>
                           <TextInput
                             style={[
