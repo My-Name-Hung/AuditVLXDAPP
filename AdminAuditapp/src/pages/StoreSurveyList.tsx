@@ -103,6 +103,10 @@ export default function StoreSurveyList() {
     priceTo: "",
   });
 
+  // Week filter state
+  const [selectedWeek, setSelectedWeek] = useState<string>("all");
+  const [currentYear, setCurrentYear] = useState<number>(new Date().getFullYear());
+
   useEffect(() => {
     fetchSurveys();
     fetchUsers();
@@ -182,6 +186,13 @@ export default function StoreSurveyList() {
     filterValues: typeof filters = filters
   ) => {
     return surveysToFilter.filter((survey) => {
+      // Filter by week
+      if (selectedWeek !== "all") {
+        const weekNumber = parseInt(selectedWeek, 10);
+        if (!isDateInWeek(survey.AuditDate, weekNumber, currentYear)) {
+          return false;
+        }
+      }
       // Filter by store name
       if (
         filterValues.storeName &&
@@ -286,14 +297,14 @@ export default function StoreSurveyList() {
     setSurveys(filtered);
   };
 
-  // Apply filters when filters change (if data is already loaded)
+  // Apply filters when filters or selectedWeek change (if data is already loaded)
   useEffect(() => {
     if (allSurveys.length > 0) {
       const filtered = filterSurveys(allSurveys, filters);
       setSurveys(filtered);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, allSurveys]);
+  }, [filters, allSurveys, selectedWeek, currentYear]);
 
   const handleResetFilters = () => {
     const emptyFilters = {
@@ -307,6 +318,7 @@ export default function StoreSurveyList() {
     setFilters(emptyFilters);
     setUserSearch("");
     setCementSearch("");
+    setSelectedWeek("all");
     // Fetch with empty filters immediately
     fetchSurveysWithFilters(emptyFilters);
   };
@@ -391,37 +403,177 @@ export default function StoreSurveyList() {
       product.Code.toLowerCase().includes(cementSearch.toLowerCase())
   );
 
+  // Helper function to calculate week numbers from a specific date
+  const calculateWeekNumbers = (date: Date) => {
+    const year = date.getFullYear();
+    const day = date.getDate();
+
+    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+    const weekNumberInMonth = Math.ceil(day / 7);
+
+    // Week number in year: calculate from January 1st
+    // Get the first day of the year
+    const januaryFirst = new Date(year, 0, 1);
+    // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const firstDayOfWeek = januaryFirst.getDay();
+    // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+    // Calculate days since year start
+    const daysSinceYearStart = Math.floor(
+      (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Calculate week number: (days + offset to first Monday) / 7, rounded up
+    const weekNumberInYear = Math.ceil(
+      (daysSinceYearStart + firstMondayOffset + 1) / 7
+    );
+
+    return { weekNumberInMonth, weekNumberInYear, year };
+  };
+
+  // Helper function to get all weeks in the current year
+  const getWeeksInYear = (year: number): Array<{ value: string; label: string }> => {
+    const weeks: Array<{ value: string; label: string }> = [];
+    
+    // Get the first day of the year
+    const januaryFirst = new Date(year, 0, 1);
+    const firstDayOfWeek = januaryFirst.getDay();
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    
+    // Get the last day of the year
+    const decemberLast = new Date(year, 11, 31);
+    const daysInYear = Math.floor(
+      (decemberLast.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
+    ) + 1;
+    
+    // Calculate total weeks
+    const totalWeeks = Math.ceil((daysInYear + firstMondayOffset) / 7);
+    
+    for (let week = 1; week <= totalWeeks; week++) {
+      // Calculate week start date (Monday)
+      const weekStartDays = (week - 1) * 7 - firstMondayOffset;
+      const weekStart = new Date(januaryFirst);
+      weekStart.setDate(januaryFirst.getDate() + weekStartDays);
+      
+      // Calculate week end date (Sunday)
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      
+      const startDateStr = weekStart.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+      const endDateStr = weekEnd.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+      
+      weeks.push({
+        value: week.toString(),
+        label: `Tuần ${week} (${startDateStr} - ${endDateStr})`
+      });
+    }
+    
+    return weeks;
+  };
+
+  // Helper function to check if a date is in a specific week
+  const isDateInWeek = (dateString: string | null, weekNumber: number, year: number): boolean => {
+    if (!dateString || weekNumber === 0) return true; // "all" weeks
+    const date = new Date(dateString);
+    
+    // Get the first day of the year
+    const januaryFirst = new Date(year, 0, 1);
+    const firstDayOfWeek = januaryFirst.getDay();
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    
+    // Calculate week start date (Monday)
+    const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
+    const weekStart = new Date(januaryFirst);
+    weekStart.setDate(januaryFirst.getDate() + weekStartDays);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    // Calculate week end date (Sunday)
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    // Check if date is within the week
+    return date >= weekStart && date <= weekEnd;
+  };
+
+  // Helper function to check if a date is in the current week
+  const isDateInCurrentWeek = (dateString: string | null): boolean => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    const now = new Date();
+    
+    // Get current week start (Monday)
+    const currentDay = now.getDay();
+    const diff = currentDay === 0 ? 6 : currentDay - 1; // Monday = 0
+    const weekStart = new Date(now);
+    weekStart.setDate(now.getDate() - diff);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    // Get current week end (Sunday)
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    // Check if date is within current week
+    return date >= weekStart && date <= weekEnd;
+  };
+
+  // Get weeks list for current year
+  const weeksList = getWeeksInYear(currentYear);
+
+  // Reset week filter when year changes
+  useEffect(() => {
+    const checkYear = () => {
+      const now = new Date();
+      const year = now.getFullYear();
+      if (year !== currentYear) {
+        setCurrentYear(year);
+        setSelectedWeek("all");
+      }
+    };
+    
+    // Check on mount and set interval to check daily
+    checkYear();
+    const interval = setInterval(checkYear, 24 * 60 * 60 * 1000); // Check every 24 hours
+    
+    return () => clearInterval(interval);
+  }, [currentYear]);
+
   const handleExportExcel = async () => {
     try {
       setExportLoading(true);
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
 
-      // Calculate week number in month and week number in year
-      const now = new Date();
-      const year = now.getFullYear();
-      const day = now.getDate();
-
-      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-      const weekNumberInMonth = Math.ceil(day / 7);
-
-      // Week number in year: calculate from January 1st
-      // Get the first day of the year
-      const januaryFirst = new Date(year, 0, 1);
-      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-      const firstDayOfWeek = januaryFirst.getDay();
-      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
-      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
-      // Calculate days since year start
-      const daysSinceYearStart = Math.floor(
-        (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // Calculate week number: (days + offset to first Monday) / 7, rounded up
-      const weekNumberInYear = Math.ceil(
-        (daysSinceYearStart + firstMondayOffset + 1) / 7
-      );
+      // Calculate week number from selected week or current date
+      let weekNumberInMonth: number;
+      let weekNumberInYear: number;
+      let year: number;
+      
+      if (selectedWeek !== "all") {
+        // Use selected week
+        const weekNumber = parseInt(selectedWeek, 10);
+        // Find a date in the selected week to calculate week numbers
+        const januaryFirst = new Date(currentYear, 0, 1);
+        const firstDayOfWeek = januaryFirst.getDay();
+        const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+        const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
+        const weekStart = new Date(januaryFirst);
+        weekStart.setDate(januaryFirst.getDate() + weekStartDays);
+        
+        const weekNumbers = calculateWeekNumbers(weekStart);
+        weekNumberInMonth = weekNumbers.weekNumberInMonth;
+        weekNumberInYear = weekNumbers.weekNumberInYear;
+        year = weekNumbers.year;
+      } else {
+        // Use current date
+        const now = new Date();
+        const weekNumbers = calculateWeekNumbers(now);
+        weekNumberInMonth = weekNumbers.weekNumberInMonth;
+        weekNumberInYear = weekNumbers.weekNumberInYear;
+        year = weekNumbers.year;
+      }
 
       // Filter only XMTĐ products (Title 2 + 3)
       const xmtdSurveys = surveys.filter(
@@ -468,24 +620,25 @@ export default function StoreSurveyList() {
         );
 
         // Title rows
-        sheet.mergeCells("A1:N1");
+        sheet.mergeCells("A1:O1");
         sheet.getCell(
           "A1"
         ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
         sheet.getCell("A1").font = { bold: true, size: 14 };
         sheet.getCell("A1").alignment = { horizontal: "center" };
 
-        sheet.mergeCells("A2:N2");
+        sheet.mergeCells("A2:O2");
         sheet.getCell("A2").value = `Địa bàn: ${
           territoryName || "Chưa xác định"
         }`;
         sheet.getCell("A2").font = { bold: true, size: 12 };
         sheet.getCell("A2").alignment = { horizontal: "center" };
 
-        sheet.mergeCells("A3:N3");
-        sheet.getCell(
-          "A3"
-        ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+        sheet.mergeCells("A3:O3");
+        const reportTitle = selectedWeek === "all"
+          ? `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NĂM ${year}`
+          : `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+        sheet.getCell("A3").value = reportTitle;
         sheet.getCell("A3").font = { bold: true, size: 12 };
         sheet.getCell("A3").alignment = { horizontal: "left" };
 
@@ -504,6 +657,7 @@ export default function StoreSurveyList() {
           "SL nhận hàng (tấn/tháng)",
           "Sản lượng bình quân (tấn/tháng)",
           "Nhập từ NPP",
+          "Chương trình chiết khấu - khuyến mãi",
           "Ý kiến/Ghi chú",
         ];
 
@@ -563,6 +717,7 @@ export default function StoreSurveyList() {
                 product.QuantityReceived || "",
                 product.AverageStockQuantity || "",
                 product.ImportedFromNPP || "",
+                product.DiscountPromotion || "",
                 isFirstRow ? firstSurvey.StoreComment || "" : "",
               ]);
 
@@ -594,6 +749,7 @@ export default function StoreSurveyList() {
               formatVND(totalWaterTransportFee),
               totalQuantityReceived,
               totalAverageStockQuantity,
+              "",
               "",
               "",
             ]);
@@ -642,6 +798,7 @@ export default function StoreSurveyList() {
           { width: 18 },
           { width: 25 },
           { width: 30 },
+          { width: 30 },
         ];
 
         // Add spacing between tables
@@ -649,14 +806,20 @@ export default function StoreSurveyList() {
         sheet.addRow([]);
 
         // Table 2: Khảo sát sản phẩm XMTĐ (Title 2) - Below Title 3
+        // Filter by selected week to match the week number in the title
         const title2Surveys = territorySurveys.filter(
-          (survey) =>
-            survey.WhyNotSellNewProduct ||
-            survey.TimeToSellNewProduct ||
-            survey.NewProductImportQuantity ||
-            survey.SupplierName ||
-            survey.ImportedBySalesperson ||
-            survey.StoreComment
+          (survey) => {
+            const weekMatch = selectedWeek === "all" 
+              ? true 
+              : isDateInWeek(survey.AuditDate, parseInt(selectedWeek, 10), currentYear);
+            return weekMatch &&
+              (survey.WhyNotSellNewProduct ||
+                survey.TimeToSellNewProduct ||
+                survey.NewProductImportQuantity ||
+                survey.SupplierName ||
+                survey.ImportedBySalesperson ||
+                survey.StoreComment);
+          }
         );
 
         if (title2Surveys.length > 0) {
@@ -766,6 +929,32 @@ export default function StoreSurveyList() {
       <div className="filter-section">
         <h3>Bộ lọc</h3>
         <div className="filter-grid">
+          <div className="filter-item">
+            <label>Tuần:</label>
+            <select
+              value={selectedWeek}
+              onChange={(e) => {
+                setSelectedWeek(e.target.value);
+              }}
+              style={{
+                width: "100%",
+                padding: "8px 12px",
+                border: "1px solid #ddd",
+                borderRadius: "4px",
+                fontSize: "14px",
+                backgroundColor: "#fff",
+                cursor: "pointer",
+                height: "40px",
+              }}
+            >
+              <option value="all">Tất cả tuần</option>
+              {weeksList.map((week) => (
+                <option key={week.value} value={week.value}>
+                  {week.label}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="filter-item">
             <label>Tên cửa hàng:</label>
             <input
@@ -974,6 +1163,7 @@ export default function StoreSurveyList() {
                 <th>Giá bán</th>
                 <th>Sản lượng bình quân (tấn/tháng)</th>
                 <th>Mua qua NPP</th>
+                <th>Chương trình chiết khấu - khuyến mãi</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
@@ -1047,6 +1237,7 @@ export default function StoreSurveyList() {
                         </td>
                         <td>{product?.AverageStockQuantity ?? "-"}</td>
                         <td>{product?.ImportedFromNPP || "-"}</td>
+                        <td>{product?.DiscountPromotion || "-"}</td>
                         <td>
                           <button
                             className="btn-view-survey-list"

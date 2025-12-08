@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { HiArrowLeft, HiArrowDownTray } from "react-icons/hi2";
+import { HiArrowDownTray, HiArrowLeft } from "react-icons/hi2";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import "./StoreSurveyDetail.css";
@@ -118,6 +118,35 @@ export default function StoreSurveyDetail() {
     );
   }
 
+  // Helper function to calculate week numbers from a specific date
+  const calculateWeekNumbers = (date: Date) => {
+    const year = date.getFullYear();
+    const day = date.getDate();
+
+    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+    const weekNumberInMonth = Math.ceil(day / 7);
+
+    // Week number in year: calculate from January 1st
+    // Get the first day of the year
+    const januaryFirst = new Date(year, 0, 1);
+    // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const firstDayOfWeek = januaryFirst.getDay();
+    // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+
+    // Calculate days since year start
+    const daysSinceYearStart = Math.floor(
+      (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
+    );
+
+    // Calculate week number: (days + offset to first Monday) / 7, rounded up
+    const weekNumberInYear = Math.ceil(
+      (daysSinceYearStart + firstMondayOffset + 1) / 7
+    );
+
+    return { weekNumberInMonth, weekNumberInYear, year };
+  };
+
   const handleExportExcel = async () => {
     if (!survey) return;
 
@@ -126,31 +155,9 @@ export default function StoreSurveyDetail() {
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
 
-      // Calculate week number in month and week number in year
-      const now = new Date();
-      const year = now.getFullYear();
-      const day = now.getDate();
-
-      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-      const weekNumberInMonth = Math.ceil(day / 7);
-
-      // Week number in year: calculate from January 1st
-      // Get the first day of the year
-      const januaryFirst = new Date(year, 0, 1);
-      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-      const firstDayOfWeek = januaryFirst.getDay();
-      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
-      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
-      // Calculate days since year start
-      const daysSinceYearStart = Math.floor(
-        (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-      );
-
-      // Calculate week number: (days + offset to first Monday) / 7, rounded up
-      const weekNumberInYear = Math.ceil(
-        (daysSinceYearStart + firstMondayOffset + 1) / 7
-      );
+      // Calculate week number from survey's AuditDate, not current date
+      const surveyDate = survey.AuditDate ? new Date(survey.AuditDate) : new Date();
+      const { weekNumberInMonth, weekNumberInYear, year } = calculateWeekNumbers(surveyDate);
 
       // Header style
       const headerStyle = {
@@ -212,6 +219,7 @@ export default function StoreSurveyDetail() {
         "SL nhận hàng (tấn/tháng)",
         "Sản lượng bình quân (tấn/tháng)",
         "Nhập từ NPP",
+        "Chương trình chiết khấu - khuyến mãi",
         "Ý kiến/Ghi chú",
       ];
 
@@ -258,6 +266,7 @@ export default function StoreSurveyDetail() {
             product.QuantityReceived || "",
             product.AverageStockQuantity || "",
             product.ImportedFromNPP || "",
+            product.DiscountPromotion || "",
             survey.StoreComment || "",
           ]);
 
@@ -286,6 +295,7 @@ export default function StoreSurveyDetail() {
           formatVND(totalWaterTransportFee),
           totalQuantityReceived,
           totalAverageStockQuantity,
+          "",
           "",
           "",
         ]);
@@ -357,6 +367,7 @@ export default function StoreSurveyDetail() {
         { width: 20 },
         { width: 18 },
         { width: 25 },
+        { width: 30 },
         { width: 30 },
       ];
 
@@ -535,6 +546,7 @@ export default function StoreSurveyDetail() {
                     <th>SL nhận hàng (tấn/tháng)</th>
                     <th>Sản lượng bình quân (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
+                    <th>Chương trình chiết khấu - khuyến mãi</th>
                     <th>Ý kiến/Ghi chú</th>
                   </tr>
                 </thead>
@@ -554,6 +566,7 @@ export default function StoreSurveyDetail() {
                       <td>{product.QuantityReceived || ""}</td>
                       <td>{product.AverageStockQuantity || ""}</td>
                       <td>{product.ImportedFromNPP || ""}</td>
+                      <td>{product.DiscountPromotion || ""}</td>
                       <td>{survey.StoreComment || ""}</td>
                     </tr>
                   ))}
@@ -608,6 +621,7 @@ export default function StoreSurveyDetail() {
                         <td>{formatVND(totalWaterTransportFee)}</td>
                         <td>{totalQuantityReceived}</td>
                         <td>{totalAverageStockQuantity}</td>
+                        <td></td>
                         <td colSpan={2}></td>
                       </tr>
                     );
