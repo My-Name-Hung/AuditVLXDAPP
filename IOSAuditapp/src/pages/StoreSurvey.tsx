@@ -483,7 +483,7 @@ const StoreSurvey = () => {
           errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
         }
         if (!product.quantityReceived) {
-          errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
+          errors.push(`Sản phẩm ${index + 1}: Sản lượng nhập bình quân (tấn/tháng)`);
         }
         if (!product.importedFromNPP) {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
@@ -1107,7 +1107,7 @@ const StoreSurvey = () => {
 
                       <div className="store-survey-field">
                         <label style={{ color: colors.text }}>
-                          Sản lượng bình quân (tấn/tháng)
+                          Sản lượng nhập bình quân (tấn/tháng)
                         </label>
                         <input
                           type="text"

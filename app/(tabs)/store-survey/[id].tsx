@@ -477,7 +477,7 @@ export default function StoreSurveyScreen() {
           errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
         }
         if (!product.quantityReceived) {
-          errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
+          errors.push(`Sản phẩm ${index + 1}: Sản lượng nhập bình quân (tấn/tháng)`);
         }
         if (!product.importedFromNPP) {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
@@ -1180,7 +1180,7 @@ export default function StoreSurveyScreen() {
 
                         <View style={styles.field}>
                           <Text style={[styles.label, { color: colors.text }]}>
-                            Sản lượng bình quân (tấn/tháng)
+                            Sản lượng nhập bình quân (tấn/tháng)
                           </Text>
                           <TextInput
                             style={[

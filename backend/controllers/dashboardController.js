@@ -821,7 +821,7 @@ async function getStoresByTerritory(req, res) {
       req.user?.role || req.user?.Role || req.user?.RoleName;
 
     // Get stores checkin count and checkin days by territory (within date range if provided)
-    // StoresChecked: COUNT(DISTINCT a.StoreId) -  DISTINCT (đếm tất cả lần checkin)
+    // StoresChecked: COUNT(DISTINCT a.StoreId) -  DISTINCT (đếm lần checkin)
     // CheckinDays: COUNT(DISTINCT CAST(a.AuditDate AS DATE)) - đếm số ngày khác nhau
     let query = `
       SELECT 

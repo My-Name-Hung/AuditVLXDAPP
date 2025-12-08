@@ -575,8 +575,14 @@ export default function StoreSurveyList() {
         year = weekNumbers.year;
       }
 
+      // When selectedWeek === "all", use allSurveys filtered by other filters (not week)
+      // When selectedWeek !== "all", use surveys (already filtered by week)
+      const surveysToExport = selectedWeek === "all" 
+        ? filterSurveys(allSurveys, filters) 
+        : surveys;
+      
       // Filter only XMTĐ products (Title 2 + 3)
-      const xmtdSurveys = surveys.filter(
+      const xmtdSurveys = surveysToExport.filter(
         (survey) =>
           survey.WhyNotSellNewProduct ||
           (survey.products && survey.products.length > 0)
