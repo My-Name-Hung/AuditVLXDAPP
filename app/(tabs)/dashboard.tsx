@@ -564,8 +564,11 @@ export default function DashboardScreen() {
         params,
       });
 
+      console.log("Territory summary response:", response.data);
+
       if (response.data.success) {
         setTerritorySummary(response.data.data);
+        console.log("Territory summary set:", response.data.data);
       } else {
         setTerritorySummary(null);
       }
@@ -828,7 +831,7 @@ export default function DashboardScreen() {
         )}
 
         {/* Territory Summary Table */}
-        {territorySummary && territorySummary.territories.length > 0 && (
+        {territorySummary && (
           <View
             style={[
               styles.chartSection,
@@ -890,113 +893,129 @@ export default function DashboardScreen() {
                 </Text>
               </View>
               {/* Table Rows */}
-              {territorySummary.territories.map((item, index) => (
+              {territorySummary.territories &&
+              territorySummary.territories.length > 0 ? (
+                territorySummary.territories.map((item, index) => (
+                  <View
+                    key={item.TerritoryId}
+                    style={[
+                      styles.tableRow,
+                      { borderBottomColor: colors.icon + "20" },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.tableCellText,
+                        { color: colors.text, flex: 0.3, textAlign: "center" },
+                      ]}
+                    >
+                      {index + 1}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCellText,
+                        { color: colors.text, flex: 1 },
+                      ]}
+                    >
+                      {item.TerritoryName}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCellText,
+                        {
+                          color: "#10B981",
+                          flex: 0.8,
+                          textAlign: "center",
+                          fontWeight: "600",
+                        },
+                      ]}
+                    >
+                      {item.AuditedCount}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.tableCellText,
+                        {
+                          color: "#F59E0B",
+                          flex: 0.8,
+                          textAlign: "center",
+                          fontWeight: "600",
+                        },
+                      ]}
+                    >
+                      {item.NotAuditedCount}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <View style={[styles.tableRow, { paddingVertical: 20 }]}>
+                  <Text
+                    style={[
+                      styles.tableCellText,
+                      { color: colors.icon, textAlign: "center", flex: 1 },
+                    ]}
+                  >
+                    Chưa có dữ liệu
+                  </Text>
+                </View>
+              )}
+              {/* Table Footer (Totals) */}
+              {territorySummary.totals && (
                 <View
-                  key={item.TerritoryId}
                   style={[
                     styles.tableRow,
-                    { borderBottomColor: colors.icon + "20" },
+                    styles.tableFooter,
+                    {
+                      backgroundColor: colors.primary + "10",
+                      borderTopWidth: 2,
+                      borderTopColor: colors.primary,
+                    },
                   ]}
                 >
                   <Text
                     style={[
-                      styles.tableCellText,
+                      styles.tableFooterText,
                       { color: colors.text, flex: 0.3, textAlign: "center" },
                     ]}
                   >
-                    {index + 1}
+                    Tổng
                   </Text>
                   <Text
                     style={[
-                      styles.tableCellText,
+                      styles.tableFooterText,
                       { color: colors.text, flex: 1 },
                     ]}
                   >
-                    {item.TerritoryName}
+                    -
                   </Text>
                   <Text
                     style={[
-                      styles.tableCellText,
+                      styles.tableFooterText,
                       {
                         color: "#10B981",
                         flex: 0.8,
                         textAlign: "center",
-                        fontWeight: "600",
+                        fontWeight: "700",
                       },
                     ]}
                   >
-                    {item.AuditedCount}
+                    {territorySummary.totals.AuditedCount}
                   </Text>
                   <Text
                     style={[
-                      styles.tableCellText,
+                      styles.tableFooterText,
                       {
                         color: "#F59E0B",
                         flex: 0.8,
                         textAlign: "center",
-                        fontWeight: "600",
+                        fontWeight: "700",
                       },
                     ]}
                   >
-                    {item.NotAuditedCount}
+                    {territorySummary.totals.NotAuditedCount}
                   </Text>
                 </View>
-              ))}
-              {/* Table Footer (Totals) */}
-              <View
-                style={[
-                  styles.tableRow,
-                  styles.tableFooter,
-                  {
-                    backgroundColor: colors.primary + "10",
-                    borderTopWidth: 2,
-                    borderTopColor: colors.primary,
-                  },
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.tableFooterText,
-                    { color: colors.text, flex: 0.3, textAlign: "center" },
-                  ]}
-                >
-                  Tổng
-                </Text>
-                <Text
-                  style={[
-                    styles.tableFooterText,
-                    { color: colors.text, flex: 1 },
-                  ]}
-                >
-                  -
-                </Text>
-                <Text
-                  style={[
-                    styles.tableFooterText,
-                    {
-                      color: "#10B981",
-                      flex: 0.8,
-                      textAlign: "center",
-                      fontWeight: "700",
-                    },
-                  ]}
-                >
-                  {territorySummary.totals.AuditedCount}
-                </Text>
-                <Text
-                  style={[
-                    styles.tableFooterText,
-                    {
-                      color: "#F59E0B",
-                      flex: 0.8,
-                      textAlign: "center",
-                      fontWeight: "700",
-                    },
-                  ]}
-                >
-                  {territorySummary.totals.NotAuditedCount}
-                </Text>
-              </View>
+              )}
             </View>
           </View>
         )}

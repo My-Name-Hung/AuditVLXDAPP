@@ -216,8 +216,11 @@ export default function Dashboard() {
 
       const response = await api.get("/dashboard/stores-by-territory", { params });
 
+      console.log("Territory summary response:", response.data);
+
       if (response.data.success) {
         setTerritorySummary(response.data.data);
+        console.log("Territory summary set:", response.data.data);
       } else {
         setTerritorySummary(null);
       }
@@ -480,7 +483,7 @@ export default function Dashboard() {
         )}
 
         {/* Territory Summary Table */}
-        {territorySummary && territorySummary.territories.length > 0 && (
+        {territorySummary && (
           <div className="chart-section" style={{ borderColor: colors.icon + "20", backgroundColor: colors.secondary, marginTop: "16px" }}>
             <h3 className="section-title" style={{ color: colors.text, marginBottom: "12px" }}>
               Tổng hợp theo địa bàn
@@ -496,15 +499,24 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {territorySummary.territories.map((item, index) => (
-                    <tr key={item.TerritoryId} className="table-row">
-                      <td className="table-cell" style={{ color: colors.text, textAlign: "center" }}>{index + 1}</td>
-                      <td className="table-cell" style={{ color: colors.text }}>{item.TerritoryName}</td>
-                      <td className="table-cell" style={{ color: "#10B981", textAlign: "center", fontWeight: "600" }}>{item.AuditedCount}</td>
-                      <td className="table-cell" style={{ color: "#F59E0B", textAlign: "center", fontWeight: "600" }}>{item.NotAuditedCount}</td>
+                  {territorySummary.territories && territorySummary.territories.length > 0 ? (
+                    territorySummary.territories.map((item, index) => (
+                      <tr key={item.TerritoryId} className="table-row">
+                        <td className="table-cell" style={{ color: colors.text, textAlign: "center" }}>{index + 1}</td>
+                        <td className="table-cell" style={{ color: colors.text }}>{item.TerritoryName}</td>
+                        <td className="table-cell" style={{ color: "#10B981", textAlign: "center", fontWeight: "600" }}>{item.AuditedCount}</td>
+                        <td className="table-cell" style={{ color: "#F59E0B", textAlign: "center", fontWeight: "600" }}>{item.NotAuditedCount}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr className="table-row">
+                      <td colSpan={4} className="table-cell" style={{ color: colors.icon, textAlign: "center", padding: "20px" }}>
+                        Chưa có dữ liệu
+                      </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
+                {territorySummary.totals && (
                 <tfoot>
                   <tr className="table-footer-row" style={{ backgroundColor: colors.primary + "10", borderTop: `2px solid ${colors.primary}` }}>
                     <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600", textAlign: "center" }}>Tổng</td>
@@ -513,6 +525,7 @@ export default function Dashboard() {
                     <td className="table-footer-cell" style={{ color: "#F59E0B", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.NotAuditedCount}</td>
                   </tr>
                 </tfoot>
+                )}
               </table>
             </div>
           </div>

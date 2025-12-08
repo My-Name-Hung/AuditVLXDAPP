@@ -933,6 +933,12 @@ async function getStoresByTerritory(req, res) {
       { AuditedCount: 0, NotAuditedCount: 0 }
     );
 
+    console.log("getStoresByTerritory - Data:", {
+      territoriesCount: data.length,
+      data: data,
+      totals: totals,
+    });
+
     res.json({
       success: true,
       data: {
