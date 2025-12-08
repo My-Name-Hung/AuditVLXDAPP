@@ -354,7 +354,14 @@ async function getStoresByDate(req, res) {
 
     // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
+
+    console.log("getStoresByDate - Current user:", {
+      userId: currentUserId,
+      role: currentUserRole,
+      userObject: req.user,
+    });
 
     // Build user filter - only show stores assigned to current user (unless admin)
     let userFilter = "";
@@ -398,6 +405,12 @@ async function getStoresByDate(req, res) {
         AND CAST(a.AuditDate AS DATE) IS NOT NULL
     `;
 
+    // Filter audits by current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND a.UserId = @currentUserId`;
+    }
+
+    // Also filter stores by current user (unless admin) - stores must be assigned to user
     if (currentUserId && currentUserRole !== "admin") {
       query += ` AND (
         s.UserId = @currentUserId
@@ -442,16 +455,18 @@ async function getStoresByDate(req, res) {
 
     // Calculate not audited count for each date
     // Not audited = Total stores - stores audited on that specific date
-    const processedData = result.recordset.map((row) => {
-      const formattedDate = formatDate(row.AuditDate);
-      if (!formattedDate) return null;
-      
-      return {
-        AuditDate: formattedDate,
-        AuditedCount: row.AuditedCount || 0,
-        NotAuditedCount: Math.max(0, totalStores - (row.AuditedCount || 0)),
-      };
-    }).filter(item => item !== null);
+    const processedData = result.recordset
+      .map((row) => {
+        const formattedDate = formatDate(row.AuditDate);
+        if (!formattedDate) return null;
+
+        return {
+          AuditDate: formattedDate,
+          AuditedCount: row.AuditedCount || 0,
+          NotAuditedCount: Math.max(0, totalStores - (row.AuditedCount || 0)),
+        };
+      })
+      .filter((item) => item !== null);
 
     console.log("getStoresByDate - Total stores:", totalStores);
     console.log("getStoresByDate - Processed data:", processedData);
@@ -479,7 +494,8 @@ async function getProductPrices(req, res) {
 
     // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
 
     let query = `
       SELECT 
@@ -580,13 +596,20 @@ async function getProductTypes(req, res) {
 // Get summary table - table tổng hợp cửa hàng, audit status, sản phẩm, giá
 async function getSummaryTable(req, res) {
   try {
-    const { page = 1, pageSize = 20, territoryId, startDate, endDate } = req.query;
+    const {
+      page = 1,
+      pageSize = 20,
+      territoryId,
+      startDate,
+      endDate,
+    } = req.query;
     const pool = await getPool();
     const request = pool.request();
 
     // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
 
     const offset = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const limit = parseInt(pageSize, 10);
@@ -679,7 +702,7 @@ async function getSummaryTable(req, res) {
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
       WHERE 1=1
     `;
-    
+
     // Apply user filter to count query
     if (currentUserId && currentUserRole !== "admin") {
       countQuery += ` AND (
@@ -690,11 +713,11 @@ async function getSummaryTable(req, res) {
         )
       )`;
     }
-    
+
     if (territoryId) {
       countQuery += " AND s.TerritoryId = @territoryId";
     }
-    
+
     if (startDate || endDate) {
       countQuery += ` AND (
         NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
@@ -714,7 +737,7 @@ async function getSummaryTable(req, res) {
       countQuery += " )";
       countQuery += " )";
     }
-    
+
     const countRequest = pool.request();
     if (currentUserId && currentUserRole !== "admin") {
       countRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
@@ -764,7 +787,7 @@ async function getSummaryTable(req, res) {
     const result = await request.query(query);
 
     // Set UTF-8 encoding for response
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json({
       success: true,
       data: result.recordset,
