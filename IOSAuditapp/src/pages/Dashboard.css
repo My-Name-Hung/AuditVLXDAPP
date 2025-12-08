@@ -398,3 +398,53 @@
   font-size: 14px;
 }
 
+.table-container {
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.territory-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table-header-row {
+  background-color: rgba(1, 56, 195, 0.15);
+}
+
+.table-header-cell {
+  padding: 14px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.1);
+}
+
+.table-row {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.table-row:hover {
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.table-cell {
+  padding: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+}
+
+.table-footer-row {
+  background-color: rgba(1, 56, 195, 0.1);
+  border-top: 2px solid;
+}
+
+.table-footer-cell {
+  padding: 14px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  text-align: left;
+}
+

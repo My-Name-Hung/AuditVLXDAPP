@@ -36,6 +36,21 @@ interface StoresByDate {
   NotAuditedCount: number;
 }
 
+interface TerritorySummary {
+  TerritoryId: number;
+  TerritoryName: string;
+  AuditedCount: number;
+  NotAuditedCount: number;
+}
+
+interface TerritorySummaryResponse {
+  territories: TerritorySummary[];
+  totals: {
+    AuditedCount: number;
+    NotAuditedCount: number;
+  };
+}
+
 // Helper function to get week dates (7 days) for a given month and week number
 const getWeekDates = (year: number, month: number, weekNumber: number): string[] => {
   // Month is 1-indexed (1 = January, 12 = December)
@@ -87,6 +102,7 @@ export default function Dashboard() {
 
   // Chart data
   const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
+  const [territorySummary, setTerritorySummary] = useState<TerritorySummaryResponse | null>(null);
 
   useEffect(() => {
     fetchTerritories();
@@ -94,6 +110,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchStoresByDate();
+    fetchStoresByTerritory();
   }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
 
   const fetchTerritories = async () => {
@@ -178,6 +195,35 @@ export default function Dashboard() {
     } catch (error) {
       console.error("Error fetching stores by date:", error);
       setStoresByDate([]);
+    }
+  };
+
+  const fetchStoresByTerritory = async () => {
+    try {
+      const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
+      if (weekDates.length === 0) {
+        setTerritorySummary(null);
+        return;
+      }
+
+      const startDate = weekDates[0];
+      const endDate = weekDates[weekDates.length - 1];
+
+      const params: any = {
+        startDate,
+        endDate,
+      };
+
+      const response = await api.get("/dashboard/stores-by-territory", { params });
+
+      if (response.data.success) {
+        setTerritorySummary(response.data.data);
+      } else {
+        setTerritorySummary(null);
+      }
+    } catch (error) {
+      console.error("Error fetching stores by territory:", error);
+      setTerritorySummary(null);
     }
   };
 
@@ -430,6 +476,45 @@ export default function Dashboard() {
             <p className="no-data-text" style={{ color: colors.icon }}>
               Chưa có dữ liệu.
             </p>
+          </div>
+        )}
+
+        {/* Territory Summary Table */}
+        {territorySummary && territorySummary.territories.length > 0 && (
+          <div className="chart-section" style={{ borderColor: colors.icon + "20", backgroundColor: colors.secondary, marginTop: "16px" }}>
+            <h3 className="section-title" style={{ color: colors.text, marginBottom: "12px" }}>
+              Tổng hợp theo địa bàn
+            </h3>
+            <div className="table-container">
+              <table className="territory-table">
+                <thead>
+                  <tr className="table-header-row" style={{ backgroundColor: colors.primary + "15" }}>
+                    <th className="table-header-cell" style={{ color: colors.text, width: "10%" }}>STT</th>
+                    <th className="table-header-cell" style={{ color: colors.text, width: "40%" }}>Địa bàn</th>
+                    <th className="table-header-cell" style={{ color: colors.text, width: "25%", textAlign: "center" }}>Đã thực hiện</th>
+                    <th className="table-header-cell" style={{ color: colors.text, width: "25%", textAlign: "center" }}>Chưa thực hiện</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {territorySummary.territories.map((item, index) => (
+                    <tr key={item.TerritoryId} className="table-row">
+                      <td className="table-cell" style={{ color: colors.text, textAlign: "center" }}>{index + 1}</td>
+                      <td className="table-cell" style={{ color: colors.text }}>{item.TerritoryName}</td>
+                      <td className="table-cell" style={{ color: "#10B981", textAlign: "center", fontWeight: "600" }}>{item.AuditedCount}</td>
+                      <td className="table-cell" style={{ color: "#F59E0B", textAlign: "center", fontWeight: "600" }}>{item.NotAuditedCount}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr className="table-footer-row" style={{ backgroundColor: colors.primary + "10", borderTop: `2px solid ${colors.primary}` }}>
+                    <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600", textAlign: "center" }}>Tổng</td>
+                    <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600" }}>-</td>
+                    <td className="table-footer-cell" style={{ color: "#10B981", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.AuditedCount}</td>
+                    <td className="table-footer-cell" style={{ color: "#F59E0B", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.NotAuditedCount}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
         )}
       </div>

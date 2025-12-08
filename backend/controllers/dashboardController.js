@@ -808,6 +808,148 @@ async function getSummaryTable(req, res) {
   }
 }
 
+// Get stores summary by territory (for table below bar chart)
+async function getStoresByTerritory(req, res) {
+  try {
+    const { startDate, endDate } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
+
+    // Build user filter - only show stores assigned to current user (unless admin)
+    let userFilter = "";
+    if (currentUserId && currentUserRole !== "admin") {
+      userFilter = ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
+    // Get total stores by territory
+    let totalStoresQuery = `
+      SELECT 
+        t.Id as TerritoryId,
+        t.TerritoryName,
+        COUNT(DISTINCT s.Id) as TotalStores
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      WHERE t.Id IS NOT NULL
+        ${userFilter}
+      GROUP BY t.Id, t.TerritoryName
+      ORDER BY t.TerritoryName ASC
+    `;
+    const totalStoresResult = await request.query(totalStoresQuery);
+
+    // Get audited stores by territory (within date range if provided)
+    let auditedQuery = `
+      SELECT 
+        t.Id as TerritoryId,
+        t.TerritoryName,
+        COUNT(DISTINCT a.StoreId) as AuditedCount
+      FROM Audits a
+      INNER JOIN Stores s ON a.StoreId = s.Id
+      INNER JOIN Images img ON a.Id = img.AuditId
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      WHERE img.ImageUrl IS NOT NULL 
+        AND img.ImageUrl != ''
+        AND t.Id IS NOT NULL
+    `;
+
+    // Filter audits by current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      auditedQuery += ` AND a.UserId = @currentUserId`;
+    }
+
+    // Also filter stores by current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      auditedQuery += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+    }
+
+    if (startDate) {
+      auditedQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      auditedQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    auditedQuery += `
+      GROUP BY t.Id, t.TerritoryName
+      ORDER BY t.TerritoryName ASC
+    `;
+
+    const auditedResult = await request.query(auditedQuery);
+
+    // Combine data
+    const territoryMap = {};
+    totalStoresResult.recordset.forEach((row) => {
+      territoryMap[row.TerritoryId] = {
+        TerritoryId: row.TerritoryId,
+        TerritoryName: row.TerritoryName,
+        TotalStores: row.TotalStores || 0,
+        AuditedCount: 0,
+        NotAuditedCount: row.TotalStores || 0,
+      };
+    });
+
+    auditedResult.recordset.forEach((row) => {
+      if (territoryMap[row.TerritoryId]) {
+        territoryMap[row.TerritoryId].AuditedCount = row.AuditedCount || 0;
+        territoryMap[row.TerritoryId].NotAuditedCount =
+          territoryMap[row.TerritoryId].TotalStores - (row.AuditedCount || 0);
+      }
+    });
+
+    const data = Object.values(territoryMap).map((item) => ({
+      TerritoryId: item.TerritoryId,
+      TerritoryName: item.TerritoryName,
+      AuditedCount: item.AuditedCount,
+      NotAuditedCount: Math.max(0, item.NotAuditedCount),
+    }));
+
+    // Calculate totals
+    const totals = data.reduce(
+      (acc, item) => {
+        acc.AuditedCount += item.AuditedCount || 0;
+        acc.NotAuditedCount += item.NotAuditedCount || 0;
+        return acc;
+      },
+      { AuditedCount: 0, NotAuditedCount: 0 }
+    );
+
+    res.json({
+      success: true,
+      data: {
+        territories: data,
+        totals: totals,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching stores by territory:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching stores by territory",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
 module.exports = {
   getSummary,
   getUserDetail,
@@ -816,4 +958,5 @@ module.exports = {
   getProductPrices,
   getProductTypes,
   getSummaryTable,
+  getStoresByTerritory,
 };

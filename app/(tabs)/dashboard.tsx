@@ -364,6 +364,21 @@ interface StoresByDate {
   NotAuditedCount: number;
 }
 
+interface TerritorySummary {
+  TerritoryId: number;
+  TerritoryName: string;
+  AuditedCount: number;
+  NotAuditedCount: number;
+}
+
+interface TerritorySummaryResponse {
+  territories: TerritorySummary[];
+  totals: {
+    AuditedCount: number;
+    NotAuditedCount: number;
+  };
+}
+
 // Helper function to get week dates (7 days) for a given month and week number
 const getWeekDates = (
   year: number,
@@ -423,6 +438,8 @@ export default function DashboardScreen() {
 
   // Chart data
   const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
+  const [territorySummary, setTerritorySummary] =
+    useState<TerritorySummaryResponse | null>(null);
 
   useEffect(() => {
     fetchTerritories();
@@ -430,6 +447,7 @@ export default function DashboardScreen() {
 
   useEffect(() => {
     fetchStoresByDate();
+    fetchStoresByTerritory();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
 
@@ -523,6 +541,37 @@ export default function DashboardScreen() {
     } catch (error) {
       console.error("Error fetching stores by date:", error);
       setStoresByDate([]);
+    }
+  };
+
+  const fetchStoresByTerritory = async () => {
+    try {
+      const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
+      if (weekDates.length === 0) {
+        setTerritorySummary(null);
+        return;
+      }
+
+      const startDate = weekDates[0];
+      const endDate = weekDates[weekDates.length - 1];
+
+      const params: any = {
+        startDate,
+        endDate,
+      };
+
+      const response = await api.get("/dashboard/stores-by-territory", {
+        params,
+      });
+
+      if (response.data.success) {
+        setTerritorySummary(response.data.data);
+      } else {
+        setTerritorySummary(null);
+      }
+    } catch (error) {
+      console.error("Error fetching stores by territory:", error);
+      setTerritorySummary(null);
     }
   };
 
@@ -777,6 +826,180 @@ export default function DashboardScreen() {
             </Text>
           </View>
         )}
+
+        {/* Territory Summary Table */}
+        {territorySummary && territorySummary.territories.length > 0 && (
+          <View
+            style={[
+              styles.chartSection,
+              {
+                borderColor: colors.icon + "20",
+                backgroundColor: colors.secondary,
+                marginTop: 16,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.sectionTitle,
+                { color: colors.text, marginBottom: 12 },
+              ]}
+            >
+              Tổng hợp theo địa bàn
+            </Text>
+            <View style={styles.tableContainer}>
+              {/* Table Header */}
+              <View
+                style={[
+                  styles.tableRow,
+                  styles.tableHeader,
+                  { backgroundColor: colors.primary + "15" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tableHeaderText,
+                    { color: colors.text, flex: 0.3, textAlign: "center" },
+                  ]}
+                >
+                  STT
+                </Text>
+                <Text
+                  style={[
+                    styles.tableHeaderText,
+                    { color: colors.text, flex: 1 },
+                  ]}
+                >
+                  Địa bàn
+                </Text>
+                <Text
+                  style={[
+                    styles.tableHeaderText,
+                    { color: colors.text, flex: 0.8, textAlign: "center" },
+                  ]}
+                >
+                  Đã thực hiện
+                </Text>
+                <Text
+                  style={[
+                    styles.tableHeaderText,
+                    { color: colors.text, flex: 0.8, textAlign: "center" },
+                  ]}
+                >
+                  Chưa thực hiện
+                </Text>
+              </View>
+              {/* Table Rows */}
+              {territorySummary.territories.map((item, index) => (
+                <View
+                  key={item.TerritoryId}
+                  style={[
+                    styles.tableRow,
+                    { borderBottomColor: colors.icon + "20" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tableCellText,
+                      { color: colors.text, flex: 0.3, textAlign: "center" },
+                    ]}
+                  >
+                    {index + 1}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tableCellText,
+                      { color: colors.text, flex: 1 },
+                    ]}
+                  >
+                    {item.TerritoryName}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tableCellText,
+                      {
+                        color: "#10B981",
+                        flex: 0.8,
+                        textAlign: "center",
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    {item.AuditedCount}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.tableCellText,
+                      {
+                        color: "#F59E0B",
+                        flex: 0.8,
+                        textAlign: "center",
+                        fontWeight: "600",
+                      },
+                    ]}
+                  >
+                    {item.NotAuditedCount}
+                  </Text>
+                </View>
+              ))}
+              {/* Table Footer (Totals) */}
+              <View
+                style={[
+                  styles.tableRow,
+                  styles.tableFooter,
+                  {
+                    backgroundColor: colors.primary + "10",
+                    borderTopWidth: 2,
+                    borderTopColor: colors.primary,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.tableFooterText,
+                    { color: colors.text, flex: 0.3, textAlign: "center" },
+                  ]}
+                >
+                  Tổng
+                </Text>
+                <Text
+                  style={[
+                    styles.tableFooterText,
+                    { color: colors.text, flex: 1 },
+                  ]}
+                >
+                  -
+                </Text>
+                <Text
+                  style={[
+                    styles.tableFooterText,
+                    {
+                      color: "#10B981",
+                      flex: 0.8,
+                      textAlign: "center",
+                      fontWeight: "700",
+                    },
+                  ]}
+                >
+                  {territorySummary.totals.AuditedCount}
+                </Text>
+                <Text
+                  style={[
+                    styles.tableFooterText,
+                    {
+                      color: "#F59E0B",
+                      flex: 0.8,
+                      textAlign: "center",
+                      fontWeight: "700",
+                    },
+                  ]}
+                >
+                  {territorySummary.totals.NotAuditedCount}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
       </ScrollView>
 
       {/* Territory Picker Modal */}
@@ -1004,6 +1227,38 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     textAlign: "center",
     padding: 20,
+  },
+  tableContainer: {
+    borderRadius: 8,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  tableRow: {
+    flexDirection: "row",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    alignItems: "center",
+  },
+  tableHeader: {
+    paddingVertical: 14,
+  },
+  tableHeaderText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  tableCellText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  tableFooter: {
+    paddingVertical: 14,
+    borderBottomWidth: 0,
+  },
+  tableFooterText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   backButtonContainer: {
     paddingHorizontal: 16,
