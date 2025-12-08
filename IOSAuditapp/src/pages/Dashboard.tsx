@@ -88,6 +88,25 @@ const getWeekDates = (year: number, month: number, weekNumber: number): string[]
   return dates;
 };
 
+// Helper function to get month start and end dates
+const getMonthDates = (year: number, month: number): { startDate: string; endDate: string } => {
+  const monthIndex = month - 1;
+  const startDate = new Date(year, monthIndex, 1);
+  const endDate = new Date(year, monthIndex + 1, 0); // Last day of month
+  
+  const formatDate = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  
+  return {
+    startDate: formatDate(startDate),
+    endDate: formatDate(endDate),
+  };
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { colors } = useTheme();
@@ -110,8 +129,11 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchStoresByDate();
-    fetchStoresByTerritory();
   }, [selectedMonth, selectedYear, selectedWeek, selectedTerritory]);
+
+  useEffect(() => {
+    fetchStoresByTerritory();
+  }, [selectedMonth, selectedYear]);
 
   const fetchTerritories = async () => {
     try {
@@ -200,14 +222,7 @@ export default function Dashboard() {
 
   const fetchStoresByTerritory = async () => {
     try {
-      const weekDates = getWeekDates(selectedYear, selectedMonth, selectedWeek);
-      if (weekDates.length === 0) {
-        setTerritorySummary(null);
-        return;
-      }
-
-      const startDate = weekDates[0];
-      const endDate = weekDates[weekDates.length - 1];
+      const { startDate, endDate } = getMonthDates(selectedYear, selectedMonth);
 
       const params: any = {
         startDate,
@@ -488,6 +503,9 @@ export default function Dashboard() {
             <h3 className="section-title" style={{ color: colors.text, marginBottom: "12px" }}>
               Tổng hợp theo địa bàn
             </h3>
+            <p className="chart-subtitle" style={{ color: colors.icon, marginBottom: "12px" }}>
+              {getMonthName(selectedMonth)} {selectedYear}
+            </p>
             <div className="table-container">
               <table className="territory-table">
                 <thead>
