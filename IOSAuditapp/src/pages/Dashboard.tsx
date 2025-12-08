@@ -569,8 +569,8 @@ export default function Dashboard() {
                 {territorySummary.totals && (
                 <tfoot>
                   <tr className="table-footer-row" style={{ backgroundColor: colors.primary + "10", borderTop: `2px solid ${colors.primary}` }}>
-                    <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600", textAlign: "center" }}>Tổng</td>
-                    <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600" }}>-</td>
+                    <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600", textAlign: "center" }}></td>
+                    <td className="table-footer-cell" style={{ color: colors.text, fontWeight: "600" }}>Tổng</td>
                     <td className="table-footer-cell" style={{ color: "#10B981", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.StoresChecked}</td>
                     <td className="table-footer-cell" style={{ color: "#F59E0B", fontWeight: "700", textAlign: "center" }}>{territorySummary.totals.CheckinDays}</td>
                   </tr>
