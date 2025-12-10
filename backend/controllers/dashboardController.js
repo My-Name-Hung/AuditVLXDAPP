@@ -186,6 +186,112 @@ async function getUserDetail(req, res) {
   }
 }
 
+// Get territory detail checkin data
+async function getTerritoryDetail(req, res) {
+  try {
+    const { territoryId } = req.params;
+    const { startDate, endDate, storeName } = req.query;
+
+    console.log("getTerritoryDetail called with params:", {
+      territoryId,
+      startDate,
+      endDate,
+      storeName,
+    });
+
+    const pool = await getPool();
+    const request = pool.request();
+
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
+
+    request.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+
+    let query = `
+      SELECT 
+        CAST(a.AuditDate AS DATE) as CheckinDate,
+        a.Id as AuditId,
+        s.Id as StoreId,
+        s.StoreName,
+        s.Address,
+        t.TerritoryName,
+        MIN(img.CapturedAt) as CheckinTime,
+        a.Notes
+      FROM Audits a
+      INNER JOIN Stores s ON a.StoreId = s.Id
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      INNER JOIN Images img ON a.Id = img.AuditId
+      WHERE s.TerritoryId = @TerritoryId
+        AND img.ImageUrl IS NOT NULL
+        AND img.ImageUrl != ''
+    `;
+
+    // Filter audits by current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND a.UserId = @currentUserId`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
+    // Also filter stores by current user (unless admin)
+    if (currentUserId && currentUserRole !== "admin") {
+      query += ` AND (
+        s.UserId = @currentUserId
+        OR EXISTS (
+          SELECT 1 FROM StoreUsers su
+          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
+        )
+      )`;
+      // Note: currentUserId already declared above, no need to declare again
+    }
+
+    if (startDate) {
+      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+
+    if (endDate) {
+      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    // Filter by store name
+    if (storeName && storeName.trim() !== "") {
+      const storeNamePattern = `%${storeName.trim()}%`;
+      query += " AND s.StoreName LIKE @storeName";
+      request.input("storeName", sql.NVarChar(200), storeNamePattern);
+    }
+
+    query += `
+      GROUP BY CAST(a.AuditDate AS DATE),
+               a.Id,
+               s.Id,
+               s.StoreName,
+               s.Address,
+               t.TerritoryName,
+               a.Notes
+      ORDER BY CheckinDate DESC, CheckinTime DESC
+    `;
+
+    // Set timeout to 60 seconds
+    request.timeout = 60000;
+    const result = await request.query(query);
+
+    res.json({
+      success: true,
+      data: result.recordset,
+    });
+  } catch (error) {
+    console.error("Error fetching territory detail:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching territory detail",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+}
+
 // Export Excel report
 async function exportReport(req, res) {
   try {
@@ -923,6 +1029,7 @@ async function getStoresByTerritory(req, res) {
 module.exports = {
   getSummary,
   getUserDetail,
+  getTerritoryDetail,
   exportReport,
   getStoresByDate,
   getProductPrices,

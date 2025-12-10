@@ -257,23 +257,23 @@ export default function Dashboard() {
     );
   }
 
-    return (
+  return (
     <div
       className="dashboard-container"
       style={{ backgroundColor: colors.background }}
     >
-        <Header />
-        <div className="back-button-container">
-          <div
-            className="back-button"
-            style={{ borderColor: colors.icon + "40", cursor: "pointer" }}
-            onClick={() => navigate("/stores")}
-          >
-            <span style={{ fontSize: "16px" }}>←</span>
-            <span style={{ color: colors.text }}>Quay lại</span>
-          </div>
+      <Header />
+      <div className="back-button-container">
+        <div
+          className="back-button"
+          style={{ borderColor: colors.icon + "40", cursor: "pointer" }}
+          onClick={() => navigate("/stores")}
+        >
+          <span style={{ fontSize: "16px" }}>←</span>
+          <span style={{ color: colors.text }}>Quay lại</span>
         </div>
-        <div className="dashboard-content">
+      </div>
+      <div className="dashboard-content">
         {/* Filters Section */}
         <div
           className="filter-section"
@@ -288,9 +288,9 @@ export default function Dashboard() {
 
           {/* Territory Filter */}
           <div className="filter-row">
-              <label className="filter-label" style={{ color: colors.text }}>
-                Địa bàn:
-              </label>
+            <label className="filter-label" style={{ color: colors.text }}>
+              Địa bàn:
+            </label>
             <div
               className="dropdown"
               style={{
@@ -600,7 +600,7 @@ export default function Dashboard() {
                     <th
                       className="table-header-cell"
                       style={{
-                          color: colors.text,
+                        color: colors.text,
                         width: "25%",
                         textAlign: "center",
                       }}
@@ -624,7 +624,24 @@ export default function Dashboard() {
                           className="table-cell"
                           style={{ color: colors.text }}
                         >
-                          {item.TerritoryName}
+                          <span
+                            style={{
+                              color: colors.primary,
+                              textDecoration: "underline",
+                              cursor: "pointer",
+                            }}
+                            onClick={() => {
+                              navigate(
+                                `/territory-detail/${
+                                  item.TerritoryId
+                                }?territoryName=${encodeURIComponent(
+                                  item.TerritoryName
+                                )}`
+                              );
+                            }}
+                          >
+                            {item.TerritoryName}
+                          </span>
                         </td>
                         <td
                           className="table-cell"
@@ -712,8 +729,8 @@ export default function Dashboard() {
                 )}
               </table>
             </div>
-              </div>
-          )}
+          </div>
+        )}
       </div>
 
       {/* Territory Picker Modal */}
@@ -721,8 +738,8 @@ export default function Dashboard() {
         <div
           className="modal-overlay"
           onClick={() => {
-          setShowTerritoryModal(false);
-          setTerritorySearch("");
+            setShowTerritoryModal(false);
+            setTerritorySearch("");
           }}
         >
           <div

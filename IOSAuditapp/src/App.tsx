@@ -12,6 +12,7 @@ import StoreDetail from './pages/StoreDetail';
 import StoreSurvey from './pages/StoreSurvey';
 import Profile from './pages/Profile';
 import Dashboard from './pages/Dashboard';
+import TerritoryDetail from './pages/TerritoryDetail';
 import './App.css';
 
 function ProtectedRoute({ children, allowPasswordChange = false }: { children: React.ReactNode; allowPasswordChange?: boolean }) {
@@ -165,6 +166,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/territory-detail/:id"
+          element={
+            <ProtectedRoute>
+              <TerritoryDetail />
             </ProtectedRoute>
           }
         />

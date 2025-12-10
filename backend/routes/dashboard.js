@@ -5,6 +5,7 @@ const { authenticateToken } = require('../middlewares/auth');
 
 router.get('/summary', authenticateToken, dashboardController.getSummary);
 router.get('/user/:userId', authenticateToken, dashboardController.getUserDetail);
+router.get('/territory/:territoryId', authenticateToken, dashboardController.getTerritoryDetail);
 router.get('/export', authenticateToken, dashboardController.exportReport);
 router.get('/stores-by-date', authenticateToken, dashboardController.getStoresByDate);
 router.get('/product-prices', authenticateToken, dashboardController.getProductPrices);

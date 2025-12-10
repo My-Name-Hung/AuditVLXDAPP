@@ -396,7 +396,7 @@ export default function DashboardScreen() {
   const [selectedWeek, setSelectedWeek] = useState<number>(0); // 0 = Tất cả, 1-4 = Tuần 1-4
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
-
+  
   // Chart data
   // Removed storesByDate - chart now always shows by territory
   // const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
@@ -555,12 +555,12 @@ export default function DashboardScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Bộ lọc
           </Text>
-
+          
           {/* Territory Filter */}
           <View style={styles.filterRow}>
-            <Text style={[styles.filterLabel, { color: colors.text }]}>
-              Địa bàn:
-            </Text>
+              <Text style={[styles.filterLabel, { color: colors.text }]}>
+                Địa bàn:
+              </Text>
             <TouchableOpacity
               style={[
                 styles.dropdown,
@@ -787,7 +787,7 @@ export default function DashboardScreen() {
               ]}
             >
               Tổng hợp theo địa bàn
-            </Text>
+          </Text>
             <Text
               style={[
                 styles.chartSubtitle,
@@ -820,7 +820,7 @@ export default function DashboardScreen() {
                   ]}
                 >
                   Địa bàn
-                </Text>
+                    </Text>
                 <Text
                   style={[
                     styles.tableHeaderText,
@@ -857,14 +857,31 @@ export default function DashboardScreen() {
                     >
                       {index + 1}
                     </Text>
-                    <Text
-                      style={[
-                        styles.tableCellText,
-                        { color: colors.text, flex: 1 },
-                      ]}
+                      <TouchableOpacity
+                      style={{ flex: 1 }}
+                        onPress={() => {
+                        router.push({
+                          pathname: "/(tabs)/territory-detail/[id]",
+                          params: {
+                            id: item.TerritoryId.toString(),
+                            territoryName: item.TerritoryName,
+                          },
+                        });
+                      }}
                     >
-                      {item.TerritoryName}
-                    </Text>
+                      <Text
+                        style={[
+                          styles.tableCellText,
+                          {
+                            color: colors.primary,
+                            flex: 1,
+                            textDecorationLine: "underline",
+                          },
+                        ]}
+                      >
+                        {item.TerritoryName}
+                        </Text>
+                      </TouchableOpacity>
                     <Text
                       style={[
                         styles.tableCellText,
@@ -890,8 +907,8 @@ export default function DashboardScreen() {
                       ]}
                     >
                       {item.CheckinDays}
-                    </Text>
-                  </View>
+                </Text>
+              </View>
                 ))
               ) : (
                 <View style={[styles.tableRow, { paddingVertical: 20 }]}>
@@ -902,8 +919,8 @@ export default function DashboardScreen() {
                     ]}
                   >
                     Chưa có dữ liệu
-                  </Text>
-                </View>
+            </Text>
+        </View>
               )}
               {/* Table Footer (Totals) */}
               {territorySummary.totals && (
@@ -933,9 +950,9 @@ export default function DashboardScreen() {
                     numberOfLines={1}
                   >
                     Tổng
-                  </Text>
+          </Text>
                   <Text
-                    style={[
+                  style={[
                       styles.tableFooterText,
                       {
                         color: "#10B981",
@@ -946,9 +963,9 @@ export default function DashboardScreen() {
                     ]}
                   >
                     {territorySummary.totals.StoresChecked}
-                  </Text>
+                </Text>
                   <Text
-                    style={[
+                  style={[
                       styles.tableFooterText,
                       {
                         color: "#F59E0B",
@@ -959,10 +976,10 @@ export default function DashboardScreen() {
                     ]}
                   >
                     {territorySummary.totals.CheckinDays}
-                  </Text>
+            </Text>
                 </View>
-              )}
-            </View>
+          )}
+        </View>
           </View>
         )}
       </ScrollView>
@@ -1010,8 +1027,8 @@ export default function DashboardScreen() {
                   styles.modalOption,
                   {
                     backgroundColor: !selectedTerritory
-                      ? colors.primary + "20"
-                      : "transparent",
+                        ? colors.primary + "20"
+                        : "transparent",
                   },
                 ]}
                 onPress={() => {
