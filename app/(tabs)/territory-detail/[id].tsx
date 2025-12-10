@@ -2,10 +2,12 @@ import Header from "@/src/components/Header";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -57,8 +59,25 @@ export default function TerritoryDetailScreen() {
   const [endDate, setEndDate] = useState<string>("");
   const [storeNameInput, setStoreNameInput] = useState<string>("");
   const [storeNameFilter, setStoreNameFilter] = useState<string>("");
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
+  const [startDateValue, setStartDateValue] = useState<Date>(new Date());
+  const [endDateValue, setEndDateValue] = useState<Date>(new Date());
   const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const requestAbortRef = useRef<AbortController | null>(null);
+
+  // Format date to yyyy-mm-dd for API
+  const formatDateForAPI = (date: Date): string => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  // Format date to dd/mm/yyyy for display
+  const formatDateForDisplay = (date: Date): string => {
+    return date.toLocaleDateString("vi-VN");
+  };
 
   const fetchTerritoryDetail = useCallback(async () => {
     if (!id) return;
@@ -154,17 +173,14 @@ export default function TerritoryDetailScreen() {
   }
 
   // Group data by date
-  const groupedData = detailData.reduce(
-    (acc, item) => {
-      const date = item.CheckinDate;
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(item);
-      return acc;
-    },
-    {} as Record<string, TerritoryDetailItem[]>
-  );
+  const groupedData = detailData.reduce((acc, item) => {
+    const date = item.CheckinDate;
+    if (!acc[date]) {
+      acc[date] = [];
+    }
+    acc[date].push(item);
+    return acc;
+  }, {} as Record<string, TerritoryDetailItem[]>);
 
   const sortedDates = Object.keys(groupedData).sort(
     (a, b) => new Date(b).getTime() - new Date(a).getTime()
@@ -217,40 +233,106 @@ export default function TerritoryDetailScreen() {
             <Text style={[styles.filterLabel, { color: colors.text }]}>
               Từ ngày:
             </Text>
-            <TextInput
+            <TouchableOpacity
               style={[
                 styles.dateInput,
                 {
                   borderColor: colors.icon + "40",
                   backgroundColor: colors.background,
-                  color: colors.text,
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingRight: 40,
                 },
               ]}
-              placeholder="dd/mm/yyyy"
-              placeholderTextColor={colors.icon}
-              value={startDate}
-              onChangeText={setStartDate}
-            />
+              onPress={() => setShowStartDatePicker(true)}
+            >
+              <Text
+                style={[
+                  {
+                    flex: 1,
+                    color: startDate ? colors.text : colors.icon,
+                  },
+                ]}
+              >
+                {startDate
+                  ? formatDateForDisplay(new Date(startDate + "T00:00:00"))
+                  : "dd/mm/yyyy"}
+              </Text>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={colors.icon}
+                style={{ marginLeft: 8 }}
+              />
+            </TouchableOpacity>
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={startDateValue}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
+                  setShowStartDatePicker(Platform.OS === "ios");
+                  if (selectedDate) {
+                    setStartDateValue(selectedDate);
+                    setStartDate(formatDateForAPI(selectedDate));
+                  }
+                }}
+              />
+            )}
           </View>
 
           <View style={styles.filterRow}>
             <Text style={[styles.filterLabel, { color: colors.text }]}>
               Đến ngày:
             </Text>
-            <TextInput
+            <TouchableOpacity
               style={[
                 styles.dateInput,
                 {
                   borderColor: colors.icon + "40",
                   backgroundColor: colors.background,
-                  color: colors.text,
+                  justifyContent: "center",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  paddingRight: 40,
                 },
               ]}
-              placeholder="dd/mm/yyyy"
-              placeholderTextColor={colors.icon}
-              value={endDate}
-              onChangeText={setEndDate}
-            />
+              onPress={() => setShowEndDatePicker(true)}
+            >
+              <Text
+                style={[
+                  {
+                    flex: 1,
+                    color: endDate ? colors.text : colors.icon,
+                  },
+                ]}
+              >
+                {endDate
+                  ? formatDateForDisplay(new Date(endDate + "T00:00:00"))
+                  : "dd/mm/yyyy"}
+              </Text>
+              <Ionicons
+                name="calendar-outline"
+                size={20}
+                color={colors.icon}
+                style={{ marginLeft: 8 }}
+              />
+            </TouchableOpacity>
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={endDateValue}
+                mode="date"
+                display={Platform.OS === "ios" ? "spinner" : "default"}
+                onChange={(event, selectedDate) => {
+                  setShowEndDatePicker(Platform.OS === "ios");
+                  if (selectedDate) {
+                    setEndDateValue(selectedDate);
+                    setEndDate(formatDateForAPI(selectedDate));
+                  }
+                }}
+              />
+            )}
           </View>
 
           {/* Store Name Filter */}
@@ -575,4 +657,3 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
 });
-

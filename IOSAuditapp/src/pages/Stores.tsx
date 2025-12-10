@@ -80,6 +80,27 @@ const filterStoresByStatus = (
   return stores;
 };
 
+const loadSavedFilters = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("storesFilters");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      searchText: parsed.searchText || "",
+      selectedTerritory:
+        parsed.selectedTerritory === undefined ||
+        parsed.selectedTerritory === null
+          ? null
+          : Number(parsed.selectedTerritory),
+      selectedStatus:
+        parsed.selectedStatus === undefined ? null : parsed.selectedStatus,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export default function Stores() {
   const navigate = useNavigate();
   const { colors } = useTheme();
@@ -90,11 +111,20 @@ export default function Stores() {
   const [hasMore, setHasMore] = useState(true);
 
   // Filters
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(() => {
+    const saved = loadSavedFilters();
+    return saved?.searchText ?? "";
+  });
   const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
-    null
+    () => {
+      const saved = loadSavedFilters();
+      return saved?.selectedTerritory ?? null;
+    }
   );
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(() => {
+    const saved = loadSavedFilters();
+    return saved?.selectedStatus ?? null;
+  });
   const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
@@ -117,55 +147,53 @@ export default function Stores() {
 
   const fetchStores = useCallback(
     async (reset = false, currentPage = 1) => {
-    try {
-      if (reset) {
-        setLoading(true);
-        setPage(1);
-      }
+      try {
+        if (reset) {
+          setLoading(true);
+          setPage(1);
+        }
 
         const params: Record<string, string | number> = {
           page: reset ? 1 : currentPage,
-        pageSize: 50,
-      };
+          pageSize: 50,
+        };
 
-      if (searchText.trim()) {
-        params.storeName = searchText.trim();
-      }
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
-      }
-      if (selectedStatus) {
-        params.status = selectedStatus;
-      }
+        if (searchText.trim()) {
+          params.storeName = searchText.trim();
+        }
+        if (selectedTerritory) {
+          params.territoryId = selectedTerritory;
+        }
+        if (selectedStatus) {
+          params.status = selectedStatus;
+        }
 
         const response = await api.get("/stores", { params });
-      const data = response.data.data || [];
-      const pagination = response.data.pagination || {};
+        const data = response.data.data || [];
+        const pagination = response.data.pagination || {};
 
-      const sortedData = sortStoresByStatus(data);
-      const filteredData = filterStoresByStatus(sortedData, selectedStatus);
+        const sortedData = sortStoresByStatus(data);
+        const filteredData = filterStoresByStatus(sortedData, selectedStatus);
 
-      if (reset) {
-        setStores(filteredData);
+        if (reset) {
+          setStores(filteredData);
           setPage(2); // Set next page for pagination
-      } else {
-        setStores((prev) =>
-          sortStoresByStatus([...prev, ...filteredData])
-        );
+        } else {
+          setStores((prev) => sortStoresByStatus([...prev, ...filteredData]));
           setPage((prev) => prev + 1);
-      }
+        }
 
-      setHasMore(pagination.page < pagination.totalPages);
-    } catch (error) {
+        setHasMore(pagination.page < pagination.totalPages);
+      } catch (error) {
         console.error("Error fetching stores:", error);
         // Set empty array on error to prevent UI blocking
         if (reset) {
           setStores([]);
         }
-    } finally {
-      setLoading(false);
+      } finally {
+        setLoading(false);
         setIsSearching(false);
-    }
+      }
     },
     [searchText, selectedTerritory, selectedStatus]
   );
@@ -188,7 +216,7 @@ export default function Stores() {
   useEffect(() => {
     let isRefreshing = false;
     let wasHidden = document.hidden;
-    
+
     const handleVisibilityChange = () => {
       // Only refresh when page becomes visible (user navigated back)
       if (!document.hidden && wasHidden) {
@@ -198,7 +226,7 @@ export default function Stores() {
         wasHidden = true;
       }
     };
-    
+
     const handleFocus = () => {
       // Only refresh if page was previously hidden
       if (wasHidden) {
@@ -206,17 +234,17 @@ export default function Stores() {
         refreshStores();
       }
     };
-    
+
     // Refresh stores in background without blocking UI
     const refreshStores = async () => {
       // Prevent multiple simultaneous refreshes
       if (isRefreshing) return;
-      
+
       try {
         isRefreshing = true;
         // Small delay to ensure navigation completes
         await new Promise((resolve) => setTimeout(resolve, 300));
-        
+
         const params: Record<string, string | number> = {
           page: 1,
           pageSize: 50,
@@ -236,7 +264,7 @@ export default function Stores() {
         const data = response.data.data || [];
         const sortedData = sortStoresByStatus(data);
         const filteredData = filterStoresByStatus(sortedData, selectedStatus);
-        
+
         // Update stores silently without showing loading state
         setStores(filteredData);
       } catch (error) {
@@ -250,7 +278,7 @@ export default function Stores() {
     // Listen for page visibility change and window focus
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleFocus);
-    
+
     return () => {
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleFocus);
@@ -277,6 +305,18 @@ export default function Stores() {
       }
     };
   }, [searchText, selectedTerritory, selectedStatus, fetchStores]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+      "storesFilters",
+      JSON.stringify({
+        searchText,
+        selectedTerritory,
+        selectedStatus,
+      })
+    );
+  }, [searchText, selectedTerritory, selectedStatus]);
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
