@@ -211,36 +211,42 @@ export default function TerritoryDetail() {
             <label className="filter-label" style={{ color: colors.text }}>
               Từ ngày:
             </label>
-            <input
-              type="text"
-              className="date-input"
-              style={{
-                borderColor: colors.icon + "40",
-                backgroundColor: colors.background,
-                color: colors.text,
-              }}
-              placeholder="dd/mm/yyyy"
-              value={startDate}
-              onChange={(e) => setStartDate(e.target.value)}
-            />
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="date"
+                className="date-input"
+                style={{
+                  borderColor: colors.icon + "40",
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  paddingRight: "40px",
+                  width: "100%",
+                }}
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="filter-row">
             <label className="filter-label" style={{ color: colors.text }}>
               Đến ngày:
             </label>
-            <input
-              type="text"
-              className="date-input"
-              style={{
-                borderColor: colors.icon + "40",
-                backgroundColor: colors.background,
-                color: colors.text,
-              }}
-              placeholder="dd/mm/yyyy"
-              value={endDate}
-              onChange={(e) => setEndDate(e.target.value)}
-            />
+            <div style={{ position: "relative", flex: 1 }}>
+              <input
+                type="date"
+                className="date-input"
+                style={{
+                  borderColor: colors.icon + "40",
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  paddingRight: "40px",
+                  width: "100%",
+                }}
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+              />
+            </div>
           </div>
 
           {/* Store Name Filter */}
