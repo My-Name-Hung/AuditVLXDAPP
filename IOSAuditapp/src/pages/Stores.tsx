@@ -125,7 +125,7 @@ export default function Stores() {
     const saved = loadSavedFilters();
     return saved?.selectedStatus ?? null;
   });
-  const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -367,7 +367,7 @@ export default function Stores() {
           <div className="stores-dropdown-container">
             <button
               className="stores-dropdown"
-              onClick={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
+              onClick={() => setShowTerritoryModal(true)}
               style={{
                 backgroundColor:
                   colors.background === "#fefefe"
@@ -382,60 +382,8 @@ export default function Stores() {
                       ?.TerritoryName
                   : "Địa bàn phụ trách"}
               </span>
-              <span>{showTerritoryDropdown ? "▲" : "▼"}</span>
+              <span>▼</span>
             </button>
-            {showTerritoryDropdown && (
-              <div
-                className="stores-dropdown-menu"
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.icon + "20",
-                }}
-              >
-                <input
-                  type="text"
-                  className="stores-dropdown-search"
-                  placeholder="Tìm địa bàn..."
-                  value={territorySearch}
-                  onChange={(e) => setTerritorySearch(e.target.value)}
-                  style={{
-                    color: colors.text,
-                    borderBottomColor: colors.icon + "20",
-                  }}
-                />
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedTerritory(null);
-                    setShowTerritoryDropdown(false);
-                    setTerritorySearch("");
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.primary,
-                  }}
-                >
-                  Tất cả
-                </button>
-                {filteredTerritories.map((item) => (
-                  <button
-                    key={item.Id}
-                    className="stores-dropdown-item"
-                    onClick={() => {
-                      setSelectedTerritory(item.Id);
-                      setShowTerritoryDropdown(false);
-                      setTerritorySearch("");
-                    }}
-                    style={{
-                      borderBottomColor: colors.secondary,
-                      color: colors.text,
-                    }}
-                  >
-                    {item.TerritoryName}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="stores-dropdown-container">
@@ -580,6 +528,115 @@ export default function Stores() {
           </div>
         )}
       </div>
+
+      {/* Territory Picker Modal */}
+      {showTerritoryModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowTerritoryModal(false);
+            setTerritorySearch("");
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{ backgroundColor: colors.background }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <h3
+                className="modal-title"
+                style={{ color: colors.text, margin: 0 }}
+              >
+                Chọn địa bàn
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "24px",
+                  color: colors.icon,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              className="modal-search-input"
+              style={{
+                backgroundColor: colors.background,
+                color: colors.text,
+                borderColor: colors.icon + "40",
+                marginBottom: "12px",
+              }}
+              value={territorySearch}
+              onChange={(e) => setTerritorySearch(e.target.value)}
+              placeholder="Tìm kiếm địa bàn"
+            />
+            <div className="modal-scroll-view">
+              <div
+                className="modal-option"
+                style={{
+                  backgroundColor: !selectedTerritory
+                    ? colors.primary + "20"
+                    : "transparent",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  setSelectedTerritory(null);
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+              >
+                <span
+                  className="modal-option-text"
+                  style={{ color: colors.text }}
+                >
+                  Tất cả
+                </span>
+              </div>
+              {filteredTerritories.map((territory) => (
+                <div
+                  key={territory.Id}
+                  className="modal-option"
+                  style={{
+                    backgroundColor:
+                      selectedTerritory === territory.Id
+                        ? colors.primary + "20"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    setSelectedTerritory(territory.Id);
+                    setShowTerritoryModal(false);
+                    setTerritorySearch("");
+                  }}
+                >
+                  <span
+                    className="modal-option-text"
+                    style={{ color: colors.text }}
+                  >
+                    {territory.TerritoryName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

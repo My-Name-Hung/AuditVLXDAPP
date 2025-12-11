@@ -219,7 +219,7 @@ export default function TerritoryDetail() {
                   borderColor: colors.icon + "40",
                   backgroundColor: colors.background,
                   color: colors.text,
-                  paddingRight: "40px",
+                  paddingRight: "20px",
                   width: "100%",
                 }}
                 value={startDate}
@@ -240,7 +240,7 @@ export default function TerritoryDetail() {
                   borderColor: colors.icon + "40",
                   backgroundColor: colors.background,
                   color: colors.text,
-                  paddingRight: "40px",
+                  paddingRight: "20px",
                   width: "100%",
                 }}
                 value={endDate}
