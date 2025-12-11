@@ -834,7 +834,7 @@ export default function DashboardScreen() {
                     styles.tableHeaderText,
                     { color: colors.text, flex: 0.8, textAlign: "center" },
                   ]}
-                >
+                  >
                   Số ngày checkin
                 </Text>
               </View>
@@ -867,8 +867,8 @@ export default function DashboardScreen() {
                             territoryName: item.TerritoryName,
                           },
                         });
-                      }}
-                    >
+                        }}
+                      >
                       <Text
                         style={[
                           styles.tableCellText,
@@ -890,8 +890,8 @@ export default function DashboardScreen() {
                           flex: 0.8,
                           textAlign: "center",
                           fontWeight: "600",
-                        },
-                      ]}
+                  },
+                ]}
                     >
                       {item.StoresChecked}
                     </Text>
@@ -910,7 +910,7 @@ export default function DashboardScreen() {
                 </Text>
               </View>
                 ))
-              ) : (
+          ) : (
                 <View style={[styles.tableRow, { paddingVertical: 20 }]}>
                   <Text
                     style={[
@@ -961,7 +961,7 @@ export default function DashboardScreen() {
                         fontWeight: "700",
                       },
                     ]}
-                  >
+                >
                     {territorySummary.totals.StoresChecked}
                 </Text>
                   <Text
@@ -974,7 +974,7 @@ export default function DashboardScreen() {
                         fontWeight: "700",
                       },
                     ]}
-                  >
+                >
                     {territorySummary.totals.CheckinDays}
             </Text>
                 </View>

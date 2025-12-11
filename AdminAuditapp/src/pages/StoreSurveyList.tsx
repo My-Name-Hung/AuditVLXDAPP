@@ -90,15 +90,17 @@ export default function StoreSurveyList() {
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [cementSearch, setCementSearch] = useState("");
+  const [territorySearch, setTerritorySearch] = useState("");
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const [showCementDropdown, setShowCementDropdown] = useState(false);
+  const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
 
   // Filter states
   const [filters, setFilters] = useState({
     storeName: "",
     userName: "",
-    cementProductName: "",
-    territoryName: "",
+    cementProductName: [] as string[], // Changed to array for multi-select
+    territoryName: [] as string[], // Changed to array for multi-select
     priceFrom: "",
     priceTo: "",
   });
@@ -218,30 +220,38 @@ export default function StoreSurveyList() {
         return false;
       }
 
-      // Filter by cement product name (check in products)
-      if (filterValues.cementProductName) {
-        const hasMatchingProduct = survey.products?.some(
-          (product) =>
-            product.CementProductName?.toLowerCase().includes(
-              filterValues.cementProductName.toLowerCase()
-            ) ||
-            product.CementProductCode?.toLowerCase().includes(
-              filterValues.cementProductName.toLowerCase()
-            )
+      // Filter by cement product name (check in products) - support multiple
+      if (
+        Array.isArray(filterValues.cementProductName) &&
+        filterValues.cementProductName.length > 0
+      ) {
+        const hasMatchingProduct = survey.products?.some((product) =>
+          filterValues.cementProductName.some(
+            (filterName) =>
+              product.CementProductName?.toLowerCase().includes(
+                filterName.toLowerCase()
+              ) ||
+              product.CementProductCode?.toLowerCase().includes(
+                filterName.toLowerCase()
+              )
+          )
         );
         if (!hasMatchingProduct) {
           return false;
         }
       }
 
-      // Filter by territory name
+      // Filter by territory name - support multiple
       if (
-        filterValues.territoryName &&
-        !survey.TerritoryName?.toLowerCase().includes(
-          filterValues.territoryName.toLowerCase()
-        )
+        Array.isArray(filterValues.territoryName) &&
+        filterValues.territoryName.length > 0
       ) {
-        return false;
+        const matchesTerritory = filterValues.territoryName.some((filterName) =>
+          survey.TerritoryName?.toLowerCase().includes(filterName.toLowerCase())
+        );
+        if (!matchesTerritory) {
+          return false;
+        }
       }
 
       // Filter by price range (check in products)
@@ -289,8 +299,42 @@ export default function StoreSurveyList() {
     });
   };
 
-  const handleFilterChange = (field: string, value: string) => {
+  const handleFilterChange = (field: string, value: string | string[]) => {
     setFilters((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleCementProductToggle = (productName: string) => {
+    setFilters((prev) => {
+      const current = prev.cementProductName as string[];
+      if (current.includes(productName)) {
+        return {
+          ...prev,
+          cementProductName: current.filter((name) => name !== productName),
+        };
+      } else {
+        return {
+          ...prev,
+          cementProductName: [...current, productName],
+        };
+      }
+    });
+  };
+
+  const handleTerritoryToggle = (territoryName: string) => {
+    setFilters((prev) => {
+      const current = prev.territoryName as string[];
+      if (current.includes(territoryName)) {
+        return {
+          ...prev,
+          territoryName: current.filter((name) => name !== territoryName),
+        };
+      } else {
+        return {
+          ...prev,
+          territoryName: [...current, territoryName],
+        };
+      }
+    });
   };
 
   const handleApplyFilters = () => {
@@ -312,14 +356,15 @@ export default function StoreSurveyList() {
     const emptyFilters = {
       storeName: "",
       userName: "",
-      cementProductName: "",
-      territoryName: "",
+      cementProductName: [] as string[],
+      territoryName: [] as string[],
       priceFrom: "",
       priceTo: "",
     };
     setFilters(emptyFilters);
     setUserSearch("");
     setCementSearch("");
+    setTerritorySearch("");
     setSelectedWeek("all");
     // Fetch with empty filters immediately
     fetchSurveysWithFilters(emptyFilters);
@@ -335,10 +380,19 @@ export default function StoreSurveyList() {
 
       if (filterValues.storeName) params.storeName = filterValues.storeName;
       if (filterValues.userName) params.userName = filterValues.userName;
-      if (filterValues.cementProductName)
-        params.cementProductName = filterValues.cementProductName;
-      if (filterValues.territoryName)
-        params.territoryName = filterValues.territoryName;
+      // Send array as comma-separated string for backend
+      if (
+        Array.isArray(filterValues.cementProductName) &&
+        filterValues.cementProductName.length > 0
+      ) {
+        params.cementProductName = filterValues.cementProductName.join(",");
+      }
+      if (
+        Array.isArray(filterValues.territoryName) &&
+        filterValues.territoryName.length > 0
+      ) {
+        params.territoryName = filterValues.territoryName.join(",");
+      }
       if (filterValues.priceFrom) {
         const priceFromValue = filterValues.priceFrom.replace(/[^\d]/g, "");
         if (priceFromValue) params.priceFrom = priceFromValue;
@@ -403,6 +457,12 @@ export default function StoreSurveyList() {
     (product) =>
       product.Name.toLowerCase().includes(cementSearch.toLowerCase()) ||
       product.Code.toLowerCase().includes(cementSearch.toLowerCase())
+  );
+
+  const filteredTerritories = territories.filter((territory) =>
+    territory.TerritoryName.toLowerCase().includes(
+      territorySearch.toLowerCase()
+    )
   );
 
   // Helper function to calculate week numbers from a specific date
@@ -541,30 +601,34 @@ export default function StoreSurveyList() {
       const workbook = new ExcelJS.Workbook();
 
       // Calculate week number from selected week or current date
-      let weekNumberInMonth: number;
-      let weekNumberInYear: number;
-      let year: number;
+      let weekNumberInMonth: number = 0;
+      let weekNumberInYear: number = 0;
+      let year: number = currentYear;
 
       if (selectedWeek !== "all") {
-        // Use selected week
-        const weekNumber = parseInt(selectedWeek, 10);
-        // Find a date in the selected week to calculate week numbers
-        const januaryFirst = new Date(currentYear, 0, 1);
-        const firstDayOfWeek = januaryFirst.getDay();
-        const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-        const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
-        const weekStart = new Date(januaryFirst);
-        weekStart.setDate(januaryFirst.getDate() + weekStartDays);
+        try {
+          // Use selected week
+          const weekNumber = parseInt(selectedWeek, 10);
+          if (!isNaN(weekNumber) && weekNumber > 0) {
+            // Find a date in the selected week to calculate week numbers
+            const januaryFirst = new Date(currentYear, 0, 1);
+            const firstDayOfWeek = januaryFirst.getDay();
+            const firstMondayOffset =
+              firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+            const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
+            const weekStart = new Date(januaryFirst);
+            weekStart.setDate(januaryFirst.getDate() + weekStartDays);
 
-        const weekNumbers = calculateWeekNumbers(weekStart);
-        weekNumberInMonth = weekNumbers.weekNumberInMonth;
-        weekNumberInYear = weekNumbers.weekNumberInYear;
-        year = weekNumbers.year;
-      } else {
-        // Use current date for year
-        year = currentYear;
-        weekNumberInMonth = 0; // Not used when "all"
-        weekNumberInYear = 0; // Not used when "all"
+            const weekNumbers = calculateWeekNumbers(weekStart);
+            weekNumberInMonth = weekNumbers.weekNumberInMonth || 0;
+            weekNumberInYear = weekNumbers.weekNumberInYear || 0;
+            year = weekNumbers.year || currentYear;
+          }
+        } catch (error) {
+          console.error("Error calculating week numbers:", error);
+          // Fallback to current year
+          year = currentYear;
+        }
       }
 
       // When selectedWeek === "all", fetch all data without week filter
@@ -581,9 +645,31 @@ export default function StoreSurveyList() {
 
         if (filters.storeName) params.storeName = filters.storeName;
         if (filters.userName) params.userName = filters.userName;
-        if (filters.cementProductName)
-          params.cementProductName = filters.cementProductName;
-        if (filters.territoryName) params.territoryName = filters.territoryName;
+        // Send array as comma-separated string for backend
+        if (
+          Array.isArray(filters.cementProductName) &&
+          filters.cementProductName.length > 0
+        ) {
+          params.cementProductName = filters.cementProductName.join(",");
+        }
+        if (
+          Array.isArray(filters.territoryName) &&
+          filters.territoryName.length > 0
+        ) {
+          params.territoryName = filters.territoryName.join(",");
+        }
+        if (
+          Array.isArray(filters.cementProductName) &&
+          filters.cementProductName.length > 0
+        ) {
+          params.cementProductName = filters.cementProductName.join(",");
+        }
+        if (
+          Array.isArray(filters.territoryName) &&
+          filters.territoryName.length > 0
+        ) {
+          params.territoryName = filters.territoryName.join(",");
+        }
         if (filters.priceFrom) {
           const priceFromValue = filters.priceFrom.replace(/[^\d]/g, "");
           if (priceFromValue) params.priceFrom = priceFromValue;
@@ -602,8 +688,40 @@ export default function StoreSurveyList() {
               const productsRes = await api.get(
                 `/store-survey-products/survey/${survey.Id}`
               );
-              return { ...survey, products: productsRes.data || [] };
-            } catch {
+              let products = productsRes.data || [];
+
+              // Filter products by cement product name if filter is applied (support multiple)
+              if (
+                Array.isArray(filters.cementProductName) &&
+                filters.cementProductName.length > 0
+              ) {
+                products = products.filter(
+                  (product: {
+                    CementProductName?: string | null;
+                    CementProductCode?: string | null;
+                  }) =>
+                    filters.cementProductName.some((filterName) => {
+                      const searchTerm = filterName.toLowerCase().trim();
+                      return (
+                        (product.CementProductName &&
+                          product.CementProductName.toLowerCase().includes(
+                            searchTerm
+                          )) ||
+                        (product.CementProductCode &&
+                          product.CementProductCode.toLowerCase().includes(
+                            searchTerm
+                          ))
+                      );
+                    })
+                );
+              }
+
+              return { ...survey, products: products };
+            } catch (error) {
+              console.error(
+                `Error fetching products for survey ${survey.Id}:`,
+                error
+              );
               return { ...survey, products: [] };
             }
           })
@@ -615,7 +733,39 @@ export default function StoreSurveyList() {
       }
 
       // Filter only XMTĐ products (Title 2 + 3)
-      const xmtdSurveys = surveysToExport.filter(
+      // Also filter products by cement product name if filter is applied (for case when selectedWeek !== "all")
+      let xmtdSurveys = surveysToExport.map((survey) => {
+        // If cement product filter is applied, filter products (support multiple)
+        if (
+          Array.isArray(filters.cementProductName) &&
+          filters.cementProductName.length > 0
+        ) {
+          const filteredProducts = (survey.products || []).filter(
+            (product: {
+              CementProductName?: string | null;
+              CementProductCode?: string | null;
+            }) =>
+              filters.cementProductName.some((filterName) => {
+                const searchTerm = filterName.toLowerCase().trim();
+                return (
+                  (product.CementProductName &&
+                    product.CementProductName.toLowerCase().includes(
+                      searchTerm
+                    )) ||
+                  (product.CementProductCode &&
+                    product.CementProductCode.toLowerCase().includes(
+                      searchTerm
+                    ))
+                );
+              })
+          );
+          return { ...survey, products: filteredProducts };
+        }
+        return survey;
+      });
+
+      // Filter surveys that have XMTĐ products or WhyNotSellNewProduct
+      xmtdSurveys = xmtdSurveys.filter(
         (survey) =>
           survey.WhyNotSellNewProduct ||
           (survey.products && survey.products.length > 0)
@@ -653,34 +803,72 @@ export default function StoreSurveyList() {
 
       // Create sheets for each territory (gộp 2 bảng vào 1 sheet)
       territoryGroups.forEach((territorySurveys, territoryName) => {
+        // Skip if no surveys
+        if (!territorySurveys || territorySurveys.length === 0) {
+          return;
+        }
+
+        // Sanitize sheet name: remove invalid characters and limit to 31 chars (Excel limit)
+        const sanitizeSheetName = (name: string): string => {
+          // Remove invalid characters: \ / ? * [ ]
+          let sanitized = name.replace(/[\\/?:*[\]]/g, "");
+          // Limit to 31 characters (Excel sheet name limit)
+          if (sanitized.length > 31) {
+            sanitized = sanitized.substring(0, 31);
+          }
+          // Ensure not empty
+          if (!sanitized.trim()) {
+            sanitized = "Chua xac dinh";
+          }
+          return sanitized;
+        };
+
         // Single sheet with both tables
-        const sheet = workbook.addWorksheet(
-          `${territoryName || "Chưa xác định"}`
-        );
+        const sheetName = sanitizeSheetName(territoryName || "Chưa xác định");
+        const sheet = workbook.addWorksheet(sheetName);
+
+        // Ensure we have at least 3 rows before merging
+        sheet.addRow([]);
+        sheet.addRow([]);
+        sheet.addRow([]);
 
         // Title rows
-        sheet.mergeCells("A1:O1");
+        try {
+          sheet.mergeCells("A1:O1");
+        } catch (e) {
+          console.warn("Error merging A1:O1:", e);
+        }
         const mainTitle =
           selectedWeek === "all"
             ? "BÁO CÁO THĂM CỬA HÀNG"
-            : `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
-        sheet.getCell("A1").value = mainTitle;
+            : `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth || ""}`;
+        sheet.getCell("A1").value = mainTitle || "";
         sheet.getCell("A1").font = { bold: true, size: 14 };
         sheet.getCell("A1").alignment = { horizontal: "center" };
 
-        sheet.mergeCells("A2:O2");
+        try {
+          sheet.mergeCells("A2:O2");
+        } catch (e) {
+          console.warn("Error merging A2:O2:", e);
+        }
         sheet.getCell("A2").value = `Địa bàn: ${
           territoryName || "Chưa xác định"
         }`;
         sheet.getCell("A2").font = { bold: true, size: 12 };
         sheet.getCell("A2").alignment = { horizontal: "center" };
 
-        sheet.mergeCells("A3:O3");
+        try {
+          sheet.mergeCells("A3:O3");
+        } catch (e) {
+          console.warn("Error merging A3:O3:", e);
+        }
         const reportTitle =
           selectedWeek === "all"
             ? `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NĂM ${year}`
-            : `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
-        sheet.getCell("A3").value = reportTitle;
+            : `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${
+                weekNumberInYear || ""
+              }/${year}`;
+        sheet.getCell("A3").value = reportTitle || "";
         sheet.getCell("A3").font = { bold: true, size: 12 };
         sheet.getCell("A3").alignment = { horizontal: "left" };
 
@@ -733,6 +921,19 @@ export default function StoreSurveyList() {
             return dateA - dateB;
           });
 
+          // Check if this store has any products after filtering
+          const hasProducts = sortedSurveys.some(
+            (survey) =>
+              survey.products &&
+              Array.isArray(survey.products) &&
+              survey.products.length > 0
+          );
+
+          // Skip this store if no products
+          if (!hasProducts) {
+            return;
+          }
+
           let isFirstRow = true;
           let totalPurchasePrice = 0;
           let totalSellingPrice = 0;
@@ -744,90 +945,128 @@ export default function StoreSurveyList() {
 
           // Show products from Title 3 - iterate through ALL surveys for this store
           sortedSurveys.forEach((survey) => {
-            if (survey.products && survey.products.length > 0) {
+            // Ensure products array exists and is not empty
+            if (
+              survey.products &&
+              Array.isArray(survey.products) &&
+              survey.products.length > 0
+            ) {
               survey.products.forEach((product) => {
-                totalPurchasePrice += product.PurchasePrice || 0;
-                totalSellingPrice += product.SellingPrice || 0;
-                totalRoadTransportFee += product.RoadTransportFee || 0;
-                totalWaterTransportFee += product.WaterTransportFee || 0;
-                totalQuantityReceived += product.QuantityReceived || 0;
-                totalAverageStockQuantity += product.AverageStockQuantity || 0;
+                // Skip if product is null or undefined
+                if (!product) return;
 
-                const row = sheet.addRow([
-                  isFirstRow ? sttCounter : "",
-                  storeName,
-                  formatDate(survey.AuditDate),
-                  product.ContactPersonPhone || "",
-                  product.ProductType || "",
-                  product.CementProductName || "",
-                  formatVND(product.PurchasePrice),
-                  formatVND(product.SellingPrice),
-                  formatVND(product.RoadTransportFee),
-                  formatVND(product.WaterTransportFee),
-                  product.QuantityReceived || "",
-                  product.AverageStockQuantity || "",
-                  product.ImportedFromNPP || "",
-                  product.DiscountPromotion || "",
-                  isFirstRow ? survey.StoreComment || "" : "",
-                ]);
+                // Safely access product properties with defaults
+                const purchasePrice = product.PurchasePrice || 0;
+                const sellingPrice = product.SellingPrice || 0;
+                const roadTransportFee = product.RoadTransportFee || 0;
+                const waterTransportFee = product.WaterTransportFee || 0;
+                const quantityReceived = product.QuantityReceived || 0;
+                const averageStockQuantity = product.AverageStockQuantity || 0;
 
-                row.eachCell((cell) => {
-                  cell.border = {
-                    top: { style: "thin" },
-                    bottom: { style: "thin" },
-                    left: { style: "thin" },
-                    right: { style: "thin" },
-                  };
-                  cell.alignment = { vertical: "middle" };
-                });
-                isFirstRow = false;
+                totalPurchasePrice += purchasePrice;
+                totalSellingPrice += sellingPrice;
+                totalRoadTransportFee += roadTransportFee;
+                totalWaterTransportFee += waterTransportFee;
+                totalQuantityReceived += quantityReceived;
+                totalAverageStockQuantity += averageStockQuantity;
+
+                try {
+                  const row = sheet.addRow([
+                    isFirstRow ? sttCounter : "",
+                    storeName || "",
+                    formatDate(survey.AuditDate) || "",
+                    (product.ContactPersonPhone || "").toString(),
+                    (product.ProductType || "").toString(),
+                    (product.CementProductName || "").toString(),
+                    formatVND(purchasePrice) || "",
+                    formatVND(sellingPrice) || "",
+                    formatVND(roadTransportFee) || "",
+                    formatVND(waterTransportFee) || "",
+                    (quantityReceived || "").toString(),
+                    (averageStockQuantity || "").toString(),
+                    (product.ImportedFromNPP || "").toString(),
+                    (product.DiscountPromotion || "").toString(),
+                    isFirstRow ? (survey.StoreComment || "").toString() : "",
+                  ]);
+
+                  row.eachCell((cell) => {
+                    cell.border = {
+                      top: { style: "thin" },
+                      bottom: { style: "thin" },
+                      left: { style: "thin" },
+                      right: { style: "thin" },
+                    };
+                    cell.alignment = { vertical: "middle" };
+                  });
+                  isFirstRow = false;
+                } catch (error) {
+                  console.error(
+                    "Error adding row for product:",
+                    error,
+                    product
+                  );
+                }
               });
             }
           });
 
-          // Add summary row only if there are products
-          if (!isFirstRow) {
-            const summaryRow = sheet.addRow([
-              "",
-              "",
-              "",
-              "",
-              "",
-              `Tổng sản lượng bình quân của cửa hàng: ${storeName}`,
-              formatVND(totalPurchasePrice),
-              formatVND(totalSellingPrice),
-              formatVND(totalRoadTransportFee),
-              formatVND(totalWaterTransportFee),
-              totalQuantityReceived,
-              totalAverageStockQuantity,
-              "",
-              "",
-              "",
-            ]);
+          // Add summary row only if there are products (isFirstRow will be false if products were added)
+          if (
+            !isFirstRow &&
+            (totalPurchasePrice > 0 ||
+              totalSellingPrice > 0 ||
+              totalQuantityReceived > 0 ||
+              totalAverageStockQuantity > 0)
+          ) {
+            try {
+              const summaryRow = sheet.addRow([
+                "",
+                "",
+                "",
+                "",
+                "",
+                `Tổng sản lượng bình quân của cửa hàng: ${storeName || ""}`,
+                formatVND(totalPurchasePrice) || "",
+                formatVND(totalSellingPrice) || "",
+                formatVND(totalRoadTransportFee) || "",
+                formatVND(totalWaterTransportFee) || "",
+                (totalQuantityReceived || "").toString(),
+                (totalAverageStockQuantity || "").toString(),
+                "",
+                "",
+                "",
+              ]);
 
-            summaryRow.eachCell((cell) => {
-              cell.border = {
-                top: { style: "thin" },
-                bottom: { style: "thin" },
-                left: { style: "thin" },
-                right: { style: "thin" },
-              };
-              cell.alignment = { vertical: "middle" };
-            });
+              summaryRow.eachCell((cell) => {
+                cell.border = {
+                  top: { style: "thin" },
+                  bottom: { style: "thin" },
+                  left: { style: "thin" },
+                  right: { style: "thin" },
+                };
+                cell.alignment = { vertical: "middle" };
+              });
 
-            // Style summary row
-            summaryRow.getCell(6).font = { bold: true };
-            summaryRow.getCell(7).font = { bold: true };
-            summaryRow.getCell(8).font = { bold: true };
-            summaryRow.getCell(9).font = { bold: true };
-            summaryRow.getCell(10).font = { bold: true };
-            summaryRow.getCell(11).font = { bold: true };
-            summaryRow.getCell(12).font = { bold: true };
-            summaryRow.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFF0F7FF" },
-            };
+              // Style summary row
+              try {
+                summaryRow.getCell(6).font = { bold: true };
+                summaryRow.getCell(7).font = { bold: true };
+                summaryRow.getCell(8).font = { bold: true };
+                summaryRow.getCell(9).font = { bold: true };
+                summaryRow.getCell(10).font = { bold: true };
+                summaryRow.getCell(11).font = { bold: true };
+                summaryRow.getCell(12).font = { bold: true };
+                summaryRow.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FFF0F7FF" },
+                };
+              } catch (styleError) {
+                console.warn("Error styling summary row:", styleError);
+              }
+            } catch (error) {
+              console.error("Error adding summary row:", error);
+            }
           }
 
           sttCounter++;
@@ -881,7 +1120,11 @@ export default function StoreSurveyList() {
         if (title2Surveys.length > 0) {
           // Title for Table 2
           const title2Row = sheet.rowCount + 1;
-          sheet.mergeCells(`A${title2Row}:I${title2Row}`);
+          try {
+            sheet.mergeCells(`A${title2Row}:I${title2Row}`);
+          } catch (e) {
+            console.warn(`Error merging A${title2Row}:I${title2Row}:`, e);
+          }
           sheet.getCell(`A${title2Row}`).value = `2. KHẢO SÁT SẢN PHẨM XMTĐ`;
           sheet.getCell(`A${title2Row}`).font = { bold: true, size: 12 };
           sheet.getCell(`A${title2Row}`).alignment = { horizontal: "left" };
@@ -916,16 +1159,16 @@ export default function StoreSurveyList() {
           title2Surveys.forEach((survey) => {
             const row2 = sheet.addRow([
               sttCounter2,
-              survey.StoreName || "",
-              formatDate(survey.AuditDate),
-              survey.WhyNotSellNewProduct || "",
+              (survey.StoreName || "").toString(),
+              formatDate(survey.AuditDate) || "",
+              (survey.WhyNotSellNewProduct || "").toString(),
               survey.TimeToSellNewProduct
-                ? formatDate(survey.TimeToSellNewProduct)
+                ? formatDate(survey.TimeToSellNewProduct) || ""
                 : "",
-              survey.NewProductImportQuantity || "",
-              survey.SupplierName || "",
-              survey.ImportedBySalesperson || "",
-              survey.StoreComment || "",
+              (survey.NewProductImportQuantity || "").toString(),
+              (survey.SupplierName || "").toString(),
+              (survey.ImportedBySalesperson || "").toString(),
+              (survey.StoreComment || "").toString(),
             ]);
 
             row2.eachCell((cell) => {
@@ -1088,11 +1331,10 @@ export default function StoreSurveyList() {
             <div style={{ position: "relative" }}>
               <input
                 type="text"
-                value={filters.cementProductName || cementSearch}
+                value={cementSearch}
                 onChange={(e) => {
                   const value = e.target.value;
                   setCementSearch(value);
-                  handleFilterChange("cementProductName", value);
                   setShowCementDropdown(true);
                 }}
                 onFocus={(e) => {
@@ -1100,7 +1342,12 @@ export default function StoreSurveyList() {
                   setShowCementDropdown(true);
                 }}
                 onClick={(e) => e.stopPropagation()}
-                placeholder="Tìm kiếm loại xi măng"
+                placeholder={
+                  Array.isArray(filters.cementProductName) &&
+                  filters.cementProductName.length > 0
+                    ? `Đã chọn ${filters.cementProductName.length} loại`
+                    : "Tìm kiếm loại xi măng"
+                }
               />
               {showCementDropdown && filteredCementProducts.length > 0 && (
                 <div
@@ -1118,58 +1365,134 @@ export default function StoreSurveyList() {
                     boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
                   }}
                 >
-                  {filteredCementProducts.map((product) => (
-                    <div
-                      key={product.Id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleFilterChange("cementProductName", product.Name);
-                        setCementSearch(product.Name);
-                        setShowCementDropdown(false);
-                      }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        borderBottom: "1px solid #eee",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }}
-                    >
-                      {product.Name}
-                    </div>
-                  ))}
+                  {filteredCementProducts.map((product) => {
+                    const isSelected =
+                      Array.isArray(filters.cementProductName) &&
+                      filters.cementProductName.includes(product.Name);
+                    return (
+                      <div
+                        key={product.Id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleCementProductToggle(product.Name);
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          borderBottom: "1px solid #eee",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() =>
+                            handleCementProductToggle(product.Name)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            marginRight: "8px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <span>{product.Name}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
           </div>
           <div className="filter-item">
             <label>Địa bàn:</label>
-            <select
-              value={filters.territoryName || ""}
-              onChange={(e) =>
-                handleFilterChange("territoryName", e.target.value)
-              }
-              style={{
-                width: "100%",
-                padding: "8px 12px",
-                border: "1px solid #ddd",
-                borderRadius: "4px",
-                fontSize: "14px",
-                backgroundColor: "#fff",
-                cursor: "pointer",
-              }}
-            >
-              <option value="">Tất cả</option>
-              {territories.map((territory) => (
-                <option key={territory.Id} value={territory.TerritoryName}>
-                  {territory.TerritoryName}
-                </option>
-              ))}
-            </select>
+            <div style={{ position: "relative" }}>
+              <input
+                type="text"
+                value={territorySearch}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTerritorySearch(value);
+                  setShowTerritoryDropdown(true);
+                }}
+                onFocus={(e) => {
+                  e.stopPropagation();
+                  setShowTerritoryDropdown(true);
+                }}
+                onClick={(e) => e.stopPropagation()}
+                placeholder={
+                  Array.isArray(filters.territoryName) &&
+                  filters.territoryName.length > 0
+                    ? `Đã chọn ${filters.territoryName.length} địa bàn`
+                    : "Tìm kiếm địa bàn"
+                }
+              />
+              {showTerritoryDropdown && filteredTerritories.length > 0 && (
+                <div
+                  style={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#fff",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    zIndex: 1000,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {filteredTerritories.map((territory) => {
+                    const isSelected =
+                      Array.isArray(filters.territoryName) &&
+                      filters.territoryName.includes(territory.TerritoryName);
+                    return (
+                      <div
+                        key={territory.Id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleTerritoryToggle(territory.TerritoryName);
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          borderBottom: "1px solid #eee",
+                          display: "flex",
+                          alignItems: "center",
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() =>
+                            handleTerritoryToggle(territory.TerritoryName)
+                          }
+                          onClick={(e) => e.stopPropagation()}
+                          style={{
+                            marginRight: "8px",
+                            cursor: "pointer",
+                          }}
+                        />
+                        <span>{territory.TerritoryName}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
           <div className="filter-item">
             <label>Giá từ:</label>

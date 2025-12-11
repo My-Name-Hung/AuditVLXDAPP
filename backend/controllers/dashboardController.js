@@ -566,11 +566,11 @@ async function getStoresByDate(req, res) {
         const formattedDate = formatDate(row.AuditDate);
         if (!formattedDate) return null;
 
-        return {
+      return {
           AuditDate: formattedDate,
           AuditedCount: row.AuditedCount || 0,
           NotAuditedCount: Math.max(0, totalStores - (row.AuditedCount || 0)),
-        };
+      };
       })
       .filter((item) => item !== null);
 
@@ -808,7 +808,7 @@ async function getSummaryTable(req, res) {
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
       WHERE 1=1
     `;
-
+    
     // Apply user filter to count query
     if (currentUserId && currentUserRole !== "admin") {
       countQuery += ` AND (
@@ -819,11 +819,11 @@ async function getSummaryTable(req, res) {
         )
       )`;
     }
-
+    
     if (territoryId) {
       countQuery += " AND s.TerritoryId = @territoryId";
     }
-
+    
     if (startDate || endDate) {
       countQuery += ` AND (
         NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
@@ -843,7 +843,7 @@ async function getSummaryTable(req, res) {
       countQuery += " )";
       countQuery += " )";
     }
-
+    
     const countRequest = pool.request();
     if (currentUserId && currentUserRole !== "admin") {
       countRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
