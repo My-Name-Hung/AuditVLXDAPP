@@ -1,22 +1,32 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { lazy, Suspense } from 'react';
 import Login from './pages/Login';
-import Dashboard from "./pages/Dashboard";
-import UserDetail from "./pages/UserDetail";
-import Users from "./pages/Users";
-import UserAdd from "./pages/UserAdd";
-import UserEdit from "./pages/UserEdit";
-import Stores from "./pages/Stores";
-import StoreDetail from "./pages/StoreDetail";
-import StoreEdit from "./pages/StoreEdit";
-import StoreAdd from "./pages/StoreAdd";
-import StoreSurveyDetail from "./pages/StoreSurveyDetail";
-import StoreSurveyList from "./pages/StoreSurveyList";
-import Audits from "./pages/Audits";
-import Distributors from "./pages/Distributors";
-import ImportExport from "./pages/ImportExport";
 import Layout from "./components/Layout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import "./App.css";
+
+// Lazy load pages for better initial load performance
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const UserDetail = lazy(() => import("./pages/UserDetail"));
+const Users = lazy(() => import("./pages/Users"));
+const UserAdd = lazy(() => import("./pages/UserAdd"));
+const UserEdit = lazy(() => import("./pages/UserEdit"));
+const Stores = lazy(() => import("./pages/Stores"));
+const StoreDetail = lazy(() => import("./pages/StoreDetail"));
+const StoreEdit = lazy(() => import("./pages/StoreEdit"));
+const StoreAdd = lazy(() => import("./pages/StoreAdd"));
+const StoreSurveyDetail = lazy(() => import("./pages/StoreSurveyDetail"));
+const StoreSurveyList = lazy(() => import("./pages/StoreSurveyList"));
+const Audits = lazy(() => import("./pages/Audits"));
+const Distributors = lazy(() => import("./pages/Distributors"));
+const ImportExport = lazy(() => import("./pages/ImportExport"));
+
+// Loading component
+const PageLoader = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+    <div style={{ width: '40px', height: '40px', border: '4px solid #f3f3f3', borderTop: '4px solid #0138C3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+  </div>
+);
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading, user } = useAuth();
@@ -45,20 +55,76 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<Dashboard />} />
-        <Route path="dashboard/user/:userId" element={<UserDetail />} />
-        <Route path="users" element={<Users />} />
-        <Route path="users/new" element={<UserAdd />} />
-        <Route path="users/:id/edit" element={<UserEdit />} />
-        <Route path="stores" element={<Stores />} />
-        <Route path="stores/new" element={<StoreAdd />} />
-        <Route path="stores/:id/edit" element={<StoreEdit />} />
-        <Route path="stores/:storeId/survey" element={<StoreSurveyDetail />} />
-        <Route path="stores/:id" element={<StoreDetail />} />
-        <Route path="store-surveys" element={<StoreSurveyList />} />
-        <Route path="audits" element={<Audits />} />
-        <Route path="distributors" element={<Distributors />} />
-        <Route path="import-export" element={<ImportExport />} />
+        <Route index element={
+          <Suspense fallback={<PageLoader />}>
+            <Dashboard />
+          </Suspense>
+        } />
+        <Route path="dashboard/user/:userId" element={
+          <Suspense fallback={<PageLoader />}>
+            <UserDetail />
+          </Suspense>
+        } />
+        <Route path="users" element={
+          <Suspense fallback={<PageLoader />}>
+            <Users />
+          </Suspense>
+        } />
+        <Route path="users/new" element={
+          <Suspense fallback={<PageLoader />}>
+            <UserAdd />
+          </Suspense>
+        } />
+        <Route path="users/:id/edit" element={
+          <Suspense fallback={<PageLoader />}>
+            <UserEdit />
+          </Suspense>
+        } />
+        <Route path="stores" element={
+          <Suspense fallback={<PageLoader />}>
+            <Stores />
+          </Suspense>
+        } />
+        <Route path="stores/new" element={
+          <Suspense fallback={<PageLoader />}>
+            <StoreAdd />
+          </Suspense>
+        } />
+        <Route path="stores/:id/edit" element={
+          <Suspense fallback={<PageLoader />}>
+            <StoreEdit />
+          </Suspense>
+        } />
+        <Route path="stores/:storeId/survey" element={
+          <Suspense fallback={<PageLoader />}>
+            <StoreSurveyDetail />
+          </Suspense>
+        } />
+        <Route path="stores/:id" element={
+          <Suspense fallback={<PageLoader />}>
+            <StoreDetail />
+          </Suspense>
+        } />
+        <Route path="store-surveys" element={
+          <Suspense fallback={<PageLoader />}>
+            <StoreSurveyList />
+          </Suspense>
+        } />
+        <Route path="audits" element={
+          <Suspense fallback={<PageLoader />}>
+            <Audits />
+          </Suspense>
+        } />
+        <Route path="distributors" element={
+          <Suspense fallback={<PageLoader />}>
+            <Distributors />
+          </Suspense>
+        } />
+        <Route path="import-export" element={
+          <Suspense fallback={<PageLoader />}>
+            <ImportExport />
+          </Suspense>
+        } />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

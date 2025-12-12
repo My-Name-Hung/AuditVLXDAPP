@@ -118,10 +118,15 @@ export default function StoreSurveyList() {
   );
 
   useEffect(() => {
-    fetchSurveys();
-    fetchUsers();
-    fetchCementProducts();
-    fetchTerritories();
+    // Load initial data in parallel for better performance
+    Promise.all([
+      fetchSurveys(),
+      fetchUsers(),
+      fetchCementProducts(),
+      fetchTerritories(),
+    ]).catch((error) => {
+      console.error("Error loading initial data:", error);
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -486,19 +491,18 @@ export default function StoreSurveyList() {
 
       const res = await api.get("/store-surveys", { params });
 
-      // Fetch products for each survey
-      const surveysWithProducts = await Promise.all(
-        res.data.map(async (survey: StoreSurveyListItem) => {
-          try {
-            const productsRes = await api.get(
-              `/store-survey-products/survey/${survey.Id}`
-            );
-            return { ...survey, products: productsRes.data || [] };
-          } catch {
-            return { ...survey, products: [] };
-          }
-        })
-      );
+      // Only fetch products if needed (when includeProducts is true or when exporting)
+      let surveysWithProducts: StoreSurveyListItem[];
+      if (needProducts || res.data.length === 0) {
+        // Backend already includes products, use them directly
+        surveysWithProducts = res.data;
+      } else {
+        // Don't fetch products if not needed - significantly faster
+        surveysWithProducts = res.data.map((survey: StoreSurveyListItem) => ({
+          ...survey,
+          products: [],
+        }));
+      }
 
       setAllSurveys(surveysWithProducts);
       // Apply client-side filters

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
@@ -7,13 +7,22 @@ import PermissionModal from './components/PermissionModal';
 import ErrorBoundary from './components/ErrorBoundary';
 import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
-import Stores from './pages/Stores';
-import StoreDetail from './pages/StoreDetail';
-import StoreSurvey from './pages/StoreSurvey';
-import Profile from './pages/Profile';
-import Dashboard from './pages/Dashboard';
-import TerritoryDetail from './pages/TerritoryDetail';
 import './App.css';
+
+// Lazy load pages for better initial load performance
+const Stores = lazy(() => import('./pages/Stores'));
+const StoreDetail = lazy(() => import('./pages/StoreDetail'));
+const StoreSurvey = lazy(() => import('./pages/StoreSurvey'));
+const Profile = lazy(() => import('./pages/Profile'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const TerritoryDetail = lazy(() => import('./pages/TerritoryDetail'));
+
+// Loading component
+const PageLoader = () => (
+  <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+    <div style={{ width: '40px', height: '40px', border: '4px solid #f3f3f3', borderTop: '4px solid #0138C3', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+  </div>
+);
 
 function ProtectedRoute({ children, allowPasswordChange = false }: { children: React.ReactNode; allowPasswordChange?: boolean }) {
   const { isAuthenticated, loading, user } = useAuth();
@@ -133,7 +142,9 @@ function AppRoutes() {
           path="/stores"
           element={
             <ProtectedRoute>
-              <Stores />
+              <Suspense fallback={<PageLoader />}>
+                <Stores />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -141,7 +152,9 @@ function AppRoutes() {
           path="/stores/:id"
           element={
             <ProtectedRoute>
-              <StoreDetail />
+              <Suspense fallback={<PageLoader />}>
+                <StoreDetail />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -149,7 +162,9 @@ function AppRoutes() {
           path="/stores/:id/survey"
           element={
             <ProtectedRoute>
-              <StoreSurvey />
+              <Suspense fallback={<PageLoader />}>
+                <StoreSurvey />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -157,7 +172,9 @@ function AppRoutes() {
           path="/profile"
           element={
             <ProtectedRoute>
-              <Profile />
+              <Suspense fallback={<PageLoader />}>
+                <Profile />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -165,7 +182,9 @@ function AppRoutes() {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <Suspense fallback={<PageLoader />}>
+                <Dashboard />
+              </Suspense>
             </ProtectedRoute>
           }
         />
@@ -173,7 +192,9 @@ function AppRoutes() {
           path="/territory-detail/:id"
           element={
             <ProtectedRoute>
-              <TerritoryDetail />
+              <Suspense fallback={<PageLoader />}>
+                <TerritoryDetail />
+              </Suspense>
             </ProtectedRoute>
           }
         />
