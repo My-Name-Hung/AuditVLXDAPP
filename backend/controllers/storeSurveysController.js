@@ -175,6 +175,7 @@ const getAllStoreSurveys = async (req, res) => {
       priceFrom,
       priceTo,
       productType,
+      includeProducts,
       page,
       pageSize,
     } = req.query;
@@ -197,16 +198,19 @@ const getAllStoreSurveys = async (req, res) => {
 
     const surveys = await StoreSurvey.findAll(filters);
 
-    // Get products for each survey
-    const surveysWithProducts = await Promise.all(
-      surveys.map(async (survey) => {
-        const products = await StoreSurveyProduct.findBySurveyId(survey.Id);
-        return {
-          ...survey,
-          products: products,
-        };
-      })
-    );
+    // Optionally include products to reduce payload for list page
+    const shouldIncludeProducts = includeProducts === "true";
+    const surveysWithProducts = shouldIncludeProducts
+      ? await Promise.all(
+          surveys.map(async (survey) => {
+            const products = await StoreSurveyProduct.findBySurveyId(survey.Id);
+            return {
+              ...survey,
+              products: products,
+            };
+          })
+        )
+      : surveys;
 
     res.json(surveysWithProducts);
   } catch (error) {

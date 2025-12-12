@@ -378,6 +378,14 @@ export default function StoreSurveyList() {
         pageSize: 1000,
       };
 
+      // Only include products when filters require product-level data
+      const needProducts =
+        (Array.isArray(filterValues.cementProductName) &&
+          filterValues.cementProductName.length > 0) ||
+        !!filterValues.priceFrom ||
+        !!filterValues.priceTo;
+      params.includeProducts = needProducts ? "true" : "false";
+
       if (filterValues.storeName) params.storeName = filterValues.storeName;
       if (filterValues.userName) params.userName = filterValues.userName;
       // Send array as comma-separated string for backend
@@ -645,6 +653,8 @@ export default function StoreSurveyList() {
 
         if (filters.storeName) params.storeName = filters.storeName;
         if (filters.userName) params.userName = filters.userName;
+        // Always include products for export
+        params.includeProducts = "true";
         // Send array as comma-separated string for backend
         if (
           Array.isArray(filters.cementProductName) &&
@@ -685,10 +695,16 @@ export default function StoreSurveyList() {
         const surveysWithProducts = await Promise.all(
           res.data.map(async (survey: StoreSurveyListItem) => {
             try {
-              const productsRes = await api.get(
-                `/store-survey-products/survey/${survey.Id}`
-              );
-              let products = productsRes.data || [];
+              let products: any[] = survey.products || [];
+
+              // If products are not included in list response but needed (edge cases),
+              // fallback to fetch per survey
+              if (!products || products.length === 0) {
+                const productsRes = await api.get(
+                  `/store-survey-products/survey/${survey.Id}`
+                );
+                products = productsRes.data || [];
+              }
 
               // Filter products by cement product name if filter is applied (support multiple)
               if (
@@ -729,7 +745,28 @@ export default function StoreSurveyList() {
 
         surveysToExport = surveysWithProducts;
       } else {
-        surveysToExport = surveys;
+        // Ensure products are available; fetch per survey if missing
+        const needFetchProducts = surveys.some(
+          (s) => !s.products || s.products.length === 0
+        );
+        if (needFetchProducts) {
+          const surveysWithProducts = await Promise.all(
+            surveys.map(async (survey) => {
+              if (survey.products && survey.products.length > 0) return survey;
+              try {
+                const productsRes = await api.get(
+                  `/store-survey-products/survey/${survey.Id}`
+                );
+                return { ...survey, products: productsRes.data || [] };
+              } catch {
+                return { ...survey, products: [] };
+              }
+            })
+          );
+          surveysToExport = surveysWithProducts;
+        } else {
+          surveysToExport = surveys;
+        }
       }
 
       // Filter only XMTĐ products (Title 2 + 3)
