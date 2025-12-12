@@ -42,7 +42,6 @@ interface StoreSurveyListItem {
     SellingPrice: number | null;
     RoadTransportFee: number | null;
     WaterTransportFee: number | null;
-    QuantityReceived: number | null;
     ImportedFromNPP: string | null;
     DiscountPromotion: string | null;
     AverageStockQuantity: number | null;
@@ -82,6 +81,8 @@ export default function StoreSurveyList() {
   const [surveys, setSurveys] = useState<StoreSurveyListItem[]>([]);
   const [allSurveys, setAllSurveys] = useState<StoreSurveyListItem[]>([]); // Store all surveys for client-side filtering
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [filterRefreshing, setFilterRefreshing] = useState(false);
   const [exportLoading, setExportLoading] = useState(false);
 
   // Users and Cement Products for filters
@@ -105,8 +106,13 @@ export default function StoreSurveyList() {
     priceTo: "",
   });
 
-  // Week filter state
+  // Date filter state
+  const [dateFilterMode, setDateFilterMode] = useState<
+    "all" | "week" | "day" | "month"
+  >("all");
   const [selectedWeek, setSelectedWeek] = useState<string>("all");
+  const [selectedDate, setSelectedDate] = useState<string>(""); // yyyy-MM-dd
+  const [selectedMonth, setSelectedMonth] = useState<string>(""); // MM
   const [currentYear, setCurrentYear] = useState<number>(
     new Date().getFullYear()
   );
@@ -118,6 +124,15 @@ export default function StoreSurveyList() {
     fetchTerritories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Refetch when date filter changes to apply server-side date range (debounced)
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchSurveysWithFilters(filters);
+    }, 300);
+    return () => clearTimeout(handler);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateFilterMode, selectedWeek, selectedDate, selectedMonth, currentYear]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -181,7 +196,7 @@ export default function StoreSurveyList() {
   };
 
   const fetchSurveys = async () => {
-    await fetchSurveysWithFilters(filters);
+    await fetchSurveysWithFilters(filters, { isInitial: true });
   };
 
   // Client-side filtering function
@@ -190,10 +205,23 @@ export default function StoreSurveyList() {
     filterValues: typeof filters = filters
   ) => {
     return surveysToFilter.filter((survey) => {
-      // Filter by week
-      if (selectedWeek !== "all") {
+      // Filter by date mode
+      if (dateFilterMode === "week" && selectedWeek !== "all") {
         const weekNumber = parseInt(selectedWeek, 10);
         if (!isDateInWeek(survey.AuditDate, weekNumber, currentYear)) {
+          return false;
+        }
+      }
+      if (dateFilterMode === "day" && selectedDate) {
+        if (!survey.AuditDate) return false;
+        const auditDay = survey.AuditDate.split("T")[0];
+        if (auditDay !== selectedDate) return false;
+      }
+      if (dateFilterMode === "month" && selectedMonth) {
+        if (!survey.AuditDate) return false;
+        const d = new Date(survey.AuditDate);
+        const monthStr = String(d.getMonth() + 1).padStart(2, "0");
+        if (monthStr !== selectedMonth || d.getFullYear() !== currentYear) {
           return false;
         }
       }
@@ -228,13 +256,13 @@ export default function StoreSurveyList() {
         const hasMatchingProduct = survey.products?.some((product) =>
           filterValues.cementProductName.some(
             (filterName) =>
-              product.CementProductName?.toLowerCase().includes(
+            product.CementProductName?.toLowerCase().includes(
                 filterName.toLowerCase()
-              ) ||
-              product.CementProductCode?.toLowerCase().includes(
+            ) ||
+            product.CementProductCode?.toLowerCase().includes(
                 filterName.toLowerCase()
               )
-          )
+            )
         );
         if (!hasMatchingProduct) {
           return false;
@@ -250,7 +278,7 @@ export default function StoreSurveyList() {
           survey.TerritoryName?.toLowerCase().includes(filterName.toLowerCase())
         );
         if (!matchesTerritory) {
-          return false;
+        return false;
         }
       }
 
@@ -350,7 +378,15 @@ export default function StoreSurveyList() {
       setSurveys(filtered);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, allSurveys, selectedWeek, currentYear]);
+  }, [
+    filters,
+    allSurveys,
+    selectedWeek,
+    currentYear,
+    dateFilterMode,
+    selectedDate,
+    selectedMonth,
+  ]);
 
   const handleResetFilters = () => {
     const emptyFilters = {
@@ -365,14 +401,24 @@ export default function StoreSurveyList() {
     setUserSearch("");
     setCementSearch("");
     setTerritorySearch("");
+    setDateFilterMode("all");
     setSelectedWeek("all");
+    setSelectedDate("");
+    setSelectedMonth("");
     // Fetch with empty filters immediately
     fetchSurveysWithFilters(emptyFilters);
   };
 
-  const fetchSurveysWithFilters = async (filterValues: typeof filters) => {
+  const fetchSurveysWithFilters = async (
+    filterValues: typeof filters,
+    options?: { isInitial?: boolean }
+  ) => {
     try {
+      if (options?.isInitial) {
       setLoading(true);
+      } else {
+        setFilterRefreshing(true);
+      }
       const params: Record<string, string | number> = {
         page: 1,
         pageSize: 1000,
@@ -410,6 +456,34 @@ export default function StoreSurveyList() {
         if (priceToValue) params.priceTo = priceToValue;
       }
 
+      // Date filter params
+      if (dateFilterMode === "week" && selectedWeek !== "all") {
+        // Calculate week range
+        const weekNumber = parseInt(selectedWeek, 10);
+        if (!isNaN(weekNumber) && weekNumber > 0) {
+          const januaryFirst = new Date(currentYear, 0, 1);
+          const firstDayOfWeek = januaryFirst.getDay();
+          const firstMondayOffset =
+            firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+          const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
+          const weekStart = new Date(januaryFirst);
+          weekStart.setDate(januaryFirst.getDate() + weekStartDays);
+          const weekEnd = new Date(weekStart);
+          weekEnd.setDate(weekStart.getDate() + 6);
+
+          params.dateFrom = weekStart.toISOString().split("T")[0];
+          params.dateTo = weekEnd.toISOString().split("T")[0];
+        }
+      } else if (dateFilterMode === "day" && selectedDate) {
+        params.dateFrom = selectedDate;
+        params.dateTo = selectedDate;
+      } else if (dateFilterMode === "month" && selectedMonth) {
+        const start = new Date(currentYear, parseInt(selectedMonth, 10) - 1, 1);
+        const end = new Date(currentYear, parseInt(selectedMonth, 10), 0);
+        params.dateFrom = start.toISOString().split("T")[0];
+        params.dateTo = end.toISOString().split("T")[0];
+      }
+
       const res = await api.get("/store-surveys", { params });
 
       // Fetch products for each survey
@@ -433,7 +507,11 @@ export default function StoreSurveyList() {
     } catch (error) {
       console.error("Error fetching surveys:", error);
     } finally {
+      if (options?.isInitial) {
       setLoading(false);
+        setInitialLoad(false);
+      }
+      setFilterRefreshing(false);
     }
   };
 
@@ -478,26 +556,26 @@ export default function StoreSurveyList() {
     const year = date.getFullYear();
     const day = date.getDate();
 
-    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-    const weekNumberInMonth = Math.ceil(day / 7);
+      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+      const weekNumberInMonth = Math.ceil(day / 7);
 
-    // Week number in year: calculate from January 1st
-    // Get the first day of the year
-    const januaryFirst = new Date(year, 0, 1);
-    // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const firstDayOfWeek = januaryFirst.getDay();
-    // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
-    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+      // Week number in year: calculate from January 1st
+      // Get the first day of the year
+      const januaryFirst = new Date(year, 0, 1);
+      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+      const firstDayOfWeek = januaryFirst.getDay();
+      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
-    // Calculate days since year start
-    const daysSinceYearStart = Math.floor(
+      // Calculate days since year start
+      const daysSinceYearStart = Math.floor(
       (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-    );
+      );
 
-    // Calculate week number: (days + offset to first Monday) / 7, rounded up
-    const weekNumberInYear = Math.ceil(
-      (daysSinceYearStart + firstMondayOffset + 1) / 7
-    );
+      // Calculate week number: (days + offset to first Monday) / 7, rounded up
+      const weekNumberInYear = Math.ceil(
+        (daysSinceYearStart + firstMondayOffset + 1) / 7
+      );
 
     return { weekNumberInMonth, weekNumberInYear, year };
   };
@@ -584,6 +662,12 @@ export default function StoreSurveyList() {
   // Get weeks list for current year
   const weeksList = getWeeksInYear(currentYear);
 
+  // Month list
+  const monthsList = Array.from({ length: 12 }, (_, i) => ({
+    value: String(i + 1).padStart(2, "0"),
+    label: `Tháng ${i + 1}`,
+  }));
+
   // Reset week filter when year changes
   useEffect(() => {
     const checkYear = () => {
@@ -608,12 +692,14 @@ export default function StoreSurveyList() {
       const ExcelJS = (await import("exceljs")).default;
       const workbook = new ExcelJS.Workbook();
 
-      // Calculate week number from selected week or current date
+      // Calculate week number from selected week or current date (only for week mode)
       let weekNumberInMonth: number = 0;
       let weekNumberInYear: number = 0;
       let year: number = currentYear;
+      let exportDateFrom: string | null = null;
+      let exportMonthLabel: string | null = null;
 
-      if (selectedWeek !== "all") {
+      if (dateFilterMode === "week" && selectedWeek !== "all") {
         try {
           // Use selected week
           const weekNumber = parseInt(selectedWeek, 10);
@@ -631,19 +717,35 @@ export default function StoreSurveyList() {
             weekNumberInMonth = weekNumbers.weekNumberInMonth || 0;
             weekNumberInYear = weekNumbers.weekNumberInYear || 0;
             year = weekNumbers.year || currentYear;
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+
+            exportDateFrom = weekStart.toISOString().split("T")[0];
           }
         } catch (error) {
           console.error("Error calculating week numbers:", error);
           // Fallback to current year
           year = currentYear;
         }
+      } else if (dateFilterMode === "day" && selectedDate) {
+        exportDateFrom = selectedDate;
+        const d = new Date(selectedDate);
+        year = d.getFullYear();
+        const weekNumbers = calculateWeekNumbers(d);
+        weekNumberInMonth = weekNumbers.weekNumberInMonth || 0;
+        weekNumberInYear = weekNumbers.weekNumberInYear || 0;
+      } else if (dateFilterMode === "month" && selectedMonth) {
+        const start = new Date(currentYear, parseInt(selectedMonth, 10) - 1, 1);
+        exportDateFrom = start.toISOString().split("T")[0];
+        year = currentYear;
+        exportMonthLabel = `${selectedMonth}/${currentYear}`;
       }
 
       // When selectedWeek === "all", fetch all data without week filter
       // When selectedWeek !== "all", use surveys (already filtered by week)
       let surveysToExport: StoreSurveyListItem[];
 
-      if (selectedWeek === "all") {
+      if (dateFilterMode === "all") {
         // Fetch all surveys without week filter for export
         // This ensures we get all data from all weeks, not just current week
         const params: Record<string, string | number> = {
@@ -695,7 +797,8 @@ export default function StoreSurveyList() {
         const surveysWithProducts = await Promise.all(
           res.data.map(async (survey: StoreSurveyListItem) => {
             try {
-              let products: any[] = survey.products || [];
+              let products: StoreSurveyListItem["products"] =
+                survey.products || [];
 
               // If products are not included in list response but needed (edge cases),
               // fallback to fetch per survey
@@ -745,7 +848,8 @@ export default function StoreSurveyList() {
 
         surveysToExport = surveysWithProducts;
       } else {
-        // Ensure products are available; fetch per survey if missing
+        // When filtering by week/day/month: reuse current list (already filtered by client)
+        // but ensure products are available; fetch per survey if missing
         const needFetchProducts = surveys.some(
           (s) => !s.products || s.products.length === 0
         );
@@ -899,12 +1003,20 @@ export default function StoreSurveyList() {
         } catch (e) {
           console.warn("Error merging A3:O3:", e);
         }
-        const reportTitle =
-          selectedWeek === "all"
-            ? `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NĂM ${year}`
-            : `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${
-                weekNumberInYear || ""
-              }/${year}`;
+        let reportTitle = "";
+        if (dateFilterMode === "all") {
+          reportTitle = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NĂM ${year}`;
+        } else if (dateFilterMode === "week") {
+          reportTitle = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${
+            weekNumberInYear || ""
+          }/${year}`;
+        } else if (dateFilterMode === "day" && exportDateFrom) {
+          reportTitle = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG NGÀY ${exportDateFrom}`;
+        } else if (dateFilterMode === "month" && exportMonthLabel) {
+          reportTitle = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG THÁNG ${exportMonthLabel}`;
+        } else {
+          reportTitle = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG`;
+        }
         sheet.getCell("A3").value = reportTitle || "";
         sheet.getCell("A3").font = { bold: true, size: 12 };
         sheet.getCell("A3").alignment = { horizontal: "left" };
@@ -921,7 +1033,6 @@ export default function StoreSurveyList() {
           "Giá bán",
           "Phí VC đường bộ",
           "Phí VC đường thủy",
-          "SL nhập hàng bình quân (tấn/tháng)",
           "Sản lượng bình quân (tấn/tháng)",
           "Nhập từ NPP",
           "Chương trình chiết khấu - khuyến mãi",
@@ -972,11 +1083,6 @@ export default function StoreSurveyList() {
           }
 
           let isFirstRow = true;
-          let totalPurchasePrice = 0;
-          let totalSellingPrice = 0;
-          let totalRoadTransportFee = 0;
-          let totalWaterTransportFee = 0;
-          let totalQuantityReceived = 0;
           let totalAverageStockQuantity = 0;
           const storeName = sortedSurveys[0]?.StoreName || "";
 
@@ -997,19 +1103,13 @@ export default function StoreSurveyList() {
                 const sellingPrice = product.SellingPrice || 0;
                 const roadTransportFee = product.RoadTransportFee || 0;
                 const waterTransportFee = product.WaterTransportFee || 0;
-                const quantityReceived = product.QuantityReceived || 0;
                 const averageStockQuantity = product.AverageStockQuantity || 0;
 
-                totalPurchasePrice += purchasePrice;
-                totalSellingPrice += sellingPrice;
-                totalRoadTransportFee += roadTransportFee;
-                totalWaterTransportFee += waterTransportFee;
-                totalQuantityReceived += quantityReceived;
                 totalAverageStockQuantity += averageStockQuantity;
 
                 try {
-                  const row = sheet.addRow([
-                    isFirstRow ? sttCounter : "",
+              const row = sheet.addRow([
+                isFirstRow ? sttCounter : "",
                     storeName || "",
                     formatDate(survey.AuditDate) || "",
                     (product.ContactPersonPhone || "").toString(),
@@ -1019,23 +1119,22 @@ export default function StoreSurveyList() {
                     formatVND(sellingPrice) || "",
                     formatVND(roadTransportFee) || "",
                     formatVND(waterTransportFee) || "",
-                    (quantityReceived || "").toString(),
                     (averageStockQuantity || "").toString(),
                     (product.ImportedFromNPP || "").toString(),
                     (product.DiscountPromotion || "").toString(),
                     isFirstRow ? (survey.StoreComment || "").toString() : "",
-                  ]);
+              ]);
 
-                  row.eachCell((cell) => {
-                    cell.border = {
-                      top: { style: "thin" },
-                      bottom: { style: "thin" },
-                      left: { style: "thin" },
-                      right: { style: "thin" },
-                    };
-                    cell.alignment = { vertical: "middle" };
-                  });
-                  isFirstRow = false;
+              row.eachCell((cell) => {
+                cell.border = {
+                  top: { style: "thin" },
+                  bottom: { style: "thin" },
+                  left: { style: "thin" },
+                  right: { style: "thin" },
+                };
+                cell.alignment = { vertical: "middle" };
+              });
+              isFirstRow = false;
                 } catch (error) {
                   console.error(
                     "Error adding row for product:",
@@ -1045,59 +1144,48 @@ export default function StoreSurveyList() {
                 }
               });
             }
-          });
+            });
 
           // Add summary row only if there are products (isFirstRow will be false if products were added)
-          if (
-            !isFirstRow &&
-            (totalPurchasePrice > 0 ||
-              totalSellingPrice > 0 ||
-              totalQuantityReceived > 0 ||
-              totalAverageStockQuantity > 0)
-          ) {
+          if (!isFirstRow) {
             try {
-              const summaryRow = sheet.addRow([
+            const summaryRow = sheet.addRow([
+              "",
+              "",
+              "",
+              "",
+              "",
+                "TỔNG CỘNG",
                 "",
                 "",
                 "",
                 "",
                 "",
-                `Tổng sản lượng bình quân của cửa hàng: ${storeName || ""}`,
-                formatVND(totalPurchasePrice) || "",
-                formatVND(totalSellingPrice) || "",
-                formatVND(totalRoadTransportFee) || "",
-                formatVND(totalWaterTransportFee) || "",
-                (totalQuantityReceived || "").toString(),
                 (totalAverageStockQuantity || "").toString(),
                 "",
-                "",
-                "",
-              ]);
+              "",
+              "",
+            ]);
 
-              summaryRow.eachCell((cell) => {
-                cell.border = {
-                  top: { style: "thin" },
-                  bottom: { style: "thin" },
-                  left: { style: "thin" },
-                  right: { style: "thin" },
-                };
-                cell.alignment = { vertical: "middle" };
-              });
+            summaryRow.eachCell((cell) => {
+              cell.border = {
+                top: { style: "thin" },
+                bottom: { style: "thin" },
+                left: { style: "thin" },
+                right: { style: "thin" },
+              };
+              cell.alignment = { vertical: "middle" };
+            });
 
-              // Style summary row
+            // Style summary row
               try {
-                summaryRow.getCell(6).font = { bold: true };
-                summaryRow.getCell(7).font = { bold: true };
-                summaryRow.getCell(8).font = { bold: true };
-                summaryRow.getCell(9).font = { bold: true };
-                summaryRow.getCell(10).font = { bold: true };
-                summaryRow.getCell(11).font = { bold: true };
-                summaryRow.getCell(12).font = { bold: true };
-                summaryRow.fill = {
-                  type: "pattern",
-                  pattern: "solid",
-                  fgColor: { argb: "FFF0F7FF" },
-                };
+            summaryRow.getCell(6).font = { bold: true };
+            summaryRow.getCell(11).font = { bold: true };
+            summaryRow.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF0F7FF" },
+            };
               } catch (styleError) {
                 console.warn("Error styling summary row:", styleError);
               }
@@ -1146,19 +1234,19 @@ export default function StoreSurveyList() {
           return (
             weekMatch &&
             (survey.WhyNotSellNewProduct ||
-              survey.TimeToSellNewProduct ||
-              survey.NewProductImportQuantity ||
-              survey.SupplierName ||
-              survey.ImportedBySalesperson ||
+            survey.TimeToSellNewProduct ||
+            survey.NewProductImportQuantity ||
+            survey.SupplierName ||
+            survey.ImportedBySalesperson ||
               survey.StoreComment)
-          );
+        );
         });
 
         if (title2Surveys.length > 0) {
           // Title for Table 2
           const title2Row = sheet.rowCount + 1;
           try {
-            sheet.mergeCells(`A${title2Row}:I${title2Row}`);
+          sheet.mergeCells(`A${title2Row}:I${title2Row}`);
           } catch (e) {
             console.warn(`Error merging A${title2Row}:I${title2Row}:`, e);
           }
@@ -1243,7 +1331,7 @@ export default function StoreSurveyList() {
     }
   };
 
-  if (loading) {
+  if (loading && initialLoad) {
     return <div className="loading">Đang tải dữ liệu...</div>;
   }
 
@@ -1263,14 +1351,26 @@ export default function StoreSurveyList() {
 
       {/* Filter Section */}
       <div className="filter-section">
+        <div className="filter-title">
         <h3>Bộ lọc</h3>
+          {filterRefreshing && (
+            <span className="filter-loading">
+              <span className="inline-spinner" />
+              <span>Đang tải...</span>
+            </span>
+          )}
+        </div>
         <div className="filter-grid">
           <div className="filter-item">
-            <label>Tuần:</label>
+            <label>Thời gian:</label>
             <select
-              value={selectedWeek}
+              value={dateFilterMode}
               onChange={(e) => {
-                setSelectedWeek(e.target.value);
+                const mode = e.target.value as "all" | "week" | "day" | "month";
+                setDateFilterMode(mode);
+                if (mode !== "week") setSelectedWeek("all");
+                if (mode !== "day") setSelectedDate("");
+                if (mode !== "month") setSelectedMonth("");
               }}
               style={{
                 width: "100%",
@@ -1283,14 +1383,78 @@ export default function StoreSurveyList() {
                 height: "40px",
               }}
             >
-              <option value="all">Tất cả tuần</option>
-              {weeksList.map((week) => (
-                <option key={week.value} value={week.value}>
-                  {week.label}
-                </option>
-              ))}
+              <option value="all">Tất cả</option>
+              <option value="week">Theo tuần</option>
+              <option value="day">Theo ngày</option>
+              <option value="month">Theo tháng</option>
             </select>
           </div>
+
+          {dateFilterMode === "week" && (
+            <div className="filter-item">
+              <label>Tuần:</label>
+              <select
+                value={selectedWeek}
+                onChange={(e) => setSelectedWeek(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
+                  height: "40px",
+                }}
+              >
+                <option value="all">Tất cả tuần</option>
+                {weeksList.map((week) => (
+                  <option key={week.value} value={week.value}>
+                    {week.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {dateFilterMode === "day" && (
+            <div className="filter-item">
+              <label>Chọn ngày:</label>
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                style={{ height: "40px" }}
+              />
+            </div>
+          )}
+
+          {dateFilterMode === "month" && (
+            <div className="filter-item">
+              <label>Chọn tháng:</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "8px 12px",
+                  border: "1px solid #ddd",
+                  borderRadius: "4px",
+                  fontSize: "14px",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
+                  height: "40px",
+                }}
+              >
+                <option value="">Tất cả</option>
+                {monthsList.map((m) => (
+                  <option key={m.value} value={m.value}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="filter-item">
             <label>Tên cửa hàng:</label>
             <input
@@ -1407,26 +1571,26 @@ export default function StoreSurveyList() {
                       Array.isArray(filters.cementProductName) &&
                       filters.cementProductName.includes(product.Name);
                     return (
-                      <div
-                        key={product.Id}
-                        onClick={(e) => {
-                          e.stopPropagation();
+                    <div
+                      key={product.Id}
+                      onClick={(e) => {
+                        e.stopPropagation();
                           handleCementProductToggle(product.Name);
-                        }}
-                        style={{
-                          padding: "8px 12px",
-                          cursor: "pointer",
-                          borderBottom: "1px solid #eee",
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #eee",
                           display: "flex",
                           alignItems: "center",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "#f5f5f5";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "#fff";
-                        }}
-                      >
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f5f5f5";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                      }}
+                    >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -1440,7 +1604,7 @@ export default function StoreSurveyList() {
                           }}
                         />
                         <span>{product.Name}</span>
-                      </div>
+                    </div>
                     );
                   })}
                 </div>
@@ -1491,26 +1655,26 @@ export default function StoreSurveyList() {
                       Array.isArray(filters.territoryName) &&
                       filters.territoryName.includes(territory.TerritoryName);
                     return (
-                      <div
-                        key={territory.Id}
-                        onClick={(e) => {
-                          e.stopPropagation();
+                    <div
+                      key={territory.Id}
+                      onClick={(e) => {
+                        e.stopPropagation();
                           handleTerritoryToggle(territory.TerritoryName);
-                        }}
-                        style={{
-                          padding: "8px 12px",
-                          cursor: "pointer",
-                          borderBottom: "1px solid #eee",
+                      }}
+                      style={{
+                        padding: "8px 12px",
+                        cursor: "pointer",
+                        borderBottom: "1px solid #eee",
                           display: "flex",
                           alignItems: "center",
-                        }}
-                        onMouseEnter={(e) => {
-                          e.currentTarget.style.backgroundColor = "#f5f5f5";
-                        }}
-                        onMouseLeave={(e) => {
-                          e.currentTarget.style.backgroundColor = "#fff";
-                        }}
-                      >
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = "#f5f5f5";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "#fff";
+                      }}
+                    >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -1524,7 +1688,7 @@ export default function StoreSurveyList() {
                           }}
                         />
                         <span>{territory.TerritoryName}</span>
-                      </div>
+                    </div>
                     );
                   })}
                 </div>
@@ -1560,10 +1724,7 @@ export default function StoreSurveyList() {
         </div>
       </div>
 
-      {/* Tables - Chỉ hiển thị Thông tin bán hàng */}
-      {/* Thông tin bán hàng (Title 3) */}
-      {surveys.filter((survey) => survey.products && survey.products.length > 0)
-        .length > 0 && (
+      {/* Tables - Thông tin bán hàng (Title 3) */}
         <div className="table-container">
           <h3 className="table-section-title">Thông tin bán hàng</h3>
           <table className="survey-list-table">
@@ -1577,35 +1738,42 @@ export default function StoreSurveyList() {
                 <th>Loại XM</th>
                 <th>Giá mua</th>
                 <th>Giá bán</th>
-                <th>Sản lượng bình quân (tấn/tháng)</th>
+              <th>Sản lượng bình quân (tấn/tháng)</th>
                 <th>Mua qua NPP</th>
-                <th>Chương trình chiết khấu - khuyến mãi</th>
+              <th>Chương trình chiết khấu - khuyến mãi</th>
                 <th>Thao tác</th>
               </tr>
             </thead>
             <tbody>
               {(() => {
-                const allItems = surveys
-                  .filter(
-                    (survey) => survey.products && survey.products.length > 0
-                  )
-                  .flatMap((survey) =>
-                    survey.products.map((product, productIndex) => ({
+              type ProductItem = {
+                survey: StoreSurveyListItem;
+                product: StoreSurveyListItem["products"][0] | null;
+                productIndex: number;
+              };
+
+              const allItems: ProductItem[] = surveys.flatMap<ProductItem>(
+                (survey) => {
+                  if (survey.products && survey.products.length > 0) {
+                    return survey.products.map((product, productIndex) => ({
                       survey,
                       product,
                       productIndex,
-                    }))
+                    }));
+                  }
+                  // Không có sản phẩm: tạo một dòng placeholder với dữ liệu null/0
+                  return [
+                    {
+                      survey,
+                      product: null,
+                      productIndex: 0,
+                    },
+                  ];
+                }
                   );
 
                 // Group items by store
-                const storeGroups = new Map<
-                  number,
-                  Array<{
-                    survey: StoreSurveyListItem;
-                    product: StoreSurveyListItem["products"][0];
-                    productIndex: number;
-                  }>
-                >();
+              const storeGroups = new Map<number, ProductItem[]>();
 
                 allItems.forEach((item) => {
                   const { survey } = item;
@@ -1620,25 +1788,22 @@ export default function StoreSurveyList() {
                 const rows: React.ReactElement[] = [];
 
                 storeGroups.forEach((items, storeId) => {
-                  const firstItem = items[0];
-                  const storeName = firstItem.survey.StoreName || "-";
-
-                  // Calculate totals for this store
-                  let totalPurchasePrice = 0;
-                  let totalSellingPrice = 0;
+                // Calculate totals for this store (only average stock)
                   let totalAverageStockQuantity = 0;
 
                   // Add product rows for this store
                   items.forEach((item) => {
                     const { survey, product } = item;
-                    totalPurchasePrice += product?.PurchasePrice || 0;
-                    totalSellingPrice += product?.SellingPrice || 0;
                     totalAverageStockQuantity +=
                       product?.AverageStockQuantity || 0;
 
                     globalIndex++;
                     rows.push(
-                      <tr key={`${survey.Id}-${product.Id}-${globalIndex}`}>
+                    <tr
+                      key={`${survey.Id}-${
+                        product?.Id ?? "no-product"
+                      }-${globalIndex}`}
+                    >
                         <td>{globalIndex}</td>
                         <td>{survey.StoreName || "-"}</td>
                         <td>{formatDate(survey.AuditDate) || "-"}</td>
@@ -1648,12 +1813,10 @@ export default function StoreSurveyList() {
                         <td>
                           {formatVND(product?.PurchasePrice || null) || "-"}
                         </td>
-                        <td>
-                          {formatVND(product?.SellingPrice || null) || "-"}
-                        </td>
+                      <td>{formatVND(product?.SellingPrice || null) || "-"}</td>
                         <td>{product?.AverageStockQuantity ?? "-"}</td>
                         <td>{product?.ImportedFromNPP || "-"}</td>
-                        <td>{product?.DiscountPromotion || "-"}</td>
+                      <td>{product?.DiscountPromotion || "-"}</td>
                         <td>
                           <button
                             className="btn-view-survey-list"
@@ -1671,7 +1834,7 @@ export default function StoreSurveyList() {
                     );
                   });
 
-                  // Add summary row for this store
+                // Add summary row for this store (only sum AverageStockQuantity)
                   rows.push(
                     <tr
                       key={`total-${storeId}`}
@@ -1681,13 +1844,11 @@ export default function StoreSurveyList() {
                         fontWeight: "bold",
                       }}
                     >
-                      <td colSpan={6} style={{ textAlign: "right" }}>
-                        Tổng sản lượng bình quân của cửa hàng: {storeName}
+                    <td colSpan={8} style={{ textAlign: "right" }}>
+                      TỔNG CỘNG
                       </td>
-                      <td>{formatVND(totalPurchasePrice)}</td>
-                      <td>{formatVND(totalSellingPrice)}</td>
                       <td>{totalAverageStockQuantity}</td>
-                      <td colSpan={2}></td>
+                    <td colSpan={3}></td>
                     </tr>
                   );
                 });
@@ -1697,7 +1858,6 @@ export default function StoreSurveyList() {
             </tbody>
           </table>
         </div>
-      )}
     </div>
   );
 }

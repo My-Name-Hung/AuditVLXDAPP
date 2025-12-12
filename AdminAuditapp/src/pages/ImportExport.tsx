@@ -98,7 +98,6 @@ interface StoreSurveyItem {
     SellingPrice: number | null;
     RoadTransportFee: number | null;
     WaterTransportFee: number | null;
-    QuantityReceived: number | null;
     ImportedFromNPP: string | null;
     AverageStockQuantity: number | null;
   }>;
@@ -1244,7 +1243,6 @@ export default function ImportExport() {
               formatSurveyVND(product.SellingPrice),
               formatSurveyVND(product.RoadTransportFee),
               formatSurveyVND(product.WaterTransportFee),
-              product.QuantityReceived || "",
               product.ImportedFromNPP || "",
               product.AverageStockQuantity || "",
               isFirstRow ? firstSurvey.StoreComment || "" : "",

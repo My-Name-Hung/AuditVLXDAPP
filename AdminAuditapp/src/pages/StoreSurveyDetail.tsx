@@ -46,7 +46,6 @@ interface StoreSurvey {
     SellingPrice: number | null;
     RoadTransportFee: number | null;
     WaterTransportFee: number | null;
-    QuantityReceived: number | null;
     ImportedFromNPP: string | null;
     DiscountPromotion: string | null;
     AverageStockQuantity: number | null;
@@ -123,26 +122,26 @@ export default function StoreSurveyDetail() {
     const year = date.getFullYear();
     const day = date.getDate();
 
-    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-    const weekNumberInMonth = Math.ceil(day / 7);
+      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+      const weekNumberInMonth = Math.ceil(day / 7);
 
-    // Week number in year: calculate from January 1st
-    // Get the first day of the year
-    const januaryFirst = new Date(year, 0, 1);
-    // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-    const firstDayOfWeek = januaryFirst.getDay();
-    // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
-    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+      // Week number in year: calculate from January 1st
+      // Get the first day of the year
+      const januaryFirst = new Date(year, 0, 1);
+      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+      const firstDayOfWeek = januaryFirst.getDay();
+      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
-    // Calculate days since year start
-    const daysSinceYearStart = Math.floor(
+      // Calculate days since year start
+      const daysSinceYearStart = Math.floor(
       (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-    );
+      );
 
-    // Calculate week number: (days + offset to first Monday) / 7, rounded up
-    const weekNumberInYear = Math.ceil(
-      (daysSinceYearStart + firstMondayOffset + 1) / 7
-    );
+      // Calculate week number: (days + offset to first Monday) / 7, rounded up
+      const weekNumberInYear = Math.ceil(
+        (daysSinceYearStart + firstMondayOffset + 1) / 7
+      );
 
     return { weekNumberInMonth, weekNumberInYear, year };
   };
@@ -240,19 +239,9 @@ export default function StoreSurveyDetail() {
 
       // Data rows - Show products from Title 3
       if (survey.products && survey.products.length > 0) {
-        let totalPurchasePrice = 0;
-        let totalSellingPrice = 0;
-        let totalRoadTransportFee = 0;
-        let totalWaterTransportFee = 0;
-        let totalQuantityReceived = 0;
         let totalAverageStockQuantity = 0;
 
         survey.products.forEach((product, index) => {
-          totalPurchasePrice += product.PurchasePrice || 0;
-          totalSellingPrice += product.SellingPrice || 0;
-          totalRoadTransportFee += product.RoadTransportFee || 0;
-          totalWaterTransportFee += product.WaterTransportFee || 0;
-          totalQuantityReceived += product.QuantityReceived || 0;
           totalAverageStockQuantity += product.AverageStockQuantity || 0;
 
           const row = sheet.addRow([
@@ -266,7 +255,6 @@ export default function StoreSurveyDetail() {
             formatVND(product.SellingPrice),
             formatVND(product.RoadTransportFee),
             formatVND(product.WaterTransportFee),
-            product.QuantityReceived || "",
             product.AverageStockQuantity || "",
             product.ImportedFromNPP || "",
             product.DiscountPromotion || "",
@@ -291,12 +279,12 @@ export default function StoreSurveyDetail() {
           "",
           "",
           "",
-          `Tổng sản lượng bình quân của cửa hàng: ${survey.StoreName || ""}`,
-          formatVND(totalPurchasePrice),
-          formatVND(totalSellingPrice),
-          formatVND(totalRoadTransportFee),
-          formatVND(totalWaterTransportFee),
-          totalQuantityReceived,
+          "TỔNG CỘNG",
+          "",
+          "",
+          "",
+          "",
+          "",
           totalAverageStockQuantity,
           "",
           "",
@@ -315,11 +303,6 @@ export default function StoreSurveyDetail() {
 
         // Style summary row
         summaryRow.getCell(6).font = { bold: true };
-        summaryRow.getCell(7).font = { bold: true };
-        summaryRow.getCell(8).font = { bold: true };
-        summaryRow.getCell(9).font = { bold: true };
-        summaryRow.getCell(10).font = { bold: true };
-        summaryRow.getCell(11).font = { bold: true };
         summaryRow.getCell(12).font = { bold: true };
         summaryRow.fill = {
           type: "pattern",
@@ -546,7 +529,6 @@ export default function StoreSurveyDetail() {
                     <th>Giá bán</th>
                     <th>Phí VC đường bộ</th>
                     <th>Phí VC đường thủy</th>
-                    <th>Số lượng nhập hàng (tấn/đợt)</th>
                     <th>Sản lượng bình quân (tấn/tháng)</th>
                     <th>Nhập từ NPP</th>
                     <th>Chương trình chiết khấu - khuyến mãi</th>
@@ -566,40 +548,14 @@ export default function StoreSurveyDetail() {
                       <td>{formatVND(product.SellingPrice)}</td>
                       <td>{formatVND(product.RoadTransportFee)}</td>
                       <td>{formatVND(product.WaterTransportFee)}</td>
-                      <td>{product.QuantityReceived || ""}</td>
                       <td>{product.AverageStockQuantity || ""}</td>
                       <td>{product.ImportedFromNPP || ""}</td>
                       <td>{product.DiscountPromotion || ""}</td>
                       <td>{survey.StoreComment || ""}</td>
                     </tr>
                   ))}
-                  {/* Summary row */}
+                  {/* Summary row - only sum AverageStockQuantity */}
                   {(() => {
-                    const totalPurchasePrice =
-                      survey.products.reduce(
-                        (sum, p) => sum + (p.PurchasePrice || 0),
-                        0
-                      ) || 0;
-                    const totalSellingPrice =
-                      survey.products.reduce(
-                        (sum, p) => sum + (p.SellingPrice || 0),
-                        0
-                      ) || 0;
-                    const totalRoadTransportFee =
-                      survey.products.reduce(
-                        (sum, p) => sum + (p.RoadTransportFee || 0),
-                        0
-                      ) || 0;
-                    const totalWaterTransportFee =
-                      survey.products.reduce(
-                        (sum, p) => sum + (p.WaterTransportFee || 0),
-                        0
-                      ) || 0;
-                    const totalQuantityReceived =
-                      survey.products.reduce(
-                        (sum, p) => sum + (p.QuantityReceived || 0),
-                        0
-                      ) || 0;
                     const totalAverageStockQuantity =
                       survey.products.reduce(
                         (sum, p) => sum + (p.AverageStockQuantity || 0),
@@ -614,18 +570,11 @@ export default function StoreSurveyDetail() {
                           fontWeight: "bold",
                         }}
                       >
-                        <td colSpan={6} style={{ textAlign: "right" }}>
-                          Tổng sản lượng bình quân của cửa hàng:{" "}
-                          {survey.StoreName}
+                        <td colSpan={11} style={{ textAlign: "right" }}>
+                          TỔNG CỘNG
                         </td>
-                        <td>{formatVND(totalPurchasePrice)}</td>
-                        <td>{formatVND(totalSellingPrice)}</td>
-                        <td>{formatVND(totalRoadTransportFee)}</td>
-                        <td>{formatVND(totalWaterTransportFee)}</td>
-                        <td>{totalQuantityReceived}</td>
                         <td>{totalAverageStockQuantity}</td>
-                        <td></td>
-                        <td colSpan={2}></td>
+                        <td colSpan={3}></td>
                       </tr>
                     );
                   })()}

@@ -28,12 +28,23 @@ interface SurveyData {
     sellingPrice: string;
     roadTransportFee: string;
     waterTransportFee: string;
-    quantityReceived: string;
     importedFromNPP: string;
     discountPromotion: string;
     averageStockQuantity: string;
   }>;
 }
+
+const createEmptySurveyData = (): SurveyData => ({
+  // Title 2
+  whyNotSellNewProduct: "",
+  timeToSellNewProduct: "",
+  newProductImportQuantity: "",
+  supplierName: "",
+  importedBySalesperson: "",
+  storeComment: "",
+  // Title 3
+  products: [],
+});
 
 type PriceField =
   | "purchasePrice"
@@ -136,15 +147,9 @@ const StoreSurvey = () => {
   >({});
   const [showValidationModal, setShowValidationModal] = useState(false);
 
-  const [surveyData, setSurveyData] = useState<SurveyData>({
-    whyNotSellNewProduct: "",
-    timeToSellNewProduct: "",
-    newProductImportQuantity: "",
-    supplierName: "",
-    importedBySalesperson: "",
-    storeComment: "",
-    products: [],
-  });
+  const [surveyData, setSurveyData] = useState<SurveyData>(
+    createEmptySurveyData()
+  );
 
   // Load saved survey data from localStorage for autofill (form data, not audit results)
   useEffect(() => {
@@ -223,6 +228,26 @@ const StoreSurvey = () => {
       setExpandedTitles((prev) => ({ ...prev, title3: true }));
     }
   }, [surveyData, expandedTitles.title3]);
+
+  const handleClearAutofill = () => {
+    if (!user?.id) {
+      alert("Không xác định được người dùng để xóa dữ liệu.");
+      return;
+    }
+    const confirmed = window.confirm(
+      "Xóa dữ liệu autofill?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu dùng để autofill cho cửa hàng khác."
+    );
+    if (!confirmed) return;
+
+    try {
+      const storageKey = `survey_data_${user.id}`;
+      localStorage.removeItem(storageKey);
+      setSurveyData(createEmptySurveyData());
+    } catch (error) {
+      console.error("Error clearing autofill data:", error);
+      alert("Không thể xóa dữ liệu autofill. Vui lòng thử lại.");
+    }
+  };
 
   const fetchCementProducts = async () => {
     try {
@@ -456,45 +481,41 @@ const StoreSurvey = () => {
     if (!surveyData.supplierName) errors.push("Mua qua NPP");
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
 
-    // Title 3 validation
-    if (surveyData.products.length === 0) {
-      errors.push("Thông tin bán hàng (ít nhất 1 sản phẩm)");
-    } else {
-      surveyData.products.forEach((product, index) => {
-        if (!product.productType) {
-          errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
-        }
-        if (product.productType === "Xi măng" && !product.cementProductId) {
-          errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
-        }
-        if (!product.contactPersonPhone) {
-          errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
-        }
-        if (!product.purchasePrice) {
-          errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
-        }
-        if (!product.sellingPrice) {
-          errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
-        }
-        if (!product.roadTransportFee) {
-          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
-        }
-        if (!product.waterTransportFee) {
-          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
-        }
-        if (!product.quantityReceived) {
-          errors.push(
-            `Sản phẩm ${index + 1}: Số lượng nhập hàng (tấn/đợt)`
-          );
-        }
-        if (!product.importedFromNPP) {
-          errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
-        }
-        if (!product.averageStockQuantity) {
-          errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
-        }
-      });
-    }
+    // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
+    surveyData.products.forEach((product, index) => {
+      const hasAnyValue = Object.values(product || {}).some(
+        (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
+      );
+      if (!hasAnyValue) return; // bỏ qua sản phẩm trống
+
+      if (!product.productType) {
+        errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
+      }
+      if (product.productType === "Xi măng" && !product.cementProductId) {
+        errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
+      }
+      if (!product.contactPersonPhone) {
+        errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
+      }
+      if (!product.purchasePrice) {
+        errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
+      }
+      if (!product.sellingPrice) {
+        errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
+      }
+      if (!product.roadTransportFee) {
+        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
+      }
+      if (!product.waterTransportFee) {
+        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
+      }
+      if (!product.importedFromNPP) {
+        errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
+      }
+      if (!product.averageStockQuantity) {
+        errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
+      }
+    });
 
     return errors;
   };
@@ -646,9 +667,6 @@ const StoreSurvey = () => {
           waterTransportFee: p.waterTransportFee?.trim()
             ? parseVND(p.waterTransportFee)
             : null,
-          quantityReceived: p.quantityReceived?.trim()
-            ? parseFloat(p.quantityReceived)
-            : null,
           importedFromNPP: p.importedFromNPP,
           discountPromotion: p.discountPromotion || null,
           averageStockQuantity: p.averageStockQuantity?.trim()
@@ -750,6 +768,33 @@ const StoreSurvey = () => {
       </div>
 
       <div className="store-survey-content">
+        <div
+          className="store-survey-autofill-row"
+          style={{
+            borderColor: `${colors.icon}33`,
+            backgroundColor: colors.secondary,
+          }}
+        >
+          <p
+            className="store-survey-autofill-label"
+            style={{ color: colors.text }}
+          >
+            Đang dùng dữ liệu autofill từ khảo sát trước.
+          </p>
+          <button
+            type="button"
+            className="store-survey-clear-autofill"
+            onClick={handleClearAutofill}
+            style={{
+              color: colors.primary,
+              borderColor: colors.primary,
+              backgroundColor: colors.background,
+            }}
+          >
+            Xóa dữ liệu autofill
+          </button>
+        </div>
+
         {/* Title 3 - Thông tin bán hàng (Hiển thị ở trên) */}
         <div className="store-survey-title-section">
           <div
@@ -1103,29 +1148,6 @@ const StoreSurvey = () => {
                             ▼
                           </span>
                         </button>
-                      </div>
-
-                      <div className="store-survey-field">
-                        <label style={{ color: colors.text }}>
-                          Số lượng nhập hàng (tấn/đợt)
-                        </label>
-                        <input
-                          type="text"
-                          value={product.quantityReceived}
-                          onChange={(e) =>
-                            handleProductChange(
-                              index,
-                              "quantityReceived",
-                              e.target.value
-                            )
-                          }
-                          placeholder="Nhập số lượng"
-                          style={{
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                          }}
-                        />
                       </div>
 
                       <div className="store-survey-field">

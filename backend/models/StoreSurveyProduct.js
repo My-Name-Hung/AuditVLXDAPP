@@ -12,7 +12,6 @@ class StoreSurveyProduct {
       PurchasePrice,
       RoadTransportFee,
       WaterTransportFee,
-      QuantityReceived,
       ImportedFromNPP,
       DiscountPromotion,
       AverageStockQuantity,
@@ -27,7 +26,6 @@ class StoreSurveyProduct {
     request.input('PurchasePrice', sql.Decimal(18, 2), PurchasePrice || null);
     request.input('RoadTransportFee', sql.Decimal(18, 2), RoadTransportFee || null);
     request.input('WaterTransportFee', sql.Decimal(18, 2), WaterTransportFee || null);
-    request.input('QuantityReceived', sql.Decimal(18, 2), QuantityReceived || null);
     request.input('ImportedFromNPP', sql.NVarChar(500), ImportedFromNPP || null);
     request.input('DiscountPromotion', sql.NVarChar(1000), DiscountPromotion || null);
     request.input('AverageStockQuantity', sql.Decimal(18, 2), AverageStockQuantity || null);
@@ -36,14 +34,14 @@ class StoreSurveyProduct {
       INSERT INTO StoreSurveyProducts (
         StoreSurveyId, ProductType, CementProductId, SellingPrice,
         ContactPersonPhone, PurchasePrice, RoadTransportFee, WaterTransportFee,
-        QuantityReceived, ImportedFromNPP, DiscountPromotion, AverageStockQuantity,
+        ImportedFromNPP, DiscountPromotion, AverageStockQuantity,
         CreatedAt
       )
       OUTPUT INSERTED.*
       VALUES (
         @StoreSurveyId, @ProductType, @CementProductId, @SellingPrice,
         @ContactPersonPhone, @PurchasePrice, @RoadTransportFee, @WaterTransportFee,
-        @QuantityReceived, @ImportedFromNPP, @DiscountPromotion, @AverageStockQuantity,
+        @ImportedFromNPP, @DiscountPromotion, @AverageStockQuantity,
         GETDATE()
       )
     `);
@@ -98,7 +96,6 @@ class StoreSurveyProduct {
       PurchasePrice,
       RoadTransportFee,
       WaterTransportFee,
-      QuantityReceived,
       ImportedFromNPP,
       DiscountPromotion,
       AverageStockQuantity,
@@ -113,7 +110,6 @@ class StoreSurveyProduct {
     request.input('PurchasePrice', sql.Decimal(18, 2), PurchasePrice || null);
     request.input('RoadTransportFee', sql.Decimal(18, 2), RoadTransportFee || null);
     request.input('WaterTransportFee', sql.Decimal(18, 2), WaterTransportFee || null);
-    request.input('QuantityReceived', sql.Decimal(18, 2), QuantityReceived || null);
     request.input('ImportedFromNPP', sql.NVarChar(500), ImportedFromNPP || null);
     request.input('DiscountPromotion', sql.NVarChar(1000), DiscountPromotion || null);
     request.input('AverageStockQuantity', sql.Decimal(18, 2), AverageStockQuantity || null);
@@ -127,7 +123,6 @@ class StoreSurveyProduct {
           PurchasePrice = @PurchasePrice,
           RoadTransportFee = @RoadTransportFee,
           WaterTransportFee = @WaterTransportFee,
-          QuantityReceived = @QuantityReceived,
           ImportedFromNPP = @ImportedFromNPP,
           DiscountPromotion = @DiscountPromotion,
           AverageStockQuantity = @AverageStockQuantity
@@ -171,7 +166,6 @@ class StoreSurveyProduct {
         request.input('PurchasePrice', sql.Decimal(18, 2), product.PurchasePrice || null);
         request.input('RoadTransportFee', sql.Decimal(18, 2), product.RoadTransportFee || null);
         request.input('WaterTransportFee', sql.Decimal(18, 2), product.WaterTransportFee || null);
-        request.input('QuantityReceived', sql.Decimal(18, 2), product.QuantityReceived || null);
         request.input('ImportedFromNPP', sql.NVarChar(500), product.ImportedFromNPP || null);
         request.input('DiscountPromotion', sql.NVarChar(1000), product.DiscountPromotion || null);
         request.input('AverageStockQuantity', sql.Decimal(18, 2), product.AverageStockQuantity || null);
@@ -180,14 +174,14 @@ class StoreSurveyProduct {
           INSERT INTO StoreSurveyProducts (
             StoreSurveyId, ProductType, CementProductId, SellingPrice,
             ContactPersonPhone, PurchasePrice, RoadTransportFee, WaterTransportFee,
-            QuantityReceived, ImportedFromNPP, DiscountPromotion, AverageStockQuantity,
+            ImportedFromNPP, DiscountPromotion, AverageStockQuantity,
             CreatedAt
           )
           OUTPUT INSERTED.*
           VALUES (
             @StoreSurveyId, @ProductType, @CementProductId, @SellingPrice,
             @ContactPersonPhone, @PurchasePrice, @RoadTransportFee, @WaterTransportFee,
-            @QuantityReceived, @ImportedFromNPP, @DiscountPromotion, @AverageStockQuantity,
+            @ImportedFromNPP, @DiscountPromotion, @AverageStockQuantity,
             GETDATE()
           )
         `);

@@ -29,6 +29,40 @@
   margin: 0 auto;
 }
 
+.store-survey-autofill-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid;
+  border-radius: 10px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+}
+
+.store-survey-autofill-label {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  flex: 1;
+}
+
+.store-survey-clear-autofill {
+  padding: 10px 14px;
+  border: 1px solid;
+  border-radius: 8px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.store-survey-clear-autofill:hover {
+  opacity: 0.9;
+}
+
 .store-survey-title-section {
   margin-bottom: 24px;
   border-radius: 8px;

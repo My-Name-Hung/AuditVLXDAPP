@@ -43,12 +43,21 @@ interface SurveyData {
     sellingPrice: string;
     roadTransportFee: string;
     waterTransportFee: string;
-    quantityReceived: string;
     importedFromNPP: string;
     discountPromotion: string;
     averageStockQuantity: string;
   }[];
 }
+
+const createEmptySurveyData = (): SurveyData => ({
+  whyNotSellNewProduct: "",
+  timeToSellNewProduct: "",
+  newProductImportQuantity: "",
+  supplierName: "",
+  importedBySalesperson: "",
+  storeComment: "",
+  products: [],
+});
 
 type PriceField =
   | "purchasePrice"
@@ -144,15 +153,9 @@ export default function StoreSurveyScreen() {
   } | null>(null);
   const [customPriceValue, setCustomPriceValue] = useState("");
 
-  const [surveyData, setSurveyData] = useState<SurveyData>({
-    whyNotSellNewProduct: "",
-    timeToSellNewProduct: "",
-    newProductImportQuantity: "",
-    supplierName: "",
-    importedBySalesperson: "",
-    storeComment: "",
-    products: [],
-  });
+  const [surveyData, setSurveyData] = useState<SurveyData>(
+    createEmptySurveyData()
+  );
 
   // Load saved survey data from AsyncStorage for autofill (form data, not audit results)
   useEffect(() => {
@@ -202,6 +205,37 @@ export default function StoreSurveyScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleClearAutofill = () => {
+    if (!user?.id) {
+      Alert.alert("Thông báo", "Không xác định được người dùng để xóa dữ liệu.");
+      return;
+    }
+    Alert.alert(
+      "Xóa dữ liệu autofill?",
+      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu dùng để autofill cho cửa hàng khác.",
+      [
+        { text: "Huỷ", style: "cancel" },
+        {
+          text: "Xóa",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const storageKey = `survey_data_${user.id}`;
+              await AsyncStorage.removeItem(storageKey);
+              setSurveyData(createEmptySurveyData());
+            } catch (error) {
+              console.error("Error clearing autofill data:", error);
+              Alert.alert(
+                "Lỗi",
+                "Không thể xóa dữ liệu autofill. Vui lòng thử lại."
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
 
   useEffect(() => {
     // Auto-expand title 3 if title 2 is complete
@@ -450,11 +484,13 @@ export default function StoreSurveyScreen() {
     if (!surveyData.supplierName) errors.push("Mua qua NPP");
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
 
-    // Title 3 validation
-    if (surveyData.products.length === 0) {
-      errors.push("Thông tin bán hàng (ít nhất 1 sản phẩm)");
-    } else {
+    // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
       surveyData.products.forEach((product, index) => {
+      const hasAnyValue = Object.values(product || {}).some(
+        (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
+      );
+      if (!hasAnyValue) return; // bỏ qua sản phẩm trống
+
         if (!product.productType) {
           errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
         }
@@ -476,19 +512,13 @@ export default function StoreSurveyScreen() {
         if (!product.waterTransportFee) {
           errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
         }
-        if (!product.quantityReceived) {
-          errors.push(
-            `Sản phẩm ${index + 1}: Số lượng nhập hàng (tấn/đợt)`
-          );
-        }
         if (!product.importedFromNPP) {
           errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
         }
         if (!product.averageStockQuantity) {
-          errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
+        errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
         }
       });
-    }
 
     return errors;
   };
@@ -765,6 +795,24 @@ export default function StoreSurveyScreen() {
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
+          <View style={styles.autofillRow}>
+            <Text style={[styles.autofillLabel, { color: colors.text }]}>
+              Đang dùng dữ liệu autofill từ khảo sát trước.
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.clearAutofillButton,
+                { borderColor: colors.primary, backgroundColor: colors.secondary },
+              ]}
+              onPress={handleClearAutofill}
+            >
+              <Ionicons name="trash-outline" size={18} color={colors.primary} />
+              <Text style={[styles.clearAutofillText, { color: colors.primary }]}>
+                Xóa dữ liệu autofill
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           {/* Title 3 - Thông tin bán hàng (Hiển thị ở trên) */}
           <View
             style={[
@@ -1176,33 +1224,6 @@ export default function StoreSurveyScreen() {
                               />
                             </View>
                           </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.field}>
-                          <Text style={[styles.label, { color: colors.text }]}>
-                            Số lượng nhập hàng (tấn/đợt)
-                          </Text>
-                          <TextInput
-                            style={[
-                              styles.input,
-                              {
-                                backgroundColor: colors.background,
-                                color: colors.text,
-                                borderColor: colors.icon + "40",
-                              },
-                            ]}
-                            value={product.quantityReceived}
-                            onChangeText={(value) =>
-                              handleProductChange(
-                                index,
-                                "quantityReceived",
-                                value
-                              )
-                            }
-                            placeholder="Nhập số lượng"
-                            placeholderTextColor={colors.icon}
-                            keyboardType="numeric"
-                          />
                         </View>
 
                         <View style={styles.field}>
@@ -2171,6 +2192,35 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
+  },
+  autofillRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    borderRadius: 10,
+  },
+  autofillLabel: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  clearAutofillButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  clearAutofillText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   titleSection: {
     borderRadius: 12,
