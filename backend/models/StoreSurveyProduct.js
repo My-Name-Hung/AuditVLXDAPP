@@ -68,6 +68,41 @@ class StoreSurveyProduct {
     return result.recordset;
   }
 
+  static async findBySurveyIds(surveyIds) {
+    if (!surveyIds || surveyIds.length === 0) {
+      return [];
+    }
+
+    const pool = await getPool();
+    const request = pool.request();
+    
+    // Create a table-valued parameter or use IN clause
+    const ids = surveyIds.map(id => parseInt(id)).filter(id => !isNaN(id));
+    if (ids.length === 0) {
+      return [];
+    }
+
+    // Build IN clause with parameters
+    const placeholders = ids.map((_, index) => {
+      const paramName = `surveyId${index}`;
+      request.input(paramName, sql.Int, ids[index]);
+      return `@${paramName}`;
+    }).join(',');
+
+    const result = await request.query(`
+      SELECT 
+        ssp.*,
+        cp.Code as CementProductCode,
+        cp.Name as CementProductName
+      FROM StoreSurveyProducts ssp
+      LEFT JOIN CementProducts cp ON ssp.CementProductId = cp.Id
+      WHERE ssp.StoreSurveyId IN (${placeholders})
+      ORDER BY ssp.StoreSurveyId ASC, ssp.CreatedAt ASC
+    `);
+
+    return result.recordset;
+  }
+
   static async findById(id) {
     const pool = await getPool();
     const request = pool.request();

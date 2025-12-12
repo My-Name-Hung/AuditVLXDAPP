@@ -199,17 +199,29 @@ const getAllStoreSurveys = async (req, res) => {
 
     // Optionally include products to reduce payload for list page
     const shouldIncludeProducts = includeProducts === "true";
-    const surveysWithProducts = shouldIncludeProducts
-      ? await Promise.all(
-          surveys.map(async (survey) => {
-            const products = await StoreSurveyProduct.findBySurveyId(survey.Id);
-            return {
-              ...survey,
-              products: products,
-            };
-          })
-        )
-      : surveys;
+    let surveysWithProducts = surveys;
+
+    if (shouldIncludeProducts && surveys.length > 0) {
+      // Fetch all products in one query instead of N queries (optimize N+1 problem)
+      const surveyIds = surveys.map((s) => s.Id);
+      const allProducts = await StoreSurveyProduct.findBySurveyIds(surveyIds);
+
+      // Group products by survey ID
+      const productsMap = new Map();
+      allProducts.forEach((product) => {
+        const surveyId = product.StoreSurveyId;
+        if (!productsMap.has(surveyId)) {
+          productsMap.set(surveyId, []);
+        }
+        productsMap.get(surveyId).push(product);
+      });
+
+      // Attach products to surveys
+      surveysWithProducts = surveys.map((survey) => ({
+        ...survey,
+        products: productsMap.get(survey.Id) || [],
+      }));
+    }
 
     res.json(surveysWithProducts);
   } catch (error) {

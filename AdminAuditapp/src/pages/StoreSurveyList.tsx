@@ -118,15 +118,10 @@ export default function StoreSurveyList() {
   );
 
   useEffect(() => {
-    // Load initial data in parallel for better performance
-    Promise.all([
-      fetchSurveys(),
-      fetchUsers(),
-      fetchCementProducts(),
-      fetchTerritories(),
-    ]).catch((error) => {
-      console.error("Error loading initial data:", error);
-    });
+    fetchSurveys();
+    fetchUsers();
+    fetchCementProducts();
+    fetchTerritories();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -429,13 +424,9 @@ export default function StoreSurveyList() {
         pageSize: 1000,
       };
 
-      // Only include products when filters require product-level data
-      const needProducts =
-        (Array.isArray(filterValues.cementProductName) &&
-          filterValues.cementProductName.length > 0) ||
-        !!filterValues.priceFrom ||
-        !!filterValues.priceTo;
-      params.includeProducts = needProducts ? "true" : "false";
+      // Always include products since we need them for display
+      // This avoids N+1 query problem by fetching all products in one backend call
+      params.includeProducts = "true";
 
       if (filterValues.storeName) params.storeName = filterValues.storeName;
       if (filterValues.userName) params.userName = filterValues.userName;
@@ -491,18 +482,14 @@ export default function StoreSurveyList() {
 
       const res = await api.get("/store-surveys", { params });
 
-      // Only fetch products if needed (when includeProducts is true or when exporting)
-      let surveysWithProducts: StoreSurveyListItem[];
-      if (needProducts || res.data.length === 0) {
-        // Backend already includes products, use them directly
-        surveysWithProducts = res.data;
-      } else {
-        // Don't fetch products if not needed - significantly faster
-        surveysWithProducts = res.data.map((survey: StoreSurveyListItem) => ({
+      // Backend already includes products when includeProducts=true
+      // No need to fetch products again - this was causing N+1 query problem
+      const surveysWithProducts = res.data.map(
+        (survey: StoreSurveyListItem) => ({
           ...survey,
-          products: [],
-        }));
-      }
+          products: survey.products || [], // Use products from backend response
+        })
+      );
 
       setAllSurveys(surveysWithProducts);
       // Apply client-side filters
