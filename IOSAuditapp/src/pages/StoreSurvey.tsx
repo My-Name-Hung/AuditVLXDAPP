@@ -175,7 +175,6 @@ const StoreSurvey = () => {
                         sellingPrice?: string;
                         roadTransportFee?: string;
                         waterTransportFee?: string;
-                        quantityReceived?: string;
                         importedFromNPP?: string;
                         discountPromotion?: string;
                         averageStockQuantity?: string;
@@ -326,7 +325,6 @@ const StoreSurvey = () => {
           sellingPrice: "",
           roadTransportFee: "",
           waterTransportFee: "",
-          quantityReceived: "",
           importedFromNPP: "",
           discountPromotion: "",
           averageStockQuantity: "",
@@ -376,7 +374,6 @@ const StoreSurvey = () => {
       | "sellingPrice"
       | "roadTransportFee"
       | "waterTransportFee"
-      | "quantityReceived"
       | "importedFromNPP"
       | "discountPromotion"
       | "averageStockQuantity",

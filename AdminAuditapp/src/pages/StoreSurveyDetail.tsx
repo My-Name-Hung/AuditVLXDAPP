@@ -122,26 +122,26 @@ export default function StoreSurveyDetail() {
     const year = date.getFullYear();
     const day = date.getDate();
 
-      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-      const weekNumberInMonth = Math.ceil(day / 7);
+    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+    const weekNumberInMonth = Math.ceil(day / 7);
 
-      // Week number in year: calculate from January 1st
-      // Get the first day of the year
-      const januaryFirst = new Date(year, 0, 1);
-      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-      const firstDayOfWeek = januaryFirst.getDay();
-      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
-      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    // Week number in year: calculate from January 1st
+    // Get the first day of the year
+    const januaryFirst = new Date(year, 0, 1);
+    // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const firstDayOfWeek = januaryFirst.getDay();
+    // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
-      // Calculate days since year start
-      const daysSinceYearStart = Math.floor(
+    // Calculate days since year start
+    const daysSinceYearStart = Math.floor(
       (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-      );
+    );
 
-      // Calculate week number: (days + offset to first Monday) / 7, rounded up
-      const weekNumberInYear = Math.ceil(
-        (daysSinceYearStart + firstMondayOffset + 1) / 7
-      );
+    // Calculate week number: (days + offset to first Monday) / 7, rounded up
+    const weekNumberInYear = Math.ceil(
+      (daysSinceYearStart + firstMondayOffset + 1) / 7
+    );
 
     return { weekNumberInMonth, weekNumberInYear, year };
   };
@@ -218,7 +218,6 @@ export default function StoreSurveyDetail() {
         "Giá bán",
         "Phí VC đường bộ",
         "Phí VC đường thủy",
-        "Số lượng nhập hàng (tấn/đợt)",
         "Sản lượng bình quân (tấn/tháng)",
         "Nhập từ NPP",
         "Chương trình chiết khấu - khuyến mãi",
@@ -284,8 +283,7 @@ export default function StoreSurveyDetail() {
           "",
           "",
           "",
-          "",
-          totalAverageStockQuantity,
+          (totalAverageStockQuantity || "").toString(), // Cột 11: Sản lượng bình quân (tấn/tháng)
           "",
           "",
           "",
@@ -570,7 +568,7 @@ export default function StoreSurveyDetail() {
                           fontWeight: "bold",
                         }}
                       >
-                        <td colSpan={11} style={{ textAlign: "right" }}>
+                        <td colSpan={10} style={{ textAlign: "right" }}>
                           TỔNG CỘNG
                         </td>
                         <td>{totalAverageStockQuantity}</td>

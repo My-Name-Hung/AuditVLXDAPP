@@ -330,7 +330,6 @@ export default function StoreSurveyScreen() {
           sellingPrice: "",
           roadTransportFee: "",
           waterTransportFee: "",
-          quantityReceived: "",
           importedFromNPP: "",
           discountPromotion: "",
           averageStockQuantity: "",
@@ -380,7 +379,6 @@ export default function StoreSurveyScreen() {
       | "sellingPrice"
       | "roadTransportFee"
       | "waterTransportFee"
-      | "quantityReceived"
       | "importedFromNPP"
       | "discountPromotion"
       | "averageStockQuantity",
@@ -675,9 +673,6 @@ export default function StoreSurveyScreen() {
             : null,
           waterTransportFee: p.waterTransportFee?.trim()
             ? parseVND(p.waterTransportFee)
-            : null,
-          quantityReceived: p.quantityReceived?.trim()
-            ? parseFloat(p.quantityReceived)
             : null,
           importedFromNPP: p.importedFromNPP,
           discountPromotion: p.discountPromotion || null,

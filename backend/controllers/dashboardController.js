@@ -397,11 +397,12 @@ async function exportReport(req, res) {
           s.Address,
           t.TerritoryName,
           MIN(img.CapturedAt) as CheckinTime,
-          a.Notes
+          COALESCE(ss.StoreComment, a.Notes) as Notes
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
         LEFT JOIN Territories t ON s.TerritoryId = t.Id
         INNER JOIN Images img ON a.Id = img.AuditId
+        LEFT JOIN StoreSurveys ss ON a.Id = ss.AuditId
         WHERE a.UserId = @UserId
           AND s.TerritoryId = @TerritoryId
           AND img.ImageUrl IS NOT NULL
@@ -421,6 +422,7 @@ async function exportReport(req, res) {
                  s.StoreName,
                  s.Address,
                  t.TerritoryName,
+                 ss.StoreComment,
                  a.Notes
         ORDER BY CheckinDate DESC, CheckinTime DESC
       `;

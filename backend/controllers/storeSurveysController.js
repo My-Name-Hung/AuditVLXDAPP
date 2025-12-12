@@ -201,13 +201,13 @@ const getAllStoreSurveys = async (req, res) => {
     const shouldIncludeProducts = includeProducts === "true";
     const surveysWithProducts = shouldIncludeProducts
       ? await Promise.all(
-      surveys.map(async (survey) => {
-        const products = await StoreSurveyProduct.findBySurveyId(survey.Id);
-        return {
-          ...survey,
-          products: products,
-        };
-      })
+          surveys.map(async (survey) => {
+            const products = await StoreSurveyProduct.findBySurveyId(survey.Id);
+            return {
+              ...survey,
+              products: products,
+            };
+          })
         )
       : surveys;
 

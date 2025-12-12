@@ -256,13 +256,13 @@ export default function StoreSurveyList() {
         const hasMatchingProduct = survey.products?.some((product) =>
           filterValues.cementProductName.some(
             (filterName) =>
-            product.CementProductName?.toLowerCase().includes(
+              product.CementProductName?.toLowerCase().includes(
                 filterName.toLowerCase()
-            ) ||
-            product.CementProductCode?.toLowerCase().includes(
+              ) ||
+              product.CementProductCode?.toLowerCase().includes(
                 filterName.toLowerCase()
               )
-            )
+          )
         );
         if (!hasMatchingProduct) {
           return false;
@@ -278,7 +278,7 @@ export default function StoreSurveyList() {
           survey.TerritoryName?.toLowerCase().includes(filterName.toLowerCase())
         );
         if (!matchesTerritory) {
-        return false;
+          return false;
         }
       }
 
@@ -415,7 +415,7 @@ export default function StoreSurveyList() {
   ) => {
     try {
       if (options?.isInitial) {
-      setLoading(true);
+        setLoading(true);
       } else {
         setFilterRefreshing(true);
       }
@@ -508,7 +508,7 @@ export default function StoreSurveyList() {
       console.error("Error fetching surveys:", error);
     } finally {
       if (options?.isInitial) {
-      setLoading(false);
+        setLoading(false);
         setInitialLoad(false);
       }
       setFilterRefreshing(false);
@@ -556,26 +556,26 @@ export default function StoreSurveyList() {
     const year = date.getFullYear();
     const day = date.getDate();
 
-      // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-      const weekNumberInMonth = Math.ceil(day / 7);
+    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
+    const weekNumberInMonth = Math.ceil(day / 7);
 
-      // Week number in year: calculate from January 1st
-      // Get the first day of the year
-      const januaryFirst = new Date(year, 0, 1);
-      // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
-      const firstDayOfWeek = januaryFirst.getDay();
-      // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
-      const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+    // Week number in year: calculate from January 1st
+    // Get the first day of the year
+    const januaryFirst = new Date(year, 0, 1);
+    // Get the day of week for January 1st (0 = Sunday, 1 = Monday, ..., 6 = Saturday)
+    const firstDayOfWeek = januaryFirst.getDay();
+    // Convert to Monday = 0, Tuesday = 1, ..., Sunday = 6
+    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
 
-      // Calculate days since year start
-      const daysSinceYearStart = Math.floor(
+    // Calculate days since year start
+    const daysSinceYearStart = Math.floor(
       (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-      );
+    );
 
-      // Calculate week number: (days + offset to first Monday) / 7, rounded up
-      const weekNumberInYear = Math.ceil(
-        (daysSinceYearStart + firstMondayOffset + 1) / 7
-      );
+    // Calculate week number: (days + offset to first Monday) / 7, rounded up
+    const weekNumberInYear = Math.ceil(
+      (daysSinceYearStart + firstMondayOffset + 1) / 7
+    );
 
     return { weekNumberInMonth, weekNumberInYear, year };
   };
@@ -1108,8 +1108,8 @@ export default function StoreSurveyList() {
                 totalAverageStockQuantity += averageStockQuantity;
 
                 try {
-              const row = sheet.addRow([
-                isFirstRow ? sttCounter : "",
+                  const row = sheet.addRow([
+                    isFirstRow ? sttCounter : "",
                     storeName || "",
                     formatDate(survey.AuditDate) || "",
                     (product.ContactPersonPhone || "").toString(),
@@ -1123,18 +1123,18 @@ export default function StoreSurveyList() {
                     (product.ImportedFromNPP || "").toString(),
                     (product.DiscountPromotion || "").toString(),
                     isFirstRow ? (survey.StoreComment || "").toString() : "",
-              ]);
+                  ]);
 
-              row.eachCell((cell) => {
-                cell.border = {
-                  top: { style: "thin" },
-                  bottom: { style: "thin" },
-                  left: { style: "thin" },
-                  right: { style: "thin" },
-                };
-                cell.alignment = { vertical: "middle" };
-              });
-              isFirstRow = false;
+                  row.eachCell((cell) => {
+                    cell.border = {
+                      top: { style: "thin" },
+                      bottom: { style: "thin" },
+                      left: { style: "thin" },
+                      right: { style: "thin" },
+                    };
+                    cell.alignment = { vertical: "middle" };
+                  });
+                  isFirstRow = false;
                 } catch (error) {
                   console.error(
                     "Error adding row for product:",
@@ -1144,48 +1144,47 @@ export default function StoreSurveyList() {
                 }
               });
             }
-            });
+          });
 
           // Add summary row only if there are products (isFirstRow will be false if products were added)
           if (!isFirstRow) {
             try {
-            const summaryRow = sheet.addRow([
-              "",
-              "",
-              "",
-              "",
-              "",
+              const summaryRow = sheet.addRow([
+                "",
+                "",
+                "",
+                "",
+                "",
                 "TỔNG CỘNG",
                 "",
                 "",
                 "",
                 "",
+                (totalAverageStockQuantity || "").toString(), // Cột 11: Sản lượng bình quân (tấn/tháng)
                 "",
-                (totalAverageStockQuantity || "").toString(),
                 "",
-              "",
-              "",
-            ]);
+                "",
+              ]);
 
-            summaryRow.eachCell((cell) => {
-              cell.border = {
-                top: { style: "thin" },
-                bottom: { style: "thin" },
-                left: { style: "thin" },
-                right: { style: "thin" },
-              };
-              cell.alignment = { vertical: "middle" };
-            });
+              summaryRow.eachCell((cell) => {
+                cell.border = {
+                  top: { style: "thin" },
+                  bottom: { style: "thin" },
+                  left: { style: "thin" },
+                  right: { style: "thin" },
+                };
+                cell.alignment = { vertical: "middle" };
+              });
 
-            // Style summary row
+              // Style summary row
               try {
-            summaryRow.getCell(6).font = { bold: true };
-            summaryRow.getCell(11).font = { bold: true };
-            summaryRow.fill = {
-              type: "pattern",
-              pattern: "solid",
-              fgColor: { argb: "FFF0F7FF" },
-            };
+                summaryRow.getCell(6).font = { bold: true };
+                summaryRow.getCell(11).font = { bold: true };
+                summaryRow.fill = {
+                  type: "pattern",
+                  pattern: "solid",
+                  fgColor: { argb: "FFF0F7FF" },
+                };
               } catch (styleError) {
                 console.warn("Error styling summary row:", styleError);
               }
@@ -1234,19 +1233,19 @@ export default function StoreSurveyList() {
           return (
             weekMatch &&
             (survey.WhyNotSellNewProduct ||
-            survey.TimeToSellNewProduct ||
-            survey.NewProductImportQuantity ||
-            survey.SupplierName ||
-            survey.ImportedBySalesperson ||
+              survey.TimeToSellNewProduct ||
+              survey.NewProductImportQuantity ||
+              survey.SupplierName ||
+              survey.ImportedBySalesperson ||
               survey.StoreComment)
-        );
+          );
         });
 
         if (title2Surveys.length > 0) {
           // Title for Table 2
           const title2Row = sheet.rowCount + 1;
           try {
-          sheet.mergeCells(`A${title2Row}:I${title2Row}`);
+            sheet.mergeCells(`A${title2Row}:I${title2Row}`);
           } catch (e) {
             console.warn(`Error merging A${title2Row}:I${title2Row}:`, e);
           }
@@ -1352,7 +1351,7 @@ export default function StoreSurveyList() {
       {/* Filter Section */}
       <div className="filter-section">
         <div className="filter-title">
-        <h3>Bộ lọc</h3>
+          <h3>Bộ lọc</h3>
           {filterRefreshing && (
             <span className="filter-loading">
               <span className="inline-spinner" />
@@ -1571,26 +1570,26 @@ export default function StoreSurveyList() {
                       Array.isArray(filters.cementProductName) &&
                       filters.cementProductName.includes(product.Name);
                     return (
-                    <div
-                      key={product.Id}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      <div
+                        key={product.Id}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleCementProductToggle(product.Name);
-                      }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        borderBottom: "1px solid #eee",
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          borderBottom: "1px solid #eee",
                           display: "flex",
                           alignItems: "center",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }}
-                    >
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -1604,7 +1603,7 @@ export default function StoreSurveyList() {
                           }}
                         />
                         <span>{product.Name}</span>
-                    </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -1655,26 +1654,26 @@ export default function StoreSurveyList() {
                       Array.isArray(filters.territoryName) &&
                       filters.territoryName.includes(territory.TerritoryName);
                     return (
-                    <div
-                      key={territory.Id}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                      <div
+                        key={territory.Id}
+                        onClick={(e) => {
+                          e.stopPropagation();
                           handleTerritoryToggle(territory.TerritoryName);
-                      }}
-                      style={{
-                        padding: "8px 12px",
-                        cursor: "pointer",
-                        borderBottom: "1px solid #eee",
+                        }}
+                        style={{
+                          padding: "8px 12px",
+                          cursor: "pointer",
+                          borderBottom: "1px solid #eee",
                           display: "flex",
                           alignItems: "center",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = "#f5f5f5";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "#fff";
-                      }}
-                    >
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = "#f5f5f5";
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = "#fff";
+                        }}
+                      >
                         <input
                           type="checkbox"
                           checked={isSelected}
@@ -1688,7 +1687,7 @@ export default function StoreSurveyList() {
                           }}
                         />
                         <span>{territory.TerritoryName}</span>
-                    </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -1725,27 +1724,27 @@ export default function StoreSurveyList() {
       </div>
 
       {/* Tables - Thông tin bán hàng (Title 3) */}
-        <div className="table-container">
-          <h3 className="table-section-title">Thông tin bán hàng</h3>
-          <table className="survey-list-table">
-            <thead>
-              <tr>
-                <th>Stt</th>
-                <th>Tên cửa hàng</th>
-                <th>Ngày thăm</th>
-                <th>Người tiếp xúc</th>
-                <th>Tên sản phẩm</th>
-                <th>Loại XM</th>
-                <th>Giá mua</th>
-                <th>Giá bán</th>
+      <div className="table-container">
+        <h3 className="table-section-title">Thông tin bán hàng</h3>
+        <table className="survey-list-table">
+          <thead>
+            <tr>
+              <th>Stt</th>
+              <th>Tên cửa hàng</th>
+              <th>Ngày thăm</th>
+              <th>Người tiếp xúc</th>
+              <th>Tên sản phẩm</th>
+              <th>Loại XM</th>
+              <th>Giá mua</th>
+              <th>Giá bán</th>
               <th>Sản lượng bình quân (tấn/tháng)</th>
-                <th>Mua qua NPP</th>
+              <th>Mua qua NPP</th>
               <th>Chương trình chiết khấu - khuyến mãi</th>
-                <th>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(() => {
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
               type ProductItem = {
                 survey: StoreSurveyListItem;
                 product: StoreSurveyListItem["products"][0] | null;
@@ -1770,94 +1769,94 @@ export default function StoreSurveyList() {
                     },
                   ];
                 }
-                  );
+              );
 
-                // Group items by store
+              // Group items by store
               const storeGroups = new Map<number, ProductItem[]>();
 
-                allItems.forEach((item) => {
-                  const { survey } = item;
-                  if (!storeGroups.has(survey.StoreId)) {
-                    storeGroups.set(survey.StoreId, []);
-                  }
-                  storeGroups.get(survey.StoreId)!.push(item);
-                });
+              allItems.forEach((item) => {
+                const { survey } = item;
+                if (!storeGroups.has(survey.StoreId)) {
+                  storeGroups.set(survey.StoreId, []);
+                }
+                storeGroups.get(survey.StoreId)!.push(item);
+              });
 
-                // Render rows grouped by store
-                let globalIndex = 0;
-                const rows: React.ReactElement[] = [];
+              // Render rows grouped by store
+              let globalIndex = 0;
+              const rows: React.ReactElement[] = [];
 
-                storeGroups.forEach((items, storeId) => {
+              storeGroups.forEach((items, storeId) => {
                 // Calculate totals for this store (only average stock)
-                  let totalAverageStockQuantity = 0;
+                let totalAverageStockQuantity = 0;
 
-                  // Add product rows for this store
-                  items.forEach((item) => {
-                    const { survey, product } = item;
-                    totalAverageStockQuantity +=
-                      product?.AverageStockQuantity || 0;
+                // Add product rows for this store
+                items.forEach((item) => {
+                  const { survey, product } = item;
+                  totalAverageStockQuantity +=
+                    product?.AverageStockQuantity || 0;
 
-                    globalIndex++;
-                    rows.push(
+                  globalIndex++;
+                  rows.push(
                     <tr
                       key={`${survey.Id}-${
                         product?.Id ?? "no-product"
                       }-${globalIndex}`}
                     >
-                        <td>{globalIndex}</td>
-                        <td>{survey.StoreName || "-"}</td>
-                        <td>{formatDate(survey.AuditDate) || "-"}</td>
-                        <td>{product?.ContactPersonPhone || "-"}</td>
-                        <td>{product?.ProductType || "-"}</td>
-                        <td>{product?.CementProductName || "-"}</td>
-                        <td>
-                          {formatVND(product?.PurchasePrice || null) || "-"}
-                        </td>
-                      <td>{formatVND(product?.SellingPrice || null) || "-"}</td>
-                        <td>{product?.AverageStockQuantity ?? "-"}</td>
-                        <td>{product?.ImportedFromNPP || "-"}</td>
-                      <td>{product?.DiscountPromotion || "-"}</td>
-                        <td>
-                          <button
-                            className="btn-view-survey-list"
-                            onClick={() =>
-                              navigate(
-                                `/stores/${survey.StoreId}/survey?auditId=${survey.AuditId}&userId=${survey.UserId}`
-                              )
-                            }
-                            title="Xem chi tiết"
-                          >
-                            <HiEye />
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  });
-
-                // Add summary row for this store (only sum AverageStockQuantity)
-                  rows.push(
-                    <tr
-                      key={`total-${storeId}`}
-                      className="summary-row"
-                      style={{
-                        backgroundColor: "#f0f7ff",
-                        fontWeight: "bold",
-                      }}
-                    >
-                    <td colSpan={8} style={{ textAlign: "right" }}>
-                      TỔNG CỘNG
+                      <td>{globalIndex}</td>
+                      <td>{survey.StoreName || "-"}</td>
+                      <td>{formatDate(survey.AuditDate) || "-"}</td>
+                      <td>{product?.ContactPersonPhone || "-"}</td>
+                      <td>{product?.ProductType || "-"}</td>
+                      <td>{product?.CementProductName || "-"}</td>
+                      <td>
+                        {formatVND(product?.PurchasePrice || null) || "-"}
                       </td>
-                      <td>{totalAverageStockQuantity}</td>
-                    <td colSpan={3}></td>
+                      <td>{formatVND(product?.SellingPrice || null) || "-"}</td>
+                      <td>{product?.AverageStockQuantity ?? "-"}</td>
+                      <td>{product?.ImportedFromNPP || "-"}</td>
+                      <td>{product?.DiscountPromotion || "-"}</td>
+                      <td>
+                        <button
+                          className="btn-view-survey-list"
+                          onClick={() =>
+                            navigate(
+                              `/stores/${survey.StoreId}/survey?auditId=${survey.AuditId}&userId=${survey.UserId}`
+                            )
+                          }
+                          title="Xem chi tiết"
+                        >
+                          <HiEye />
+                        </button>
+                      </td>
                     </tr>
                   );
                 });
 
-                return <>{rows}</>;
-              })()}
-            </tbody>
-          </table>
-        </div>
+                // Add summary row for this store (only sum AverageStockQuantity)
+                rows.push(
+                  <tr
+                    key={`total-${storeId}`}
+                    className="summary-row"
+                    style={{
+                      backgroundColor: "#f0f7ff",
+                      fontWeight: "bold",
+                    }}
+                  >
+                    <td colSpan={8} style={{ textAlign: "right" }}>
+                      TỔNG CỘNG
+                    </td>
+                    <td>{totalAverageStockQuantity}</td>
+                    <td colSpan={3}></td>
+                  </tr>
+                );
+              });
+
+              return <>{rows}</>;
+            })()}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
