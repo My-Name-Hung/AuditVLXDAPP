@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { HiEye } from "react-icons/hi";
 import { HiArrowDownTray } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
@@ -134,11 +134,39 @@ export default function StoreSurveyList() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateFilterMode, selectedWeek, selectedDate, selectedMonth, currentYear]);
 
+  // Refs for dropdown containers
+  const territoryDropdownRef = useRef<HTMLDivElement>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
+  const cementDropdownRef = useRef<HTMLDivElement>(null);
+
   // Close dropdowns when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => {
-      setShowUserDropdown(false);
-      setShowCementDropdown(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      
+      // Check if click is outside territory dropdown
+      if (
+        territoryDropdownRef.current &&
+        !territoryDropdownRef.current.contains(target)
+      ) {
+        setShowTerritoryDropdown(false);
+      }
+      
+      // Check if click is outside user dropdown
+      if (
+        userDropdownRef.current &&
+        !userDropdownRef.current.contains(target)
+      ) {
+        setShowUserDropdown(false);
+      }
+      
+      // Check if click is outside cement dropdown
+      if (
+        cementDropdownRef.current &&
+        !cementDropdownRef.current.contains(target)
+      ) {
+        setShowCementDropdown(false);
+      }
     };
     document.addEventListener("click", handleClickOutside);
     return () => {
@@ -1456,7 +1484,7 @@ export default function StoreSurveyList() {
           </div>
           <div className="filter-item">
             <label>Nhân viên:</label>
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative" }} ref={userDropdownRef}>
               <input
                 type="text"
                 value={filters.userName || userSearch}
@@ -1519,7 +1547,7 @@ export default function StoreSurveyList() {
           </div>
           <div className="filter-item">
             <label>Loại xi măng:</label>
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative" }} ref={cementDropdownRef}>
               <input
                 type="text"
                 value={cementSearch}
@@ -1603,7 +1631,7 @@ export default function StoreSurveyList() {
           </div>
           <div className="filter-item">
             <label>Địa bàn:</label>
-            <div style={{ position: "relative" }}>
+            <div style={{ position: "relative" }} ref={territoryDropdownRef}>
               <input
                 type="text"
                 value={territorySearch}

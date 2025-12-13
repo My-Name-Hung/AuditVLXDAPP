@@ -110,9 +110,12 @@ const StoreSurvey = () => {
   const notes = state?.notes || "";
 
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
-  const [cementSearch, setCementSearch] = useState("");
+  const [cementSearchModal, setCementSearchModal] = useState("");
   const [showAddCementModal, setShowAddCementModal] = useState(false);
   const [newCementName, setNewCementName] = useState("");
+  const [activeCementPicker, setActiveCementPicker] = useState<number | null>(
+    null
+  );
 
   const [salesUsers, setSalesUsers] = useState<
     Array<{ Id: number; FullName: string }>
@@ -234,7 +237,7 @@ const StoreSurvey = () => {
       return;
     }
     const confirmed = window.confirm(
-      "Xóa dữ liệu autofill?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu dùng để autofill cho cửa hàng khác."
+      "Xóa dữ liệu?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu."
     );
     if (!confirmed) return;
 
@@ -244,7 +247,7 @@ const StoreSurvey = () => {
       setSurveyData(createEmptySurveyData());
     } catch (error) {
       console.error("Error clearing autofill data:", error);
-      alert("Không thể xóa dữ liệu autofill. Vui lòng thử lại.");
+      alert("Không thể xóa dữ liệu. Vui lòng thử lại.");
     }
   };
 
@@ -276,8 +279,8 @@ const StoreSurvey = () => {
     }
   };
 
-  const filteredCementProducts = cementProducts.filter((product) =>
-    product.Name.toLowerCase().includes(cementSearch.toLowerCase())
+  const filteredCementProductsModal = cementProducts.filter((product) =>
+    product.Name.toLowerCase().includes(cementSearchModal.toLowerCase())
   );
 
   const filteredSalesUsers = salesUsers.filter((user) =>
@@ -426,6 +429,24 @@ const StoreSurvey = () => {
     setCustomPriceValue("");
   };
 
+  const openCementPicker = (productIndex: number) => {
+    setActiveCementPicker(productIndex);
+    setCementSearchModal("");
+  };
+
+  const closeCementPicker = () => {
+    setActiveCementPicker(null);
+    setCementSearchModal("");
+  };
+
+  const handleSelectCementProduct = (
+    productIndex: number,
+    cementProductId: number
+  ) => {
+    handleProductChange(productIndex, "cementProductId", cementProductId);
+    closeCementPicker();
+  };
+
   const handleSelectPriceOption = (numericValue: number) => {
     if (!activePricePicker) return;
     const formatted = formatVND(numericValue.toString());
@@ -479,40 +500,40 @@ const StoreSurvey = () => {
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
 
     // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
-      surveyData.products.forEach((product, index) => {
+    surveyData.products.forEach((product, index) => {
       const hasAnyValue = Object.values(product || {}).some(
         (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
-        if (!product.productType) {
-          errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
-        }
-        if (product.productType === "Xi măng" && !product.cementProductId) {
-          errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
-        }
-        if (!product.contactPersonPhone) {
-          errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
-        }
-        if (!product.purchasePrice) {
-          errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
-        }
-        if (!product.sellingPrice) {
-          errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
-        }
-        if (!product.roadTransportFee) {
-          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
-        }
-        if (!product.waterTransportFee) {
-          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
-        }
-        if (!product.importedFromNPP) {
-          errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
-        }
-        if (!product.averageStockQuantity) {
+      if (!product.productType) {
+        errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
+      }
+      if (product.productType === "Xi măng" && !product.cementProductId) {
+        errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
+      }
+      if (!product.contactPersonPhone) {
+        errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
+      }
+      if (!product.purchasePrice) {
+        errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
+      }
+      if (!product.sellingPrice) {
+        errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
+      }
+      if (!product.roadTransportFee) {
+        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
+      }
+      if (!product.waterTransportFee) {
+        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
+      }
+      if (!product.importedFromNPP) {
+        errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
+      }
+      if (!product.averageStockQuantity) {
         errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
-        }
-      });
+      }
+    });
 
     return errors;
   };
@@ -772,12 +793,6 @@ const StoreSurvey = () => {
             backgroundColor: colors.secondary,
           }}
         >
-          <p
-            className="store-survey-autofill-label"
-            style={{ color: colors.text }}
-          >
-            Đang dùng dữ liệu autofill từ khảo sát trước.
-          </p>
           <button
             type="button"
             className="store-survey-clear-autofill"
@@ -788,7 +803,7 @@ const StoreSurvey = () => {
               backgroundColor: colors.background,
             }}
           >
-            Xóa dữ liệu autofill
+            Xóa dữ liệu
           </button>
         </div>
 
@@ -931,79 +946,35 @@ const StoreSurvey = () => {
 
                       {product.productType === "Xi măng" && (
                         <div className="store-survey-field">
-                          <div
+                          <label style={{ color: colors.text }}>
+                            Loại xi măng
+                          </label>
+                          <button
+                            type="button"
+                            className="store-survey-dropdown-trigger"
                             style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
+                              backgroundColor: colors.background,
+                              borderColor: colors.icon + "40",
+                              color: product.cementProductId
+                                ? colors.text
+                                : colors.icon,
                             }}
+                            onClick={() => openCementPicker(index)}
                           >
-                            <label style={{ color: colors.text }}>
-                              Loại xi măng
-                            </label>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNewCementName("");
-                                setShowAddCementModal(true);
-                              }}
-                              style={{
-                                background: "none",
-                                border: "none",
-                                color: colors.primary,
-                                fontWeight: 600,
-                                fontSize: 13,
-                                cursor: "pointer",
-                              }}
-                            >
-                              + Thêm loại xi măng
-                            </button>
-                          </div>
-                          <input
-                            type="text"
-                            placeholder="Tìm kiếm loại xi măng"
-                            value={cementSearch}
-                            onChange={(e) => setCementSearch(e.target.value)}
-                            style={{
-                              marginBottom: 8,
-                              backgroundColor: colors.background,
-                              color: colors.text,
-                              borderColor: colors.icon + "40",
-                            }}
-                          />
-                          <select
-                            value={product.cementProductId || ""}
-                            onChange={(e) =>
-                              handleProductChange(
-                                index,
-                                "cementProductId",
-                                e.target.value ? parseInt(e.target.value) : null
-                              )
-                            }
-                            style={{
-                              backgroundColor: colors.background,
-                              color: colors.text,
-                              borderColor: colors.icon + "40",
-                              width: "100%",
-                              overflow: "hidden",
-                              textOverflow: "ellipsis",
-                              whiteSpace: "nowrap",
-                            }}
-                            title={
-                              product.cementProductId
+                            <span className="store-survey-dropdown-value">
+                              {product.cementProductId
                                 ? cementProducts.find(
                                     (p) => p.Id === product.cementProductId
-                                  )?.Name || ""
-                                : ""
-                            }
-                          >
-                            <option value="">Chọn loại xi măng</option>
-                            {filteredCementProducts.map((cp) => (
-                              <option key={cp.Id} value={cp.Id}>
-                                {cp.Name}
-                              </option>
-                            ))}
-                          </select>
+                                  )?.Name || "Chọn loại xi măng"
+                                : "Chọn loại xi măng"}
+                            </span>
+                            <span
+                              className="store-survey-dropdown-icon"
+                              style={{ color: colors.icon }}
+                            >
+                              ▼
+                            </span>
+                          </button>
                         </div>
                       )}
 
@@ -1305,19 +1276,6 @@ const StoreSurvey = () => {
                       paddingRight: 40,
                     }}
                   />
-                  <span
-                    style={{
-                      position: "absolute",
-                      right: 12,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                      pointerEvents: "none",
-                      color: colors.icon,
-                      fontSize: 18,
-                    }}
-                  >
-                    📅
-                  </span>
                 </div>
               </div>
 
@@ -1495,6 +1453,101 @@ const StoreSurvey = () => {
                 style={{ backgroundColor: colors.primary, color: "#fff" }}
               >
                 Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal chọn loại xi măng */}
+      {activeCementPicker !== null && (
+        <div className="store-survey-modal-backdrop">
+          <div className="store-survey-modal store-survey-price-modal">
+            <div className="store-survey-price-modal-header">
+              <h2>Chọn loại xi măng</h2>
+              <button
+                type="button"
+                onClick={closeCementPicker}
+                className="store-survey-price-close"
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <input
+                type="text"
+                value={cementSearchModal}
+                onChange={(e) => setCementSearchModal(e.target.value)}
+                placeholder="Tìm kiếm loại xi măng"
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: `1px solid ${colors.icon}40`,
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  fontSize: 14,
+                }}
+              />
+            </div>
+            <div
+              className="store-survey-price-options"
+              style={{
+                maxHeight: "300px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {filteredCementProductsModal.length > 0 ? (
+                filteredCementProductsModal.map((cp) => (
+                  <button
+                    type="button"
+                    key={cp.Id}
+                    className="store-survey-price-option"
+                    onClick={() =>
+                      handleSelectCementProduct(activeCementPicker, cp.Id)
+                    }
+                    style={{
+                      textAlign: "left",
+                      justifyContent: "flex-start",
+                      padding: "12px 16px",
+                    }}
+                  >
+                    {cp.Name}
+                  </button>
+                ))
+              ) : (
+                <div
+                  style={{
+                    padding: "16px",
+                    textAlign: "center",
+                    color: colors.icon,
+                  }}
+                >
+                  Không tìm thấy loại xi măng
+                </div>
+              )}
+            </div>
+            <div className="store-survey-modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  closeCementPicker();
+                  setNewCementName("");
+                  setShowAddCementModal(true);
+                }}
+                style={{
+                  backgroundColor: "transparent",
+                  color: colors.primary,
+                  border: `1px solid ${colors.primary}`,
+                }}
+              >
+                + Thêm loại xi măng
+              </button>
+              <button type="button" onClick={closeCementPicker}>
+                Hủy
               </button>
             </div>
           </div>

@@ -486,40 +486,40 @@ export default function StoreSurveyScreen() {
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
 
     // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
-    surveyData.products.forEach((product, index) => {
+      surveyData.products.forEach((product, index) => {
       const hasAnyValue = Object.values(product || {}).some(
         (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
-      if (!product.productType) {
-        errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
-      }
-      if (product.productType === "Xi măng" && !product.cementProductId) {
-        errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
-      }
-      if (!product.contactPersonPhone) {
-        errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
-      }
-      if (!product.purchasePrice) {
-        errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
-      }
-      if (!product.sellingPrice) {
-        errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
-      }
-      if (!product.roadTransportFee) {
-        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
-      }
-      if (!product.waterTransportFee) {
-        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
-      }
-      if (!product.importedFromNPP) {
-        errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
-      }
-      if (!product.averageStockQuantity) {
+        if (!product.productType) {
+          errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
+        }
+        if (product.productType === "Xi măng" && !product.cementProductId) {
+          errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
+        }
+        if (!product.contactPersonPhone) {
+          errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
+        }
+        if (!product.purchasePrice) {
+          errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
+        }
+        if (!product.sellingPrice) {
+          errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
+        }
+        if (!product.roadTransportFee) {
+          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
+        }
+        if (!product.waterTransportFee) {
+          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
+        }
+        if (!product.importedFromNPP) {
+          errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
+        }
+        if (!product.averageStockQuantity) {
         errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
-      }
-    });
+        }
+      });
 
     return errors;
   };
