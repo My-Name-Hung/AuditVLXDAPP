@@ -803,7 +803,7 @@ const StoreSurvey = () => {
               backgroundColor: colors.background,
             }}
           >
-            Xóa dữ liệu
+            Xóa dữ liệu đã điền
           </button>
         </div>
 
@@ -1258,10 +1258,23 @@ const StoreSurvey = () => {
               </div>
 
               <div className="store-survey-field">
-                <label style={{ color: colors.text }}>
+                <label
+                  style={{
+                    color: colors.text,
+                    wordWrap: "break-word",
+                    overflowWrap: "break-word",
+                    maxWidth: "100%",
+                  }}
+                >
                   Thời gian để bán sản phẩm mới
                 </label>
-                <div style={{ position: "relative" }}>
+                <div
+                  style={{
+                    position: "relative",
+                    width: "100%",
+                    maxWidth: "100%",
+                  }}
+                >
                   <input
                     type="date"
                     value={surveyData.timeToSellNewProduct}
@@ -1273,7 +1286,9 @@ const StoreSurvey = () => {
                       color: colors.text,
                       borderColor: colors.icon + "40",
                       width: "100%",
+                      maxWidth: "100%",
                       paddingRight: 40,
+                      boxSizing: "border-box",
                     }}
                   />
                 </div>

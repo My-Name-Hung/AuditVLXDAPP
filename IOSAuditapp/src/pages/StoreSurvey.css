@@ -95,17 +95,24 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 16px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .store-survey-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .store-survey-field label {
   font-size: 14px;
   font-weight: 500;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  max-width: 100%;
 }
 
 .store-survey-field input,

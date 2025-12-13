@@ -215,8 +215,8 @@ export default function StoreSurveyScreen() {
       return;
     }
     Alert.alert(
-      "Xóa dữ liệu autofill?",
-      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu dùng để autofill cho cửa hàng khác.",
+      "Xóa dữ liệu đã điền?",
+      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu.",
       [
         { text: "Huỷ", style: "cancel" },
         {
@@ -228,10 +228,10 @@ export default function StoreSurveyScreen() {
               await AsyncStorage.removeItem(storageKey);
               setSurveyData(createEmptySurveyData());
             } catch (error) {
-              console.error("Error clearing autofill data:", error);
+              console.error("Error clearing data:", error);
               Alert.alert(
                 "Lỗi",
-                "Không thể xóa dữ liệu autofill. Vui lòng thử lại."
+                "Không thể xóa dữ liệu. Vui lòng thử lại."
               );
             }
           },
@@ -794,9 +794,6 @@ export default function StoreSurveyScreen() {
           nestedScrollEnabled
         >
           <View style={styles.autofillRow}>
-            <Text style={[styles.autofillLabel, { color: colors.text }]}>
-              Đang dùng dữ liệu autofill từ khảo sát trước.
-            </Text>
             <TouchableOpacity
               style={[
                 styles.clearAutofillButton,
@@ -811,7 +808,7 @@ export default function StoreSurveyScreen() {
               <Text
                 style={[styles.clearAutofillText, { color: colors.primary }]}
               >
-                Xóa dữ liệu autofill
+                Xóa dữ liệu đã điền
               </Text>
             </TouchableOpacity>
           </View>
