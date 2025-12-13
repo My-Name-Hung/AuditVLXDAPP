@@ -1273,6 +1273,8 @@ const StoreSurvey = () => {
                     position: "relative",
                     width: "100%",
                     maxWidth: "100%",
+                    minWidth: 0,
+                    overflow: "hidden",
                   }}
                 >
                   <input
@@ -1287,8 +1289,11 @@ const StoreSurvey = () => {
                       borderColor: colors.icon + "40",
                       width: "100%",
                       maxWidth: "100%",
-                      paddingRight: 40,
+                      minWidth: 0,
+                      paddingRight: 12,
                       boxSizing: "border-box",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
                     }}
                   />
                 </div>

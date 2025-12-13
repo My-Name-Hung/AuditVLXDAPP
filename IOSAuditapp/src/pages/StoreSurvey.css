@@ -123,7 +123,23 @@
   border-radius: 4px;
   font-size: 14px;
   width: 100%;
+  max-width: 100%;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.store-survey-field input[type="date"] {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  -webkit-appearance: none;
+  -moz-appearance: textfield;
+}
+
+.store-survey-field input[type="date"]::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 8px;
+  cursor: pointer;
 }
 
 .store-survey-field select {
