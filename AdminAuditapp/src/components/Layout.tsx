@@ -1,4 +1,4 @@
-import { HiHome, HiOfficeBuilding, HiUsers } from "react-icons/hi";
+import { HiHome, HiOfficeBuilding, HiUsers, HiCube } from "react-icons/hi";
 import { HiArrowUpOnSquare, HiClipboardDocumentList } from "react-icons/hi2";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -17,6 +17,11 @@ const navItems = [
     path: "/import-export",
     label: "Tải lên danh sách",
     icon: HiArrowUpOnSquare,
+  },
+  {
+    path: "/cement-products",
+    label: "Danh sách loại xi măng",
+    icon: HiCube,
   },
 ];
 

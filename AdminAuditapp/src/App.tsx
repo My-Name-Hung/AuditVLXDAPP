@@ -14,6 +14,7 @@ import StoreSurveyList from "./pages/StoreSurveyList";
 import Audits from "./pages/Audits";
 import Distributors from "./pages/Distributors";
 import ImportExport from "./pages/ImportExport";
+import CementProducts from "./pages/CementProducts";
 import Layout from "./components/Layout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import "./App.css";
@@ -59,6 +60,7 @@ function AppRoutes() {
         <Route path="audits" element={<Audits />} />
         <Route path="distributors" element={<Distributors />} />
         <Route path="import-export" element={<ImportExport />} />
+        <Route path="cement-products" element={<CementProducts />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -73,7 +73,7 @@ const PRICE_FIELD_LABELS: Record<PriceField, string> = {
 };
 
 // Không áp ràng buộc 1–10000, chỉ format số VND cho đẹp
-const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
+const PRODUCT_TYPES = ["Xi măng"];
 
 // Price suggestions cho Giá mua vào / Giá bán ra (30,000 - 100,000 VND)
 const PRICE_SUGGESTIONS = [
@@ -128,11 +128,6 @@ export default function StoreSurveyScreen() {
   const [showCementProductPicker, setShowCementProductPicker] = useState<
     number | null
   >(null);
-  const [showAddCementModal, setShowAddCementModal] = useState(false);
-  const [addCementForProductIndex, setAddCementForProductIndex] = useState<
-    number | null
-  >(null);
-  const [newCementName, setNewCementName] = useState("");
 
   const [salesUsers, setSalesUsers] = useState<
     { Id: number; FullName: string }[]
@@ -140,9 +135,7 @@ export default function StoreSurveyScreen() {
   const [showSalesPicker, setShowSalesPicker] = useState(false);
   const [salesSearch, setSalesSearch] = useState("");
 
-  const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
-  const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
-  const [newProductTypeName, setNewProductTypeName] = useState("");
+  const [productTypes] = useState<string[]>(PRODUCT_TYPES);
   const [priceOptions, setPriceOptions] = useState<number[]>(PRICE_SUGGESTIONS);
   const [transportFeeOptions, setTransportFeeOptions] = useState<number[]>(
     TRANSPORT_FEE_SUGGESTIONS
@@ -229,10 +222,7 @@ export default function StoreSurveyScreen() {
               setSurveyData(createEmptySurveyData());
             } catch (error) {
               console.error("Error clearing data:", error);
-              Alert.alert(
-                "Lỗi",
-                "Không thể xóa dữ liệu. Vui lòng thử lại."
-              );
+              Alert.alert("Lỗi", "Không thể xóa dữ liệu. Vui lòng thử lại.");
             }
           },
         },
@@ -323,7 +313,7 @@ export default function StoreSurveyScreen() {
       products: [
         ...prev.products,
         {
-          productType: "",
+          productType: "Xi măng",
           cementProductId: null,
           contactPersonPhone: firstProductContact,
           purchasePrice: "",
@@ -486,40 +476,40 @@ export default function StoreSurveyScreen() {
     if (!surveyData.importedBySalesperson) errors.push("Nhập bởi thương vụ");
 
     // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
-      surveyData.products.forEach((product, index) => {
+    surveyData.products.forEach((product, index) => {
       const hasAnyValue = Object.values(product || {}).some(
         (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
-        if (!product.productType) {
-          errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
-        }
-        if (product.productType === "Xi măng" && !product.cementProductId) {
-          errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
-        }
-        if (!product.contactPersonPhone) {
-          errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
-        }
-        if (!product.purchasePrice) {
-          errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
-        }
-        if (!product.sellingPrice) {
-          errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
-        }
-        if (!product.roadTransportFee) {
-          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
-        }
-        if (!product.waterTransportFee) {
-          errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
-        }
-        if (!product.importedFromNPP) {
-          errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
-        }
-        if (!product.averageStockQuantity) {
+      if (!product.productType) {
+        errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
+      }
+      if (product.productType === "Xi măng" && !product.cementProductId) {
+        errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
+      }
+      if (!product.contactPersonPhone) {
+        errors.push(`Sản phẩm ${index + 1}: Tên + SDT`);
+      }
+      if (!product.purchasePrice) {
+        errors.push(`Sản phẩm ${index + 1}: Giá mua vào`);
+      }
+      if (!product.sellingPrice) {
+        errors.push(`Sản phẩm ${index + 1}: Giá bán ra`);
+      }
+      if (!product.roadTransportFee) {
+        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường bộ`);
+      }
+      if (!product.waterTransportFee) {
+        errors.push(`Sản phẩm ${index + 1}: Phí vận chuyển đường thủy`);
+      }
+      if (!product.importedFromNPP) {
+        errors.push(`Sản phẩm ${index + 1}: Nhập từ NPP`);
+      }
+      if (!product.averageStockQuantity) {
         errors.push(`Sản phẩm ${index + 1}: Sản lượng bình quân (tấn/tháng)`);
-        }
-      });
+      }
+    });
 
     return errors;
   };
@@ -913,35 +903,9 @@ export default function StoreSurveyScreen() {
                     {expandedProducts[index] !== false && (
                       <>
                         <View style={styles.field}>
-                          <View
-                            style={{
-                              flexDirection: "row",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                            }}
-                          >
-                            <Text
-                              style={[styles.label, { color: colors.text }]}
-                            >
-                              Sản phẩm được bán
-                            </Text>
-                            <TouchableOpacity
-                              onPress={() => {
-                                setNewProductTypeName("");
-                                setShowAddProductTypeModal(true);
-                              }}
-                            >
-                              <Text
-                                style={{
-                                  color: colors.primary,
-                                  fontWeight: "600",
-                                  fontSize: 13,
-                                }}
-                              >
-                                + Thêm sản phẩm
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
+                          <Text style={[styles.label, { color: colors.text }]}>
+                            Sản phẩm được bán
+                          </Text>
                           <TouchableOpacity
                             style={[
                               styles.pickerContainer,
@@ -969,36 +933,11 @@ export default function StoreSurveyScreen() {
 
                         {product.productType === "Xi măng" && (
                           <View style={styles.field}>
-                            <View
-                              style={{
-                                flexDirection: "row",
-                                justifyContent: "space-between",
-                                alignItems: "center",
-                              }}
+                            <Text
+                              style={[styles.label, { color: colors.text }]}
                             >
-                              <Text
-                                style={[styles.label, { color: colors.text }]}
-                              >
-                                Loại xi măng
-                              </Text>
-                              <TouchableOpacity
-                                onPress={() => {
-                                  setNewCementName("");
-                                  setAddCementForProductIndex(index);
-                                  setShowAddCementModal(true);
-                                }}
-                              >
-                                <Text
-                                  style={{
-                                    color: colors.primary,
-                                    fontWeight: "600",
-                                    fontSize: 13,
-                                  }}
-                                >
-                                  + Thêm loại xi măng
-                                </Text>
-                              </TouchableOpacity>
-                            </View>
+                              Loại xi măng
+                            </Text>
                             <TouchableOpacity
                               style={[
                                 styles.pickerContainer,
@@ -1672,66 +1611,6 @@ export default function StoreSurveyScreen() {
         </View>
       </Modal>
 
-      {/* Add Product Type Modal */}
-      <Modal
-        visible={showAddProductTypeModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAddProductTypeModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Thêm sản phẩm mới
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.icon + "40",
-                  marginTop: 16,
-                },
-              ]}
-              value={newProductTypeName}
-              onChangeText={setNewProductTypeName}
-              placeholder="Nhập tên sản phẩm"
-              placeholderTextColor={colors.icon}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSecondary]}
-                onPress={() => setShowAddProductTypeModal(false)}
-              >
-                <Text style={styles.modalButtonSecondaryText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={() => {
-                  const trimmed = newProductTypeName.trim();
-                  if (!trimmed) {
-                    Alert.alert("Lỗi", "Vui lòng nhập tên sản phẩm");
-                    return;
-                  }
-                  setProductTypes((prev) =>
-                    prev.includes(trimmed) ? prev : [...prev, trimmed]
-                  );
-                  setShowAddProductTypeModal(false);
-                }}
-              >
-                <Text style={styles.modalButtonPrimaryText}>Lưu</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       {/* Product Type Picker Modal (Title 3) */}
       <Modal
         visible={showProductTypePicker !== null}
@@ -1860,87 +1739,6 @@ export default function StoreSurveyScreen() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Add Cement Modal */}
-      <Modal
-        visible={showAddCementModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAddCementModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Thêm loại xi măng mới
-            </Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.background,
-                  color: colors.text,
-                  borderColor: colors.icon + "40",
-                  marginTop: 16,
-                },
-              ]}
-              value={newCementName}
-              onChangeText={setNewCementName}
-              placeholder="Nhập tên xi măng"
-              placeholderTextColor={colors.icon}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonSecondary]}
-                onPress={() => setShowAddCementModal(false)}
-              >
-                <Text style={styles.modalButtonSecondaryText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.modalButtonPrimary]}
-                onPress={async () => {
-                  const trimmed = newCementName.trim();
-                  if (!trimmed) {
-                    Alert.alert("Lỗi", "Vui lòng nhập tên xi măng");
-                    return;
-                  }
-                  try {
-                    const res = await api.post("/cement-products", {
-                      name: trimmed,
-                    });
-                    const created = res.data;
-                    await fetchCementProducts();
-                    // Set cement product for the current product being edited
-                    if (addCementForProductIndex !== null) {
-                      handleProductChange(
-                        addCementForProductIndex,
-                        "cementProductId",
-                        created.Id
-                      );
-                    }
-                    setShowAddCementModal(false);
-                    setAddCementForProductIndex(null);
-                  } catch (error: unknown) {
-                    console.error("Error creating cement product:", error);
-                    const message =
-                      (error as { response?: { data?: { error?: string } } })
-                        ?.response?.data?.error ||
-                      (error as { message?: string })?.message ||
-                      "Không thể thêm loại xi măng";
-                    Alert.alert("Lỗi", message);
-                  }
-                }}
-              >
-                <Text style={styles.modalButtonPrimaryText}>Lưu</Text>
-              </TouchableOpacity>
-            </View>
           </View>
         </View>
       </Modal>

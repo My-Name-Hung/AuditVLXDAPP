@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  IoIosArrowDown,
+  IoIosArrowForward,
+  IoIosArrowUp,
+} from "react-icons/io";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
@@ -71,8 +76,8 @@ interface LocationState {
   notes: string;
 }
 
-// Không giới hạn 1–10000, chỉ dùng format VND cho dễ đọc
-const PRODUCT_TYPES = ["Xi măng", "Cát", "Đá"];
+// Không giới hạn
+const PRODUCT_TYPES = ["Xi măng"];
 
 // Price suggestions cho Giá mua vào / Giá bán ra (30,000 - 100,000 VND)
 const PRICE_SUGGESTIONS = [
@@ -111,8 +116,6 @@ const StoreSurvey = () => {
 
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
   const [cementSearchModal, setCementSearchModal] = useState("");
-  const [showAddCementModal, setShowAddCementModal] = useState(false);
-  const [newCementName, setNewCementName] = useState("");
   const [activeCementPicker, setActiveCementPicker] = useState<number | null>(
     null
   );
@@ -120,7 +123,8 @@ const StoreSurvey = () => {
   const [salesUsers, setSalesUsers] = useState<
     Array<{ Id: number; FullName: string }>
   >([]);
-  const [salesSearch, setSalesSearch] = useState("");
+  const [showSalesPicker, setShowSalesPicker] = useState(false);
+  const [salesSearchModal, setSalesSearchModal] = useState("");
 
   const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
   const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
@@ -149,6 +153,15 @@ const StoreSurvey = () => {
     Record<number, boolean>
   >({});
   const [showValidationModal, setShowValidationModal] = useState(false);
+  const [notification, setNotification] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: "success" | "error" | "info";
+  }>({
+    isOpen: false,
+    message: "",
+    type: "info",
+  });
 
   const [surveyData, setSurveyData] = useState<SurveyData>(
     createEmptySurveyData()
@@ -231,9 +244,23 @@ const StoreSurvey = () => {
     }
   }, [surveyData, expandedTitles.title3]);
 
+  const showNotification = (
+    message: string,
+    type: "success" | "error" | "info" = "info"
+  ) => {
+    setNotification({ isOpen: true, message, type });
+  };
+
+  const closeNotification = () => {
+    setNotification({ ...notification, isOpen: false });
+  };
+
   const handleClearAutofill = () => {
     if (!user?.id) {
-      alert("Không xác định được người dùng để xóa dữ liệu.");
+      showNotification(
+        "Không xác định được người dùng để xóa dữ liệu.",
+        "error"
+      );
       return;
     }
     const confirmed = window.confirm(
@@ -245,9 +272,10 @@ const StoreSurvey = () => {
       const storageKey = `survey_data_${user.id}`;
       localStorage.removeItem(storageKey);
       setSurveyData(createEmptySurveyData());
+      showNotification("Đã xóa dữ liệu thành công", "success");
     } catch (error) {
       console.error("Error clearing autofill data:", error);
-      alert("Không thể xóa dữ liệu. Vui lòng thử lại.");
+      showNotification("Không thể xóa dữ liệu. Vui lòng thử lại.", "error");
     }
   };
 
@@ -283,8 +311,8 @@ const StoreSurvey = () => {
     product.Name.toLowerCase().includes(cementSearchModal.toLowerCase())
   );
 
-  const filteredSalesUsers = salesUsers.filter((user) =>
-    (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase())
+  const filteredSalesUsersModal = salesUsers.filter((user) =>
+    (user.FullName || "").toLowerCase().includes(salesSearchModal.toLowerCase())
   );
 
   const toggleTitle = (title: "title2" | "title3") => {
@@ -321,7 +349,7 @@ const StoreSurvey = () => {
       products: [
         ...prev.products,
         {
-          productType: "",
+          productType: "Xi măng",
           cementProductId: null,
           contactPersonPhone: firstProductContact,
           purchasePrice: "",
@@ -468,12 +496,12 @@ const StoreSurvey = () => {
       return;
     }
     if (!customPriceValue.trim()) {
-      alert("Vui lòng nhập giá hợp lệ");
+      showNotification("Vui lòng nhập giá hợp lệ", "error");
       return;
     }
     const numericValue = parseVND(customPriceValue);
     if (numericValue < 0) {
-      alert("Giá không hợp lệ");
+      showNotification("Giá không hợp lệ", "error");
       return;
     }
     const formatted = formatVND(numericValue.toString());
@@ -549,14 +577,14 @@ const StoreSurvey = () => {
 
   const submitSurvey = async () => {
     if (!user || !storeId || !capturedImages || capturedImages.length !== 3) {
-      alert("Lỗi: Thiếu thông tin cần thiết");
+      showNotification("Lỗi: Thiếu thông tin cần thiết", "error");
       return;
     }
 
     const parsedStoreId =
       typeof storeId === "string" ? parseInt(storeId) : storeId;
     if (isNaN(parsedStoreId)) {
-      alert("Lỗi: ID cửa hàng không hợp lệ");
+      showNotification("Lỗi: ID cửa hàng không hợp lệ", "error");
       return;
     }
 
@@ -725,10 +753,12 @@ const StoreSurvey = () => {
       setSubmitting(false);
       setUploadProgress({ current: 0, total: 0, message: "" });
 
-      // Success - navigate back to store detail
-      alert("Đã hoàn thành audit cửa hàng");
-      // Use push instead of replace to maintain navigation history
-      navigate(`/stores/${parsedStoreId}`);
+      // Success - show notification then navigate
+      showNotification("Đã hoàn thành audit cửa hàng", "success");
+      // Delay navigation to show notification
+      setTimeout(() => {
+        navigate(`/stores/${parsedStoreId}`);
+      }, 1500);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);
@@ -738,7 +768,7 @@ const StoreSurvey = () => {
           ?.error ||
         (error as { message?: string })?.message ||
         "Có lỗi xảy ra khi lưu khảo sát";
-      alert(`Lỗi: ${errorMessage}`);
+      showNotification(`Lỗi: ${errorMessage}`, "error");
     }
   };
 
@@ -824,7 +854,7 @@ const StoreSurvey = () => {
             <span
               style={{ color: expandedTitles.title3 ? "#fff" : colors.icon }}
             >
-              {expandedTitles.title3 ? "▲" : "▼"}
+              {expandedTitles.title3 ? <IoIosArrowUp /> : <IoIosArrowDown />}
             </span>
           </div>
 
@@ -868,7 +898,11 @@ const StoreSurvey = () => {
                           fontSize: 18,
                         }}
                       >
-                        {expandedProducts[index] ? "▼" : "▶"}
+                        {expandedProducts[index] ? (
+                          <IoIosArrowDown />
+                        ) : (
+                          <IoIosArrowForward />
+                        )}
                       </button>
                       {index > 0 && (
                         <button
@@ -901,7 +935,7 @@ const StoreSurvey = () => {
                           <label style={{ color: colors.text }}>
                             Sản phẩm được bán
                           </label>
-                          <button
+                          {/* <button
                             type="button"
                             onClick={() => {
                               setNewProductTypeName("");
@@ -917,7 +951,7 @@ const StoreSurvey = () => {
                             }}
                           >
                             + Thêm sản phẩm
-                          </button>
+                          </button> */}
                         </div>
                         <select
                           value={product.productType}
@@ -972,7 +1006,7 @@ const StoreSurvey = () => {
                               className="store-survey-dropdown-icon"
                               style={{ color: colors.icon }}
                             >
-                              ▼
+                              <IoIosArrowDown />
                             </span>
                           </button>
                         </div>
@@ -1021,11 +1055,8 @@ const StoreSurvey = () => {
                             {product.purchasePrice ||
                               "Chọn giá mua vào hoặc nhập mới"}
                           </span>
-                          <span
-                            className="store-survey-dropdown-icon"
-                            style={{ color: colors.icon }}
-                          >
-                            ▼
+                          <span>
+                            <IoIosArrowDown />
                           </span>
                         </button>
                       </div>
@@ -1048,11 +1079,8 @@ const StoreSurvey = () => {
                             {product.sellingPrice ||
                               "Chọn giá bán ra hoặc nhập mới"}
                           </span>
-                          <span
-                            className="store-survey-dropdown-icon"
-                            style={{ color: colors.icon }}
-                          >
-                            ▼
+                          <span>
+                            <IoIosArrowDown />
                           </span>
                         </button>
                       </div>
@@ -1078,11 +1106,8 @@ const StoreSurvey = () => {
                             {product.roadTransportFee ||
                               "Chọn phí đường bộ hoặc nhập mới"}
                           </span>
-                          <span
-                            className="store-survey-dropdown-icon"
-                            style={{ color: colors.icon }}
-                          >
-                            ▼
+                          <span>
+                            <IoIosArrowDown />
                           </span>
                         </button>
                       </div>
@@ -1109,11 +1134,8 @@ const StoreSurvey = () => {
                             {product.waterTransportFee ||
                               "Chọn phí đường thủy hoặc nhập mới"}
                           </span>
-                          <span
-                            className="store-survey-dropdown-icon"
-                            style={{ color: colors.icon }}
-                          >
-                            ▼
+                          <span>
+                            <IoIosArrowDown />
                           </span>
                         </button>
                       </div>
@@ -1206,7 +1228,7 @@ const StoreSurvey = () => {
                   fontSize: 16,
                 }}
               >
-                + Thêm sản phẩm
+                Thêm sản phẩm
               </button>
             </div>
           )}
@@ -1230,7 +1252,7 @@ const StoreSurvey = () => {
             <span
               style={{ color: expandedTitles.title2 ? "#fff" : colors.icon }}
             >
-              {expandedTitles.title2 ? "▲" : "▼"}
+              {expandedTitles.title2 ? <IoIosArrowUp /> : <IoIosArrowDown />}
             </span>
           </div>
 
@@ -1340,36 +1362,31 @@ const StoreSurvey = () => {
 
               <div className="store-survey-field">
                 <label style={{ color: colors.text }}>Nhập bởi thương vụ</label>
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm thương vụ"
-                  value={salesSearch}
-                  onChange={(e) => setSalesSearch(e.target.value)}
+                <button
+                  type="button"
+                  className="store-survey-dropdown-trigger"
                   style={{
-                    marginBottom: 8,
                     backgroundColor: colors.background,
-                    color: colors.text,
                     borderColor: colors.icon + "40",
+                    color: surveyData.importedBySalesperson
+                      ? colors.text
+                      : colors.icon,
                   }}
-                />
-                <select
-                  value={surveyData.importedBySalesperson}
-                  onChange={(e) =>
-                    handleInputChange("importedBySalesperson", e.target.value)
-                  }
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
+                  onClick={() => {
+                    setSalesSearchModal("");
+                    setShowSalesPicker(true);
                   }}
                 >
-                  <option value="">Chọn thương vụ</option>
-                  {filteredSalesUsers.map((user) => (
-                    <option key={user.Id} value={user.FullName}>
-                      {user.FullName}
-                    </option>
-                  ))}
-                </select>
+                  <span className="store-survey-dropdown-value">
+                    {surveyData.importedBySalesperson || "Chọn thương vụ"}
+                  </span>
+                  <span
+                    className="store-survey-dropdown-icon"
+                    style={{ color: colors.icon }}
+                  >
+                    <IoIosArrowDown />
+                  </span>
+                </button>
               </div>
 
               <div className="store-survey-field">
@@ -1493,7 +1510,13 @@ const StoreSurvey = () => {
                 ×
               </button>
             </div>
-            <div style={{ marginBottom: 16 }}>
+            <div
+              style={{
+                marginBottom: 16,
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
               <input
                 type="text"
                 value={cementSearchModal}
@@ -1501,12 +1524,15 @@ const StoreSurvey = () => {
                 placeholder="Tìm kiếm loại xi măng"
                 style={{
                   width: "100%",
+                  maxWidth: "100%",
                   padding: "12px",
                   borderRadius: 8,
                   border: `1px solid ${colors.icon}40`,
                   backgroundColor: colors.background,
                   color: colors.text,
-                  fontSize: 14,
+                  fontSize: 16,
+                  boxSizing: "border-box",
+                  minWidth: 0,
                 }}
               />
             </div>
@@ -1551,76 +1577,8 @@ const StoreSurvey = () => {
               )}
             </div>
             <div className="store-survey-modal-actions">
-              <button
-                type="button"
-                onClick={() => {
-                  closeCementPicker();
-                  setNewCementName("");
-                  setShowAddCementModal(true);
-                }}
-                style={{
-                  backgroundColor: "transparent",
-                  color: colors.primary,
-                  border: `1px solid ${colors.primary}`,
-                }}
-              >
-                + Thêm loại xi măng
-              </button>
               <button type="button" onClick={closeCementPicker}>
-                Hủy
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal thêm loại xi măng mới */}
-      {showAddCementModal && (
-        <div className="store-survey-modal-backdrop">
-          <div className="store-survey-modal">
-            <h2>Thêm loại xi măng mới</h2>
-            <div className="store-survey-field">
-              <label>Tên xi măng *</label>
-              <input
-                type="text"
-                value={newCementName}
-                onChange={(e) => setNewCementName(e.target.value)}
-              />
-            </div>
-            <div className="store-survey-modal-actions">
-              <button
-                type="button"
-                onClick={() => setShowAddCementModal(false)}
-              >
-                Hủy
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const trimmed = newCementName.trim();
-                  if (!trimmed) {
-                    alert("Vui lòng nhập tên xi măng");
-                    return;
-                  }
-                  try {
-                    await api.post("/cement-products", {
-                      name: trimmed,
-                    });
-                    await fetchCementProducts();
-                    setShowAddCementModal(false);
-                  } catch (error: unknown) {
-                    console.error("Error creating cement product:", error);
-                    const message =
-                      (error as { response?: { data?: { error?: string } } })
-                        ?.response?.data?.error ||
-                      (error as { message?: string })?.message ||
-                      "Không thể thêm loại xi măng";
-                    alert(message);
-                  }
-                }}
-                style={{ backgroundColor: colors.primary, color: "#fff" }}
-              >
-                Lưu
+                Đóng
               </button>
             </div>
           </div>
@@ -1652,7 +1610,7 @@ const StoreSurvey = () => {
                 onClick={() => {
                   const trimmed = newProductTypeName.trim();
                   if (!trimmed) {
-                    alert("Vui lòng nhập tên sản phẩm");
+                    showNotification("Vui lòng nhập tên sản phẩm", "error");
                     return;
                   }
                   setProductTypes((prev) =>
@@ -1662,6 +1620,106 @@ const StoreSurvey = () => {
                 }}
               >
                 Lưu
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal chọn thương vụ */}
+      {showSalesPicker && (
+        <div className="store-survey-modal-backdrop">
+          <div className="store-survey-modal store-survey-price-modal">
+            <div className="store-survey-price-modal-header">
+              <h2>Chọn thương vụ</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSalesPicker(false);
+                  setSalesSearchModal("");
+                }}
+                className="store-survey-price-close"
+              >
+                ×
+              </button>
+            </div>
+            <div
+              style={{
+                marginBottom: 16,
+                width: "100%",
+                boxSizing: "border-box",
+              }}
+            >
+              <input
+                type="text"
+                value={salesSearchModal}
+                onChange={(e) => setSalesSearchModal(e.target.value)}
+                placeholder="Tìm kiếm thương vụ"
+                style={{
+                  width: "100%",
+                  maxWidth: "100%",
+                  padding: "12px",
+                  borderRadius: 8,
+                  border: `1px solid ${colors.icon}40`,
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  fontSize: 16,
+                  boxSizing: "border-box",
+                  minWidth: 0,
+                }}
+              />
+            </div>
+            <div
+              className="store-survey-price-options"
+              style={{
+                maxHeight: "300px",
+                overflowY: "auto",
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              {filteredSalesUsersModal.length > 0 ? (
+                filteredSalesUsersModal.map((user) => (
+                  <button
+                    type="button"
+                    key={user.Id}
+                    className="store-survey-price-option"
+                    onClick={() => {
+                      handleInputChange("importedBySalesperson", user.FullName);
+                      setShowSalesPicker(false);
+                      setSalesSearchModal("");
+                    }}
+                    style={{
+                      textAlign: "left",
+                      justifyContent: "flex-start",
+                      padding: "12px 16px",
+                    }}
+                  >
+                    {user.FullName}
+                  </button>
+                ))
+              ) : (
+                <div
+                  style={{
+                    padding: "16px",
+                    textAlign: "center",
+                    color: colors.icon,
+                  }}
+                >
+                  Không tìm thấy thương vụ
+                </div>
+              )}
+            </div>
+            <div className="store-survey-modal-actions">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSalesPicker(false);
+                  setSalesSearchModal("");
+                }}
+              >
+                Đóng
               </button>
             </div>
           </div>
@@ -1823,6 +1881,105 @@ const StoreSurvey = () => {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Modal */}
+      {notification.isOpen && (
+        <div
+          className="store-survey-modal-backdrop"
+          onClick={closeNotification}
+        >
+          <div
+            className="store-survey-modal"
+            style={{
+              maxWidth: "400px",
+              width: "85%",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{
+                  width: "40px",
+                  height: "40px",
+                  borderRadius: "50%",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor:
+                    notification.type === "success"
+                      ? "#10b981"
+                      : notification.type === "error"
+                      ? "#ef4444"
+                      : "#3b82f6",
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{ color: "#fff", fontSize: "20px" }}>
+                  {notification.type === "success"
+                    ? "✓"
+                    : notification.type === "error"
+                    ? "✕"
+                    : "ℹ"}
+                </span>
+              </div>
+              <h2
+                style={{
+                  margin: 0,
+                  fontSize: "18px",
+                  fontWeight: "600",
+                  color: colors.text,
+                  flex: 1,
+                }}
+              >
+                {notification.type === "success"
+                  ? "Thành công"
+                  : notification.type === "error"
+                  ? "Lỗi"
+                  : "Thông báo"}
+              </h2>
+            </div>
+            <p
+              style={{
+                color: colors.text,
+                marginBottom: "20px",
+                fontSize: "14px",
+                lineHeight: "1.5",
+                wordWrap: "break-word",
+                overflowWrap: "break-word",
+              }}
+            >
+              {notification.message}
+            </p>
+            <div className="store-survey-modal-actions">
+              <button
+                type="button"
+                onClick={closeNotification}
+                style={{
+                  flex: 1,
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: colors.primary,
+                  color: "#fff",
+                  fontWeight: "600",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                  transition: "background-color 0.2s",
+                }}
+              >
+                Đóng
+              </button>
             </div>
           </div>
         </div>
