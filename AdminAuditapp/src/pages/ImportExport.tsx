@@ -1071,6 +1071,8 @@ export default function ImportExport() {
   };
 
   const formatDate = (dateString: string) => {
+    // Giá trị CreatedAt trong DB đã được lưu theo giờ Việt Nam (UTC+7),
+    // nên ở frontend chỉ cần hiển thị theo timezone local (không cộng/trừ thêm).
     const date = new Date(dateString);
     return date.toLocaleString("vi-VN", {
       day: "2-digit",
@@ -1078,7 +1080,6 @@ export default function ImportExport() {
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "Asia/Ho_Chi_Minh",
     });
   };
 
