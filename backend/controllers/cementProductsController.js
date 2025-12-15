@@ -151,7 +151,7 @@ const importCementProducts = async (req, res) => {
 
       await historyRequest.query(`
         INSERT INTO ImportHistory (Type, Total, SuccessCount, ErrorCount, UserId, CreatedAt)
-        VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, GETDATE())
+        VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, DATEADD(HOUR, 7, GETUTCDATE()))
       `);
     } catch (historyError) {
       console.error("Save cement import history error:", historyError);
