@@ -1,3 +1,4 @@
+const ExcelJS = require("exceljs");
 const CementProduct = require("../models/CementProduct");
 
 const getAllCementProducts = async (req, res) => {
@@ -132,6 +133,58 @@ const importCementProducts = async (req, res) => {
   }
 };
 
+const exportCementProducts = async (req, res) => {
+  try {
+    const { search } = req.query;
+    const filters = {};
+    if (search) filters.search = search;
+
+    const products = await CementProduct.findAll(filters);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("CementProducts");
+
+    worksheet.columns = [
+      { header: "STT", key: "no", width: 6 },
+      { header: "ID", key: "Id", width: 10 },
+      { header: "Code", key: "Code", width: 18 },
+      { header: "Name", key: "Name", width: 40 },
+      { header: "CreatedAt", key: "CreatedAt", width: 20 },
+      { header: "UpdatedAt", key: "UpdatedAt", width: 20 },
+    ];
+
+    products.forEach((product, index) => {
+      worksheet.addRow({
+        no: index + 1,
+        Id: product.Id,
+        Code: product.Code,
+        Name: product.Name,
+        CreatedAt: product.CreatedAt
+          ? new Date(product.CreatedAt).toLocaleString("vi-VN")
+          : "",
+        UpdatedAt: product.UpdatedAt
+          ? new Date(product.UpdatedAt).toLocaleString("vi-VN")
+          : "",
+      });
+    });
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      'attachment; filename="cement-products.xlsx"'
+    );
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return res.send(buffer);
+  } catch (error) {
+    console.error("Export cement products error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   getAllCementProducts,
   getCementProductById,
@@ -139,5 +192,6 @@ module.exports = {
   updateCementProduct,
   deleteCementProduct,
   importCementProducts,
+  exportCementProducts,
 };
 

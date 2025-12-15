@@ -122,7 +122,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background-color: #0138C3;
+  background-color: #3D805F;
   color: white;
   border: none;
   border-radius: 8px;
@@ -133,7 +133,7 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #0129a0;
+  background-color: #588157;
 }
 
 .btn-primary:disabled {
@@ -143,8 +143,8 @@
 
 .btn-secondary {
   padding: 10px 20px;
-  background-color: white;
-  color: #374151;
+  background-color: #3D805F;
+  color:white;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
@@ -154,7 +154,7 @@
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #f9fafb;
+  background-color: #588157;
 }
 
 .btn-secondary:disabled {

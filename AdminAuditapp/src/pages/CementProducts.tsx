@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { HiPencil, HiTrash, HiPlus } from "react-icons/hi";
+import { HiPencil, HiPlus, HiTrash } from "react-icons/hi";
+import { HiArrowDownTray } from "react-icons/hi2";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import api from "../services/api";
@@ -18,12 +19,17 @@ export default function CementProducts() {
   const [loading, setLoading] = useState(true);
   const [searchFilter, setSearchFilter] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [productToDelete, setProductToDelete] = useState<CementProduct | null>(null);
+  const [productToDelete, setProductToDelete] = useState<CementProduct | null>(
+    null
+  );
   const [editModalOpen, setEditModalOpen] = useState(false);
-  const [productToEdit, setProductToEdit] = useState<CementProduct | null>(null);
+  const [productToEdit, setProductToEdit] = useState<CementProduct | null>(
+    null
+  );
   const [addModalOpen, setAddModalOpen] = useState(false);
   const [formData, setFormData] = useState({ Code: "", Name: "" });
   const [formLoading, setFormLoading] = useState(false);
+  const [exportLoading, setExportLoading] = useState(false);
   const [notification, setNotification] = useState<{
     isOpen: boolean;
     type: "success" | "error";
@@ -137,6 +143,42 @@ export default function CementProducts() {
     }
   };
 
+  const handleExport = async () => {
+    try {
+      setExportLoading(true);
+      const params: Record<string, string> = {};
+      if (searchFilter.trim()) {
+        params.search = searchFilter.trim();
+      }
+      const res = await api.get("/cement-products/export", {
+        params,
+        responseType: "blob",
+      });
+
+      const blob = new Blob([res.data], {
+        type:
+          res.headers["content-type"] ||
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", "cement-products.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      showNotification("success", "Đã xuất Excel danh sách loại xi măng");
+    } catch (error: any) {
+      console.error("Error exporting cement products:", error);
+      const message =
+        error.response?.data?.error || error.message || "Không thể xuất Excel";
+      showNotification("error", message);
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   const filteredProducts = products.filter((product) => {
     if (!searchFilter.trim()) return true;
     const search = searchFilter.toLowerCase();
@@ -150,10 +192,20 @@ export default function CementProducts() {
     <div className="cement-products-page">
       <div className="page-header">
         <h1>Danh sách loại xi măng</h1>
-        <button className="btn-primary" onClick={handleAdd}>
-          <HiPlus className="icon" />
-          Thêm loại xi măng
-        </button>
+        <div style={{ display: "flex", gap: 10 }}>
+          <button
+            className="btn-secondary"
+            onClick={handleExport}
+            disabled={exportLoading}
+          >
+            <HiArrowDownTray className="icon" />
+            {exportLoading ? "Đang xuất..." : "Xuất Excel"}
+          </button>
+          <button className="btn-primary" onClick={handleAdd}>
+            <HiPlus className="icon" />
+            Thêm loại xi măng
+          </button>
+        </div>
       </div>
 
       <div className="page-filters">
@@ -226,14 +278,17 @@ export default function CementProducts() {
 
       {/* Add/Edit Modal */}
       {(addModalOpen || editModalOpen) && (
-        <div className="modal-overlay" onClick={() => {
-          if (!formLoading) {
-            setAddModalOpen(false);
-            setEditModalOpen(false);
-            setFormData({ Code: "", Name: "" });
-            setProductToEdit(null);
-          }
-        }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!formLoading) {
+              setAddModalOpen(false);
+              setEditModalOpen(false);
+              setFormData({ Code: "", Name: "" });
+              setProductToEdit(null);
+            }
+          }}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>{editModalOpen ? "Sửa loại xi măng" : "Thêm loại xi măng"}</h2>
             <div className="form-group">
@@ -291,12 +346,15 @@ export default function CementProducts() {
 
       {/* Delete Confirmation Modal */}
       {deleteModalOpen && (
-        <div className="modal-overlay" onClick={() => {
-          if (!formLoading) {
-            setDeleteModalOpen(false);
-            setProductToDelete(null);
-          }
-        }}>
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            if (!formLoading) {
+              setDeleteModalOpen(false);
+              setProductToDelete(null);
+            }
+          }}
+        >
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h2>Xác nhận xóa</h2>
             <p>
@@ -335,4 +393,3 @@ export default function CementProducts() {
     </div>
   );
 }
-

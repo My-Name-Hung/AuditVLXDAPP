@@ -14,15 +14,15 @@ const navItems = [
     icon: HiClipboardDocumentList,
   },
   {
-    path: "/import-export",
-    label: "Tải lên danh sách",
-    icon: HiArrowUpOnSquare,
-  },
-  {
     path: "/cement-products",
     label: "Danh sách loại xi măng",
     icon: HiCube,
   },
+  {
+    path: "/import-export",
+    label: "Tải lên danh sách",
+    icon: HiArrowUpOnSquare,
+  }
 ];
 
 export default function Layout() {

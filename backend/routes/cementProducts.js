@@ -4,6 +4,11 @@ const cementProductsController = require("../controllers/cementProductsControlle
 const { authenticateToken } = require("../middlewares/auth");
 
 router.get("/", authenticateToken, cementProductsController.getAllCementProducts);
+router.get(
+  "/export",
+  authenticateToken,
+  cementProductsController.exportCementProducts
+);
 router.get("/:id", authenticateToken, cementProductsController.getCementProductById);
 router.post("/", authenticateToken, cementProductsController.createCementProduct);
 router.put("/:id", authenticateToken, cementProductsController.updateCementProduct);
