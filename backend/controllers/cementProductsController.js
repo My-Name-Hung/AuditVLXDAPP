@@ -121,7 +121,20 @@ const importCementProducts = async (req, res) => {
       return res.status(400).json({ error: "Products array is required" });
     }
 
-    const inserted = await CementProduct.bulkCreate(products);
+    // Normalize & validate
+    const normalized = [];
+    for (const p of products) {
+      const Code = (p.code || p.Code || "").toString().trim();
+      const Name = (p.name || p.Name || "").toString().trim();
+      if (!Code || !Name) {
+        return res.status(400).json({
+          error: "Each product requires both code and name",
+        });
+      }
+      normalized.push({ Code, Name });
+    }
+
+    const inserted = await CementProduct.bulkCreate(normalized);
     res.status(201).json({
       message: `Imported ${inserted.length} cement products`,
       inserted: inserted.length,

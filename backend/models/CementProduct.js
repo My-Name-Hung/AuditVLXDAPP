@@ -101,11 +101,13 @@ class CementProduct {
 
     try {
       await transaction.begin();
-      const request = new sql.Request(transaction);
 
       const inserted = [];
 
       for (const product of cementProducts) {
+        // Create a new request per iteration to avoid parameter conflicts
+        const request = new sql.Request(transaction);
+
         request.input('Code', sql.VarChar(50), product.Code);
         request.input('Name', sql.NVarChar(500), product.Name);
 

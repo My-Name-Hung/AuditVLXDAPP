@@ -120,6 +120,7 @@ export default function ImportExport() {
   const [exportProgress, setExportProgress] = useState(0);
   const [storesHistory, setStoresHistory] = useState<ImportHistory[]>([]);
   const [usersHistory, setUsersHistory] = useState<ImportHistory[]>([]);
+  const [cementHistory, setCementHistory] = useState<ImportHistory[]>([]);
   const [importResults, setImportResults] = useState<ImportResult | null>(null);
   const [notification, setNotification] = useState<{
     isOpen: boolean;
@@ -137,6 +138,7 @@ export default function ImportExport() {
   useEffect(() => {
     fetchImportHistory("stores");
     fetchImportHistory("users");
+    fetchImportHistory("cement");
   }, []);
 
   const fetchImportHistory = async (type: string) => {
@@ -144,8 +146,10 @@ export default function ImportExport() {
       const res = await api.get("/import/history", { params: { type } });
       if (type === "stores") {
         setStoresHistory(res.data || []);
-      } else {
+      } else if (type === "users") {
         setUsersHistory(res.data || []);
+      } else if (type === "cement") {
+        setCementHistory(res.data || []);
       }
     } catch (error) {
       console.error("Error fetching import history:", error);
@@ -1563,7 +1567,7 @@ export default function ImportExport() {
                   onClick={handleImportUsers}
                   disabled={!usersFile || importLoading}
                 >
-                  Bắt đầu import
+                  Bắt đầu tải lên
                 </button>
               </div>
 
@@ -1681,6 +1685,38 @@ export default function ImportExport() {
                 >
                   Bắt đầu tải lên
                 </button>
+              </div>
+            </div>
+
+            <div className="history-section">
+              <h2>Lịch sử tải lên</h2>
+              <div className="history-list">
+                {cementHistory.length === 0 ? (
+                  <p className="no-history">Chưa có lịch sử tải lên</p>
+                ) : (
+                  cementHistory.map((history) => (
+                    <div key={history.Id} className="history-item">
+                      <div className="history-info">
+                        <strong>Tải lên xi măng</strong>
+                        <p>
+                          {formatDate(history.CreatedAt)} - {history.Total} bản
+                          ghi
+                        </p>
+                        <p className="history-stats">
+                          ✅ {history.SuccessCount} thành công | ❌{" "}
+                          {history.ErrorCount} lỗi
+                        </p>
+                      </div>
+                      <span
+                        className={`status ${
+                          history.ErrorCount === 0 ? "success" : "warning"
+                        }`}
+                      >
+                        {history.ErrorCount === 0 ? "Thành công" : "Có lỗi"}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </div>
