@@ -144,27 +144,28 @@ const exportCementProducts = async (req, res) => {
     const workbook = new ExcelJS.Workbook();
     const worksheet = workbook.addWorksheet("CementProducts");
 
+    const formatDateTime = (value) => {
+      if (!value) return "";
+      return new Date(value).toLocaleString("vi-VN", {
+        timeZone: "Asia/Ho_Chi_Minh",
+      });
+    };
+
     worksheet.columns = [
       { header: "STT", key: "no", width: 6 },
-      { header: "ID", key: "Id", width: 10 },
-      { header: "Code", key: "Code", width: 18 },
-      { header: "Name", key: "Name", width: 40 },
-      { header: "CreatedAt", key: "CreatedAt", width: 20 },
-      { header: "UpdatedAt", key: "UpdatedAt", width: 20 },
+      { header: "Mã xi măng", key: "Code", width: 18 },
+      { header: "Tên xi măng", key: "Name", width: 45 },
+      { header: "Ngày tạo", key: "CreatedAt", width: 22 },
+      { header: "Ngày cập nhật", key: "UpdatedAt", width: 22 },
     ];
 
     products.forEach((product, index) => {
       worksheet.addRow({
         no: index + 1,
-        Id: product.Id,
         Code: product.Code,
         Name: product.Name,
-        CreatedAt: product.CreatedAt
-          ? new Date(product.CreatedAt).toLocaleString("vi-VN")
-          : "",
-        UpdatedAt: product.UpdatedAt
-          ? new Date(product.UpdatedAt).toLocaleString("vi-VN")
-          : "",
+        CreatedAt: formatDateTime(product.CreatedAt),
+        UpdatedAt: formatDateTime(product.UpdatedAt),
       });
     });
 
