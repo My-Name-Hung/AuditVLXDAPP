@@ -155,7 +155,7 @@ const exportCementProducts = async (req, res) => {
     const products = await CementProduct.findAll(filters);
 
     const workbook = new ExcelJS.Workbook();
-    const worksheet = workbook.addWorksheet("CementProducts");
+    const worksheet = workbook.addWorksheet("Danh sách");
 
     const formatDateTime = (value) => {
       if (!value) return "";
@@ -200,7 +200,7 @@ const exportCementProducts = async (req, res) => {
     );
     res.setHeader(
       "Content-Disposition",
-      'attachment; filename="cement-products.xlsx"'
+      'attachment; filename="DanhSachLoaiXiMang.xlsx"'
     );
 
     const buffer = await workbook.xlsx.writeBuffer();

@@ -1,4 +1,4 @@
-const { getPool, sql } = require('../config/database');
+const { getPool, sql } = require("../config/database");
 
 class CementProduct {
   static async findAll(filters = {}) {
@@ -11,11 +11,11 @@ class CementProduct {
     const request = pool.request();
 
     if (filters.search) {
-      query += ' AND (Code LIKE @Search OR Name LIKE @Search)';
-      request.input('Search', sql.NVarChar(500), `%${filters.search}%`);
+      query += " AND (Code LIKE @Search OR Name LIKE @Search)";
+      request.input("Search", sql.NVarChar(500), `%${filters.search}%`);
     }
 
-    query += ' ORDER BY Code ASC';
+    query += " ORDER BY Code ASC";
 
     const result = await request.query(query);
     return result.recordset;
@@ -24,7 +24,7 @@ class CementProduct {
   static async findById(id) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, id);
+    request.input("Id", sql.Int, id);
 
     const result = await request.query(`
       SELECT * FROM CementProducts WHERE Id = @Id
@@ -36,7 +36,7 @@ class CementProduct {
   static async findByCode(code) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Code', sql.VarChar(50), code);
+    request.input("Code", sql.VarChar(50), code);
 
     const result = await request.query(`
       SELECT * FROM CementProducts WHERE Code = @Code
@@ -50,8 +50,8 @@ class CementProduct {
     const { Code, Name } = cementProductData;
 
     const request = pool.request();
-    request.input('Code', sql.VarChar(50), Code);
-    request.input('Name', sql.NVarChar(500), Name);
+    request.input("Code", sql.VarChar(50), Code);
+    request.input("Name", sql.NVarChar(500), Name);
 
     const result = await request.query(`
       INSERT INTO CementProducts (Code, Name, CreatedAt, UpdatedAt)
@@ -67,9 +67,9 @@ class CementProduct {
     const { Code, Name } = cementProductData;
 
     const request = pool.request();
-    request.input('Id', sql.Int, id);
-    request.input('Code', sql.VarChar(50), Code);
-    request.input('Name', sql.NVarChar(500), Name);
+    request.input("Id", sql.Int, id);
+    request.input("Code", sql.VarChar(50), Code);
+    request.input("Name", sql.NVarChar(500), Name);
 
     const result = await request.query(`
       UPDATE CementProducts
@@ -86,7 +86,7 @@ class CementProduct {
   static async delete(id) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, id);
+    request.input("Id", sql.Int, id);
 
     await request.query(`
       DELETE FROM CementProducts WHERE Id = @Id
@@ -108,8 +108,8 @@ class CementProduct {
         // Create a new request per iteration to avoid parameter conflicts
         const request = new sql.Request(transaction);
 
-        request.input('Code', sql.VarChar(50), product.Code);
-        request.input('Name', sql.NVarChar(500), product.Name);
+        request.input("Code", sql.VarChar(50), product.Code);
+        request.input("Name", sql.NVarChar(500), product.Name);
 
         const result = await request.query(`
           IF NOT EXISTS (SELECT 1 FROM CementProducts WHERE Code = @Code)
@@ -135,4 +135,3 @@ class CementProduct {
 }
 
 module.exports = CementProduct;
-
