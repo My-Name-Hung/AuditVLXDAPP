@@ -405,7 +405,7 @@ export default function ImportExport() {
       setImportProgress(0);
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
-          ?.error || "Lỗi khi import nhân viên";
+          ?.error || "Lỗi khi tải lên nhân viên";
       setNotification({
         isOpen: true,
         type: "error",
@@ -1421,7 +1421,7 @@ export default function ImportExport() {
               <h2>Tải lên Cửa hàng</h2>
               <div className="import-actions">
                 <button
-                  className="btn-secondary"
+                  className="btn-secondary-import"
                   onClick={() => downloadTemplate("stores")}
                 >
                   <HiDocumentText /> Tải file mẫu excel
@@ -1452,7 +1452,7 @@ export default function ImportExport() {
                   </div>
                 </label>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={handleImportStores}
                   disabled={!storesFile || importLoading}
                 >
@@ -1525,10 +1525,10 @@ export default function ImportExport() {
         {activeTab === "import-users" && (
           <div className="import-tab">
             <div className="import-section">
-              <h2>Import Nhân viên</h2>
+              <h2>Tải lên Nhân viên</h2>
               <div className="import-actions">
                 <button
-                  className="btn-secondary"
+                  className="btn-secondary-import"
                   onClick={() => downloadTemplate("users")}
                 >
                   <HiDocumentText /> Tải file mẫu Excel
@@ -1559,7 +1559,7 @@ export default function ImportExport() {
                   </div>
                 </label>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={handleImportUsers}
                   disabled={!usersFile || importLoading}
                 >
@@ -1635,7 +1635,7 @@ export default function ImportExport() {
               <h2>Tải lên xi măng</h2>
               <div className="import-actions">
                 <button
-                  className="btn-secondary"
+                  className="btn-secondary-import"
                   onClick={() => downloadTemplate("cement")}
                 >
                   <HiDocumentText /> Tải file mẫu excel
@@ -1675,7 +1675,7 @@ export default function ImportExport() {
                   </div>
                 </label>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={handleImportCement}
                   disabled={!cementFile || importLoading}
                 >
@@ -1696,7 +1696,7 @@ export default function ImportExport() {
                 <h3>Báo cáo tổng hợp</h3>
                 <p>Xuất báo cáo từ Tổng quan</p>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={() => handleExportReport("dashboard")}
                   disabled={exportLoading}
                 >
@@ -1709,7 +1709,7 @@ export default function ImportExport() {
                 <h3>Danh sách cửa hàng</h3>
                 <p>Xuất toàn bộ danh sách cửa hàng</p>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={() => handleExportReport("stores")}
                   disabled={exportLoading}
                 >
@@ -1722,7 +1722,7 @@ export default function ImportExport() {
                 <h3>Danh sách nhân viên</h3>
                 <p>Xuất toàn bộ danh sách nhân viên</p>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={() => handleExportReport("users")}
                   disabled={exportLoading}
                 >
@@ -1735,7 +1735,7 @@ export default function ImportExport() {
                 <h3>Danh sách khảo sát</h3>
                 <p>Xuất toàn bộ danh sách khảo sát</p>
                 <button
-                  className="btn-primary"
+                  className="btn-primary-import"
                   onClick={() => handleExportReport("surveys")}
                   disabled={exportLoading}
                 >

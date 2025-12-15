@@ -133,7 +133,7 @@
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #588157;
+  background-color: #207245;
 }
 
 .btn-primary:disabled {
@@ -154,7 +154,7 @@
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #588157;
+  background-color: #207245;
 }
 
 .btn-secondary:disabled {

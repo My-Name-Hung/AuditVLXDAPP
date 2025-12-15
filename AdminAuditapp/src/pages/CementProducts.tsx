@@ -193,6 +193,10 @@ export default function CementProducts() {
       <div className="page-header">
         <h1>Danh sách loại xi măng</h1>
         <div style={{ display: "flex", gap: 10 }}>
+                  <button className="btn-primary" onClick={handleAdd}>
+            <HiPlus className="icon" />
+            Thêm loại xi măng
+          </button>
           <button
             className="btn-secondary"
             onClick={handleExport}
@@ -200,10 +204,6 @@ export default function CementProducts() {
           >
             <HiArrowDownTray className="icon" />
             {exportLoading ? "Đang xuất..." : "Xuất Excel"}
-          </button>
-          <button className="btn-primary" onClick={handleAdd}>
-            <HiPlus className="icon" />
-            Thêm loại xi măng
           </button>
         </div>
       </div>
