@@ -1,5 +1,6 @@
 const ExcelJS = require("exceljs");
 const CementProduct = require("../models/CementProduct");
+const { getPool, sql } = require("../config/database");
 
 const getAllCementProducts = async (req, res) => {
   try {
@@ -36,9 +37,7 @@ const createCementProduct = async (req, res) => {
     const { code, name } = req.body;
 
     if (!name || !name.toString().trim()) {
-      return res
-        .status(400)
-        .json({ error: "Name is required" });
+      return res.status(400).json({ error: "Name is required" });
     }
 
     let resolvedCode = code && code.toString().trim();
@@ -135,6 +134,30 @@ const importCementProducts = async (req, res) => {
     }
 
     const inserted = await CementProduct.bulkCreate(normalized);
+
+    // Save import history for cement products (non-blocking if fails)
+    try {
+      const pool = await getPool();
+      const historyRequest = pool.request();
+      historyRequest.input("Type", sql.VarChar(50), "cement");
+      historyRequest.input("Total", sql.Int, normalized.length);
+      historyRequest.input("SuccessCount", sql.Int, inserted.length);
+      historyRequest.input(
+        "ErrorCount",
+        sql.Int,
+        Math.max(0, normalized.length - inserted.length)
+      );
+      historyRequest.input("UserId", sql.Int, req.user?.id || null);
+
+      await historyRequest.query(`
+        INSERT INTO ImportHistory (Type, Total, SuccessCount, ErrorCount, UserId, CreatedAt)
+        VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, GETDATE())
+      `);
+    } catch (historyError) {
+      console.error("Save cement import history error:", historyError);
+      // Do not fail main request if history logging fails
+    }
+
     res.status(201).json({
       message: `Imported ${inserted.length} cement products`,
       inserted: inserted.length,
@@ -142,6 +165,18 @@ const importCementProducts = async (req, res) => {
     });
   } catch (error) {
     console.error("Import cement products error:", error);
+
+    const message = (error && error.message) || "";
+    if (
+      typeof message === "string" &&
+      (message.toLowerCase().includes("unique") ||
+        message.toLowerCase().includes("duplicate") ||
+        message.toLowerCase().includes("already exists") ||
+        message.toLowerCase().includes("violation of unique key"))
+    ) {
+      return res.status(400).json({ error: "Mã xi măng này đã tồn tại" });
+    }
+
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -220,4 +255,3 @@ module.exports = {
   importCementProducts,
   exportCementProducts,
 };
-
