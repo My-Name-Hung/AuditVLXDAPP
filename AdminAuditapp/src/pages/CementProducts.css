@@ -32,7 +32,7 @@
 
 .search-input:focus {
   outline: none;
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .table-container {
@@ -122,7 +122,7 @@
   align-items: center;
   gap: 8px;
   padding: 10px 20px;
-  background-color: #3D805F;
+  background-color: #3d805f;
   color: white;
   border: none;
   border-radius: 8px;
@@ -143,8 +143,8 @@
 
 .btn-secondary {
   padding: 10px 20px;
-  background-color: #3D805F;
-  color:white;
+  background-color: #3d805f;
+  color: white;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 14px;
@@ -246,7 +246,7 @@
 
 .form-group input:focus {
   outline: none;
-  border-color: #0138C3;
+  border-color: #0138c3;
 }
 
 .form-group input:disabled {
@@ -259,6 +259,17 @@
   gap: 12px;
   justify-content: flex-end;
   margin-top: 24px;
+}
+
+/* Buttons in modal (Hủy / Lưu) */
+.modal-actions button {
+  background-color: #0129a0;
+  color: #fff;
+  border: none;
+}
+
+.modal-actions button:hover:not(:disabled) {
+  background-color: #01208a;
 }
 
 .modal-content p {
@@ -284,4 +295,3 @@
   width: 18px;
   height: 18px;
 }
-

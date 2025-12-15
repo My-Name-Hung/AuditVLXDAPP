@@ -1398,12 +1398,12 @@ export default function ImportExport() {
         >
           <HiArrowUpTray /> Tải lên danh sách Nhân viên
         </button>
-        {/* <button
+        <button
           className={`tab ${activeTab === "import-cement" ? "active" : ""}`}
           onClick={() => setActiveTab("import-cement")}
         >
-          <HiArrowUpTray /> Tải lên xi măng
-        </button> */}
+          <HiArrowUpTray /> Tải lên loại xi măng
+        </button>
         <button
           className={`tab ${activeTab === "export-reports" ? "active" : ""}`}
           onClick={() => setActiveTab("export-reports")}

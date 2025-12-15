@@ -159,6 +159,18 @@ const exportCementProducts = async (req, res) => {
       { header: "Ngày cập nhật", key: "UpdatedAt", width: 22 },
     ];
 
+    // Style header row giống các file Excel khác (nền #0129a0, chữ trắng)
+    const headerRow = worksheet.getRow(1);
+    headerRow.eachCell((cell) => {
+      cell.font = { bold: true, color: { argb: "FFFFFFFF" } };
+      cell.fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0129A0" },
+      };
+      cell.alignment = { horizontal: "center", vertical: "middle" };
+    });
+
     products.forEach((product, index) => {
       worksheet.addRow({
         no: index + 1,
