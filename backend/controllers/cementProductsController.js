@@ -135,18 +135,18 @@ const importCementProducts = async (req, res) => {
 
     const inserted = await CementProduct.bulkCreate(normalized);
 
+    const total = normalized.length;
+    const successCount = inserted.length;
+    const errorCount = Math.max(0, total - successCount);
+
     // Save import history for cement products (non-blocking if fails)
     try {
       const pool = await getPool();
       const historyRequest = pool.request();
       historyRequest.input("Type", sql.VarChar(50), "cement");
-      historyRequest.input("Total", sql.Int, normalized.length);
-      historyRequest.input("SuccessCount", sql.Int, inserted.length);
-      historyRequest.input(
-        "ErrorCount",
-        sql.Int,
-        Math.max(0, normalized.length - inserted.length)
-      );
+      historyRequest.input("Total", sql.Int, total);
+      historyRequest.input("SuccessCount", sql.Int, successCount);
+      historyRequest.input("ErrorCount", sql.Int, errorCount);
       historyRequest.input("UserId", sql.Int, req.user?.id || null);
 
       await historyRequest.query(`
@@ -158,10 +158,20 @@ const importCementProducts = async (req, res) => {
       // Do not fail main request if history logging fails
     }
 
+    // Nếu có bất kỳ mã nào đã tồn tại (bị bỏ qua), báo lỗi trùng mã
+    if (errorCount > 0) {
+      return res.status(400).json({
+        error: "Mã xi măng này đã tồn tại",
+        inserted: successCount,
+        total,
+        duplicateCount: errorCount,
+      });
+    }
+
     res.status(201).json({
-      message: `Imported ${inserted.length} cement products`,
-      inserted: inserted.length,
-      total: products.length,
+      message: `Imported ${successCount} cement products`,
+      inserted: successCount,
+      total,
     });
   } catch (error) {
     console.error("Import cement products error:", error);
