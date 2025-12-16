@@ -1,7 +1,7 @@
 .store-survey-list {
   width: 100%;
   padding: 1.5rem;
-  max-width: 1600px;
+  max-width: none; /* allow full width so horizontal scroll can show */
   margin: 0 auto;
 }
 
@@ -170,7 +170,9 @@
   padding: 1.5rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
   overflow-x: auto;
+  overflow-y: hidden;
   margin-bottom: 1.5rem;
+  width: 100%;
 }
 
 .table-section-title {
@@ -184,6 +186,7 @@
 
 .survey-list-table {
   width: 100%;
+  min-width: 2000px; /* ensure horizontal scrollbar appears for many columns */
   border-collapse: collapse;
   font-size: 0.875rem;
 }
@@ -225,13 +228,13 @@
 
 /* Cột Tên cửa hàng - tự động xuống dòng, căn giữa đẹp mắt */
 .survey-list-table tbody tr td:nth-child(2) {
-    white-space: nowrap;
-      width: auto;
-        min-width: 200px;
+  white-space: nowrap;
+  width: auto;
+  min-width: 200px;
   max-width: 350px;
   overflow: hidden;
   text-overflow: ellipsis;
-    word-wrap: break-word;
+  word-wrap: break-word;
   word-break: break-word;
   white-space: normal;
   line-height: 1.5;
@@ -244,13 +247,13 @@
 
 /* Cột Loại XM - tự động xuống dòng, căn giữa đẹp mắt */
 .survey-list-table tbody tr td:nth-child(6) {
-    white-space: nowrap;
-      width: auto;
-        min-width: 200px;
+  white-space: nowrap;
+  width: auto;
+  min-width: 200px;
   max-width: 350px;
   overflow: hidden;
   text-overflow: ellipsis;
-    word-wrap: break-word;
+  word-wrap: break-word;
   word-break: break-word;
   white-space: normal;
   line-height: 1.5;
