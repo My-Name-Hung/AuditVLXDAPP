@@ -88,16 +88,16 @@
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
-  background: #0138c3;
+  background: #3d805f;
 }
 
 .btn-secondary-import {
-  background: #f3f4f6;
-  color: #333;
+  background: #3d805f;
+  color: #fff;
 }
 
 .btn-secondary-import:hover {
-  background: #e5e7eb;
+  background: #207245;
 }
 
 .btn-primary-import {

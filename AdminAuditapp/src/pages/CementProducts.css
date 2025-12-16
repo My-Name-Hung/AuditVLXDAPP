@@ -20,6 +20,13 @@
   margin-bottom: 24px;
 }
 
+.filters-header {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #4b5563;
+}
+
 .search-input {
   width: 100%;
   max-width: 400px;
@@ -48,7 +55,8 @@
 }
 
 .data-table thead {
-  background-color: #f9fafb;
+  background-color: #0138c3;
+  color: #fefefe;
 }
 
 .data-table th {
@@ -56,8 +64,8 @@
   text-align: left;
   font-size: 14px;
   font-weight: 600;
-  color: #374151;
-  border-bottom: 1px solid #e5e7eb;
+  color: #fefefe;
+  border-bottom: 2px solid #e5e7eb;
 }
 
 .data-table td {

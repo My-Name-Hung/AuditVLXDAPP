@@ -515,7 +515,7 @@ export default function ImportExport() {
   };
 
   const handleExportReport = async (
-    type: "dashboard" | "stores" | "users" | "surveys"
+    type: "dashboard" | "stores" | "users" | "surveys" | "cement"
   ) => {
     try {
       setExportLoading(true);
@@ -584,6 +584,27 @@ export default function ImportExport() {
         setExportProgress(50);
 
         await generateSurveysExcel(surveysWithProducts, setExportProgress);
+        setExportProgress(100);
+      } else if (type === "cement") {
+        // Export cement products (reuse logic from CementProducts.tsx)
+        setExportProgress(20);
+        const res = await api.get("/cement-products/export", {
+          responseType: "blob",
+        });
+        setExportProgress(80);
+        const blob = new Blob([res.data], {
+          type:
+            res.headers["content-type"] ||
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = `DanhSachLoaiXiMang_${
+          new Date().toISOString().split("T")[0]
+        }.xlsx`;
+        link.click();
+        window.URL.revokeObjectURL(url);
         setExportProgress(100);
       } else {
         // Export users list
@@ -1430,7 +1451,7 @@ export default function ImportExport() {
                   className="btn-secondary-import"
                   onClick={() => downloadTemplate("stores")}
                 >
-                  <HiDocumentText /> Tải file mẫu excel
+                  <HiDocumentText /> Tải file mẫu Excel
                 </button>
               </div>
 
@@ -1644,7 +1665,7 @@ export default function ImportExport() {
                   className="btn-secondary-import"
                   onClick={() => downloadTemplate("cement")}
                 >
-                  <HiDocumentText /> Tải file mẫu excel
+                  <HiDocumentText /> Tải file mẫu Excel
                 </button>
               </div>
 
@@ -1775,6 +1796,19 @@ export default function ImportExport() {
                 <button
                   className="btn-primary-import"
                   onClick={() => handleExportReport("surveys")}
+                  disabled={exportLoading}
+                >
+                  <HiArrowDownTray /> Xuất Excel
+                </button>
+              </div>
+
+              <div className="export-card">
+                <HiDocumentText className="export-icon" />
+                <h3>Danh sách loại xi măng</h3>
+                <p>Xuất toàn bộ danh sách loại xi măng</p>
+                <button
+                  className="btn-primary-import"
+                  onClick={() => handleExportReport("cement")}
                   disabled={exportLoading}
                 >
                   <HiArrowDownTray /> Xuất Excel

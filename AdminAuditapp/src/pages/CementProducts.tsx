@@ -44,12 +44,14 @@ export default function CementProducts() {
     fetchProducts();
   }, []);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (filterOverride?: string) => {
     try {
       setLoading(true);
       const params: Record<string, string> = {};
-      if (searchFilter.trim()) {
-        params.search = searchFilter.trim();
+      const filterToUse =
+        filterOverride !== undefined ? filterOverride : searchFilter;
+      if (filterToUse.trim()) {
+        params.search = filterToUse.trim();
       }
       const res = await api.get("/cement-products", { params });
       setProducts(res.data || []);
@@ -89,7 +91,8 @@ export default function CementProducts() {
 
     try {
       setFormLoading(true);
-      if (editModalOpen && productToEdit) {
+      const isEdit = editModalOpen && productToEdit;
+      if (isEdit) {
         // Update
         await api.put(`/cement-products/${productToEdit.Id}`, {
           code: formData.Code.trim() || undefined,
@@ -108,7 +111,13 @@ export default function CementProducts() {
       setEditModalOpen(false);
       setFormData({ Code: "", Name: "" });
       setProductToEdit(null);
-      await fetchProducts();
+      // Clear filter after editing to show full list
+      if (isEdit && searchFilter.trim()) {
+        setSearchFilter("");
+        await fetchProducts("");
+      } else {
+        await fetchProducts();
+      }
     } catch (error: any) {
       console.error("Error saving cement product:", error);
       const message =
@@ -193,7 +202,7 @@ export default function CementProducts() {
       <div className="page-header">
         <h1>Danh sách loại xi măng</h1>
         <div style={{ display: "flex", gap: 10 }}>
-                  <button className="btn-primary" onClick={handleAdd}>
+          <button className="btn-primary" onClick={handleAdd}>
             <HiPlus className="icon" />
             Thêm loại xi măng
           </button>
@@ -209,6 +218,7 @@ export default function CementProducts() {
       </div>
 
       <div className="page-filters">
+        <div className="filters-header">Tên loại xi măng:</div>
         <input
           type="text"
           placeholder="Tìm kiếm theo mã hoặc tên..."
