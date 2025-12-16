@@ -125,36 +125,32 @@
   border-top: 1px solid #e0e0e0;
 }
 
-.btn-primary {
+.store-add .btn-primary-store-form,
+.store-add .btn-secondary-store-form {
   padding: 0.75rem 2rem;
-  background: #0138c3;
-  color: white;
   border: none;
   border-radius: 6px;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.2s;
+  color: #fff;
 }
 
-.btn-primary:hover {
-  background: #0129a0;
+.store-add .btn-primary-store-form {
+  background: #0138c3 !important;
 }
 
-.btn-secondary {
-  padding: 0.75rem 2rem;
-  background: #f3f4f6;
-  color: #333;
-  border: none;
-  border-radius: 6px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s;
+.store-add .btn-primary-store-form:hover {
+  background: #0129a0 !important;
 }
 
-.btn-secondary:hover {
-  background: #e5e7eb;
+.store-add .btn-secondary-store-form {
+  background: #dc3545 !important;
+}
+
+.store-add .btn-secondary-store-form:hover {
+  background: #c82333 !important;
 }
 
 /* Modal */
@@ -220,4 +216,3 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
-

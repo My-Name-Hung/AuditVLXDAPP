@@ -558,10 +558,10 @@ export default function UserAdd() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn-cancel" onClick={handleCancel}>
+          <button type="button" className="btn-cancel-user" onClick={handleCancel}>
             Hủy
           </button>
-          <button type="submit" className="btn-submit">
+          <button type="submit" className="btn-submit-user">
             Tạo nhân viên
           </button>
         </div>

@@ -405,12 +405,12 @@ export default function StoreAdd() {
           <div className="form-actions">
             <button
               type="button"
-              className="btn-secondary"
+              className="btn-secondary-store-form"
               onClick={handleCancel}
             >
               Hủy
             </button>
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn-primary-store-form">
               Hoàn tất
             </button>
           </div>
