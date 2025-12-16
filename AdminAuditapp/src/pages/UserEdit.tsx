@@ -460,7 +460,7 @@ export default function UserEdit() {
                   setStoreAssignmentError("");
                 }}
               />
-              <span>Chưa gán</span>
+              <span className="store-assignment-label">Chưa gán</span>
             </label>
             <label className="store-assignment-option">
               <input
@@ -474,7 +474,9 @@ export default function UserEdit() {
                   setStoreAssignmentError("");
                 }}
               />
-              <span>Gán cho tất cả cửa hàng</span>
+              <span className="store-assignment-label">
+                Gán cho tất cả cửa hàng
+              </span>
             </label>
             <label className="store-assignment-option">
               <input
@@ -487,7 +489,9 @@ export default function UserEdit() {
                   setStoreAssignmentError("");
                 }}
               />
-              <span>Chọn cửa hàng cụ thể</span>
+              <span className="store-assignment-label">
+                Chọn cửa hàng cụ thể
+              </span>
             </label>
           </div>
           <small className="store-assignment-helper">

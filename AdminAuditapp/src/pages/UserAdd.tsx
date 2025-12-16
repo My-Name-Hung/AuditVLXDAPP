@@ -69,10 +69,12 @@ export default function UserAdd() {
         const data = res.data?.data || res.data || [];
         if (Array.isArray(data)) {
           setStoreOptions(
-            data.map((item: { Id: number; StoreName: string; StoreCode: string }) => ({
-              id: item.Id,
-              name: `${item.StoreName} (${item.StoreCode})`,
-            }))
+            data.map(
+              (item: { Id: number; StoreName: string; StoreCode: string }) => ({
+                id: item.Id,
+                name: `${item.StoreName} (${item.StoreCode})`,
+              })
+            )
           );
         }
       } catch (error) {
@@ -202,15 +204,15 @@ export default function UserAdd() {
         position: formData.position.trim(),
       };
 
-    if (storeAssignmentMode === "all") {
-      Object.assign(payload, {
-        storeAssignment: { mode: "all" },
-      });
-    } else if (storeAssignmentMode === "custom") {
-      Object.assign(payload, {
-        storeAssignment: { mode: "custom", storeIds: selectedStoreIds },
-      });
-    }
+      if (storeAssignmentMode === "all") {
+        Object.assign(payload, {
+          storeAssignment: { mode: "all" },
+        });
+      } else if (storeAssignmentMode === "custom") {
+        Object.assign(payload, {
+          storeAssignment: { mode: "custom", storeIds: selectedStoreIds },
+        });
+      }
 
       await api.post("/users", payload);
 
@@ -436,7 +438,7 @@ export default function UserAdd() {
                   setStoreAssignmentError("");
                 }}
               />
-              <span>Chưa gán</span>
+              <span className="store-assignment-label">Chưa gán</span>
             </label>
             <label className="store-assignment-option">
               <input
@@ -450,7 +452,9 @@ export default function UserAdd() {
                   setStoreAssignmentError("");
                 }}
               />
-              <span>Gán cho tất cả cửa hàng</span>
+              <span className="store-assignment-label">
+                Gán cho tất cả cửa hàng
+              </span>
             </label>
             <label className="store-assignment-option">
               <input
@@ -463,7 +467,9 @@ export default function UserAdd() {
                   setStoreAssignmentError("");
                 }}
               />
-              <span>Chọn cửa hàng cụ thể</span>
+              <span className="store-assignment-label">
+                Chọn cửa hàng cụ thể
+              </span>
             </label>
           </div>
           <small className="store-assignment-helper">

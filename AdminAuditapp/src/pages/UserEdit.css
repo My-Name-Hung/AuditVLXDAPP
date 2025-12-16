@@ -178,33 +178,63 @@
 
 .store-assignment-options {
   display: flex;
-  gap: 1.5rem;
-  flex-wrap: nowrap;
+  gap: 3rem 1.5rem; /* more horizontal space between options */
+  flex-wrap: wrap;
+  align-items: center;
   white-space: nowrap;
 }
 
 .store-assignment-option {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: 0.4rem;
   font-weight: 500;
   color: #333;
-  white-space: nowrap;
+  white-space: nowrap; /* keep radio + label on one line */
   flex-shrink: 0;
+  padding: 0.15rem 0;
+}
+
+.store-assignment-label {
+  line-height: 1.25;
+  white-space: nowrap; /* text stays horizontal */
 }
 
 .store-assignment-helper {
   font-size: 0.85rem;
   color: #555;
+  margin-top: 0.35rem;
 }
 
 .store-assignment-selector {
-  margin-top: 0.5rem;
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.store-assignment-selector .multi-select {
+  width: 100%;
 }
 
 .store-assignment-error {
   color: #dc2626;
   font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .user-edit-form {
+    padding: 1.25rem;
+  }
+
+  .position-select-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-add-position {
+    width: 100%;
+    height: auto;
+    text-align: center;
+  }
 }
 
 .loading,
@@ -217,4 +247,3 @@
 .error {
   color: #dc3545;
 }
-

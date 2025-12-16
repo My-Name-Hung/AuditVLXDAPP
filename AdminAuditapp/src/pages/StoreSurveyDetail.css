@@ -1,7 +1,8 @@
 .store-survey-detail {
   padding: 24px;
-  max-width: 1400px;
+  max-width: none; /* allow full width so horizontal scroll can show */
   margin: 0 auto;
+  width: 100%; /* ensure container stretches so inner table can scroll */
 }
 
 .store-survey-detail-header {
@@ -116,11 +117,14 @@
 
 .survey-table-container {
   overflow-x: auto;
+  overflow-y: hidden;
   margin-top: 16px;
+  width: 100%;
 }
 
 .survey-table {
   width: 100%;
+  min-width: 2000px; /* ensure horizontal scrollbar appears when many columns */
   border-collapse: collapse;
   font-size: 14px;
 }
