@@ -565,10 +565,63 @@ export default function DashboardScreen() {
       }
 
       // Call backend export endpoint
-      const res = await api.get("/store-surveys/export", {
-        params,
-        responseType: "blob",
-      });
+      let res;
+      try {
+        res = await api.get("/store-surveys/export", {
+          params,
+          responseType: "blob",
+        });
+      } catch (error: any) {
+        // Check if it's a 404 or no data error
+        if (error.response?.status === 404 || error.response?.status === 200) {
+          // Try to parse error response as JSON
+          try {
+            const errorText =
+              typeof error.response.data === "string"
+                ? error.response.data
+                : await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      resolve(reader.result as string);
+                    };
+                    reader.onerror = reject;
+                    reader.readAsText(error.response.data);
+                  });
+            const errorData = JSON.parse(errorText);
+            Alert.alert(
+              "Thông báo",
+              errorData.message || "Không có dữ liệu để xuất"
+            );
+          } catch {
+            Alert.alert("Thông báo", "Không có dữ liệu để xuất");
+          }
+          return;
+        }
+        throw error;
+      }
+
+      // Check if response is JSON (no data case) - blob response might be JSON string
+      const contentType = res.headers["content-type"] || "";
+      if (contentType.includes("application/json")) {
+        // Response is JSON, not blob - means no data
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+          reader.onerror = reject;
+          reader.readAsText(res.data);
+        });
+        try {
+          const jsonData = JSON.parse(text);
+          if (jsonData.message) {
+            Alert.alert("Thông báo", jsonData.message);
+            return;
+          }
+        } catch {
+          // Not JSON, continue with blob handling
+        }
+      }
 
       // Convert blob response to base64 for React Native
       const blob = res.data;
@@ -603,9 +656,16 @@ export default function DashboardScreen() {
       } else {
         Alert.alert("Thành công", `File đã được lưu tại: ${fileUri}`);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error exporting Excel:", error);
-      Alert.alert("Lỗi", "Không thể xuất file Excel");
+      // Check if it's a 404 or no data error
+      if (error.response?.status === 404 || error.response?.status === 200) {
+        const errorMessage =
+          error.response?.data?.message || "Không có dữ liệu để xuất";
+        Alert.alert("Thông báo", errorMessage);
+      } else {
+        Alert.alert("Thông báo", "Không có dữ liệu để xuất");
+      }
     } finally {
       setExportLoading(false);
     }

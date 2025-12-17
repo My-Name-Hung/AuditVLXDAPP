@@ -340,10 +340,52 @@ export default function Dashboard() {
       }
 
       // Call backend export endpoint
-      const res = await api.get("/store-surveys/export", {
-        params,
-        responseType: "blob",
-      });
+      let res;
+      try {
+        res = await api.get("/store-surveys/export", {
+          params,
+          responseType: "blob",
+        });
+      } catch (error: any) {
+        // Check if it's a 404 or no data error
+        if (error.response?.status === 404 || error.response?.status === 200) {
+          // Try to parse error response as JSON
+          try {
+            const errorText =
+              typeof error.response.data === "string"
+                ? error.response.data
+                : await error.response.data.text();
+            const errorData = JSON.parse(errorText);
+            alert(errorData.message || "Không có dữ liệu để xuất");
+          } catch {
+            alert("Không có dữ liệu để xuất");
+          }
+          return;
+        }
+        throw error;
+      }
+
+      // Check if response is JSON (no data case) - blob response might be JSON string
+      const contentType = res.headers["content-type"] || "";
+      if (contentType.includes("application/json")) {
+        const text = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve(reader.result as string);
+          };
+          reader.onerror = reject;
+          reader.readAsText(res.data);
+        });
+        try {
+          const jsonData = JSON.parse(text);
+          if (jsonData.message) {
+            alert(jsonData.message);
+            return;
+          }
+        } catch {
+          // Not JSON, continue with blob handling
+        }
+      }
 
       // Handle blob response
       const blob = new Blob([res.data], {
@@ -359,9 +401,16 @@ export default function Dashboard() {
       }.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error exporting Excel:", error);
-      alert("Lỗi khi xuất file Excel");
+      // Check if it's a 404 or no data error
+      if (error.response?.status === 404 || error.response?.status === 200) {
+        const errorMessage =
+          error.response?.data?.message || "Không có dữ liệu để xuất";
+        alert(errorMessage);
+      } else {
+        alert("Lỗi khi xuất file Excel");
+      }
     } finally {
       setExportLoading(false);
     }

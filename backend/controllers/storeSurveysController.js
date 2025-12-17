@@ -391,7 +391,8 @@ const exportStoreSurveys = async (req, res) => {
     const surveys = await StoreSurvey.findAll(filters);
 
     if (!surveys || surveys.length === 0) {
-      return res.status(404).json({ error: "No surveys found" });
+      // Return 200 with JSON message - frontend will check content-type
+      return res.status(200).json({ message: "Không có dữ liệu để xuất" });
     }
 
     // Fetch products for all surveys
