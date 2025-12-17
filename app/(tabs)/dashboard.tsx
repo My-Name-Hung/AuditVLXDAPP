@@ -1,11 +1,15 @@
 import Header from "@/src/components/Header";
+import { useAuth } from "@/src/contexts/AuthContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import { useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   Modal,
   ScrollView,
@@ -384,6 +388,7 @@ const getMonthDates = (
 export default function DashboardScreen() {
   const router = useRouter();
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [selectedTerritory, setSelectedTerritory] = useState<string>("");
@@ -396,7 +401,8 @@ export default function DashboardScreen() {
   const [selectedWeek, setSelectedWeek] = useState<number>(0); // 0 = Tất cả, 1-4 = Tuần 1-4
   const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
-  
+  const [exportLoading, setExportLoading] = useState(false);
+
   // Chart data
   // Removed storesByDate - chart now always shows by territory
   // const [storesByDate, setStoresByDate] = useState<StoresByDate[]>([]);
@@ -513,6 +519,101 @@ export default function DashboardScreen() {
     return `Tuần ${week}`;
   };
 
+  const handleExportExcel = async () => {
+    if (!user?.id) {
+      Alert.alert("Lỗi", "Vui lòng đăng nhập để xuất báo cáo");
+      return;
+    }
+
+    try {
+      setExportLoading(true);
+
+      // Calculate date range based on filters
+
+      // Calculate date range based on filters
+      let startDate: string;
+      let endDate: string;
+
+      if (selectedWeek === 0) {
+        const monthDates = getMonthDates(selectedYear, selectedMonth);
+        startDate = monthDates.startDate;
+        endDate = monthDates.endDate;
+      } else {
+        const weekDates = getWeekDates(
+          selectedYear,
+          selectedMonth,
+          selectedWeek
+        );
+        if (weekDates.length === 0) {
+          Alert.alert("Lỗi", "Không có dữ liệu để xuất");
+          setExportLoading(false);
+          return;
+        }
+        startDate = weekDates[0];
+        endDate = weekDates[weekDates.length - 1];
+      }
+
+      // Call backend API to export Excel
+      const params: Record<string, string | number> = {
+        dateFrom: startDate,
+        dateTo: endDate,
+        userId: user.id, // Filter by current user
+      };
+
+      if (selectedTerritory) {
+        params.territoryId = selectedTerritory;
+      }
+
+      // Call backend export endpoint
+      const res = await api.get("/store-surveys/export", {
+        params,
+        responseType: "blob",
+      });
+
+      // Convert blob response to base64 for React Native
+      const blob = res.data;
+      const reader = new FileReader();
+
+      const base64 = await new Promise<string>((resolve, reject) => {
+        reader.onloadend = () => {
+          const base64String = (reader.result as string).split(",")[1];
+          resolve(base64String);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const fileName = `BaoCaoKhaoSat_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      // Use cacheDirectory from FileSystem
+      const cacheDir =
+        (FileSystem as any).cacheDirectory ||
+        (FileSystem as any).documentDirectory ||
+        "";
+      const fileUri = `${cacheDir}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(fileUri, base64, {
+        encoding: (FileSystem as any).EncodingType?.Base64 || "base64",
+      });
+
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType:
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          dialogTitle: "Chia sẻ báo cáo",
+        });
+      } else {
+        Alert.alert("Thành công", `File đã được lưu tại: ${fileUri}`);
+      }
+    } catch (error) {
+      console.error("Error exporting Excel:", error);
+      Alert.alert("Lỗi", "Không thể xuất file Excel");
+    } finally {
+      setExportLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -537,6 +638,22 @@ export default function DashboardScreen() {
             Quay lại
           </Text>
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[
+            styles.exportButton,
+            {
+              backgroundColor: "#3D805F",
+              opacity: exportLoading || !user?.id ? 0.6 : 1,
+            },
+          ]}
+          onPress={handleExportExcel}
+          disabled={exportLoading || !user?.id}
+        >
+          <Ionicons name="download" size={18} color="white" />
+          <Text style={styles.exportButtonText}>
+            {exportLoading ? "Đang xuất..." : "Tải báo cáo"}
+          </Text>
+        </TouchableOpacity>
       </View>
       <ScrollView
         style={styles.scrollView}
@@ -555,12 +672,12 @@ export default function DashboardScreen() {
           <Text style={[styles.sectionTitle, { color: colors.text }]}>
             Bộ lọc
           </Text>
-          
+
           {/* Territory Filter */}
           <View style={styles.filterRow}>
-              <Text style={[styles.filterLabel, { color: colors.text }]}>
-                Địa bàn:
-              </Text>
+            <Text style={[styles.filterLabel, { color: colors.text }]}>
+              Địa bàn:
+            </Text>
             <TouchableOpacity
               style={[
                 styles.dropdown,
@@ -787,7 +904,7 @@ export default function DashboardScreen() {
               ]}
             >
               Tổng hợp theo địa bàn
-          </Text>
+            </Text>
             <Text
               style={[
                 styles.chartSubtitle,
@@ -820,7 +937,7 @@ export default function DashboardScreen() {
                   ]}
                 >
                   Địa bàn
-                    </Text>
+                </Text>
                 <Text
                   style={[
                     styles.tableHeaderText,
@@ -834,7 +951,7 @@ export default function DashboardScreen() {
                     styles.tableHeaderText,
                     { color: colors.text, flex: 0.8, textAlign: "center" },
                   ]}
-                  >
+                >
                   Số ngày checkin
                 </Text>
               </View>
@@ -857,9 +974,9 @@ export default function DashboardScreen() {
                     >
                       {index + 1}
                     </Text>
-                      <TouchableOpacity
+                    <TouchableOpacity
                       style={{ flex: 1 }}
-                        onPress={() => {
+                      onPress={() => {
                         router.push({
                           pathname: "/(tabs)/territory-detail/[id]",
                           params: {
@@ -867,8 +984,8 @@ export default function DashboardScreen() {
                             territoryName: item.TerritoryName,
                           },
                         });
-                        }}
-                      >
+                      }}
+                    >
                       <Text
                         style={[
                           styles.tableCellText,
@@ -880,8 +997,8 @@ export default function DashboardScreen() {
                         ]}
                       >
                         {item.TerritoryName}
-                        </Text>
-                      </TouchableOpacity>
+                      </Text>
+                    </TouchableOpacity>
                     <Text
                       style={[
                         styles.tableCellText,
@@ -890,8 +1007,8 @@ export default function DashboardScreen() {
                           flex: 0.8,
                           textAlign: "center",
                           fontWeight: "600",
-                  },
-                ]}
+                        },
+                      ]}
                     >
                       {item.StoresChecked}
                     </Text>
@@ -907,10 +1024,10 @@ export default function DashboardScreen() {
                       ]}
                     >
                       {item.CheckinDays}
-                </Text>
-              </View>
+                    </Text>
+                  </View>
                 ))
-          ) : (
+              ) : (
                 <View style={[styles.tableRow, { paddingVertical: 20 }]}>
                   <Text
                     style={[
@@ -919,8 +1036,8 @@ export default function DashboardScreen() {
                     ]}
                   >
                     Chưa có dữ liệu
-            </Text>
-        </View>
+                  </Text>
+                </View>
               )}
               {/* Table Footer (Totals) */}
               {territorySummary.totals && (
@@ -950,9 +1067,9 @@ export default function DashboardScreen() {
                     numberOfLines={1}
                   >
                     Tổng
-          </Text>
+                  </Text>
                   <Text
-                  style={[
+                    style={[
                       styles.tableFooterText,
                       {
                         color: "#10B981",
@@ -961,11 +1078,11 @@ export default function DashboardScreen() {
                         fontWeight: "700",
                       },
                     ]}
-                >
+                  >
                     {territorySummary.totals.StoresChecked}
-                </Text>
+                  </Text>
                   <Text
-                  style={[
+                    style={[
                       styles.tableFooterText,
                       {
                         color: "#F59E0B",
@@ -974,12 +1091,12 @@ export default function DashboardScreen() {
                         fontWeight: "700",
                       },
                     ]}
-                >
+                  >
                     {territorySummary.totals.CheckinDays}
-            </Text>
+                  </Text>
                 </View>
-          )}
-        </View>
+              )}
+            </View>
           </View>
         )}
       </ScrollView>
@@ -1027,8 +1144,8 @@ export default function DashboardScreen() {
                   styles.modalOption,
                   {
                     backgroundColor: !selectedTerritory
-                        ? colors.primary + "20"
-                        : "transparent",
+                      ? colors.primary + "20"
+                      : "transparent",
                   },
                 ]}
                 onPress={() => {
@@ -1247,6 +1364,23 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: "rgba(0,0,0,0.1)",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  exportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+  },
+  exportButtonText: {
+    color: "white",
+    fontSize: 14,
+    fontWeight: "500",
   },
   backButton: {
     flexDirection: "row",

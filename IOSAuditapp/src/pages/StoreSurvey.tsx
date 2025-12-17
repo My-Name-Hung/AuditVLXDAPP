@@ -757,7 +757,7 @@ const StoreSurvey = () => {
       showNotification("Đã hoàn thành audit cửa hàng", "success");
       // Delay navigation to show notification
       setTimeout(() => {
-        navigate(`/stores/${parsedStoreId}`);
+      navigate(`/stores/${parsedStoreId}`);
       }, 1500);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
@@ -1681,8 +1681,8 @@ const StoreSurvey = () => {
             >
               {filteredSalesUsersModal.length > 0 ? (
                 filteredSalesUsersModal.map((user) => (
-                  <button
-                    type="button"
+              <button
+                type="button"
                     key={user.Id}
                     className="store-survey-price-option"
                     onClick={() => {
@@ -1695,9 +1695,9 @@ const StoreSurvey = () => {
                       justifyContent: "flex-start",
                       padding: "12px 16px",
                     }}
-                  >
+              >
                     {user.FullName}
-                  </button>
+              </button>
                 ))
               ) : (
                 <div

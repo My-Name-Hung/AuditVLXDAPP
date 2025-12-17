@@ -253,6 +253,11 @@ class StoreSurvey {
       );
     }
 
+    if (filters.territoryId) {
+      query += " AND s.TerritoryId = @TerritoryId";
+      request.input("TerritoryId", sql.Int, filters.territoryId);
+    }
+
     if (filters.territoryName) {
       query += " AND t.TerritoryName LIKE @TerritoryName";
       request.input(

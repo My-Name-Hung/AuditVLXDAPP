@@ -4,6 +4,7 @@ const storeSurveysController = require("../controllers/storeSurveysController");
 const { authenticateToken } = require("../middlewares/auth");
 
 router.post("/", authenticateToken, storeSurveysController.createStoreSurvey);
+router.get("/export", authenticateToken, storeSurveysController.exportStoreSurveys);
 router.get("/", authenticateToken, storeSurveysController.getAllStoreSurveys);
 router.get("/:id", authenticateToken, storeSurveysController.getStoreSurveyById);
 router.get("/audit/:auditId", authenticateToken, storeSurveysController.getStoreSurveyByAuditId);

@@ -32,6 +32,7 @@
     "expo-local-authentication": "^17.0.7",
     "expo-location": "^19.0.7",
     "expo-router": "~6.0.14",
+    "expo-sharing": "~14.0.8",
     "expo-splash-screen": "~31.0.10",
     "expo-status-bar": "~3.0.8",
     "expo-symbols": "~1.0.7",
