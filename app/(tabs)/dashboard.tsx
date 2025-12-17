@@ -475,8 +475,8 @@ export default function DashboardScreen() {
       };
 
       // Thêm filter theo địa bàn nếu có
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
+      if (selectedTerritory && selectedTerritory !== "") {
+        params.territoryId = parseInt(selectedTerritory);
       }
 
       const response = await api.get("/dashboard/stores-by-territory", {
@@ -560,8 +560,8 @@ export default function DashboardScreen() {
         userId: user.id, // Filter by current user
       };
 
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
+      if (selectedTerritory && selectedTerritory !== "") {
+        params.territoryId = parseInt(selectedTerritory);
       }
 
       // Call backend export endpoint

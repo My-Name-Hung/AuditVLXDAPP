@@ -374,16 +374,18 @@ const exportStoreSurveys = async (req, res) => {
       });
     }
 
-    // Build filters
+    // Build filters - ensure dateFrom and dateTo are in correct format
     const filters = {
-      dateFrom,
-      dateTo,
+      dateFrom: dateFrom, // Should be YYYY-MM-DD format
+      dateTo: dateTo, // Should be YYYY-MM-DD format
       userId: parseInt(userId),
     };
 
-    if (territoryId) {
+    if (territoryId && territoryId !== "" && !isNaN(parseInt(territoryId))) {
       filters.territoryId = parseInt(territoryId);
     }
+
+    console.log("Export filters:", filters);
 
     // Fetch surveys with filters
     const surveys = await StoreSurvey.findAll(filters);
