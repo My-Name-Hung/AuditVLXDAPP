@@ -3,7 +3,7 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import React, { useEffect, useState } from "react";
@@ -585,15 +585,12 @@ export default function DashboardScreen() {
       const fileName = `BaoCaoKhaoSat_${
         new Date().toISOString().split("T")[0]
       }.xlsx`;
-      // Use cacheDirectory from FileSystem
-      const cacheDir =
-        (FileSystem as any).cacheDirectory ||
-        (FileSystem as any).documentDirectory ||
-        "";
+      // Use cacheDirectory from FileSystem (legacy API)
+      const cacheDir = FileSystem.cacheDirectory || "";
       const fileUri = `${cacheDir}${fileName}`;
 
       await FileSystem.writeAsStringAsync(fileUri, base64, {
-        encoding: (FileSystem as any).EncodingType?.Base64 || "base64",
+        encoding: FileSystem.EncodingType.Base64,
       });
 
       const isAvailable = await Sharing.isAvailableAsync();
