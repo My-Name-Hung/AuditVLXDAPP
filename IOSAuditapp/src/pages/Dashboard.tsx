@@ -235,67 +235,6 @@ export default function Dashboard() {
     return `Tuần ${week}`;
   };
 
-  // Helper functions for Excel export
-  const formatVND = (value: number | null): string => {
-    if (value === null || value === undefined) return "";
-    return value.toLocaleString("vi-VN");
-  };
-
-  const formatDate = (dateString: string | null): string => {
-    if (!dateString) return "";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("vi-VN");
-  };
-
-  // Calculate week numbers from a specific date
-  const calculateWeekNumbers = (date: Date) => {
-    const year = date.getFullYear();
-    const day = date.getDate();
-
-    // Week number in month (1-5): which week of the month (1-7, 8-14, 15-21, 22-28, 29+)
-    const weekNumberInMonth = Math.ceil(day / 7);
-
-    // Week number in year: calculate from January 1st
-    const januaryFirst = new Date(year, 0, 1);
-    const firstDayOfWeek = januaryFirst.getDay();
-    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
-    const daysSinceYearStart = Math.floor(
-      (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
-    );
-
-    const weekNumberInYear = Math.ceil(
-      (daysSinceYearStart + firstMondayOffset + 1) / 7
-    );
-
-    return { weekNumberInMonth, weekNumberInYear, year };
-  };
-
-  // Check if a date is in a specific week
-  const isDateInWeek = (
-    dateString: string | null,
-    weekNumber: number,
-    year: number
-  ): boolean => {
-    if (!dateString || weekNumber === 0) return true;
-    const date = new Date(dateString);
-
-    const januaryFirst = new Date(year, 0, 1);
-    const firstDayOfWeek = januaryFirst.getDay();
-    const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-
-    const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
-    const weekStart = new Date(januaryFirst);
-    weekStart.setDate(januaryFirst.getDate() + weekStartDays);
-    weekStart.setHours(0, 0, 0, 0);
-
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-
-    return date >= weekStart && date <= weekEnd;
-  };
-
   const handleExportExcel = async () => {
     if (!user?.id) {
       alert("Vui lòng đăng nhập để xuất báo cáo");
