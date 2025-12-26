@@ -168,39 +168,17 @@ const StoreSurvey = () => {
   );
 
   // Load saved survey data from localStorage for autofill (form data, not audit results)
+  // Now saved per store to prevent data overlap between stores
   useEffect(() => {
     const loadSavedSurveyData = () => {
       try {
-        if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
+        if (user?.id && storeId && storeId > 0) {
+          const storageKey = `survey_data_${user.id}_${storeId}`;
           const savedData = localStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
-            // Load form data for autofill, but clear contactPersonPhone (store-specific)
-            setSurveyData({
-              ...parsed,
-              // Keep all form fields for autofill, only clear contactPersonPhone
-              products:
-                parsed.products && Array.isArray(parsed.products)
-                  ? parsed.products.map(
-                      (p: {
-                        productType?: string;
-                        cementProductId?: number | null;
-                        contactPersonPhone?: string;
-                        purchasePrice?: string;
-                        sellingPrice?: string;
-                        roadTransportFee?: string;
-                        waterTransportFee?: string;
-                        importedFromNPP?: string;
-                        discountPromotion?: string;
-                        averageStockQuantity?: string;
-                      }) => ({
-                        ...p,
-                        contactPersonPhone: "", // Clear only this field (store-specific)
-                      })
-                    )
-                  : [],
-            });
+            // Load form data for autofill for this specific store
+            setSurveyData(parsed);
           }
         }
       } catch (error) {
@@ -210,7 +188,7 @@ const StoreSurvey = () => {
     loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, [user?.id]); // Remove storeId dependency to allow autofill across stores
+  }, [user?.id, storeId]); // Include storeId to load store-specific data
 
   // Note: Auto-save removed to prevent saving store-specific data
   // Survey data is only saved after successful submission as a template
@@ -256,20 +234,20 @@ const StoreSurvey = () => {
   };
 
   const handleClearAutofill = () => {
-    if (!user?.id) {
+    if (!user?.id || !storeId || storeId <= 0) {
       showNotification(
-        "Không xác định được người dùng để xóa dữ liệu.",
+        "Không xác định được người dùng hoặc cửa hàng để xóa dữ liệu.",
         "error"
       );
       return;
     }
     const confirmed = window.confirm(
-      "Xóa dữ liệu?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu."
+      "Xóa dữ liệu?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu cho cửa hàng này."
     );
     if (!confirmed) return;
 
     try {
-      const storageKey = `survey_data_${user.id}`;
+      const storageKey = `survey_data_${user.id}_${storeId}`;
       localStorage.removeItem(storageKey);
       setSurveyData(createEmptySurveyData());
       showNotification("Đã xóa dữ liệu thành công", "success");
@@ -729,24 +707,14 @@ const StoreSurvey = () => {
         });
       }
 
-      // Save form data for autofill next store (excluding contactPersonPhone which is store-specific)
-      const nextSurveyData: SurveyData = {
-        ...surveyData,
-        // Clear only contactPersonPhone (store-specific), keep all other fields for autofill
-        products: surveyData.products.map((p) => ({
-          ...p,
-          contactPersonPhone: "", // Clear only this field
-        })),
-      };
-
-      setSurveyData(nextSurveyData);
-
+      // Save form data for autofill for this specific store
+      // Each store has its own saved form data
       if (user?.id) {
         try {
-          const storageKey = `survey_data_${user.id}`;
-          localStorage.setItem(storageKey, JSON.stringify(nextSurveyData));
+          const storageKey = `survey_data_${user.id}_${parsedStoreId}`;
+          localStorage.setItem(storageKey, JSON.stringify(surveyData));
         } catch (error) {
-          console.error("Error saving survey data for next store:", error);
+          console.error("Error saving survey data for store:", error);
         }
       }
 

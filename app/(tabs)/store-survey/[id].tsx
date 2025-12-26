@@ -151,24 +151,20 @@ export default function StoreSurveyScreen() {
   );
 
   // Load saved survey data from AsyncStorage for autofill (form data, not audit results)
+  // Now saved per store to prevent data overlap between stores
   useEffect(() => {
     const loadSavedSurveyData = async () => {
       try {
-        if (user?.id) {
-          const storageKey = `survey_data_${user.id}`;
-          const savedData = await AsyncStorage.getItem(storageKey);
-          if (savedData) {
-            const parsed = JSON.parse(savedData);
-            // Load form data for autofill, but clear contactPersonPhone (store-specific)
-            setSurveyData({
-              ...parsed,
-              // Keep all form fields for autofill, only clear contactPersonPhone
-              products:
-                parsed.products?.map((p: any) => ({
-                  ...p,
-                  contactPersonPhone: "", // Clear only this field (store-specific)
-                })) || [],
-            });
+        if (user?.id && id) {
+          const storeId = parseInt(id);
+          if (!isNaN(storeId)) {
+            const storageKey = `survey_data_${user.id}_${storeId}`;
+            const savedData = await AsyncStorage.getItem(storageKey);
+            if (savedData) {
+              const parsed = JSON.parse(savedData);
+              // Load form data for autofill for this specific store
+              setSurveyData(parsed);
+            }
           }
         }
       } catch (error) {
@@ -178,7 +174,7 @@ export default function StoreSurveyScreen() {
     loadSavedSurveyData();
     fetchCementProducts();
     fetchSalesUsers();
-  }, [user?.id]); // Remove id dependency to allow autofill across stores
+  }, [user?.id, id]); // Include id (storeId) to load store-specific data
 
   // Note: Auto-save removed to prevent saving store-specific data
   // Survey data is only saved after successful submission as a template
@@ -200,16 +196,21 @@ export default function StoreSurveyScreen() {
   }, []);
 
   const handleClearAutofill = () => {
-    if (!user?.id) {
+    if (!user?.id || !id) {
       Alert.alert(
         "Thông báo",
-        "Không xác định được người dùng để xóa dữ liệu."
+        "Không xác định được người dùng hoặc cửa hàng để xóa dữ liệu."
       );
+      return;
+    }
+    const storeId = parseInt(id);
+    if (isNaN(storeId)) {
+      Alert.alert("Lỗi", "ID cửa hàng không hợp lệ");
       return;
     }
     Alert.alert(
       "Xóa dữ liệu đã điền?",
-      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu.",
+      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu cho cửa hàng này.",
       [
         { text: "Huỷ", style: "cancel" },
         {
@@ -217,7 +218,7 @@ export default function StoreSurveyScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const storageKey = `survey_data_${user.id}`;
+              const storageKey = `survey_data_${user.id}_${storeId}`;
               await AsyncStorage.removeItem(storageKey);
               setSurveyData(createEmptySurveyData());
             } catch (error) {
@@ -683,27 +684,17 @@ export default function StoreSurveyScreen() {
       // Clear captured data (images/notes) but keep form data for autofill
       clearSurveyData();
 
-      // Save form data for autofill next store (excluding contactPersonPhone which is store-specific)
-      const nextSurveyData: SurveyData = {
-        ...surveyData,
-        // Clear only contactPersonPhone (store-specific), keep all other fields for autofill
-        products: surveyData.products.map((p) => ({
-          ...p,
-          contactPersonPhone: "", // Clear only this field
-        })),
-      };
-
-      setSurveyData(nextSurveyData);
-
+      // Save form data for autofill for this specific store
+      // Each store has its own saved form data
       if (user?.id) {
         try {
-          const storageKey = `survey_data_${user.id}`;
+          const storageKey = `survey_data_${user.id}_${storeId}`;
           await AsyncStorage.setItem(
             storageKey,
-            JSON.stringify(nextSurveyData)
+            JSON.stringify(surveyData)
           );
         } catch (error) {
-          console.error("Error saving survey data for next store:", error);
+          console.error("Error saving survey data for store:", error);
         }
       }
 
