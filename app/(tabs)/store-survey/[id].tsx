@@ -164,11 +164,23 @@ export default function StoreSurveyScreen() {
               const parsed = JSON.parse(savedData);
               // Load form data for autofill for this specific store
               setSurveyData(parsed);
+            } else {
+              // Clear form data if no saved data for this store
+              // This prevents showing data from previous store
+              setSurveyData(createEmptySurveyData());
             }
+          } else {
+            // Invalid storeId, clear form
+            setSurveyData(createEmptySurveyData());
           }
+        } else {
+          // No user or storeId, clear form
+          setSurveyData(createEmptySurveyData());
         }
       } catch (error) {
         console.error("Error loading saved survey data:", error);
+        // On error, clear form to prevent showing stale data
+        setSurveyData(createEmptySurveyData());
       }
     };
     loadSavedSurveyData();
