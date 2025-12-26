@@ -565,7 +565,7 @@ export default function StoreSurveyScreen() {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload images sequentially with progress tracking
+      // Step 2: Upload all 3 images in parallel for faster upload
       const imagesToUpload = capturedImages.filter(
         (img): img is NonNullable<typeof img> => img !== undefined
       );
@@ -574,23 +574,19 @@ export default function StoreSurveyScreen() {
         throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
       }
 
-      // Upload first 2 images in parallel
       setUploadProgress({
         current: 0,
         total: 3,
-        message: "Đang tải ảnh 1 và 2...",
+        message: "Đang tải ảnh...",
       });
 
       let completedCount = 0;
-      const updateBatchProgress = () => {
+      const updateProgress = () => {
         completedCount++;
         setUploadProgress({
           current: completedCount,
           total: 3,
-          message:
-            completedCount === 2
-              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
-              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
+          message: `Đang tải ảnh... (${completedCount}/3)`,
         });
       };
 
@@ -610,48 +606,46 @@ export default function StoreSurveyScreen() {
         formData.append("timestamp", img.timestamp);
         formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        return api.post("/images/upload", formData, {
+        const result = await api.post("/images/upload", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
         });
+        updateProgress();
+        return result;
       };
 
-      // Upload first 2 images in parallel
-      const [upload1Result, upload2Result] = await Promise.allSettled([
-        uploadImage(imagesToUpload[0], 0).then(() => {
-          updateBatchProgress();
-        }),
-        uploadImage(imagesToUpload[1], 1).then(() => {
-          updateBatchProgress();
-        }),
+      // Upload all 3 images in parallel for maximum speed
+      setUploadProgress({
+        current: 0,
+        total: 3,
+        message: "Đang tải ảnh...",
+      });
+
+      const uploadResults = await Promise.allSettled([
+        uploadImage(imagesToUpload[0], 0),
+        uploadImage(imagesToUpload[1], 1),
+        uploadImage(imagesToUpload[2], 2),
       ]);
 
-      if (upload1Result.status === "rejected") {
-        throw upload1Result.reason;
-      }
-      if (upload2Result.status === "rejected") {
-        throw upload2Result.reason;
-      }
-
-      // Upload third image
-      setUploadProgress({
-        current: 2,
-        total: 3,
-        message: "Đang tải ảnh 3/3...",
+      // Check for upload errors
+      uploadResults.forEach((result, index) => {
+        if (result.status === "rejected") {
+          throw new Error(`Lỗi khi tải ảnh ${index + 1}: ${result.reason}`);
+        }
       });
-      await uploadImage(imagesToUpload[2], 2);
+
       setUploadProgress({
         current: 3,
         total: 3,
-        message: "Đang cập nhật thông tin cửa hàng...",
+        message: "Đang lưu thông tin...",
       });
 
-      // Step 3: Create survey
+      // Step 3: Create survey and update store coordinates in parallel
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
-      await api.post("/store-surveys", {
+      const surveyPayload = {
         storeId: storeId,
         auditId: auditId,
         userId: user.id,
@@ -683,15 +677,19 @@ export default function StoreSurveyScreen() {
             ? parseFloat(p.averageStockQuantity)
             : null,
         })),
-      });
+      };
 
-      // Update store coordinates from first image
-      if (imagesToUpload[0]) {
-        await api.put(`/stores/${storeId}`, {
-          latitude: imagesToUpload[0].latitude,
-          longitude: imagesToUpload[0].longitude,
-        });
-      }
+      // Run survey creation and store update in parallel
+      await Promise.all([
+        api.post("/store-surveys", surveyPayload),
+        // Update store coordinates from first image
+        imagesToUpload[0]
+          ? api.put(`/stores/${storeId}`, {
+              latitude: imagesToUpload[0].latitude,
+              longitude: imagesToUpload[0].longitude,
+            })
+          : Promise.resolve(),
+      ]);
 
       // Clear captured data (images/notes) but keep form data for autofill
       clearSurveyData();
