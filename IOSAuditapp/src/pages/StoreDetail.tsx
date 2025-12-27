@@ -454,28 +454,9 @@ export default function StoreDetail() {
     // This draws the entire video frame to fill the entire canvas
     ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
 
-    // Compress image immediately: resize to 640px max width, quality 0.4
-    // This reduces file size for faster upload
-    let finalWidth = videoWidth;
-    let finalHeight = videoHeight;
-    if (finalWidth > 640) {
-      finalHeight = (finalHeight * 640) / finalWidth;
-      finalWidth = 640;
-    }
-
-    // Create final canvas with compressed dimensions
-    const finalCanvas = document.createElement("canvas");
-    finalCanvas.width = finalWidth;
-    finalCanvas.height = finalHeight;
-    const finalCtx = finalCanvas.getContext("2d");
-    if (!finalCtx) {
-      throw new Error("Cannot get final canvas context");
-    }
-    finalCtx.drawImage(canvas, 0, 0, finalWidth, finalHeight);
-
-    // Convert to JPEG with compression (quality 0.4)
+    // Convert to JPEG
     // The video should fill the entire canvas, so no white/black background should be visible
-    return finalCanvas.toDataURL("image/jpeg", 0.4);
+    return canvas.toDataURL("image/jpeg", 0.9);
   };
 
   const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
@@ -583,27 +564,8 @@ export default function StoreDetail() {
           // Draw image to canvas - this ensures no padding/background
           ctx.drawImage(img, 0, 0);
 
-          // Compress image immediately: resize to 640px max width, quality 0.4
-          // This reduces file size for faster upload
-          let finalWidth = img.width;
-          let finalHeight = img.height;
-          if (finalWidth > 640) {
-            finalHeight = (finalHeight * 640) / finalWidth;
-            finalWidth = 640;
-          }
-
-          // Create final canvas with compressed dimensions
-          const finalCanvas = document.createElement("canvas");
-          finalCanvas.width = finalWidth;
-          finalCanvas.height = finalHeight;
-          const finalCtx = finalCanvas.getContext("2d");
-          if (!finalCtx) {
-            throw new Error("Cannot get final canvas context");
-          }
-          finalCtx.drawImage(img, 0, 0, finalWidth, finalHeight);
-
-          // Convert to data URL with compression (quality 0.4)
-          dataUrl = finalCanvas.toDataURL("image/jpeg", 0.4);
+          // Convert to data URL
+          dataUrl = canvas.toDataURL("image/jpeg", 0.9);
         } catch (imageCaptureError) {
           console.warn(
             "ImageCapture API failed, using direct canvas capture:",
@@ -681,26 +643,34 @@ export default function StoreDetail() {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // Update progress: uploading image (image already compressed when captured)
+        // Update progress: processing image (only if not in batch mode)
         if (index >= 2) {
           setUploadProgress({
             current: index,
             total: 3,
             message:
               attempt > 0
-                ? `Đang tải ảnh ${index + 1}/3 (thử lại lần ${
+                ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${
                     attempt + 1
                   })...`
-                : `Đang tải ảnh ${index + 1}/3...`,
+              : `Đang xử lý ảnh ${index + 1}/3...`,
           });
         }
 
-        // Image is already compressed when captured (640px, quality 0.4)
-        // No need to compress again - convert dataUrl to blob and upload directly
-        const blob = await fetch(img.dataUrl).then((r) => r.blob());
+        // Resize and compress image for faster upload
+        const compressedBlob = await compressImage(img.dataUrl, 800, 0.5);
+
+        // Update progress: uploading image (only if not in batch mode)
+        if (index >= 2) {
+          setUploadProgress({
+            current: index,
+            total: 3,
+            message: `Đang tải ảnh ${index + 1}/3...`,
+          });
+        }
 
         const formData = new FormData();
-        formData.append("image", blob, `image_${index + 1}.jpg`);
+        formData.append("image", compressedBlob, `image_${index + 1}.jpg`);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
         formData.append("longitude", img.longitude.toString());

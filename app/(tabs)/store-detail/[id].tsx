@@ -383,36 +383,24 @@ export default function StoreDetailScreen() {
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
         allowsEditing: false, // Disable crop/edit mode - this should auto-accept on iOS
-        quality: 1.0, // Use full quality for initial capture, will compress after
+        quality: 0.8,
         base64: false, // Don't include base64 for faster processing
         exif: false, // Don't include EXIF data for faster processing
       });
 
-      // Save image immediately after capture and compress for faster upload
+      // Save image immediately after capture (iOS will show preview but auto-accepts with allowsEditing: false)
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         const now = new Date();
-
-        // Compress image immediately after capture for faster upload
-        // Optimized: width 640px, quality 0.4 for smaller file size
-        const manipulatedImage = await ImageManipulator.manipulateAsync(
-          asset.uri,
-          [{ resize: { width: 640 } }], // Reduced to 640px for faster upload
-          {
-            compress: 0.4, // Reduced to 0.4 for smaller file size
-            format: ImageManipulator.SaveFormat.JPEG,
-          }
-        );
-
         const newImage: CapturedImage = {
-          uri: manipulatedImage.uri, // Use compressed image URI
+          uri: asset.uri,
           latitude,
           longitude,
           timestamp: now.toISOString(),
           timezoneOffset: now.getTimezoneOffset(),
         };
 
-        // Update state immediately with compressed image
+        // Update state immediately
         const updatedImages = [...capturedImages];
         updatedImages[index] = newImage;
         setCapturedImages(updatedImages);
@@ -502,28 +490,45 @@ export default function StoreDetailScreen() {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // Update progress: uploading image (image already compressed when captured)
+        // Update progress: processing image (only if not in batch mode)
         if (index < 2) {
           // For first 2 images, progress is managed by batch handler
+          // Only show processing message
         } else {
           setUploadProgress({
             current: index,
             total: 3,
             message:
               attempt > 0
-                ? `Đang tải ảnh ${index + 1}/3 (thử lại lần ${
+                ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${
                     attempt + 1
                   })...`
-                : `Đang tải ảnh ${index + 1}/3...`,
+                : `Đang xử lý ảnh ${index + 1}/3...`,
           });
         }
 
-        // Image is already compressed when captured (640px, quality 0.4)
-        // No need to compress again - upload directly
+        // Resize and compress image - optimized for faster upload
+        const manipulatedImage = await ImageManipulator.manipulateAsync(
+          img.uri,
+          [{ resize: { width: 800 } }], // Reduced from 1280px to 800px for faster upload
+          {
+            compress: 0.5, // Reduced from 0.7 to 0.5 for smaller file size
+            format: ImageManipulator.SaveFormat.JPEG,
+          }
+        );
+
+        // Update progress: uploading image (only if not in batch mode)
+        if (index >= 2) {
+          setUploadProgress({
+            current: index,
+            total: 3,
+            message: `Đang tải ảnh ${index + 1}/3...`,
+          });
+        }
 
         const formData = new FormData();
         formData.append("image", {
-          uri: img.uri, // Use already compressed image URI
+          uri: manipulatedImage.uri,
           type: "image/jpeg",
           name: `image_${index + 1}.jpg`,
         } as any);
