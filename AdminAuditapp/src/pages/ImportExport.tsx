@@ -1429,7 +1429,7 @@ export default function ImportExport() {
           className={`tab ${activeTab === "import-cement" ? "active" : ""}`}
           onClick={() => setActiveTab("import-cement")}
         >
-          <HiArrowUpTray /> Tải lên loại xi măng
+          <HiArrowUpTray /> Tải lên danh sách loại Xi măng
         </button>
         <button
           className={`tab ${activeTab === "export-reports" ? "active" : ""}`}
