@@ -1,4 +1,4 @@
-import { HiHome, HiOfficeBuilding, HiUsers, HiCube } from "react-icons/hi";
+import { HiCube, HiHome, HiOfficeBuilding, HiUsers } from "react-icons/hi";
 import { HiArrowUpOnSquare, HiClipboardDocumentList } from "react-icons/hi2";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -45,8 +45,11 @@ export default function Layout() {
     <div className="layout">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <img src="/icon.jpg" alt="Logo" className="sidebar-logo" />
+          <Link to="/">
+            <img src="/icon.jpg" alt="Logo" className="sidebar-logo" />
+          </Link>
         </div>
+
         <nav className="sidebar-nav">
           {navItems.map((item) => {
             const Icon = item.icon;

@@ -1659,7 +1659,7 @@ export default function ImportExport() {
         {activeTab === "import-cement" && (
           <div className="import-tab">
             <div className="import-section">
-              <h2>Tải lên xi măng</h2>
+              <h2>Tải lên Xi măng</h2>
               <div className="import-actions">
                 <button
                   className="btn-secondary-import"
@@ -1720,7 +1720,7 @@ export default function ImportExport() {
                   cementHistory.map((history) => (
                     <div key={history.Id} className="history-item">
                       <div className="history-info">
-                        <strong>Tải lên xi măng</strong>
+                        <strong>Tải lên danh sách loại Xi măng</strong>
                         <p>
                           {formatDate(history.CreatedAt)} - {history.Total} bản
                           ghi

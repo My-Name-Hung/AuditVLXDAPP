@@ -8,7 +8,7 @@ export default function DeviceCheck({
   children: React.ReactNode;
 }) {
   // TEMPORARILY DISABLED FOR TESTING - Set to false to disable device check
-  const DEVICE_CHECK_ENABLED = false; // TODO: Set back to true after testing
+  const DEVICE_CHECK_ENABLED = true; // TODO: Set back to true after testing
 
   if (DEVICE_CHECK_ENABLED) {
     const isIOS = isIOSDevice();
