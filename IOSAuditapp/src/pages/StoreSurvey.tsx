@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   IoIosArrowDown,
   IoIosArrowForward,
@@ -64,16 +64,12 @@ const PRICE_FIELD_LABELS: Record<PriceField, string> = {
   waterTransportFee: "Phí vận chuyển đường thủy",
 };
 
-interface LocationState {
-  storeId: number;
-  capturedImages: Array<{
-    dataUrl: string;
-    latitude: number;
-    longitude: number;
-    timestamp: string;
-    timezoneOffset: number;
-  }>;
-  notes: string;
+interface CapturedImage {
+  dataUrl: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  timezoneOffset: number;
 }
 
 // Không giới hạn
@@ -109,10 +105,21 @@ const StoreSurvey = () => {
   const { user } = useAuth();
   const { colors } = useTheme();
 
-  const state = location.state as LocationState | null;
-  const storeId = state?.storeId || (id ? parseInt(id) : 0);
-  const capturedImages = state?.capturedImages || [];
-  const notes = state?.notes || "";
+  const storeId = id ? parseInt(id) : 0;
+  
+  // Camera states
+  const [capturedImages, setCapturedImages] = useState<
+    (CapturedImage | undefined)[]
+  >([undefined, undefined, undefined]);
+  const [cameraModalVisible, setCameraModalVisible] = useState(false);
+  const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(
+    null
+  );
+  const [facingMode, setFacingMode] = useState<"user" | "environment">(
+    "environment"
+  );
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
   const [cementSearchModal, setCementSearchModal] = useState("");
@@ -264,6 +271,272 @@ const StoreSurvey = () => {
       console.error("Error clearing autofill data:", error);
       showNotification("Không thể xóa dữ liệu. Vui lòng thử lại.", "error");
     }
+  };
+
+  // Camera functions
+  const getCurrentLocation = (): Promise<{
+    latitude: number;
+    longitude: number;
+  }> => {
+    return new Promise((resolve, reject) => {
+      if (!navigator.geolocation) {
+        reject(new Error("Geolocation is not supported"));
+        return;
+      }
+
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          });
+        },
+        (error) => {
+          reject(error);
+        },
+        { timeout: 10000, maximumAge: 60000 }
+      );
+    });
+  };
+
+  const openCamera = async (index: number) => {
+    try {
+      setFacingMode("environment");
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment",
+        },
+      });
+      streamRef.current = stream;
+      setCurrentCameraIndex(index);
+      setCameraModalVisible(true);
+
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch((err) => {
+            console.warn("Video play error:", err);
+          });
+        }
+      }, 100);
+    } catch (error) {
+      console.error("Error accessing camera:", error);
+      showNotification(
+        "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera.",
+        "error"
+      );
+    }
+  };
+
+  const closeCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    setCameraModalVisible(false);
+    setCurrentCameraIndex(null);
+    setFacingMode("environment");
+  };
+
+  const switchCamera = async () => {
+    if (!videoRef.current || currentCameraIndex === null) return;
+
+    try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+      }
+
+      const newFacingMode =
+        facingMode === "environment" ? "user" : "environment";
+      setFacingMode(newFacingMode);
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: newFacingMode,
+        },
+      });
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch((err) => {
+          console.warn("Video play error:", err);
+        });
+      }
+    } catch (error) {
+      console.error("Error switching camera:", error);
+      showNotification("Không thể chuyển đổi camera. Vui lòng thử lại.", "error");
+    }
+  };
+
+  const captureDirectFromVideo = async (
+    video: HTMLVideoElement,
+    width: number,
+    height: number
+  ): Promise<string> => {
+    await new Promise((resolve) => setTimeout(resolve, 200));
+
+    const videoWidth = video.videoWidth || width;
+    const videoHeight = video.videoHeight || height;
+
+    if (videoWidth === 0 || videoHeight === 0) {
+      throw new Error("Invalid video dimensions");
+    }
+
+    const canvas = document.createElement("canvas");
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    const ctx = canvas.getContext("2d", {
+      willReadFrequently: false,
+      alpha: false,
+    });
+
+    if (!ctx) {
+      throw new Error("Cannot get canvas context");
+    }
+
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, videoWidth, videoHeight);
+    ctx.drawImage(video, 0, 0, videoWidth, videoHeight);
+
+    return canvas.toDataURL("image/jpeg", 0.9);
+  };
+
+  const waitForVideoReady = async (video: HTMLVideoElement): Promise<void> => {
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onLoadedMetadata = () => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          resolve();
+        };
+        video.addEventListener("loadedmetadata", onLoadedMetadata);
+        setTimeout(() => {
+          video.removeEventListener("loadedmetadata", onLoadedMetadata);
+          resolve();
+        }, 3000);
+      });
+    }
+
+    if (video.readyState < 2) {
+      await new Promise<void>((resolve) => {
+        const onLoadedData = () => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          resolve();
+        };
+        video.addEventListener("loadeddata", onLoadedData);
+        setTimeout(() => {
+          video.removeEventListener("loadeddata", onLoadedData);
+          resolve();
+        }, 2000);
+      });
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  };
+
+  const capturePhoto = async () => {
+    if (!videoRef.current || currentCameraIndex === null || !streamRef.current)
+      return;
+
+    try {
+      const video = videoRef.current;
+      const stream = streamRef.current;
+
+      await waitForVideoReady(video);
+
+      const videoTrack = stream.getVideoTracks()[0];
+      if (!videoTrack) {
+        showNotification("Không tìm thấy video track từ camera.", "error");
+        return;
+      }
+
+      const settings = videoTrack.getSettings();
+      const actualWidth = settings.width || video.videoWidth;
+      const actualHeight = settings.height || video.videoHeight;
+
+      const width = actualWidth > 0 ? actualWidth : video.videoWidth;
+      const height = actualHeight > 0 ? actualHeight : video.videoHeight;
+
+      if (width === 0 || height === 0) {
+        showNotification("Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.", "error");
+        return;
+      }
+
+      let dataUrl: string;
+
+      if (typeof ImageCapture !== "undefined") {
+        try {
+          const imageCapture = new ImageCapture(videoTrack);
+          const blob = await imageCapture.takePhoto();
+
+          const img = new Image();
+          const objectUrl = URL.createObjectURL(blob);
+
+          await new Promise<void>((resolve, reject) => {
+            img.onload = () => {
+              URL.revokeObjectURL(objectUrl);
+              resolve();
+            };
+            img.onerror = reject;
+            img.src = objectUrl;
+          });
+
+          const canvas = document.createElement("canvas");
+          canvas.width = img.width;
+          canvas.height = img.height;
+          const ctx = canvas.getContext("2d");
+
+          if (!ctx) {
+            throw new Error("Cannot get canvas context");
+          }
+
+          ctx.drawImage(img, 0, 0);
+          dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+        } catch (imageCaptureError) {
+          console.warn(
+            "ImageCapture API failed, using direct canvas capture:",
+            imageCaptureError
+          );
+          dataUrl = await captureDirectFromVideo(video, width, height);
+        }
+      } else {
+        dataUrl = await captureDirectFromVideo(video, width, height);
+      }
+
+      let latitude = 0;
+      let longitude = 0;
+      try {
+        const location = await getCurrentLocation();
+        latitude = location.latitude;
+        longitude = location.longitude;
+      } catch (error) {
+        console.warn("Could not get location:", error);
+      }
+
+      const now = new Date();
+      const capturedImage: CapturedImage = {
+        dataUrl,
+        latitude,
+        longitude,
+        timestamp: now.toISOString(),
+        timezoneOffset: now.getTimezoneOffset(),
+      };
+
+      const newImages = [...capturedImages];
+      newImages[currentCameraIndex] = capturedImage;
+      setCapturedImages(newImages);
+
+      closeCamera();
+    } catch (error) {
+      console.error("Error capturing photo:", error);
+      showNotification("Lỗi khi chụp ảnh", "error");
+    }
+  };
+
+  const removeImage = (index: number) => {
+    const newImages = [...capturedImages];
+    newImages[index] = undefined;
+    setCapturedImages(newImages);
   };
 
   const fetchCementProducts = async () => {
@@ -563,8 +836,15 @@ const StoreSurvey = () => {
   };
 
   const submitSurvey = async () => {
-    if (!user || !storeId || !capturedImages || capturedImages.length !== 3) {
+    if (!user || !storeId) {
       showNotification("Lỗi: Thiếu thông tin cần thiết", "error");
+      return;
+    }
+
+    // Check if all 3 images are captured
+    const hasAllImages = [0, 1, 2].every((index) => capturedImages[index]);
+    if (!hasAllImages) {
+      showNotification("Lỗi: Vui lòng chụp đầy đủ 3 ảnh", "error");
       return;
     }
 
@@ -584,13 +864,13 @@ const StoreSurvey = () => {
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: parsedStoreId,
-        notes: notes.trim() || null,
+        notes: surveyData.storeComment?.trim() || null,
         auditDate: new Date().toISOString(),
       });
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload all 3 images in parallel for faster upload
+      // Step 2: Upload images sequentially with progress tracking
       const imagesToUpload = capturedImages.filter(
         (img): img is NonNullable<typeof img> =>
           img !== undefined && img !== null
@@ -600,19 +880,23 @@ const StoreSurvey = () => {
         throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
       }
 
+      // Upload first 2 images in parallel
       setUploadProgress({
         current: 0,
         total: 3,
-        message: "Đang tải ảnh...",
+        message: "Đang tải ảnh 1 và 2...",
       });
 
       let completedCount = 0;
-      const updateProgress = () => {
+      const updateBatchProgress = () => {
         completedCount++;
         setUploadProgress({
           current: completedCount,
           total: 3,
-          message: `Đang tải ảnh... (${completedCount}/3)`,
+          message:
+            completedCount === 2
+              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
         });
       };
 
@@ -629,46 +913,48 @@ const StoreSurvey = () => {
         formData.append("timestamp", img.timestamp);
         formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        const result = await api.post("/images/upload", formData, {
+        return api.post("/images/upload", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
         });
-        updateProgress();
-        return result;
       };
 
-      // Upload all 3 images in parallel for maximum speed
-      setUploadProgress({
-        current: 0,
-        total: 3,
-        message: "Đang tải ảnh...",
-      });
-
-      const uploadResults = await Promise.allSettled([
-        uploadImage(imagesToUpload[0], 0),
-        uploadImage(imagesToUpload[1], 1),
-        uploadImage(imagesToUpload[2], 2),
+      // Upload first 2 images in parallel
+      const [upload1Result, upload2Result] = await Promise.allSettled([
+        uploadImage(imagesToUpload[0], 0).then(() => {
+          updateBatchProgress();
+        }),
+        uploadImage(imagesToUpload[1], 1).then(() => {
+          updateBatchProgress();
+        }),
       ]);
 
-      // Check for upload errors
-      uploadResults.forEach((result, index) => {
-        if (result.status === "rejected") {
-          throw new Error(`Lỗi khi tải ảnh ${index + 1}: ${result.reason}`);
-        }
-      });
+      if (upload1Result.status === "rejected") {
+        throw upload1Result.reason;
+      }
+      if (upload2Result.status === "rejected") {
+        throw upload2Result.reason;
+      }
 
+      // Upload third image
+      setUploadProgress({
+        current: 2,
+        total: 3,
+        message: "Đang tải ảnh 3/3...",
+      });
+      await uploadImage(imagesToUpload[2], 2);
       setUploadProgress({
         current: 3,
         total: 3,
-        message: "Đang lưu thông tin...",
+        message: "Đang cập nhật thông tin cửa hàng...",
       });
 
-      // Step 3: Create survey and update store coordinates in parallel
+      // Step 3: Create survey
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
-      const surveyPayload = {
+      await api.post("/store-surveys", {
         storeId: parsedStoreId,
         auditId: auditId,
         userId: user.id,
@@ -700,19 +986,15 @@ const StoreSurvey = () => {
             ? parseFloat(p.averageStockQuantity)
             : null,
         })),
-      };
+      });
 
-      // Run survey creation and store update in parallel
-      await Promise.all([
-        api.post("/store-surveys", surveyPayload),
-        // Update store coordinates from first image
-        imagesToUpload[0]
-          ? api.put(`/stores/${parsedStoreId}`, {
-              latitude: imagesToUpload[0].latitude,
-              longitude: imagesToUpload[0].longitude,
-            })
-          : Promise.resolve(),
-      ]);
+      // Update store coordinates from first image
+      if (imagesToUpload[0]) {
+        await api.put(`/stores/${parsedStoreId}`, {
+          latitude: imagesToUpload[0].latitude,
+          longitude: imagesToUpload[0].longitude,
+        });
+      }
 
       // Save form data for autofill for this specific store
       // Each store has its own saved form data
@@ -810,6 +1092,47 @@ const StoreSurvey = () => {
           >
             Xóa dữ liệu đã điền
           </button>
+        </div>
+
+        {/* Ghi chú/Ý kiến - Luôn hiển thị ở đầu trang */}
+        <div className="store-survey-title-section" style={{ marginBottom: 16 }}>
+          <div
+            className="store-survey-title-header"
+            style={{
+              background: colors.background,
+              paddingVertical: 12,
+            }}
+          >
+            <h2 style={{ color: colors.text, fontSize: 16, margin: 0 }}>
+              Ý kiến/Ghi chú
+            </h2>
+          </div>
+          <div
+            className="store-survey-title-content"
+            style={{ backgroundColor: colors.secondary, paddingTop: 16 }}
+          >
+            <div className="store-survey-field">
+              <textarea
+                value={surveyData.storeComment}
+                onChange={(e) =>
+                  handleInputChange("storeComment", e.target.value)
+                }
+                placeholder="Nhập Ý kiến/Ghi chú (không bắt buộc)"
+                rows={3}
+                style={{
+                  backgroundColor: colors.background,
+                  color: colors.text,
+                  borderColor: colors.icon + "40",
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  fontSize: 14,
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+          </div>
         </div>
 
         {/* Title 3 - Thông tin bán hàng (Hiển thị ở trên) */}
@@ -1364,24 +1687,107 @@ const StoreSurvey = () => {
                 </button>
               </div>
 
-              <div className="store-survey-field">
-                <label style={{ color: colors.text }}>Ý kiến/Ghi chú</label>
-                <textarea
-                  value={surveyData.storeComment}
-                  onChange={(e) =>
-                    handleInputChange("storeComment", e.target.value)
-                  }
-                  placeholder="Nhập Ý kiến/Ghi chú (không bắt buộc)"
-                  rows={3}
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                    borderColor: colors.icon + "40",
-                  }}
-                />
-              </div>
             </div>
           )}
+        </div>
+
+        {/* Chụp ảnh - Sau form khảo sát, trước nút submit */}
+        <div className="store-survey-title-section" style={{ marginTop: 16 }}>
+          <div
+            className="store-survey-title-header"
+            style={{
+              background: colors.background,
+              paddingVertical: 12,
+            }}
+          >
+            <h2 style={{ color: colors.text, fontSize: 16, margin: 0 }}>
+              Chụp ảnh <span style={{ color: "#ff4d00" }}>*</span>
+            </h2>
+          </div>
+          <div
+            className="store-survey-title-content"
+            style={{ backgroundColor: colors.secondary, paddingTop: 16 }}
+          >
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(3, 1fr)",
+                gap: "12px",
+                marginBottom: 16,
+              }}
+            >
+              {[0, 1, 2].map((index) => {
+                const image = capturedImages[index];
+                return (
+                  <div
+                    key={index}
+                    style={{
+                      position: "relative",
+                      aspectRatio: 1,
+                      borderRadius: 8,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {image ? (
+                      <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                        <img
+                          src={image.dataUrl}
+                          alt={`Captured ${index + 1}`}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            borderRadius: 8,
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeImage(index)}
+                          style={{
+                            position: "absolute",
+                            top: 4,
+                            right: 4,
+                            background: "rgba(255, 255, 255, 0.9)",
+                            border: "none",
+                            borderRadius: "50%",
+                            width: 24,
+                            height: 24,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            cursor: "pointer",
+                            padding: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => openCamera(index)}
+                        style={{
+                          width: "100%",
+                          height: "100%",
+                          border: `2px dashed ${colors.icon}40`,
+                          borderRadius: 8,
+                          background: "transparent",
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          cursor: "pointer",
+                          fontSize: 32,
+                          color: colors.icon,
+                        }}
+                      >
+                        📷
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Submit Button */}
@@ -1785,6 +2191,48 @@ const StoreSurvey = () => {
                 }}
               >
                 Xác nhận hoàn thành
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Camera Modal */}
+      {cameraModalVisible && (
+        <div className="store-detail-camera-modal-overlay">
+          <div className="store-detail-camera-modal-content">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="store-detail-camera-video"
+            />
+            <div className="store-detail-camera-modal-buttons">
+              <button
+                className="store-detail-camera-modal-button"
+                onClick={closeCamera}
+              >
+                Hủy
+              </button>
+              <button
+                className="store-detail-camera-modal-button store-detail-camera-modal-button-switch"
+                onClick={switchCamera}
+                title={
+                  facingMode === "environment"
+                    ? "Chuyển sang camera trước"
+                    : "Chuyển sang camera sau"
+                }
+              >
+                <span className="camera-switch-icon">
+                  {facingMode === "environment" ? "⇄" : "⇄"}
+                </span>
+              </button>
+              <button
+                className="store-detail-camera-modal-button store-detail-camera-modal-button-capture"
+                onClick={capturePhoto}
+                style={{ backgroundColor: colors.primary, color: "#fff" }}
+              >
+                Chụp
               </button>
             </div>
           </div>

@@ -5,11 +5,14 @@ import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -98,12 +101,20 @@ const parseVND = (value: string): number => {
   return Number(digits) || 0;
 };
 
+interface CapturedImage {
+  uri: string;
+  latitude: number;
+  longitude: number;
+  timestamp: string;
+  timezoneOffset: number;
+}
+
 export default function StoreSurveyScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
-  const { capturedImages, notes, clearSurveyData } = useSurvey();
+  const { setCapturedImages: setSurveyImages, setNotes: setSurveyNotes, clearSurveyData } = useSurvey();
 
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -149,6 +160,17 @@ export default function StoreSurveyScreen() {
   const [surveyData, setSurveyData] = useState<SurveyData>(
     createEmptySurveyData()
   );
+
+  // Camera and location states
+  const [capturedImages, setCapturedImages] = useState<
+    (CapturedImage | undefined)[]
+  >([undefined, undefined, undefined]);
+  const [cachedLocation, setCachedLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [locationLoadingModalVisible, setLocationLoadingModalVisible] =
+    useState(false);
 
   // Load saved survey data from AsyncStorage for autofill (form data, not audit results)
   // Now saved per store to prevent data overlap between stores
@@ -206,6 +228,109 @@ export default function StoreSurveyScreen() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Camera functions
+  const requestCameraPermission = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert("Quyền truy cập", "Cần quyền truy cập camera để chụp ảnh");
+      return false;
+    }
+    return true;
+  };
+
+  const requestLocationPermission = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Quyền truy cập",
+        "Cần quyền truy cập vị trí để ghi nhận tọa độ"
+      );
+      return false;
+    }
+    return true;
+  };
+
+  const captureImage = async (index: number) => {
+    const cameraGranted = await requestCameraPermission();
+    const locationGranted = await requestLocationPermission();
+
+    if (!cameraGranted || !locationGranted) {
+      return;
+    }
+
+    try {
+      let latitude: number;
+      let longitude: number;
+
+      // Try to use cached location first (fast)
+      if (cachedLocation) {
+        latitude = cachedLocation.latitude;
+        longitude = cachedLocation.longitude;
+      } else {
+        // Show loading modal while getting location
+        setLocationLoadingModalVisible(true);
+
+        // Try to get last known position first (very fast)
+        let location = await Location.getLastKnownPositionAsync({
+          maxAge: 60000, // Use location if it's less than 1 minute old
+        });
+
+        // If no cached location or it's too old, get fresh location with timeout
+        if (!location) {
+          location = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced, // Balanced accuracy for faster response
+          });
+        }
+
+        latitude = location.coords.latitude;
+        longitude = location.coords.longitude;
+
+        // Cache the location for next captures
+        setCachedLocation({ latitude, longitude });
+
+        // Hide loading modal before opening camera
+        setLocationLoadingModalVisible(false);
+      }
+
+      // Launch camera immediately
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: false,
+        quality: 0.8,
+        base64: false,
+        exif: false,
+      });
+
+      // Save image immediately after capture
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        const now = new Date();
+        const newImage: CapturedImage = {
+          uri: asset.uri,
+          latitude,
+          longitude,
+          timestamp: now.toISOString(),
+          timezoneOffset: now.getTimezoneOffset(),
+        };
+
+        // Update state immediately
+        const updatedImages = [...capturedImages];
+        updatedImages[index] = newImage;
+        setCapturedImages(updatedImages);
+      }
+    } catch (error) {
+      console.error("Error capturing image:", error);
+      setLocationLoadingModalVisible(false);
+      Alert.alert("Lỗi", "Không thể chụp ảnh");
+    }
+  };
+
+  const removeImage = (index: number) => {
+    const updatedImages = [...capturedImages];
+    updatedImages[index] = undefined;
+    setCapturedImages(updatedImages);
+  };
 
   const handleClearAutofill = () => {
     if (!user?.id || !id) {
@@ -539,10 +664,21 @@ export default function StoreSurveyScreen() {
   };
 
   const submitSurvey = async () => {
-    if (!user || !id || !capturedImages || capturedImages.length !== 3) {
+    if (!user || !id) {
       Alert.alert("Lỗi", "Thiếu thông tin cần thiết");
       return;
     }
+
+    // Check if all 3 images are captured
+    const hasAllImages = [0, 1, 2].every((index) => capturedImages[index]);
+    if (!hasAllImages) {
+      Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
+      return;
+    }
+
+    // Save captured images and notes to context before submitting
+    setSurveyImages(capturedImages);
+    setSurveyNotes(surveyData.storeComment || "");
 
     const storeId = parseInt(id);
     if (isNaN(storeId)) {
@@ -559,13 +695,13 @@ export default function StoreSurveyScreen() {
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: storeId,
-        notes: notes.trim() || null,
+        notes: surveyData.storeComment?.trim() || null,
         auditDate: new Date().toISOString(),
       });
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload all 3 images in parallel for faster upload
+      // Step 2: Upload images sequentially with progress tracking
       const imagesToUpload = capturedImages.filter(
         (img): img is NonNullable<typeof img> => img !== undefined
       );
@@ -574,19 +710,23 @@ export default function StoreSurveyScreen() {
         throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
       }
 
+      // Upload first 2 images in parallel
       setUploadProgress({
         current: 0,
         total: 3,
-        message: "Đang tải ảnh...",
+        message: "Đang tải ảnh 1 và 2...",
       });
 
       let completedCount = 0;
-      const updateProgress = () => {
+      const updateBatchProgress = () => {
         completedCount++;
         setUploadProgress({
           current: completedCount,
           total: 3,
-          message: `Đang tải ảnh... (${completedCount}/3)`,
+          message:
+            completedCount === 2
+              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
+              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
         });
       };
 
@@ -606,46 +746,48 @@ export default function StoreSurveyScreen() {
         formData.append("timestamp", img.timestamp);
         formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        const result = await api.post("/images/upload", formData, {
+        return api.post("/images/upload", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
         });
-        updateProgress();
-        return result;
       };
 
-      // Upload all 3 images in parallel for maximum speed
-      setUploadProgress({
-        current: 0,
-        total: 3,
-        message: "Đang tải ảnh...",
-      });
-
-      const uploadResults = await Promise.allSettled([
-        uploadImage(imagesToUpload[0], 0),
-        uploadImage(imagesToUpload[1], 1),
-        uploadImage(imagesToUpload[2], 2),
+      // Upload first 2 images in parallel
+      const [upload1Result, upload2Result] = await Promise.allSettled([
+        uploadImage(imagesToUpload[0], 0).then(() => {
+          updateBatchProgress();
+        }),
+        uploadImage(imagesToUpload[1], 1).then(() => {
+          updateBatchProgress();
+        }),
       ]);
 
-      // Check for upload errors
-      uploadResults.forEach((result, index) => {
-        if (result.status === "rejected") {
-          throw new Error(`Lỗi khi tải ảnh ${index + 1}: ${result.reason}`);
-        }
-      });
+      if (upload1Result.status === "rejected") {
+        throw upload1Result.reason;
+      }
+      if (upload2Result.status === "rejected") {
+        throw upload2Result.reason;
+      }
 
+      // Upload third image
+      setUploadProgress({
+        current: 2,
+        total: 3,
+        message: "Đang tải ảnh 3/3...",
+      });
+      await uploadImage(imagesToUpload[2], 2);
       setUploadProgress({
         current: 3,
         total: 3,
-        message: "Đang lưu thông tin...",
+        message: "Đang cập nhật thông tin cửa hàng...",
       });
 
-      // Step 3: Create survey and update store coordinates in parallel
+      // Step 3: Create survey
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
-      const surveyPayload = {
+      await api.post("/store-surveys", {
         storeId: storeId,
         auditId: auditId,
         userId: user.id,
@@ -677,19 +819,15 @@ export default function StoreSurveyScreen() {
             ? parseFloat(p.averageStockQuantity)
             : null,
         })),
-      };
+      });
 
-      // Run survey creation and store update in parallel
-      await Promise.all([
-        api.post("/store-surveys", surveyPayload),
-        // Update store coordinates from first image
-        imagesToUpload[0]
-          ? api.put(`/stores/${storeId}`, {
-              latitude: imagesToUpload[0].latitude,
-              longitude: imagesToUpload[0].longitude,
-            })
-          : Promise.resolve(),
-      ]);
+      // Update store coordinates from first image
+      if (imagesToUpload[0]) {
+        await api.put(`/stores/${storeId}`, {
+          latitude: imagesToUpload[0].latitude,
+          longitude: imagesToUpload[0].longitude,
+        });
+      }
 
       // Clear captured data (images/notes) but keep form data for autofill
       clearSurveyData();
@@ -802,6 +940,61 @@ export default function StoreSurveyScreen() {
                 Xóa dữ liệu đã điền
               </Text>
             </TouchableOpacity>
+          </View>
+
+          {/* Ghi chú/Ý kiến - Luôn hiển thị ở đầu trang */}
+          <View
+            style={[
+              styles.titleSection,
+              { backgroundColor: colors.background, marginBottom: 16 },
+            ]}
+          >
+            <View
+              style={[
+                styles.titleHeader,
+                {
+                  backgroundColor: colors.background,
+                  paddingVertical: 12,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.titleHeaderText,
+                  { color: colors.text, fontSize: 16 },
+                ]}
+              >
+                Ý kiến/Ghi chú
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.titleContent,
+                { backgroundColor: colors.secondary, paddingTop: 16 },
+              ]}
+            >
+              <View style={styles.field}>
+                <TextInput
+                  style={[
+                    styles.textArea,
+                    {
+                      backgroundColor: colors.background,
+                      color: colors.text,
+                      borderColor: colors.icon + "40",
+                    },
+                  ]}
+                  value={surveyData.storeComment}
+                  onChangeText={(value) =>
+                    handleInputChange("storeComment", value)
+                  }
+                  placeholder="Nhập Ý kiến/Ghi chú (không bắt buộc)"
+                  placeholderTextColor={colors.icon}
+                  multiline
+                  numberOfLines={3}
+                  textAlignVertical="top"
+                />
+              </View>
+            </View>
           </View>
 
           {/* Title 3 - Thông tin bán hàng (Hiển thị ở trên) */}
@@ -1460,32 +1653,79 @@ export default function StoreSurveyScreen() {
                   </TouchableOpacity>
                 </View>
 
-                <View style={styles.field}>
-                  <Text style={[styles.label, { color: colors.text }]}>
-                    Ý kiến/Ghi chú
-                  </Text>
-                  <TextInput
-                    style={[
-                      styles.textArea,
-                      {
-                        backgroundColor: colors.background,
-                        color: colors.text,
-                        borderColor: colors.icon + "40",
-                      },
-                    ]}
-                    value={surveyData.storeComment}
-                    onChangeText={(value) =>
-                      handleInputChange("storeComment", value)
-                    }
-                    placeholder="Nhập Ý kiến/Ghi chú (không bắt buộc)"
-                    placeholderTextColor={colors.icon}
-                    multiline
-                    numberOfLines={3}
-                    textAlignVertical="top"
-                  />
-                </View>
               </View>
             )}
+          </View>
+
+          {/* Chụp ảnh - Sau form khảo sát, trước nút submit */}
+          <View
+            style={[
+              styles.titleSection,
+              { backgroundColor: colors.background, marginTop: 16 },
+            ]}
+          >
+            <View
+              style={[
+                styles.titleHeader,
+                {
+                  backgroundColor: colors.background,
+                  paddingVertical: 12,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.titleHeaderText,
+                  { color: colors.text, fontSize: 16 },
+                ]}
+              >
+                Chụp ảnh <Text style={{ color: "#ff4d00" }}>*</Text>
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.titleContent,
+                { backgroundColor: colors.secondary, paddingTop: 16 },
+              ]}
+            >
+              <View style={styles.cameraGrid}>
+                {[0, 1, 2].map((index) => {
+                  const image = capturedImages[index];
+                  return (
+                    <View key={index} style={styles.cameraItem}>
+                      {image ? (
+                        <View style={styles.capturedImageContainer}>
+                          <Image
+                            source={{ uri: image.uri }}
+                            style={styles.capturedImage}
+                          />
+                          <TouchableOpacity
+                            style={styles.removeButton}
+                            onPress={() => removeImage(index)}
+                          >
+                            <Ionicons
+                              name="close-circle"
+                              size={24}
+                              color="#F44336"
+                            />
+                          </TouchableOpacity>
+                        </View>
+                      ) : (
+                        <TouchableOpacity
+                          style={[
+                            styles.cameraButton,
+                            { borderColor: colors.icon + "40" },
+                          ]}
+                          onPress={() => captureImage(index)}
+                        >
+                          <Ionicons name="camera" size={32} color={colors.icon} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
           </View>
 
           {/* Submit Button */}
@@ -1891,6 +2131,34 @@ export default function StoreSurveyScreen() {
         </View>
       </Modal>
 
+      {/* Location Loading Modal */}
+      <Modal
+        visible={locationLoadingModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {}}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.uploadProgressModalContent,
+              { backgroundColor: colors.background },
+            ]}
+          >
+            <ActivityIndicator
+              size="large"
+              color={colors.primary}
+              style={{ marginBottom: 16 }}
+            />
+            <Text
+              style={[styles.uploadProgressTitle, { color: colors.text }]}
+            >
+              Đang lấy vị trí...
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
       {/* Upload Progress Modal */}
       <Modal
         visible={submitting && uploadProgress.total > 0}
@@ -2275,5 +2543,45 @@ const styles = StyleSheet.create({
   uploadProgressText: {
     fontSize: 14,
     textAlign: "center",
+  },
+  cameraGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
+  },
+  cameraItem: {
+    flex: 1,
+    aspectRatio: 1,
+  },
+  cameraButton: {
+    width: "100%",
+    height: "100%",
+    borderWidth: 2,
+    borderStyle: "dashed",
+    borderRadius: 8,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "transparent",
+  },
+  capturedImageContainer: {
+    width: "100%",
+    height: "100%",
+    position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
+  },
+  capturedImage: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 8,
+  },
+  removeButton: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "rgba(255, 255, 255, 0.9)",
+    borderRadius: 12,
+    padding: 2,
   },
 });

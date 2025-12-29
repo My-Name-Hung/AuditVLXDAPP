@@ -944,70 +944,25 @@ export default function StoreDetailScreen() {
               { backgroundColor: colors.background },
             ]}
           >
-            <Text style={[styles.sectionTitle, { color: colors.text }]}>
-              Chụp ảnh {sortedAudits.length > 0 ? "ngày hôm nay" : ""}
-            </Text>
-            <View style={styles.cameraGrid}>
-              {[0, 1, 2].map((index) => {
-                const image = capturedImages[index];
-                return (
-                  <View key={index} style={styles.cameraItem}>
-                    {image ? (
-                      <View style={styles.capturedImageContainer}>
-                        <Image
-                          source={{ uri: image.uri }}
-                          style={styles.capturedImage}
-                        />
-                        <TouchableOpacity
-                          style={styles.removeButton}
-                          onPress={() => removeImage(index)}
-                        >
-                          <Ionicons
-                            name="close-circle"
-                            size={24}
-                            color="#F44336"
-                          />
-                        </TouchableOpacity>
-                      </View>
-                    ) : (
-                      <TouchableOpacity
-                        style={[
-                          styles.cameraButton,
-                          { borderColor: colors.icon + "40" },
-                        ]}
-                        onPress={() => captureImage(index)}
-                      >
-                        <Ionicons name="camera" size={32} color={colors.icon} />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-
             <TouchableOpacity
               style={[
                 styles.completeButton,
                 {
-                  backgroundColor:
-                    capturedImages.length === 3 &&
-                    [0, 1, 2].every((index) => capturedImages[index])
-                      ? colors.primary
-                      : colors.icon + "40",
+                  backgroundColor: colors.primary,
                 },
               ]}
-              onPress={handleComplete}
-              disabled={
-                capturedImages.length < 3 ||
-                ![0, 1, 2].every((index) => capturedImages[index]) ||
-                uploading
-              }
+              onPress={() => {
+                // Navigate directly to survey page
+                router.push({
+                  pathname: "/(tabs)/store-survey/[id]",
+                  params: {
+                    id: id || "",
+                  },
+                });
+              }}
             >
-              {uploading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.completeButtonText}>Tiếp tục</Text>
-              )}
+              <Ionicons name="document-text-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.completeButtonText}>Bắt đầu khảo sát</Text>
             </TouchableOpacity>
 
             {!hasTodayAudit && !allowNewAudit && (

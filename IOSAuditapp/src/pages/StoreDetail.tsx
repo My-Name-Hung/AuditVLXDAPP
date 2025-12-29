@@ -1154,66 +1154,28 @@ export default function StoreDetail() {
           </div>
         )}
 
-        {/* Camera Section */}
+        {/* Start Survey Section */}
         {showCameraSection && (
           <div
             className="store-detail-camera-section"
             style={{ backgroundColor: colors.background }}
           >
-            <h2
-              className="store-detail-section-title"
-              style={{ color: colors.text }}
-            >
-              Chụp ảnh {sortedAudits.length > 0 ? "ngày hôm nay" : ""}
-            </h2>
-            <div className="store-detail-camera-grid">
-              {[0, 1, 2].map((index) => {
-                const image = capturedImages[index];
-                return (
-                  <div key={index} className="store-detail-camera-item">
-                    {image ? (
-                      <div className="store-detail-captured-image-container">
-                        <img
-                          src={image.dataUrl}
-                          alt={`Captured ${index + 1}`}
-                          className="store-detail-captured-image"
-                        />
-                        <button
-                          className="store-detail-remove-button"
-                          onClick={() => removeImage(index)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        className="store-detail-camera-button"
-                        onClick={() => openCamera(index)}
-                        style={{ borderColor: colors.icon + "40" }}
-                      >
-                        📷
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
             <button
               className="store-detail-complete-button"
-              onClick={handleComplete}
-              disabled={
-                !capturedImages.every((img) => img !== undefined) || uploading
-              }
+              onClick={() => {
+                // Navigate directly to survey page
+                navigate(`/stores/${store?.Id}/survey`);
+              }}
               style={{
-                backgroundColor:
-                  capturedImages.every((img) => img !== undefined) && !uploading
-                    ? colors.primary
-                    : colors.icon + "40",
+                backgroundColor: colors.primary,
                 color: "#fff",
+                width: "100%",
+                padding: "14px",
+                fontSize: "16px",
+                fontWeight: 600,
               }}
             >
-              {uploading ? "Đang tải..." : "Tiếp tục"}
+              📝 Bắt đầu khảo sát
             </button>
           </div>
         )}
