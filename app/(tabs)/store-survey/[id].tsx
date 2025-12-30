@@ -620,9 +620,6 @@ export default function StoreSurveyScreen() {
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
-      if (!product.productType) {
-        errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
-      }
       if (product.productType === "Xi măng" && !product.cementProductId) {
         errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
       }
@@ -905,7 +902,7 @@ export default function StoreSurveyScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.primary }]}>
+        <Text style={[styles.headerTitle, { color: colors.text, fontWeight: 'normal' }]}>
           Khảo sát cửa hàng
         </Text>
         <View style={styles.headerRight} />
@@ -922,20 +919,20 @@ export default function StoreSurveyScreen() {
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
-          <View style={styles.autofillRow}>
+          <View style={[styles.autofillRow, { justifyContent: 'flex-end' }]}>
             <TouchableOpacity
               style={[
                 styles.clearAutofillButton,
                 {
-                  borderColor: colors.primary,
-                  backgroundColor: colors.secondary,
+                  borderColor: '#ffcccc',
+                  backgroundColor: '#ffe6e6',
                 },
               ]}
               onPress={handleClearAutofill}
             >
-              <Ionicons name="trash-outline" size={18} color={colors.primary} />
+              <Ionicons name="trash-outline" size={18} color="#cc0000" />
               <Text
-                style={[styles.clearAutofillText, { color: colors.primary }]}
+                style={[styles.clearAutofillText, { color: '#cc0000' }]}
               >
                 Xóa dữ liệu đã điền
               </Text>
@@ -1096,35 +1093,6 @@ export default function StoreSurveyScreen() {
 
                     {expandedProducts[index] !== false && (
                       <>
-                        <View style={styles.field}>
-                          <Text style={[styles.label, { color: colors.text }]}>
-                            Sản phẩm được bán
-                          </Text>
-                          <TouchableOpacity
-                            style={[
-                              styles.pickerContainer,
-                              { borderColor: colors.icon + "40" },
-                            ]}
-                            onPress={() => setShowProductTypePicker(index)}
-                          >
-                            <View style={styles.picker}>
-                              <Text
-                                style={[
-                                  styles.pickerText,
-                                  { color: colors.text },
-                                ]}
-                              >
-                                {product.productType || "Chọn sản phẩm"}
-                              </Text>
-                              <Ionicons
-                                name="chevron-down"
-                                size={20}
-                                color={colors.icon}
-                              />
-                            </View>
-                          </TouchableOpacity>
-                        </View>
-
                         {product.productType === "Xi măng" && (
                           <View style={styles.field}>
                             <Text

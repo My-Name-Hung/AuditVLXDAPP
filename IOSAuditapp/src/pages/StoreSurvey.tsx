@@ -794,9 +794,6 @@ const StoreSurvey = () => {
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
-      if (!product.productType) {
-        errors.push(`Sản phẩm ${index + 1}: Sản phẩm được bán`);
-      }
       if (product.productType === "Xi măng" && !product.cementProductId) {
         errors.push(`Sản phẩm ${index + 1}: Loại xi măng`);
       }
@@ -1067,7 +1064,7 @@ const StoreSurvey = () => {
         >
           ← Quay lại
         </button>
-        <h1 className="store-survey-title" style={{ color: colors.primary }}>
+        <h1 className="store-survey-title" style={{ color: colors.text, fontWeight: 'normal' }}>
           Khảo sát cửa hàng
         </h1>
       </div>
@@ -1078,6 +1075,8 @@ const StoreSurvey = () => {
           style={{
             borderColor: `${colors.icon}33`,
             backgroundColor: colors.secondary,
+            display: 'flex',
+            justifyContent: 'flex-end',
           }}
         >
           <button
@@ -1085,9 +1084,9 @@ const StoreSurvey = () => {
             className="store-survey-clear-autofill"
             onClick={handleClearAutofill}
             style={{
-              color: colors.primary,
-              borderColor: colors.primary,
-              backgroundColor: colors.background,
+              color: '#cc0000',
+              borderColor: '#ffcccc',
+              backgroundColor: '#ffe6e6',
             }}
           >
             Xóa dữ liệu đã điền
@@ -1222,60 +1221,6 @@ const StoreSurvey = () => {
 
                   {expandedProducts[index] !== false && (
                     <>
-                      <div className="store-survey-field">
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <label style={{ color: colors.text }}>
-                            Sản phẩm được bán
-                          </label>
-                          {/* <button
-                            type="button"
-                            onClick={() => {
-                              setNewProductTypeName("");
-                              setShowAddProductTypeModal(true);
-                            }}
-                            style={{
-                              background: "none",
-                              border: "none",
-                              color: colors.primary,
-                              fontWeight: 600,
-                              fontSize: 13,
-                              cursor: "pointer",
-                            }}
-                          >
-                            + Thêm sản phẩm
-                          </button> */}
-                        </div>
-                        <select
-                          value={product.productType}
-                          onChange={(e) =>
-                            handleProductChange(
-                              index,
-                              "productType",
-                              e.target.value
-                            )
-                          }
-                          style={{
-                            backgroundColor: colors.background,
-                            color: colors.text,
-                            borderColor: colors.icon + "40",
-                            width: "100%",
-                          }}
-                        >
-                          <option value="">Chọn sản phẩm</option>
-                          {productTypes.map((type) => (
-                            <option key={type} value={type}>
-                              {type}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
                       {product.productType === "Xi măng" && (
                         <div className="store-survey-field">
                           <label style={{ color: colors.text }}>

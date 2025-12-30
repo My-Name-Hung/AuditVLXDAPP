@@ -961,7 +961,6 @@ export default function StoreDetailScreen() {
                 });
               }}
             >
-              <Ionicons name="document-text-outline" size={20} color="#fff" style={{ marginRight: 8 }} />
               <Text style={styles.completeButtonText}>Bắt đầu khảo sát</Text>
             </TouchableOpacity>
 

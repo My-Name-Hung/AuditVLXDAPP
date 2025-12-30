@@ -1175,7 +1175,7 @@ export default function StoreDetail() {
                 fontWeight: 600,
               }}
             >
-              📝 Bắt đầu khảo sát
+              Bắt đầu khảo sát
             </button>
           </div>
         )}
