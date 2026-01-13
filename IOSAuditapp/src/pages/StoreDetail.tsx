@@ -605,38 +605,38 @@ export default function StoreDetail() {
     });
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _openCamera = async (index: number) => {
-    try {
-      // Reset to rear camera (environment) when opening camera
-      setFacingMode("environment");
-      // Use rear camera (environment) instead of front camera (user)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment", // Use rear camera
-        },
-      });
-      streamRef.current = stream;
-      setCurrentCameraIndex(index);
-      setCameraModalVisible(true);
+  // // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // const _openCamera = async (index: number) => {
+  //   try {
+  //     // Reset to rear camera (environment) when opening camera
+  //     setFacingMode("environment");
+  //     // Use rear camera (environment) instead of front camera (user)
+  //     const stream = await navigator.mediaDevices.getUserMedia({
+  //       video: {
+  //         facingMode: "environment", // Use rear camera
+  //       },
+  //     });
+  //     streamRef.current = stream;
+  //     setCurrentCameraIndex(index);
+  //     setCameraModalVisible(true);
 
-      // Wait for video element to be ready and set stream
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          // Ensure video plays and loads metadata
-          videoRef.current.play().catch((err) => {
-            console.warn("Video play error:", err);
-          });
-        }
-      }, 100);
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-      alert(
-        "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera."
-      );
-    }
-  };
+  //     // Wait for video element to be ready and set stream
+  //     setTimeout(() => {
+  //       if (videoRef.current) {
+  //         videoRef.current.srcObject = stream;
+  //         // Ensure video plays and loads metadata
+  //         videoRef.current.play().catch((err) => {
+  //           console.warn("Video play error:", err);
+  //         });
+  //       }
+  //     }, 100);
+  //   } catch (error) {
+  //     console.error("Error accessing camera:", error);
+  //     alert(
+  //       "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera."
+  //     );
+  //   }
+  // };
 
   const closeCamera = () => {
     if (streamRef.current) {
@@ -883,29 +883,29 @@ export default function StoreDetail() {
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _removeImage = (index: number) => {
-    const newImages = [...capturedImages];
-    newImages[index] = undefined;
-    setCapturedImages(newImages);
-  };
+  // // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // const _removeImage = (index: number) => {
+  //   const newImages = [...capturedImages];
+  //   newImages[index] = undefined;
+  //   setCapturedImages(newImages);
+  // };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const _handleComplete = () => {
-    const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
-    if (!allImagesCaptured) {
-      alert("Vui lòng chụp đủ 3 ảnh");
-      return;
-    }
-    // Navigate to survey page instead of opening notes modal
-    navigate(`/stores/${store?.Id}/survey`, {
-      state: {
-        storeId: store?.Id,
-        capturedImages: capturedImages.filter((img) => img !== undefined),
-        notes: notes,
-      },
-    });
-  };
+  // const _handleComplete = () => {
+  //   const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
+  //   if (!allImagesCaptured) {
+  //     alert("Vui lòng chụp đủ 3 ảnh");
+  //     return;
+  //   }
+  //   // Navigate to survey page instead of opening notes modal
+  //   navigate(`/stores/${store?.Id}/survey`, {
+  //     state: {
+  //       storeId: store?.Id,
+  //       capturedImages: capturedImages.filter((img) => img !== undefined),
+  //       notes: notes,
+  //     },
+  //   });
+  // };
 
   // Helper function to upload single image with retry (chạy ở background)
   const uploadImageWithRetry = async (
