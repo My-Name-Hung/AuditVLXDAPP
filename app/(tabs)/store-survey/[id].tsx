@@ -779,20 +779,16 @@ export default function StoreSurveyScreen() {
       );
 
       // Hiển thị thông báo thành công trước khi navigate
-      Alert.alert(
-        "Thành công",
-        "Đã hoàn thành khảo sát thành công",
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              // Navigate sau khi user nhấn OK
-              // Upload sẽ được thực hiện tự động khi vào store-detail
-              router.push(`/(tabs)/store-detail/${id}`);
-            },
+      Alert.alert("Thành công", "Đã hoàn thành khảo sát thành công", [
+        {
+          text: "OK",
+          onPress: () => {
+            // Navigate sau khi user nhấn OK
+            // Upload sẽ được thực hiện tự động khi vào store-detail
+            router.push(`/(tabs)/store-detail/${id}`);
           },
-        ]
-      );
+        },
+      ]);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);

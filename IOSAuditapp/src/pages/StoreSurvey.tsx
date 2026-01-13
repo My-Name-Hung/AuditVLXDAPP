@@ -948,7 +948,7 @@ const StoreSurvey = () => {
 
       // Hiển thị thông báo thành công trước khi navigate
       showNotification("Đã hoàn thành khảo sát thành công", "success");
-      
+
       // Navigate sau khi hiển thị thông báo (delay ngắn để user thấy thông báo)
       setTimeout(() => {
         navigate(`/stores/${parsedStoreId}`);
