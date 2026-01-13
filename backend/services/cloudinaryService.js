@@ -56,11 +56,11 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
     // Font size: 45 for mobile app (default), 10 for web iosauditapp
-    // Tối ưu hóa: format auto (WebP/AVIF), quality auto, progressive JPEG
+    // Tối ưu hóa: quality auto, progressive JPEG
+    // Lưu ý: format auto không được hỗ trợ trong eager, sẽ áp dụng qua URL transformations
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-      // Tối ưu hóa format và quality cho upload
-      format: "auto", // Tự động chọn format tốt nhất (WebP, AVIF, etc.)
+      // Tối ưu hóa quality cho upload
       quality: "auto:good", // Tự động tối ưu quality
       flags: ["progressive"], // Progressive JPEG cho tải nhanh hơn
       eager: [
@@ -76,7 +76,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
           x: 20,
           y: 20,
           // Áp dụng optimization cho eager transformation
-          format: "auto",
+          // Lưu ý: format auto không được hỗ trợ trong eager transformations
           quality: "auto:good",
           flags: ["progressive"],
         },
@@ -140,11 +140,11 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
   try {
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
-    // Tối ưu hóa: format auto (WebP/AVIF), quality auto, progressive JPEG
+    // Tối ưu hóa: quality auto, progressive JPEG
+    // Lưu ý: format auto không được hỗ trợ trong eager, sẽ áp dụng qua URL transformations
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-      // Tối ưu hóa format và quality cho upload
-      format: "auto", // Tự động chọn format tốt nhất (WebP, AVIF, etc.)
+      // Tối ưu hóa quality cho upload
       quality: "auto:good", // Tự động tối ưu quality
       flags: ["progressive"], // Progressive JPEG cho tải nhanh hơn
       eager: [
@@ -160,7 +160,7 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
           x: 20,
           y: 20,
           // Áp dụng optimization cho eager transformation
-          format: "auto",
+          // Lưu ý: format auto không được hỗ trợ trong eager transformations
           quality: "auto:good",
           flags: ["progressive"],
         },
