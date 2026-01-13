@@ -1,6 +1,13 @@
 const Image = require("../models/Image");
 const Audit = require("../models/Audit");
 const { uploadImageWithWatermark } = require("../services/cloudinaryService");
+const {
+  getOptimizedImageUrl,
+  getResponsiveImageUrls,
+  getMobileOptimizedUrl,
+  getWebOptimizedUrl,
+  extractPublicId,
+} = require("../services/imageOptimizationService");
 
 const uploadImage = async (req, res) => {
   try {
@@ -94,9 +101,21 @@ const uploadImage = async (req, res) => {
     // Note: Store status refresh is now done once after all images are uploaded
     // to improve performance. See auditsController for batch refresh logic.
 
+    // Tạo optimized URLs cho các kích thước khác nhau
+    const optimizedUrls = getResponsiveImageUrls(uploadResult.public_id);
+
     res.status(201).json({
       ...image,
       cloudinaryId: uploadResult.public_id,
+      optimizedUrls: {
+        thumbnail: optimizedUrls.thumbnail,
+        small: optimizedUrls.small,
+        medium: optimizedUrls.medium,
+        large: optimizedUrls.large,
+        original: optimizedUrls.original,
+      },
+      // Giữ URL gốc để backward compatibility
+      ImageUrl: image.ImageUrl,
     });
   } catch (error) {
     console.error("Upload image error:", error);
@@ -109,8 +128,41 @@ const uploadImage = async (req, res) => {
 const getImagesByAudit = async (req, res) => {
   try {
     const { auditId } = req.params;
+    const { size = "medium", source = "mobile" } = req.query; // size: thumbnail, small, medium, large, original
     const images = await Image.findByAuditId(auditId);
-    res.json(images);
+
+    // Tối ưu hóa URLs cho từng ảnh
+    const optimizedImages = images.map((image) => {
+      const publicId = extractPublicId(image.ImageUrl);
+      
+      // Xác định source (mobile hoặc web)
+      const userAgent = req.headers["user-agent"] || "";
+      const isWeb = userAgent.includes("Mozilla") || source === "web";
+      
+      // Tạo optimized URL dựa trên source và size
+      const optimizedUrl = isWeb
+        ? getWebOptimizedUrl(publicId, size)
+        : getMobileOptimizedUrl(publicId, size);
+
+      // Tạo responsive URLs cho tất cả sizes
+      const responsiveUrls = getResponsiveImageUrls(publicId);
+
+      return {
+        ...image,
+        optimizedUrl, // URL tối ưu cho size được yêu cầu
+        optimizedUrls: responsiveUrls, // Tất cả sizes
+        // Giữ URL gốc để backward compatibility
+        ImageUrl: image.ImageUrl,
+      };
+    });
+
+    // Set cache headers để tăng tốc độ
+    res.set({
+      "Cache-Control": "public, max-age=3600", // Cache 1 giờ
+      "ETag": `"${auditId}-${images.length}"`,
+    });
+
+    res.json(optimizedImages);
   } catch (error) {
     console.error("Get images by audit error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -120,15 +172,105 @@ const getImagesByAudit = async (req, res) => {
 const getImageById = async (req, res) => {
   try {
     const { id } = req.params;
+    const { size = "medium", source = "mobile" } = req.query;
     const image = await Image.findById(id);
 
     if (!image) {
       return res.status(404).json({ error: "Image not found" });
     }
 
-    res.json(image);
+    const publicId = extractPublicId(image.ImageUrl);
+    
+    // Xác định source (mobile hoặc web)
+    const userAgent = req.headers["user-agent"] || "";
+    const isWeb = userAgent.includes("Mozilla") || source === "web";
+    
+    // Tạo optimized URL
+    const optimizedUrl = isWeb
+      ? getWebOptimizedUrl(publicId, size)
+      : getMobileOptimizedUrl(publicId, size);
+
+    // Tạo responsive URLs
+    const responsiveUrls = getResponsiveImageUrls(publicId);
+
+    // Set cache headers
+    res.set({
+      "Cache-Control": "public, max-age=86400", // Cache 24 giờ cho single image
+      "ETag": `"${id}"`,
+    });
+
+    res.json({
+      ...image,
+      optimizedUrl,
+      optimizedUrls: responsiveUrls,
+      // Giữ URL gốc để backward compatibility
+      ImageUrl: image.ImageUrl,
+    });
   } catch (error) {
     console.error("Get image by id error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
+const getOptimizedImage = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      width,
+      height,
+      quality = "auto",
+      format = "auto",
+      crop = "limit",
+      size, // Shortcut: thumbnail, small, medium, large, original
+      source = "mobile", // mobile hoặc web
+    } = req.query;
+
+    const image = await Image.findById(id);
+    if (!image) {
+      return res.status(404).json({ error: "Image not found" });
+    }
+
+    const publicId = extractPublicId(image.ImageUrl);
+    let optimizedUrl;
+
+    // Nếu có size shortcut, sử dụng nó
+    if (size) {
+      const userAgent = req.headers["user-agent"] || "";
+      const isWeb = userAgent.includes("Mozilla") || source === "web";
+      optimizedUrl = isWeb
+        ? getWebOptimizedUrl(publicId, size)
+        : getMobileOptimizedUrl(publicId, size);
+    } else {
+      // Sử dụng custom transformations
+      optimizedUrl = getOptimizedImageUrl(publicId, {
+        width: width ? parseInt(width) : null,
+        height: height ? parseInt(height) : null,
+        quality,
+        format,
+        crop,
+      });
+    }
+
+    // Set cache headers (ảnh có thể cache lâu hơn vì đã được optimize)
+    res.set({
+      "Cache-Control": "public, max-age=31536000", // Cache 1 năm (Cloudinary CDN sẽ handle)
+      "ETag": `"${id}-${width || ""}-${height || ""}-${size || ""}"`,
+    });
+
+    // Redirect đến optimized URL hoặc trả về URL
+    if (req.query.redirect === "true") {
+      return res.redirect(optimizedUrl);
+    }
+
+    res.json({
+      id: image.Id,
+      auditId: image.AuditId,
+      optimizedUrl,
+      originalUrl: image.ImageUrl,
+      publicId,
+    });
+  } catch (error) {
+    console.error("Get optimized image error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -160,5 +302,6 @@ module.exports = {
   uploadImage,
   getImagesByAudit,
   getImageById,
+  getOptimizedImage,
   deleteImage,
 };

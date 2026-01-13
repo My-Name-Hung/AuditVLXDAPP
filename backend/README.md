@@ -73,9 +73,12 @@ npm start
 ### Images
 
 - `POST /api/images/upload` - Upload ảnh với watermark (multipart/form-data)
-- `GET /api/images/audit/:auditId` - Lấy ảnh theo audit ID
-- `GET /api/images/:id` - Lấy ảnh theo ID
+- `GET /api/images/audit/:auditId` - Lấy ảnh theo audit ID (hỗ trợ query: `?size=medium&source=mobile`)
+- `GET /api/images/:id` - Lấy ảnh theo ID (hỗ trợ query: `?size=medium&source=mobile`)
+- `GET /api/images/optimized/:id` - Lấy ảnh với transformations tùy chỉnh (mới)
 - `DELETE /api/images/:id` - Xóa ảnh
+
+**📖 Xem hướng dẫn tối ưu hóa ảnh:** [IMAGE_OPTIMIZATION_GUIDE.md](./IMAGE_OPTIMIZATION_GUIDE.md)
 
 ## Cấu trúc thư mục
 
@@ -97,5 +100,6 @@ backend/
 - ✅ Auto-generate UserCode (U000001, U000002, ...)
 - ✅ Auto-generate StoreCode (CH000001, CH000002, ...)
 - ✅ Upload ảnh lên Cloudinary với watermark (lat/lon/time)
+- ✅ **Tối ưu hóa tốc độ tải ảnh** (WebP/AVIF, auto quality, progressive loading, CDN caching)
 - ✅ Kết nối SQL Server qua mssql
 - ✅ RESTful API đầy đủ CRUD
