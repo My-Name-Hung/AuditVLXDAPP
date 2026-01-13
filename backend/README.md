@@ -5,26 +5,31 @@ Backend API cho hệ thống Quản lý thương vụ XMTĐ sử dụng Node.js,
 ## Cài đặt
 
 1. Cài đặt dependencies:
+
 ```bash
 npm install
 ```
 
 2. Tạo file `.env` từ `.env.example` và cấu hình:
+
 ```bash
 cp .env.example .env
 ```
 
 3. Cấu hình các biến môi trường trong file `.env`:
+
 - Database SQL Server
 - JWT Secret
 - Cloudinary credentials
 
 4. Tạo database và chạy schema:
+
 ```bash
 # Chạy file backend/database/schema.sql trên SQL Server
 ```
 
 5. Khởi động server:
+
 ```bash
 # Development mode
 npm run dev
@@ -36,11 +41,13 @@ npm start
 ## API Endpoints
 
 ### Authentication
+
 - `POST /api/auth/login` - Đăng nhập
 - `POST /api/auth/register` - Đăng ký
 - `POST /api/auth/refresh` - Refresh token
 
 ### Users
+
 - `GET /api/users` - Lấy danh sách users
 - `GET /api/users/:id` - Lấy user theo ID
 - `POST /api/users` - Tạo user mới
@@ -48,6 +55,7 @@ npm start
 - `DELETE /api/users/:id` - Xóa user
 
 ### Stores
+
 - `GET /api/stores` - Lấy danh sách stores
 - `GET /api/stores/:id` - Lấy store theo ID
 - `POST /api/stores` - Tạo store mới
@@ -55,6 +63,7 @@ npm start
 - `DELETE /api/stores/:id` - Xóa store
 
 ### Audits
+
 - `GET /api/audits` - Lấy danh sách audits (có thể filter theo userId, storeId, result)
 - `GET /api/audits/:id` - Lấy audit theo ID
 - `POST /api/audits` - Tạo audit mới
@@ -62,6 +71,7 @@ npm start
 - `DELETE /api/audits/:id` - Xóa audit
 
 ### Images
+
 - `POST /api/images/upload` - Upload ảnh với watermark (multipart/form-data)
 - `GET /api/images/audit/:auditId` - Lấy ảnh theo audit ID
 - `GET /api/images/:id` - Lấy ảnh theo ID
@@ -89,4 +99,3 @@ backend/
 - ✅ Upload ảnh lên Cloudinary với watermark (lat/lon/time)
 - ✅ Kết nối SQL Server qua mssql
 - ✅ RESTful API đầy đủ CRUD
-
