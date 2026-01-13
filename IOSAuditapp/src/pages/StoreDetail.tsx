@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
+import {
+  getPendingUploadForStore,
+  removePendingUpload,
+  clearPendingUploadsForStore,
+} from "../utils/pendingUploads";
 import "./StoreDetail.css";
 
 interface Store {
@@ -173,8 +178,27 @@ const compressImage = (
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const { colors } = useTheme();
+  
+  // Location state từ StoreSurvey khi navigate về
+  const locationState = location.state as
+    | {
+        store?: Store;
+        from?: string;
+        userId?: string;
+        startDate?: string;
+        endDate?: string;
+        storeName?: string;
+        territoryId?: string;
+        territoryName?: string;
+        // State từ StoreSurvey khi navigate về
+        newAuditId?: number;
+        capturedImages?: CapturedImage[];
+        notes?: string;
+      }
+    | null;
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
@@ -185,6 +209,7 @@ export default function StoreDetail() {
   const [allowNewAudit, setAllowNewAudit] = useState(false);
   const [showNewAuditModal, setShowNewAuditModal] = useState(false);
   const promptedDateRef = useRef<string | null>(null);
+  const previousStoreIdRef = useRef<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState({
     current: 0,
@@ -248,8 +273,148 @@ export default function StoreDetail() {
     fetchStore();
   }, [fetchStore]);
 
+  // Load pending uploads từ localStorage khi mount và tự động upload
+  useEffect(() => {
+    if (!id || !user?.id) return;
+
+    const loadAndUploadPending = async () => {
+      try {
+        const storeId = parseInt(id, 10);
+        if (isNaN(storeId)) return;
+
+        // Kiểm tra lại storeId hiện tại để đảm bảo không load nhầm
+        const currentStoreId = parseInt(id || "0", 10);
+        if (currentStoreId !== storeId) {
+          return; // Store ID changed, don't load
+        }
+
+        const pending = getPendingUploadForStore(storeId);
+        
+        // Kiểm tra lại storeId của pending upload có khớp với store hiện tại không
+        if (pending && pending.storeId === storeId && pending.images.length === 3) {
+          // Kiểm tra lại storeId một lần nữa trước khi thêm
+          const finalStoreId = parseInt(id || "0", 10);
+          if (finalStoreId !== storeId || finalStoreId !== pending.storeId) {
+            return; // Store ID changed, don't add
+          }
+
+          // Tạo optimistic audit entry với ảnh local (đã có watermark từ dataUrl)
+          const optimisticAudit: AuditHistory = {
+            AuditId: pending.auditId,
+            Result: "audited",
+            FailedReason: null,
+            Notes: pending.notes || "",
+            AuditDate: new Date(pending.timestamp).toISOString(),
+            AuditCreatedAt: new Date(pending.timestamp).toISOString(),
+            UserId: user.id,
+            userId: user.id,
+            Images: pending.images.map((img, idx) => ({
+              Id: -(idx + 1), // Use negative ID to avoid conflicts
+              ImageUrl: img.dataUrl, // Sử dụng ảnh local với watermark ngay lập tức
+              CapturedAt: img.timestamp,
+              Latitude: img.latitude,
+              Longitude: img.longitude,
+            })),
+          };
+
+          // Thêm vào danh sách audits ngay lập tức (ảnh local)
+          setAudits((prev) => {
+            // Kiểm tra lại storeId một lần nữa trước khi thêm
+            const checkStoreId = parseInt(id || "0", 10);
+            if (checkStoreId !== storeId || checkStoreId !== pending.storeId) {
+              return prev; // Store ID changed, don't add
+            }
+            
+            // Check if audit already exists to avoid duplicates
+            const exists = prev.some((a) => a.AuditId === pending.auditId);
+            if (exists) {
+              return prev; // Don't add if already exists
+            }
+            return [optimisticAudit, ...prev];
+          });
+
+          // Tự động upload ảnh ở background sau khi hiển thị (delay 500ms)
+          setTimeout(() => {
+            (async () => {
+              try {
+                // Kiểm tra lại storeId trước khi upload
+                const checkStoreId = parseInt(id || "0", 10);
+                if (checkStoreId !== storeId || checkStoreId !== pending.storeId) {
+                  console.log("Store ID changed, skipping upload");
+                  return; // Don't upload if store changed
+                }
+
+                const uploadImage = async (
+                  img: {
+                    dataUrl: string;
+                    latitude: number;
+                    longitude: number;
+                    timestamp: string;
+                    timezoneOffset: number;
+                  },
+                  index: number
+                ) => {
+                  const formData = new FormData();
+                  const blob = await fetch(img.dataUrl).then((r) => r.blob());
+                  formData.append("image", blob, `image_${index + 1}.jpg`);
+                  formData.append("auditId", pending.auditId.toString());
+                  formData.append("latitude", img.latitude.toString());
+                  formData.append("longitude", img.longitude.toString());
+                  formData.append("timestamp", img.timestamp);
+                  formData.append("timezoneOffset", img.timezoneOffset.toString());
+
+                  return api.post("/images/upload", formData, {
+                    headers: {
+                      "Content-Type": "multipart/form-data",
+                    },
+                  });
+                };
+
+                // Upload tất cả ảnh ở background (parallel)
+                await Promise.all([
+                  uploadImage(pending.images[0], 0),
+                  uploadImage(pending.images[1], 1),
+                  uploadImage(pending.images[2], 2),
+                ]);
+
+                // Kiểm tra lại storeId trước khi cập nhật
+                const finalStoreId = parseInt(id || "0", 10);
+                if (finalStoreId === storeId && finalStoreId === pending.storeId) {
+                  // Cập nhật tọa độ cửa hàng sau khi upload xong
+                  if (pending.images[0]) {
+                    await api.put(`/stores/${storeId}`, {
+                      latitude: pending.images[0].latitude,
+                      longitude: pending.images[0].longitude,
+                    });
+                  }
+
+                  // Xóa pending upload sau khi upload thành công
+                  removePendingUpload(storeId, pending.auditId);
+                  
+                  // Refresh để cập nhật ảnh từ server
+                  fetchStore().catch((error) => {
+                    console.error("Error refreshing after upload:", error);
+                  });
+                }
+              } catch (error) {
+                console.error("Background upload error:", error);
+                // Giữ lại pending upload để thử lại sau
+              }
+            })();
+          }, 500);
+        }
+      } catch (error) {
+        console.error("Error loading pending upload:", error);
+      }
+    };
+
+    loadAndUploadPending();
+  }, [id, user?.id, fetchStore]);
+
+
   // Refresh when navigating back from survey page
   useEffect(() => {
+    // Normal refresh handlers
     const handleFocus = () => {
       fetchStore();
     };
@@ -264,6 +429,18 @@ export default function StoreDetail() {
 
   useEffect(() => {
     // Clear all state when store ID changes (navigating to different store)
+    // Phải clear audits trước để tránh hiển thị ảnh của store khác
+    const currentStoreId = id ? parseInt(id, 10) : null;
+    
+    // Xóa pending uploads của store cũ nếu có (tránh nhầm lẫn)
+    if (previousStoreIdRef.current !== null && 
+        previousStoreIdRef.current !== currentStoreId) {
+      clearPendingUploadsForStore(previousStoreIdRef.current);
+    }
+    
+    // Cập nhật previousStoreIdRef
+    previousStoreIdRef.current = currentStoreId;
+    
     promptedDateRef.current = null;
     setCapturedImages([undefined, undefined, undefined]);
     setNotes("");

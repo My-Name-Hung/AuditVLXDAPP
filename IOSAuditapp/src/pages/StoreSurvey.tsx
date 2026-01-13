@@ -8,6 +8,7 @@ import { useLocation, useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
+import { savePendingUpload } from "../utils/pendingUploads";
 import "./StoreSurvey.css";
 
 interface CementProduct {
@@ -106,7 +107,7 @@ const StoreSurvey = () => {
   const { colors } = useTheme();
 
   const storeId = id ? parseInt(id) : 0;
-  
+
   // Camera states
   const [capturedImages, setCapturedImages] = useState<
     (CapturedImage | undefined)[]
@@ -365,7 +366,10 @@ const StoreSurvey = () => {
       }
     } catch (error) {
       console.error("Error switching camera:", error);
-      showNotification("Không thể chuyển đổi camera. Vui lòng thử lại.", "error");
+      showNotification(
+        "Không thể chuyển đổi camera. Vui lòng thử lại.",
+        "error"
+      );
     }
   };
 
@@ -458,7 +462,10 @@ const StoreSurvey = () => {
       const height = actualHeight > 0 ? actualHeight : video.videoHeight;
 
       if (width === 0 || height === 0) {
-        showNotification("Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.", "error");
+        showNotification(
+          "Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.",
+          "error"
+        );
         return;
       }
 
@@ -854,8 +861,7 @@ const StoreSurvey = () => {
 
     // Kiểm tra ảnh trước
     const imagesToUpload = capturedImages.filter(
-      (img): img is NonNullable<typeof img> =>
-        img !== undefined && img !== null
+      (img): img is NonNullable<typeof img> => img !== undefined && img !== null
     );
 
     if (imagesToUpload.length !== 3) {
@@ -926,54 +932,27 @@ const StoreSurvey = () => {
 
       setSubmitting(false);
 
-      // Navigate ngay lập tức (không chờ upload ảnh)
-      showNotification("Đã lưu khảo sát. Ảnh đang được tải lên ở chế độ nền.", "success");
+      // Lưu pending upload vào localStorage để hiển thị khi quay lại
+      savePendingUpload(
+        parsedStoreId,
+        auditId,
+        imagesToUpload.map((img) => ({
+          dataUrl: img.dataUrl,
+          latitude: img.latitude,
+          longitude: img.longitude,
+          timestamp: img.timestamp,
+          timezoneOffset: img.timezoneOffset,
+        })),
+        surveyData.storeComment || ""
+      );
+
+      // Hiển thị thông báo thành công trước khi navigate
+      showNotification("Đã hoàn thành khảo sát thành công", "success");
+      
+      // Navigate sau khi hiển thị thông báo (delay ngắn để user thấy thông báo)
       setTimeout(() => {
         navigate(`/stores/${parsedStoreId}`);
       }, 1000);
-
-      // UPLOAD ẢNH Ở BACKGROUND - không block UI
-      (async () => {
-        try {
-          const uploadImage = async (
-            img: NonNullable<(typeof capturedImages)[0]>,
-            index: number
-          ) => {
-            const formData = new FormData();
-            const blob = await fetch(img.dataUrl).then((r) => r.blob());
-            formData.append("image", blob, `image_${index + 1}.jpg`);
-            formData.append("auditId", auditId.toString());
-            formData.append("latitude", img.latitude.toString());
-            formData.append("longitude", img.longitude.toString());
-            formData.append("timestamp", img.timestamp);
-            formData.append("timezoneOffset", img.timezoneOffset.toString());
-
-            return api.post("/images/upload", formData, {
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
-            });
-          };
-
-          // Upload tất cả ảnh ở background (parallel)
-          await Promise.all([
-            uploadImage(imagesToUpload[0], 0),
-            uploadImage(imagesToUpload[1], 1),
-            uploadImage(imagesToUpload[2], 2),
-          ]);
-
-          // Cập nhật tọa độ cửa hàng sau khi upload xong
-          if (imagesToUpload[0]) {
-            await api.put(`/stores/${parsedStoreId}`, {
-              latitude: imagesToUpload[0].latitude,
-              longitude: imagesToUpload[0].longitude,
-            });
-          }
-        } catch (error) {
-          console.error("Background upload error:", error);
-          // Không hiển thị lỗi cho user vì đã navigate rồi
-        }
-      })();
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);
@@ -1024,7 +1003,10 @@ const StoreSurvey = () => {
         >
           ← Quay lại
         </button>
-        <h1 className="store-survey-title" style={{ color: colors.text, fontWeight: 'normal' }}>
+        <h1
+          className="store-survey-title"
+          style={{ color: colors.text, fontWeight: "normal" }}
+        >
           Khảo sát cửa hàng
         </h1>
       </div>
@@ -1035,8 +1017,8 @@ const StoreSurvey = () => {
           style={{
             borderColor: `${colors.icon}33`,
             backgroundColor: colors.secondary,
-            display: 'flex',
-            justifyContent: 'flex-end',
+            display: "flex",
+            justifyContent: "flex-end",
           }}
         >
           <button
@@ -1044,9 +1026,9 @@ const StoreSurvey = () => {
             className="store-survey-clear-autofill"
             onClick={handleClearAutofill}
             style={{
-              color: '#cc0000',
-              borderColor: '#ffcccc',
-              backgroundColor: '#ffe6e6',
+              color: "#cc0000",
+              borderColor: "#ffcccc",
+              backgroundColor: "#ffe6e6",
             }}
           >
             Xóa dữ liệu đã điền
@@ -1054,7 +1036,10 @@ const StoreSurvey = () => {
         </div>
 
         {/* Ghi chú/Ý kiến - Luôn hiển thị ở đầu trang */}
-        <div className="store-survey-title-section" style={{ marginBottom: 16 }}>
+        <div
+          className="store-survey-title-section"
+          style={{ marginBottom: 16 }}
+        >
           <div
             className="store-survey-title-header"
             style={{
@@ -1591,7 +1576,6 @@ const StoreSurvey = () => {
                   </span>
                 </button>
               </div>
-
             </div>
           )}
         </div>
@@ -1634,7 +1618,13 @@ const StoreSurvey = () => {
                     }}
                   >
                     {image ? (
-                      <div style={{ position: "relative", width: "100%", height: "100%" }}>
+                      <div
+                        style={{
+                          position: "relative",
+                          width: "100%",
+                          height: "100%",
+                        }}
+                      >
                         <img
                           src={image.dataUrl}
                           alt={`Captured ${index + 1}`}
@@ -1967,8 +1957,8 @@ const StoreSurvey = () => {
             >
               {filteredSalesUsersModal.length > 0 ? (
                 filteredSalesUsersModal.map((user) => (
-              <button
-                type="button"
+                  <button
+                    type="button"
                     key={user.Id}
                     className="store-survey-price-option"
                     onClick={() => {
@@ -1981,9 +1971,9 @@ const StoreSurvey = () => {
                       justifyContent: "flex-start",
                       padding: "12px 16px",
                     }}
-              >
+                  >
                     {user.FullName}
-              </button>
+                  </button>
                 ))
               ) : (
                 <div
@@ -2143,7 +2133,6 @@ const StoreSurvey = () => {
           </div>
         </div>
       )}
-
 
       {/* Notification Modal */}
       {notification.isOpen && (

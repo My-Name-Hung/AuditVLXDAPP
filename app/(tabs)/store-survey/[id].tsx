@@ -2,6 +2,7 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useSurvey } from "@/src/contexts/SurveyContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
+import { savePendingUpload } from "@/src/utils/pendingUploads";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -114,7 +115,11 @@ export default function StoreSurveyScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
-  const { setCapturedImages: setSurveyImages, setNotes: setSurveyNotes, clearSurveyData } = useSurvey();
+  const {
+    setCapturedImages: setSurveyImages,
+    setNotes: setSurveyNotes,
+    clearSurveyData,
+  } = useSurvey();
 
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
   const [loading, setLoading] = useState(true);
@@ -751,10 +756,7 @@ export default function StoreSurveyScreen() {
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}_${storeId}`;
-          await AsyncStorage.setItem(
-            storageKey,
-            JSON.stringify(surveyData)
-          );
+          await AsyncStorage.setItem(storageKey, JSON.stringify(surveyData));
         } catch (error) {
           console.error("Error saving survey data for store:", error);
         }
@@ -762,66 +764,35 @@ export default function StoreSurveyScreen() {
 
       setSubmitting(false);
 
-      // Navigate ngay lập tức (không chờ upload ảnh)
+      // Lưu pending upload vào AsyncStorage để hiển thị khi quay lại
+      await savePendingUpload(
+        storeId,
+        auditId,
+        imagesToUpload.map((img) => ({
+          uri: img.uri,
+          latitude: img.latitude,
+          longitude: img.longitude,
+          timestamp: img.timestamp,
+          timezoneOffset: img.timezoneOffset,
+        })),
+        surveyData.storeComment || ""
+      );
+
+      // Hiển thị thông báo thành công trước khi navigate
       Alert.alert(
         "Thành công",
-        "Đã lưu khảo sát. Ảnh đang được tải lên ở chế độ nền.",
+        "Đã hoàn thành khảo sát thành công",
         [
           {
             text: "OK",
             onPress: () => {
-              // Use push instead of replace to maintain navigation stack
+              // Navigate sau khi user nhấn OK
+              // Upload sẽ được thực hiện tự động khi vào store-detail
               router.push(`/(tabs)/store-detail/${id}`);
             },
           },
         ]
       );
-
-      // UPLOAD ẢNH Ở BACKGROUND - không block UI
-      (async () => {
-        try {
-          const uploadImage = async (
-            img: NonNullable<(typeof capturedImages)[0]>,
-            index: number
-          ) => {
-            const formData = new FormData();
-            formData.append("image", {
-              uri: img.uri,
-              type: "image/jpeg",
-              name: `image_${index + 1}.jpg`,
-            } as any);
-            formData.append("auditId", auditId.toString());
-            formData.append("latitude", img.latitude.toString());
-            formData.append("longitude", img.longitude.toString());
-            formData.append("timestamp", img.timestamp);
-            formData.append("timezoneOffset", img.timezoneOffset.toString());
-
-            return api.post("/images/upload", formData, {
-              headers: {
-                "Content-Type": "multipart/form-data",
-              },
-            });
-          };
-
-          // Upload tất cả ảnh ở background (parallel)
-          await Promise.all([
-            uploadImage(imagesToUpload[0], 0),
-            uploadImage(imagesToUpload[1], 1),
-            uploadImage(imagesToUpload[2], 2),
-          ]);
-
-          // Cập nhật tọa độ cửa hàng sau khi upload xong
-          if (imagesToUpload[0]) {
-            await api.put(`/stores/${storeId}`, {
-              latitude: imagesToUpload[0].latitude,
-              longitude: imagesToUpload[0].longitude,
-            });
-          }
-        } catch (error) {
-          console.error("Background upload error:", error);
-          // Không hiển thị lỗi cho user vì đã navigate rồi
-        }
-      })();
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);
@@ -868,7 +839,12 @@ export default function StoreSurveyScreen() {
         >
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text, fontWeight: 'normal' }]}>
+        <Text
+          style={[
+            styles.headerTitle,
+            { color: colors.text, fontWeight: "normal" },
+          ]}
+        >
           Khảo sát cửa hàng
         </Text>
         <View style={styles.headerRight} />
@@ -885,21 +861,19 @@ export default function StoreSurveyScreen() {
           showsVerticalScrollIndicator={false}
           nestedScrollEnabled
         >
-          <View style={[styles.autofillRow, { justifyContent: 'flex-end' }]}>
+          <View style={[styles.autofillRow, { justifyContent: "flex-end" }]}>
             <TouchableOpacity
               style={[
                 styles.clearAutofillButton,
                 {
-                  borderColor: '#ffcccc',
-                  backgroundColor: '#ffe6e6',
+                  borderColor: "#ffcccc",
+                  backgroundColor: "#ffe6e6",
                 },
               ]}
               onPress={handleClearAutofill}
             >
               <Ionicons name="trash-outline" size={18} color="#cc0000" />
-              <Text
-                style={[styles.clearAutofillText, { color: '#cc0000' }]}
-              >
+              <Text style={[styles.clearAutofillText, { color: "#cc0000" }]}>
                 Xóa dữ liệu đã điền
               </Text>
             </TouchableOpacity>
@@ -1586,7 +1560,6 @@ export default function StoreSurveyScreen() {
                     </View>
                   </TouchableOpacity>
                 </View>
-
               </View>
             )}
           </View>
@@ -1652,7 +1625,11 @@ export default function StoreSurveyScreen() {
                           ]}
                           onPress={() => captureImage(index)}
                         >
-                          <Ionicons name="camera" size={32} color={colors.icon} />
+                          <Ionicons
+                            name="camera"
+                            size={32}
+                            color={colors.icon}
+                          />
                         </TouchableOpacity>
                       )}
                     </View>
@@ -2084,15 +2061,12 @@ export default function StoreSurveyScreen() {
               color={colors.primary}
               style={{ marginBottom: 16 }}
             />
-            <Text
-              style={[styles.uploadProgressTitle, { color: colors.text }]}
-            >
+            <Text style={[styles.uploadProgressTitle, { color: colors.text }]}>
               Đang lấy vị trí...
             </Text>
           </View>
         </View>
       </Modal>
-
     </SafeAreaView>
   );
 }
