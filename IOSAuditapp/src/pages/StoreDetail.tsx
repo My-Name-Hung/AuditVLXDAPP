@@ -178,27 +178,8 @@ const compressImage = (
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const location = useLocation();
   const { user } = useAuth();
   const { colors } = useTheme();
-  
-  // Location state từ StoreSurvey khi navigate về
-  const locationState = location.state as
-    | {
-        store?: Store;
-        from?: string;
-        userId?: string;
-        startDate?: string;
-        endDate?: string;
-        storeName?: string;
-        territoryId?: string;
-        territoryName?: string;
-        // State từ StoreSurvey khi navigate về
-        newAuditId?: number;
-        capturedImages?: CapturedImage[];
-        notes?: string;
-      }
-    | null;
 
   const [store, setStore] = useState<Store | null>(null);
   const [loading, setLoading] = useState(true);
@@ -210,12 +191,6 @@ export default function StoreDetail() {
   const [showNewAuditModal, setShowNewAuditModal] = useState(false);
   const promptedDateRef = useRef<string | null>(null);
   const previousStoreIdRef = useRef<number | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({
-    current: 0,
-    total: 0,
-    message: "",
-  });
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -301,13 +276,13 @@ export default function StoreDetail() {
     } catch (error) {
       // Chỉ hiển thị lỗi nếu id vẫn khớp
       if (id === fetchStoreId) {
-        console.error("Error fetching store:", error);
-        alert("Không thể tải thông tin cửa hàng");
+      console.error("Error fetching store:", error);
+      alert("Không thể tải thông tin cửa hàng");
       }
     } finally {
       // Chỉ set loading false nếu id vẫn khớp
       if (id === fetchStoreId) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   }, [id, user?.id]);
@@ -315,6 +290,13 @@ export default function StoreDetail() {
   useEffect(() => {
     fetchStore();
   }, [fetchStore]);
+
+  // Clear capturedImages và notes khi component mount lần đầu (tránh restore từ locationState)
+  useEffect(() => {
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Chỉ chạy một lần khi mount
 
   // Load pending uploads từ localStorage khi mount và tự động upload
   useEffect(() => {
@@ -331,7 +313,7 @@ export default function StoreDetail() {
 
     // Cleanup function để cancel pending operations
     let isCancelled = false;
-    let uploadTimeout: NodeJS.Timeout | null = null;
+    let uploadTimeout: ReturnType<typeof setTimeout> | null = null;
 
     const loadAndUploadPending = async () => {
       try {
@@ -532,7 +514,8 @@ export default function StoreDetail() {
     // Phải clear audits trước để tránh hiển thị ảnh của store khác
     const currentStoreId = id ? parseInt(id, 10) : null;
     
-    // Clear state ngay lập tức (synchronous) - không chờ async operations
+    // QUAN TRỌNG: Clear capturedImages NGAY LẬP TỨC khi id thay đổi (synchronous)
+    // Phải clear ngay lập tức để tránh hiển thị ảnh của store khác
     promptedDateRef.current = null;
     setCapturedImages([undefined, undefined, undefined]);
     setNotes("");
@@ -622,6 +605,7 @@ export default function StoreDetail() {
     });
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const openCamera = async (index: number) => {
     try {
       // Reset to rear camera (environment) when opening camera
@@ -899,12 +883,14 @@ export default function StoreDetail() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const removeImage = (index: number) => {
     const newImages = [...capturedImages];
     newImages[index] = undefined;
     setCapturedImages(newImages);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleComplete = () => {
     const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
     if (!allImagesCaptured) {
@@ -928,8 +914,6 @@ export default function StoreDetail() {
     index: number,
     maxRetries = 2
   ): Promise<void> => {
-    let lastError: unknown = null;
-
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Resize and compress image for faster upload
@@ -951,7 +935,6 @@ export default function StoreDetail() {
 
         return; // Success, exit retry loop
       } catch (error: unknown) {
-        lastError = error;
         console.error(
           `Background upload attempt ${attempt + 1} failed for image ${index + 1}:`,
           error
@@ -976,19 +959,19 @@ export default function StoreDetail() {
   const handleConfirmUpload = async () => {
     if (!user || !store) return;
 
-    // Filter out undefined images
-    const imagesToUpload = capturedImages.filter(
-      (img): img is CapturedImage => img !== undefined
-    );
+      // Filter out undefined images
+      const imagesToUpload = capturedImages.filter(
+        (img): img is CapturedImage => img !== undefined
+      );
 
-    if (imagesToUpload.length !== 3) {
+      if (imagesToUpload.length !== 3) {
       alert("Vui lòng chụp đầy đủ 3 ảnh");
       return;
-    }
+      }
 
     // Đóng modal ngay lập tức - không block UI
     setNotesModalVisible(false);
-    
+
     // Tạo audit ngay lập tức (không chờ upload ảnh)
     let auditId: number;
     try {
@@ -1003,34 +986,34 @@ export default function StoreDetail() {
       console.error("Error creating audit:", error);
       alert("Không thể tạo audit. Vui lòng thử lại.");
       return;
-    }
+      }
 
     // OPTIMISTIC UPDATE: Hiển thị ảnh local ngay lập tức trong UI
-    setAllowNewAudit(false);
-    setCapturedImages([undefined, undefined, undefined]);
-    setNotes("");
+      setAllowNewAudit(false);
+      setCapturedImages([undefined, undefined, undefined]);
+      setNotes("");
 
     // Tạo optimistic audit entry với ảnh local (dataUrl)
-    const optimisticAudit: AuditHistory = {
-      AuditId: auditId,
-      Result: "audited",
-      FailedReason: null,
-      Notes: notes.trim() || "",
-      AuditDate: new Date().toISOString(),
-      AuditCreatedAt: new Date().toISOString(),
-      UserId: user.id,
-      userId: user.id,
-      Images: imagesToUpload.map((img) => ({
-        Id: 0, // Temporary ID
+      const optimisticAudit: AuditHistory = {
+        AuditId: auditId,
+        Result: "audited",
+        FailedReason: null,
+        Notes: notes.trim() || "",
+        AuditDate: new Date().toISOString(),
+        AuditCreatedAt: new Date().toISOString(),
+        UserId: user.id,
+        userId: user.id,
+        Images: imagesToUpload.map((img) => ({
+          Id: 0, // Temporary ID
         ImageUrl: img.dataUrl, // Sử dụng ảnh local ngay lập tức
-        CapturedAt: img.timestamp,
-        Latitude: img.latitude,
-        Longitude: img.longitude,
-      })),
-    };
+          CapturedAt: img.timestamp,
+          Latitude: img.latitude,
+          Longitude: img.longitude,
+        })),
+      };
 
     // Thêm vào danh sách audits ngay lập tức (ảnh local)
-    setAudits((prev) => [optimisticAudit, ...prev]);
+      setAudits((prev) => [optimisticAudit, ...prev]);
 
     // UPLOAD ẢNH Ở BACKGROUND - không block UI
     // Upload không await, chạy ở background
@@ -1053,11 +1036,11 @@ export default function StoreDetail() {
 
         // Sau khi upload xong, fetch lại data để cập nhật URL từ local sang server
         // (nhưng không cần thiết vì ảnh local đã hiển thị tốt)
-        setTimeout(() => {
-          fetchStore().catch((error) => {
-            console.error("Background fetch error:", error);
+      setTimeout(() => {
+        fetchStore().catch((error) => {
+          console.error("Background fetch error:", error);
             // Silent fail - ảnh local đã hiển thị tốt
-          });
+        });
         }, 1000);
       } catch (error) {
         console.error("Background upload error:", error);

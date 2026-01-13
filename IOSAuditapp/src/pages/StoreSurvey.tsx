@@ -101,7 +101,6 @@ const parseVND = (value: string): number => {
 
 const StoreSurvey = () => {
   const { id } = useParams<{ id: string }>();
-  const location = useLocation();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { colors } = useTheme();
@@ -134,7 +133,7 @@ const StoreSurvey = () => {
   const [showSalesPicker, setShowSalesPicker] = useState(false);
   const [salesSearchModal, setSalesSearchModal] = useState("");
 
-  const [productTypes, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
+  const [, setProductTypes] = useState<string[]>(PRODUCT_TYPES);
   const [showAddProductTypeModal, setShowAddProductTypeModal] = useState(false);
   const [newProductTypeName, setNewProductTypeName] = useState("");
   const [priceOptions, setPriceOptions] = useState<number[]>(PRICE_SUGGESTIONS);
@@ -148,11 +147,6 @@ const StoreSurvey = () => {
   const [customPriceValue, setCustomPriceValue] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({
-    current: 0,
-    total: 0,
-    message: "",
-  });
   const [expandedTitles, setExpandedTitles] = useState({
     title2: false,
     title3: false,
@@ -1044,7 +1038,8 @@ const StoreSurvey = () => {
             className="store-survey-title-header"
             style={{
               background: colors.background,
-              paddingVertical: 12,
+              paddingTop: 12,
+              paddingBottom: 12,
             }}
           >
             <h2 style={{ color: colors.text, fontSize: 16, margin: 0 }}>
@@ -1586,7 +1581,8 @@ const StoreSurvey = () => {
             className="store-survey-title-header"
             style={{
               background: colors.background,
-              paddingVertical: 12,
+              paddingTop: 12,
+              paddingBottom: 12,
             }}
           >
             <h2 style={{ color: colors.text, fontSize: 16, margin: 0 }}>

@@ -300,6 +300,15 @@ export default function StoreDetailScreen() {
     fetchStore();
   }, [fetchStore]);
 
+  // Clear capturedImages và context khi component mount lần đầu (tránh restore từ context)
+  useEffect(() => {
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    setCachedLocation(null);
+    clearSurveyData(); // Clear context để tránh restore ảnh từ store trước
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Chỉ chạy một lần khi mount
+
   // Clear all state when store ID changes (navigating to different store)
   // Phải chạy TRƯỚC useFocusEffect để clear audits trước khi load pending uploads
   useEffect(() => {
@@ -307,11 +316,13 @@ export default function StoreDetailScreen() {
     // Phải clear audits trước để tránh hiển thị ảnh của store khác
     const currentStoreId = id ? parseInt(id, 10) : null;
 
-    // Clear state ngay lập tức (synchronous) - không chờ async operations
+    // QUAN TRỌNG: Clear capturedImages và context NGAY LẬP TỨC (synchronous)
+    // Phải clear cả local state và context để tránh restore từ context
     promptedDateRef.current = null;
     setCapturedImages([undefined, undefined, undefined]);
     setNotes("");
     setCachedLocation(null);
+    clearSurveyData(); // Clear context để tránh restore ảnh từ store trước
     setAudits([]); // Clear audits IMMEDIATELY to prevent showing previous store's audits
     setStore(null); // Clear store data
 
@@ -327,7 +338,7 @@ export default function StoreDetailScreen() {
 
     // Cập nhật previousStoreIdRef
     previousStoreIdRef.current = currentStoreId;
-  }, [id]);
+  }, [id, clearSurveyData]);
 
   // Load pending uploads từ AsyncStorage khi focus và tự động upload
   useFocusEffect(
@@ -335,11 +346,12 @@ export default function StoreDetailScreen() {
       // Capture storeId tại thời điểm callback được tạo
       const currentStoreId = id ? parseInt(id, 10) : null;
 
-      // QUAN TRỌNG: Clear capturedImages NGAY LẬP TỨC khi focus (tránh hiển thị ảnh của store khác)
-      // Phải clear trước khi load pending uploads
+      // QUAN TRỌNG: Clear capturedImages và context NGAY LẬP TỨC khi focus (tránh hiển thị ảnh của store khác)
+      // Phải clear cả local state và context để tránh restore từ context
       setCapturedImages([undefined, undefined, undefined]);
       setNotes("");
       setCachedLocation(null);
+      clearSurveyData(); // Clear context để tránh restore ảnh từ store trước
 
       if (!id || !user?.id || !currentStoreId || isNaN(currentStoreId)) {
         // Normal refresh
@@ -555,34 +567,8 @@ export default function StoreDetailScreen() {
           clearTimeout(uploadTimeout);
         }
       };
-    }, [id, user?.id, fetchStore])
+    }, [id, user?.id, fetchStore, clearSurveyData])
   );
-
-  useEffect(() => {
-    // Clear all state when store ID changes (navigating to different store)
-    // Phải clear audits trước để tránh hiển thị ảnh của store khác
-    const currentStoreId = id ? parseInt(id, 10) : null;
-
-    // Xóa pending uploads của store cũ nếu có (tránh nhầm lẫn)
-    if (
-      previousStoreIdRef.current !== null &&
-      previousStoreIdRef.current !== currentStoreId
-    ) {
-      clearPendingUploadsForStore(previousStoreIdRef.current).catch((error) => {
-        console.error("Error clearing pending uploads for store:", error);
-      });
-    }
-
-    // Cập nhật previousStoreIdRef
-    previousStoreIdRef.current = currentStoreId;
-
-    promptedDateRef.current = null;
-    setCapturedImages([undefined, undefined, undefined]);
-    setNotes("");
-    setCachedLocation(null);
-    setAudits([]); // Clear audits to prevent showing previous store's audits
-    setStore(null); // Clear store data
-  }, [id]);
 
   useEffect(() => {
     if (loading || !user?.id) {
