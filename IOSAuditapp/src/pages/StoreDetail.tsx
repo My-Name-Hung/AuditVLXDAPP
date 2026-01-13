@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
@@ -606,7 +606,7 @@ export default function StoreDetail() {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const openCamera = async (index: number) => {
+  const _openCamera = async (index: number) => {
     try {
       // Reset to rear camera (environment) when opening camera
       setFacingMode("environment");
@@ -884,14 +884,14 @@ export default function StoreDetail() {
   };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const removeImage = (index: number) => {
+  const _removeImage = (index: number) => {
     const newImages = [...capturedImages];
     newImages[index] = undefined;
     setCapturedImages(newImages);
   };
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const handleComplete = () => {
+  const _handleComplete = () => {
     const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
     if (!allImagesCaptured) {
       alert("Vui lòng chụp đủ 3 ảnh");
@@ -1547,10 +1547,9 @@ export default function StoreDetail() {
               <button
                 className="store-detail-modal-button store-detail-modal-button-confirm"
                 onClick={handleConfirmUpload}
-                disabled={uploading}
                 style={{ backgroundColor: colors.primary, color: "#fff" }}
               >
-                {uploading ? "Đang tải..." : "Xác nhận"}
+                Xác nhận
               </button>
             </div>
           </div>
