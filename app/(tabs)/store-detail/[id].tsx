@@ -147,8 +147,6 @@ export default function StoreDetailScreen() {
   const { user } = useAuth();
   const { colors } = useTheme();
   const {
-    capturedImages: surveyImages,
-    notes: surveyNotes,
     setCapturedImages: setSurveyImages,
     setNotes: setSurveyNotes,
     clearSurveyData,
@@ -164,12 +162,6 @@ export default function StoreDetailScreen() {
   const [showNewAuditModal, setShowNewAuditModal] = useState(false);
   const promptedDateRef = useRef<string | null>(null);
   const previousStoreIdRef = useRef<number | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState({
-    current: 0,
-    total: 0,
-    message: "",
-  });
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -642,6 +634,7 @@ export default function StoreDetailScreen() {
     return true;
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const captureImage = async (index: number) => {
     const cameraGranted = await requestCameraPermission();
     const locationGranted = await requestLocationPermission();
@@ -717,6 +710,7 @@ export default function StoreDetailScreen() {
     }
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const removeImage = (index: number) => {
     const updatedImages = [...capturedImages];
     updatedImages[index] = undefined;
@@ -762,6 +756,7 @@ export default function StoreDetailScreen() {
     setConfirmBackModalVisible(false);
   };
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const handleComplete = () => {
     if (capturedImages.length < 3) {
       Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
@@ -791,8 +786,6 @@ export default function StoreDetailScreen() {
     index: number,
     maxRetries = 2
   ): Promise<void> => {
-    let lastError: any = null;
-
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Resize and compress image - optimized for faster upload
@@ -825,7 +818,6 @@ export default function StoreDetailScreen() {
 
         return; // Success, exit retry loop
       } catch (error: any) {
-        lastError = error;
         console.error(
           `Background upload attempt ${attempt + 1} failed for image ${
             index + 1
