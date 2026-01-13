@@ -48,6 +48,15 @@ interface Image {
   Latitude: number | null;
   Longitude: number | null;
   CapturedAt: string;
+  // Optimized URLs (mới từ backend)
+  optimizedUrl?: string;
+  optimizedUrls?: {
+    thumbnail: string;
+    small: string;
+    medium: string;
+    large: string;
+    original: string;
+  };
 }
 
 interface Audit {
@@ -342,10 +351,26 @@ export default function StoreDetail() {
     return { lat: null, lon: null };
   };
 
+  // Helper function để lấy URL tối ưu cho ảnh
+  const getOptimizedImageUrl = (image: Image, size: 'thumbnail' | 'small' | 'medium' | 'large' | 'original' = 'large') => {
+    // Ưu tiên dùng optimizedUrls nếu có
+    if (image.optimizedUrls) {
+      return image.optimizedUrls[size] || image.optimizedUrls.large || image.optimizedUrl || image.ImageUrl;
+    }
+    // Fallback về optimizedUrl nếu có
+    if (image.optimizedUrl) {
+      return image.optimizedUrl;
+    }
+    // Cuối cùng dùng ImageUrl gốc (backward compatibility)
+    return image.ImageUrl;
+  };
+
   const handleImageClick = (image: Image, index: number) => {
     const coords = getImageCoordinates(image);
+    // Sử dụng optimized URL cho full size view
+    const imageUrl = getOptimizedImageUrl(image, 'large');
     setSelectedImage({
-      url: image.ImageUrl,
+      url: imageUrl,
       lat: coords.lat,
       lon: coords.lon,
     });
@@ -884,10 +909,11 @@ export default function StoreDetail() {
                   return (
                     <div key={`${image.Id}-${index}`} className="image-card">
                       <img
-                        src={image.ImageUrl}
+                        src={getOptimizedImageUrl(image, 'medium')}
                         alt={`Image ${image.Id}`}
                         onClick={() => handleImageClick(image, index)}
                         className="grid-image"
+                        loading="lazy"
                       />
                       <div className="image-info">
                         <span className="image-time">

@@ -38,6 +38,15 @@ interface StoreImage {
   CapturedAt: string;
   Latitude: number;
   Longitude: number;
+  // Optimized URLs (mới từ backend)
+  optimizedUrl?: string;
+  optimizedUrls?: {
+    thumbnail: string;
+    small: string;
+    medium: string;
+    large: string;
+    original: string;
+  };
 }
 
 interface AuditHistory {
@@ -1233,17 +1242,36 @@ export default function StoreDetail() {
                     </div>
                   )}
                   <div className="store-detail-history-images">
-                    {audit.Images.map((img) => (
+                    {audit.Images.map((img) => {
+                      // Helper function để lấy URL tối ưu cho ảnh
+                      const getOptimizedImageUrl = (image: StoreImage, size: 'thumbnail' | 'small' | 'medium' | 'large' | 'original' = 'medium') => {
+                        // Ưu tiên dùng optimizedUrls nếu có
+                        if (image.optimizedUrls) {
+                          return image.optimizedUrls[size] || image.optimizedUrls.medium || image.optimizedUrl || image.ImageUrl;
+                        }
+                        // Fallback về optimizedUrl nếu có
+                        if (image.optimizedUrl) {
+                          return image.optimizedUrl;
+                        }
+                        // Cuối cùng dùng ImageUrl gốc (backward compatibility)
+                        return image.ImageUrl;
+                      };
+                      
+                      const optimizedUrl = getOptimizedImageUrl(img, 'medium');
+                      const fullSizeUrl = getOptimizedImageUrl(img, 'large');
+                      
+                      return (
                       <div
                         key={img.Id}
                         className="store-detail-history-image-wrapper"
                       >
                         <img
-                          src={img.ImageUrl}
+                          src={optimizedUrl}
                           alt="Audit"
                           className="store-detail-history-image"
+                          loading="lazy"
                           onClick={() => {
-                            setSelectedImage(img.ImageUrl);
+                            setSelectedImage(fullSizeUrl);
                             setImageModalVisible(true);
                           }}
                         />
@@ -1256,7 +1284,8 @@ export default function StoreDetail() {
                           })}
                         </p>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               );
