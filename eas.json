@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 16.26.0",
+    "version": ">= 16.28.0",
     "appVersionSource": "remote"
   },
   "build": {
@@ -17,6 +17,10 @@
       "env": {
         "EXPO_PUBLIC_API_BASE_URL": "http://103.56.162.82:3000/api",
         "EXPO_PUBLIC_ENV": "preview"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
