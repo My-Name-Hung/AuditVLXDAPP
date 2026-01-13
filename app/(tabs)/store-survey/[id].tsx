@@ -683,12 +683,20 @@ export default function StoreSurveyScreen() {
       return;
     }
 
+    // Kiểm tra ảnh trước
+    const imagesToUpload = capturedImages.filter(
+      (img): img is NonNullable<typeof img> => img !== undefined
+    );
+
+    if (imagesToUpload.length !== 3) {
+      Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
+      return;
+    }
+
     setSubmitting(true);
-    setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
 
     try {
-      // Step 1: Create audit
-      setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
+      // Step 1: Tạo audit ngay lập tức (không chờ upload ảnh)
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: storeId,
@@ -698,89 +706,7 @@ export default function StoreSurveyScreen() {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload images sequentially with progress tracking
-      const imagesToUpload = capturedImages.filter(
-        (img): img is NonNullable<typeof img> => img !== undefined
-      );
-
-      if (imagesToUpload.length !== 3) {
-        throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
-      }
-
-      // Upload first 2 images in parallel
-      setUploadProgress({
-        current: 0,
-        total: 3,
-        message: "Đang tải ảnh 1 và 2...",
-      });
-
-      let completedCount = 0;
-      const updateBatchProgress = () => {
-        completedCount++;
-        setUploadProgress({
-          current: completedCount,
-          total: 3,
-          message:
-            completedCount === 2
-              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
-              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
-        });
-      };
-
-      const uploadImage = async (
-        img: NonNullable<(typeof capturedImages)[0]>,
-        index: number
-      ) => {
-        const formData = new FormData();
-        formData.append("image", {
-          uri: img.uri,
-          type: "image/jpeg",
-          name: `image_${index + 1}.jpg`,
-        } as any);
-        formData.append("auditId", auditId.toString());
-        formData.append("latitude", img.latitude.toString());
-        formData.append("longitude", img.longitude.toString());
-        formData.append("timestamp", img.timestamp);
-        formData.append("timezoneOffset", img.timezoneOffset.toString());
-
-        return api.post("/images/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
-      };
-
-      // Upload first 2 images in parallel
-      const [upload1Result, upload2Result] = await Promise.allSettled([
-        uploadImage(imagesToUpload[0], 0).then(() => {
-          updateBatchProgress();
-        }),
-        uploadImage(imagesToUpload[1], 1).then(() => {
-          updateBatchProgress();
-        }),
-      ]);
-
-      if (upload1Result.status === "rejected") {
-        throw upload1Result.reason;
-      }
-      if (upload2Result.status === "rejected") {
-        throw upload2Result.reason;
-      }
-
-      // Upload third image
-      setUploadProgress({
-        current: 2,
-        total: 3,
-        message: "Đang tải ảnh 3/3...",
-      });
-      await uploadImage(imagesToUpload[2], 2);
-      setUploadProgress({
-        current: 3,
-        total: 3,
-        message: "Đang cập nhật thông tin cửa hàng...",
-      });
-
-      // Step 3: Create survey
+      // Step 2: Tạo survey ngay lập tức (không chờ upload ảnh)
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
@@ -818,19 +744,10 @@ export default function StoreSurveyScreen() {
         })),
       });
 
-      // Update store coordinates from first image
-      if (imagesToUpload[0]) {
-        await api.put(`/stores/${storeId}`, {
-          latitude: imagesToUpload[0].latitude,
-          longitude: imagesToUpload[0].longitude,
-        });
-      }
-
       // Clear captured data (images/notes) but keep form data for autofill
       clearSurveyData();
 
       // Save form data for autofill for this specific store
-      // Each store has its own saved form data
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}_${storeId}`;
@@ -844,21 +761,70 @@ export default function StoreSurveyScreen() {
       }
 
       setSubmitting(false);
-      setUploadProgress({ current: 0, total: 0, message: "" });
 
-      Alert.alert("Thành công", "Đã hoàn thành audit cửa hàng", [
-        {
-          text: "OK",
-          onPress: () => {
-            // Use push instead of replace to maintain navigation stack
-            router.push(`/(tabs)/store-detail/${id}`);
+      // Navigate ngay lập tức (không chờ upload ảnh)
+      Alert.alert(
+        "Thành công",
+        "Đã lưu khảo sát. Ảnh đang được tải lên ở chế độ nền.",
+        [
+          {
+            text: "OK",
+            onPress: () => {
+              // Use push instead of replace to maintain navigation stack
+              router.push(`/(tabs)/store-detail/${id}`);
+            },
           },
-        },
-      ]);
+        ]
+      );
+
+      // UPLOAD ẢNH Ở BACKGROUND - không block UI
+      (async () => {
+        try {
+          const uploadImage = async (
+            img: NonNullable<(typeof capturedImages)[0]>,
+            index: number
+          ) => {
+            const formData = new FormData();
+            formData.append("image", {
+              uri: img.uri,
+              type: "image/jpeg",
+              name: `image_${index + 1}.jpg`,
+            } as any);
+            formData.append("auditId", auditId.toString());
+            formData.append("latitude", img.latitude.toString());
+            formData.append("longitude", img.longitude.toString());
+            formData.append("timestamp", img.timestamp);
+            formData.append("timezoneOffset", img.timezoneOffset.toString());
+
+            return api.post("/images/upload", formData, {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            });
+          };
+
+          // Upload tất cả ảnh ở background (parallel)
+          await Promise.all([
+            uploadImage(imagesToUpload[0], 0),
+            uploadImage(imagesToUpload[1], 1),
+            uploadImage(imagesToUpload[2], 2),
+          ]);
+
+          // Cập nhật tọa độ cửa hàng sau khi upload xong
+          if (imagesToUpload[0]) {
+            await api.put(`/stores/${storeId}`, {
+              latitude: imagesToUpload[0].latitude,
+              longitude: imagesToUpload[0].longitude,
+            });
+          }
+        } catch (error) {
+          console.error("Background upload error:", error);
+          // Không hiển thị lỗi cho user vì đã navigate rồi
+        }
+      })();
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);
-      setUploadProgress({ current: 0, total: 0, message: "" });
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
           ?.error ||
@@ -2127,65 +2093,6 @@ export default function StoreSurveyScreen() {
         </View>
       </Modal>
 
-      {/* Upload Progress Modal */}
-      <Modal
-        visible={submitting && uploadProgress.total > 0}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}}
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.uploadProgressModalContent,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <View style={{ alignItems: "center" }}>
-              <ActivityIndicator
-                size="large"
-                color={colors.primary}
-                style={{ marginBottom: 16 }}
-              />
-              <Text
-                style={[styles.uploadProgressTitle, { color: colors.text }]}
-              >
-                {uploadProgress.message || "Đang xử lý..."}
-              </Text>
-              {uploadProgress.total > 0 && (
-                <View style={{ marginTop: 16, width: "100%" }}>
-                  <View
-                    style={[
-                      styles.uploadProgressBar,
-                      {
-                        backgroundColor: colors.icon + "20",
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.uploadProgressFill,
-                        {
-                          width: `${
-                            (uploadProgress.current / uploadProgress.total) *
-                            100
-                          }%`,
-                          backgroundColor: colors.primary,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text
-                    style={[styles.uploadProgressText, { color: colors.icon }]}
-                  >
-                    {uploadProgress.current}/{uploadProgress.total} ảnh
-                  </Text>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }

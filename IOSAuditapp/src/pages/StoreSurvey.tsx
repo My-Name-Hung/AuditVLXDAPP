@@ -852,12 +852,21 @@ const StoreSurvey = () => {
       return;
     }
 
+    // Kiểm tra ảnh trước
+    const imagesToUpload = capturedImages.filter(
+      (img): img is NonNullable<typeof img> =>
+        img !== undefined && img !== null
+    );
+
+    if (imagesToUpload.length !== 3) {
+      showNotification("Vui lòng chụp đầy đủ 3 ảnh", "error");
+      return;
+    }
+
     setSubmitting(true);
-    setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
 
     try {
-      // Step 1: Create audit
-      setUploadProgress({ current: 0, total: 3, message: "Đang thực thi..." });
+      // Step 1: Tạo audit ngay lập tức (không chờ upload ảnh)
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: parsedStoreId,
@@ -867,87 +876,7 @@ const StoreSurvey = () => {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Upload images sequentially with progress tracking
-      const imagesToUpload = capturedImages.filter(
-        (img): img is NonNullable<typeof img> =>
-          img !== undefined && img !== null
-      );
-
-      if (imagesToUpload.length !== 3) {
-        throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
-      }
-
-      // Upload first 2 images in parallel
-      setUploadProgress({
-        current: 0,
-        total: 3,
-        message: "Đang tải ảnh 1 và 2...",
-      });
-
-      let completedCount = 0;
-      const updateBatchProgress = () => {
-        completedCount++;
-        setUploadProgress({
-          current: completedCount,
-          total: 3,
-          message:
-            completedCount === 2
-              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
-              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
-        });
-      };
-
-      const uploadImage = async (
-        img: NonNullable<(typeof capturedImages)[0]>,
-        index: number
-      ) => {
-        const formData = new FormData();
-        const blob = await fetch(img.dataUrl).then((r) => r.blob());
-        formData.append("image", blob, `image_${index + 1}.jpg`);
-        formData.append("auditId", auditId.toString());
-        formData.append("latitude", img.latitude.toString());
-        formData.append("longitude", img.longitude.toString());
-        formData.append("timestamp", img.timestamp);
-        formData.append("timezoneOffset", img.timezoneOffset.toString());
-
-        return api.post("/images/upload", formData, {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-        });
-      };
-
-      // Upload first 2 images in parallel
-      const [upload1Result, upload2Result] = await Promise.allSettled([
-        uploadImage(imagesToUpload[0], 0).then(() => {
-          updateBatchProgress();
-        }),
-        uploadImage(imagesToUpload[1], 1).then(() => {
-          updateBatchProgress();
-        }),
-      ]);
-
-      if (upload1Result.status === "rejected") {
-        throw upload1Result.reason;
-      }
-      if (upload2Result.status === "rejected") {
-        throw upload2Result.reason;
-      }
-
-      // Upload third image
-      setUploadProgress({
-        current: 2,
-        total: 3,
-        message: "Đang tải ảnh 3/3...",
-      });
-      await uploadImage(imagesToUpload[2], 2);
-      setUploadProgress({
-        current: 3,
-        total: 3,
-        message: "Đang cập nhật thông tin cửa hàng...",
-      });
-
-      // Step 3: Create survey
+      // Step 2: Tạo survey ngay lập tức (không chờ upload ảnh)
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
@@ -985,16 +914,7 @@ const StoreSurvey = () => {
         })),
       });
 
-      // Update store coordinates from first image
-      if (imagesToUpload[0]) {
-        await api.put(`/stores/${parsedStoreId}`, {
-          latitude: imagesToUpload[0].latitude,
-          longitude: imagesToUpload[0].longitude,
-        });
-      }
-
       // Save form data for autofill for this specific store
-      // Each store has its own saved form data
       if (user?.id) {
         try {
           const storageKey = `survey_data_${user.id}_${parsedStoreId}`;
@@ -1005,18 +925,58 @@ const StoreSurvey = () => {
       }
 
       setSubmitting(false);
-      setUploadProgress({ current: 0, total: 0, message: "" });
 
-      // Success - show notification then navigate
-      showNotification("Đã hoàn thành audit cửa hàng", "success");
-      // Delay navigation to show notification
+      // Navigate ngay lập tức (không chờ upload ảnh)
+      showNotification("Đã lưu khảo sát. Ảnh đang được tải lên ở chế độ nền.", "success");
       setTimeout(() => {
-      navigate(`/stores/${parsedStoreId}`);
-      }, 1500);
+        navigate(`/stores/${parsedStoreId}`);
+      }, 1000);
+
+      // UPLOAD ẢNH Ở BACKGROUND - không block UI
+      (async () => {
+        try {
+          const uploadImage = async (
+            img: NonNullable<(typeof capturedImages)[0]>,
+            index: number
+          ) => {
+            const formData = new FormData();
+            const blob = await fetch(img.dataUrl).then((r) => r.blob());
+            formData.append("image", blob, `image_${index + 1}.jpg`);
+            formData.append("auditId", auditId.toString());
+            formData.append("latitude", img.latitude.toString());
+            formData.append("longitude", img.longitude.toString());
+            formData.append("timestamp", img.timestamp);
+            formData.append("timezoneOffset", img.timezoneOffset.toString());
+
+            return api.post("/images/upload", formData, {
+              headers: {
+                "Content-Type": "multipart/form-data",
+              },
+            });
+          };
+
+          // Upload tất cả ảnh ở background (parallel)
+          await Promise.all([
+            uploadImage(imagesToUpload[0], 0),
+            uploadImage(imagesToUpload[1], 1),
+            uploadImage(imagesToUpload[2], 2),
+          ]);
+
+          // Cập nhật tọa độ cửa hàng sau khi upload xong
+          if (imagesToUpload[0]) {
+            await api.put(`/stores/${parsedStoreId}`, {
+              latitude: imagesToUpload[0].latitude,
+              longitude: imagesToUpload[0].longitude,
+            });
+          }
+        } catch (error) {
+          console.error("Background upload error:", error);
+          // Không hiển thị lỗi cho user vì đã navigate rồi
+        }
+      })();
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);
-      setUploadProgress({ current: 0, total: 0, message: "" });
       const errorMessage =
         (error as { response?: { data?: { error?: string } } })?.response?.data
           ?.error ||
@@ -2184,75 +2144,6 @@ const StoreSurvey = () => {
         </div>
       )}
 
-      {/* Upload Progress Modal */}
-      {submitting && uploadProgress.total > 0 && (
-        <div className="store-survey-modal-backdrop">
-          <div
-            className="store-survey-modal"
-            style={{ maxWidth: "400px", width: "90%" }}
-          >
-            <div style={{ textAlign: "center" }}>
-              <div
-                className="store-survey-spinner"
-                style={{
-                  width: "40px",
-                  height: "40px",
-                  border: `4px solid ${colors.icon}20`,
-                  borderTop: `4px solid ${colors.primary}`,
-                  borderRadius: "50%",
-                  margin: "0 auto 16px",
-                  animation: "spin 1s linear infinite",
-                }}
-              />
-              <h2
-                style={{
-                  color: colors.text,
-                  marginBottom: "8px",
-                  fontSize: "16px",
-                  fontWeight: "600",
-                }}
-              >
-                {uploadProgress.message || "Đang xử lý..."}
-              </h2>
-              {uploadProgress.total > 0 && (
-                <div style={{ marginTop: "16px" }}>
-                  <div
-                    style={{
-                      width: "100%",
-                      height: "8px",
-                      backgroundColor: colors.icon + "20",
-                      borderRadius: "4px",
-                      overflow: "hidden",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: `${
-                          (uploadProgress.current / uploadProgress.total) * 100
-                        }%`,
-                        height: "100%",
-                        backgroundColor: colors.primary,
-                        borderRadius: "4px",
-                        transition: "width 0.3s ease",
-                      }}
-                    />
-                  </div>
-                  <p
-                    style={{
-                      color: colors.icon,
-                      fontSize: "14px",
-                      margin: 0,
-                    }}
-                  >
-                    {uploadProgress.current}/{uploadProgress.total} ảnh
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Notification Modal */}
       {notification.isOpen && (

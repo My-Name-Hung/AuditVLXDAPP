@@ -479,7 +479,7 @@ export default function StoreDetailScreen() {
     });
   };
 
-  // Helper function to upload single image with retry
+  // Helper function to upload single image with retry (chạy ở background)
   const uploadImageWithRetry = async (
     img: CapturedImage,
     auditId: number,
@@ -490,23 +490,6 @@ export default function StoreDetailScreen() {
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        // Update progress: processing image (only if not in batch mode)
-        if (index < 2) {
-          // For first 2 images, progress is managed by batch handler
-          // Only show processing message
-        } else {
-          setUploadProgress({
-            current: index,
-            total: 3,
-            message:
-              attempt > 0
-                ? `Đang xử lý ảnh ${index + 1}/3 (thử lại lần ${
-                    attempt + 1
-                  })...`
-                : `Đang xử lý ảnh ${index + 1}/3...`,
-          });
-        }
-
         // Resize and compress image - optimized for faster upload
         const manipulatedImage = await ImageManipulator.manipulateAsync(
           img.uri,
@@ -516,15 +499,6 @@ export default function StoreDetailScreen() {
             format: ImageManipulator.SaveFormat.JPEG,
           }
         );
-
-        // Update progress: uploading image (only if not in batch mode)
-        if (index >= 2) {
-          setUploadProgress({
-            current: index,
-            total: 3,
-            message: `Đang tải ảnh ${index + 1}/3...`,
-          });
-        }
 
         const formData = new FormData();
         formData.append("image", {
@@ -544,20 +518,11 @@ export default function StoreDetailScreen() {
           },
         });
 
-        // Success - update progress (only if not in batch mode)
-        if (index >= 2) {
-          setUploadProgress({
-            current: index + 1,
-            total: 3,
-            message: `Đã tải xong ảnh ${index + 1}/3`,
-          });
-        }
-
         return; // Success, exit retry loop
       } catch (error: any) {
         lastError = error;
         console.error(
-          `Upload attempt ${attempt + 1} failed for image ${index + 1}:`,
+          `Background upload attempt ${attempt + 1} failed for image ${index + 1}:`,
           error
         );
 
@@ -570,160 +535,129 @@ export default function StoreDetailScreen() {
       }
     }
 
-    // All retries failed
-    throw (
-      lastError ||
-      new Error(
-        `Failed to upload image ${index + 1} after ${maxRetries + 1} attempts`
-      )
+    // All retries failed - log but don't throw (vì ảnh local đã hiển thị)
+    console.error(
+      `Background upload failed for image ${index + 1} after ${maxRetries + 1} attempts`
     );
+    // Không throw error để không ảnh hưởng UI
   };
 
   const handleConfirmUpload = async () => {
     if (!user || !store) return;
 
-    setUploading(true);
-    setNotesModalVisible(false);
-    setUploadProgress({ current: 0, total: 3, message: "Đang tạo audit..." });
+    // Filter out undefined images
+    const imagesToUpload = capturedImages.filter(
+      (img): img is CapturedImage => img !== undefined
+    );
 
+    if (imagesToUpload.length !== 3) {
+      Alert.alert("Lỗi", "Vui lòng chụp đầy đủ 3 ảnh");
+      return;
+    }
+
+    // Đóng modal ngay lập tức - không block UI
+    setNotesModalVisible(false);
+
+    // Tạo audit ngay lập tức (không chờ upload ảnh)
+    let auditId: number;
     try {
-      // Create audit first
-      setUploadProgress({ current: 0, total: 3, message: "Đang tạo audit..." });
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: store.Id,
         notes: notes.trim() || null,
         auditDate: new Date().toISOString(),
       });
-
-      const auditId = auditResponse.data.Id;
-      const firstImage = capturedImages[0];
-
-      // Filter out undefined images
-      const imagesToUpload = capturedImages.filter(
-        (img): img is CapturedImage => img !== undefined
+      auditId = auditResponse.data.Id;
+    } catch (error: any) {
+      console.error("Error creating audit:", error);
+      Alert.alert(
+        "Lỗi",
+        error.response?.data?.error || "Không thể tạo audit. Vui lòng thử lại."
       );
+      return;
+    }
 
-      if (imagesToUpload.length !== 3) {
-        throw new Error("Vui lòng chụp đầy đủ 3 ảnh");
+    // OPTIMISTIC UPDATE: Hiển thị ảnh local ngay lập tức trong UI
+    setAllowNewAudit(false);
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+
+    // Tạo optimistic audit entry với ảnh local (uri)
+    const optimisticAudit: AuditHistory = {
+      AuditId: auditId,
+      Result: "audited",
+      FailedReason: null,
+      Notes: notes.trim() || "",
+      AuditDate: new Date().toISOString(),
+      AuditCreatedAt: new Date().toISOString(),
+      UserId: user.id,
+      userId: user.id,
+      Images: imagesToUpload.map((img, idx) => ({
+        Id: -(idx + 1), // Use negative ID to avoid conflicts with real IDs
+        ImageUrl: img.uri, // Sử dụng ảnh local ngay lập tức
+        CapturedAt: img.timestamp,
+        Latitude: img.latitude,
+        Longitude: img.longitude,
+      })),
+    };
+
+    // Thêm vào danh sách audits ngay lập tức (ảnh local)
+    setAudits((prev) => {
+      // Check if audit already exists to avoid duplicates
+      const exists = prev.some((a) => a.AuditId === auditId);
+      if (exists) {
+        return prev; // Don't add if already exists
       }
+      return [optimisticAudit, ...prev];
+    });
 
-      // Upload images in parallel batches: 2 images at once for speed
-      // Upload first 2 images in parallel
-      setUploadProgress({
-        current: 0,
-        total: 3,
-        message: "Đang tải ảnh 1 và 2...",
-      });
-
-      // Track completed uploads
-      let completedCount = 0;
-      const updateBatchProgress = () => {
-        completedCount++;
-        setUploadProgress({
-          current: completedCount,
-          total: 3,
-          message:
-            completedCount === 2
-              ? "Đã tải xong ảnh 1 và 2, đang tải ảnh 3..."
-              : `Đang tải ảnh 1 và 2... (${completedCount}/2)`,
-        });
-      };
-
-      const [upload1Result, upload2Result] = await Promise.allSettled([
-        uploadImageWithRetry(imagesToUpload[0], auditId, 0).then(() => {
-          updateBatchProgress();
-        }),
-        uploadImageWithRetry(imagesToUpload[1], auditId, 1).then(() => {
-          updateBatchProgress();
-        }),
-      ]);
-
-      // Check if any upload failed
-      if (upload1Result.status === "rejected") {
-        throw upload1Result.reason;
-      }
-      if (upload2Result.status === "rejected") {
-        throw upload2Result.reason;
-      }
-
-      // Upload third image
-      await uploadImageWithRetry(imagesToUpload[2], auditId, 2);
-
-      // Update store latitude/longitude from first image
-      setUploadProgress({
-        current: 3,
-        total: 3,
-        message: "Đang cập nhật thông tin cửa hàng...",
-      });
-
-      if (firstImage) {
-        await api.put(`/stores/${store.Id}`, {
-          latitude: firstImage.latitude,
-          longitude: firstImage.longitude,
-        });
-      }
-
-      // Optimistic update: Update UI immediately without full reload
-      setAllowNewAudit(false);
-      setCapturedImages([undefined, undefined, undefined]);
-      setNotes("");
-
-      // Create optimistic audit entry for immediate UI update
-      const optimisticAudit: AuditHistory = {
-        AuditId: auditId,
-        Result: "audited",
-        FailedReason: null,
-        Notes: notes.trim() || "",
-        AuditDate: new Date().toISOString(),
-        AuditCreatedAt: new Date().toISOString(),
-        UserId: user.id,
-        userId: user.id,
-        Images: imagesToUpload.map((img, idx) => ({
-          Id: -(idx + 1), // Use negative ID to avoid conflicts with real IDs
-          ImageUrl: img.uri, // Use local URI temporarily
-          CapturedAt: img.timestamp,
-          Latitude: img.latitude,
-          Longitude: img.longitude,
-        })),
-      };
-
-      // Add to audits list optimistically (avoid duplicates)
-      setAudits((prev) => {
-        // Check if audit already exists to avoid duplicates
-        const exists = prev.some((a) => a.AuditId === auditId);
-        if (exists) {
-          return prev; // Don't add if already exists
-        }
-        return [optimisticAudit, ...prev];
-      });
-
-      // Debounce fetchStore: reload after 2 seconds in background
-      setTimeout(() => {
-        fetchStore().catch((error) => {
-          console.error("Background fetch error:", error);
-          // Silent fail - optimistic update already shown
-        });
-      }, 2000);
-
-      Alert.alert("Thành công", "Đã hoàn thành audit cửa hàng", [
+    // Hiển thị thông báo thành công ngay (không chờ upload)
+    Alert.alert(
+      "Thành công",
+      "Đã lưu audit cửa hàng. Ảnh đang được tải lên ở chế độ nền.",
+      [
         {
           text: "OK",
           onPress: () => {
             // Already cleared images and notes above
           },
         },
-      ]);
-    } catch (error: any) {
-      console.error("Error uploading images:", error);
-      Alert.alert(
-        "Lỗi",
-        error.response?.data?.error || error.message || "Upload ảnh thất bại"
-      );
-    } finally {
-      setUploading(false);
-      setUploadProgress({ current: 0, total: 0, message: "" });
-    }
+      ]
+    );
+
+    // UPLOAD ẢNH Ở BACKGROUND - không block UI
+    // Upload không await, chạy ở background
+    (async () => {
+      try {
+        // Upload ảnh ở background (không block UI)
+        await Promise.all([
+          uploadImageWithRetry(imagesToUpload[0], auditId, 0),
+          uploadImageWithRetry(imagesToUpload[1], auditId, 1),
+          uploadImageWithRetry(imagesToUpload[2], auditId, 2),
+        ]);
+
+        // Cập nhật tọa độ cửa hàng sau khi upload xong
+        if (imagesToUpload[0]) {
+          await api.put(`/stores/${store.Id}`, {
+            latitude: imagesToUpload[0].latitude,
+            longitude: imagesToUpload[0].longitude,
+          });
+        }
+
+        // Sau khi upload xong, fetch lại data để cập nhật URL từ local sang server
+        // (nhưng không cần thiết vì ảnh local đã hiển thị tốt)
+        setTimeout(() => {
+          fetchStore().catch((error) => {
+            console.error("Background fetch error:", error);
+            // Silent fail - ảnh local đã hiển thị tốt
+          });
+        }, 1000);
+      } catch (error) {
+        console.error("Background upload error:", error);
+        // Không hiển thị lỗi cho user vì ảnh local đã hiển thị
+        // Có thể thử lại sau hoặc để user biết qua notification nhẹ
+      }
+    })();
   };
 
   if (loading) {
@@ -1260,54 +1194,6 @@ export default function StoreDetailScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* Upload Progress Modal */}
-      <Modal
-        visible={uploading}
-        transparent
-        animationType="fade"
-        onRequestClose={() => {}} // Prevent closing during upload
-      >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: colors.background },
-            ]}
-          >
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text
-              style={[styles.modalTitle, { color: colors.text, marginTop: 16 }]}
-            >
-              {uploadProgress.message || "Đang xử lý..."}
-            </Text>
-            {uploadProgress.total > 0 && (
-              <View style={styles.progressContainer}>
-                <View style={styles.progressBar}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      {
-                        width: `${
-                          (uploadProgress.current / uploadProgress.total) * 100
-                        }%`,
-                        backgroundColor: colors.primary,
-                      },
-                    ]}
-                  />
-                </View>
-                <Text
-                  style={[
-                    styles.progressText,
-                    { color: colors.icon, marginTop: 8 },
-                  ]}
-                >
-                  {uploadProgress.current}/{uploadProgress.total} ảnh
-                </Text>
-              </View>
-            )}
-          </View>
-        </View>
-      </Modal>
 
       {/* Location Loading Modal */}
       <Modal
