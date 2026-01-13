@@ -8,14 +8,14 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://103.56.162.82:3000/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.ximangtaydo.vn/api",
         "EXPO_PUBLIC_ENV": "development"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://103.56.162.82:3000/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.ximangtaydo.vn/api",
         "EXPO_PUBLIC_ENV": "preview"
       },
       "android": {
@@ -30,7 +30,7 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "http://103.56.162.82:3000/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.ximangtaydo.vn/api",
         "EXPO_PUBLIC_ENV": "production"
       }
     }
