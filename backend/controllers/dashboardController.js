@@ -126,10 +126,8 @@ async function getUserDetail(req, res) {
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      INNER JOIN Images img ON a.Id = img.AuditId
+      LEFT JOIN Images img ON a.Id = img.AuditId
       WHERE a.UserId = @UserId
-        AND img.ImageUrl IS NOT NULL
-        AND img.ImageUrl != ''
     `;
 
     if (territoryId) {
@@ -219,10 +217,8 @@ async function getTerritoryDetail(req, res) {
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      INNER JOIN Images img ON a.Id = img.AuditId
+      LEFT JOIN Images img ON a.Id = img.AuditId
       WHERE s.TerritoryId = @TerritoryId
-        AND img.ImageUrl IS NOT NULL
-        AND img.ImageUrl != ''
     `;
 
     // Filter audits by current user (unless admin)
@@ -393,12 +389,10 @@ async function exportReport(req, res) {
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
         LEFT JOIN Territories t ON s.TerritoryId = t.Id
-        INNER JOIN Images img ON a.Id = img.AuditId
+        LEFT JOIN Images img ON a.Id = img.AuditId
         LEFT JOIN StoreSurveys ss ON a.Id = ss.AuditId
         WHERE a.UserId = @UserId
           AND s.TerritoryId = @TerritoryId
-          AND img.ImageUrl IS NOT NULL
-          AND img.ImageUrl != ''
       `;
 
       if (startDate) {
