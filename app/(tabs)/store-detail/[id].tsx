@@ -567,11 +567,39 @@ export default function StoreDetailScreen() {
                   };
 
                   // Upload tất cả ảnh ở background (parallel)
-                  await Promise.all([
+                  // Sử dụng Promise.allSettled để xử lý từng ảnh riêng biệt
+                  const uploadResults = await Promise.allSettled([
                     uploadImage(pending.images[0], 0),
                     uploadImage(pending.images[1], 1),
                     uploadImage(pending.images[2], 2),
                   ]);
+
+                  // Kiểm tra kết quả upload
+                  const successCount = uploadResults.filter(
+                    (result) => result.status === "fulfilled"
+                  ).length;
+                  const failedCount = uploadResults.filter(
+                    (result) => result.status === "rejected"
+                  ).length;
+
+                  // Log kết quả
+                  if (failedCount > 0) {
+                    console.warn(
+                      `Pending upload: ${successCount} images uploaded successfully, ${failedCount} images failed`
+                    );
+                    uploadResults.forEach((result, index) => {
+                      if (result.status === "rejected") {
+                        console.error(
+                          `Pending upload: Image ${index + 1} failed:`,
+                          result.reason
+                        );
+                      }
+                    });
+                  }
+
+                  // Chỉ xóa pending upload nếu tất cả ảnh đều upload thành công
+                  // Nếu có ảnh thất bại, giữ lại pending upload để thử lại sau
+                  const allSuccess = successCount === 3;
 
                   // Kiểm tra lại storeId trước khi cập nhật
                   const finalStoreId = id ? parseInt(id, 10) : null;
@@ -581,16 +609,26 @@ export default function StoreDetailScreen() {
                     finalStoreId === pending.storeId &&
                     !isCancelled
                   ) {
-                    // Cập nhật tọa độ cửa hàng sau khi upload xong
-                    if (pending.images[0]) {
-                      await api.put(`/stores/${currentStoreId}`, {
-                        latitude: pending.images[0].latitude,
-                        longitude: pending.images[0].longitude,
-                      });
+                    // Cập nhật tọa độ cửa hàng sau khi upload xong (nếu có ít nhất 1 ảnh thành công)
+                    if (successCount > 0 && pending.images[0]) {
+                      try {
+                        await api.put(`/stores/${currentStoreId}`, {
+                          latitude: pending.images[0].latitude,
+                          longitude: pending.images[0].longitude,
+                        });
+                      } catch (error) {
+                        console.error("Error updating store coordinates:", error);
+                      }
                     }
 
-                    // Xóa pending upload sau khi upload thành công
-                    await removePendingUpload(currentStoreId, pending.auditId);
+                    // Chỉ xóa pending upload nếu tất cả ảnh đều upload thành công
+                    if (allSuccess) {
+                      await removePendingUpload(currentStoreId, pending.auditId);
+                    } else {
+                      console.warn(
+                        `Keeping pending upload due to ${failedCount} failed image(s)`
+                      );
+                    }
 
                     // XÓA FILE ẢNH TRONG BỘ NHỚ sau khi upload thành công
                     try {
@@ -875,12 +913,13 @@ export default function StoreDetailScreen() {
   };
 
   // Helper function to upload single image with retry (chạy ở background)
+  // Returns true if successful, false if all retries failed
   const uploadImageWithRetry = async (
     img: CapturedImage,
     auditId: number,
     index: number,
     maxRetries = 2
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Resize and compress image - optimized for faster upload
@@ -911,7 +950,8 @@ export default function StoreDetailScreen() {
           },
         });
 
-        return; // Success, exit retry loop
+        console.log(`Image ${index + 1} uploaded successfully`);
+        return true; // Success, exit retry loop
       } catch (error: any) {
         console.error(
           `Background upload attempt ${attempt + 1} failed for image ${
@@ -929,13 +969,13 @@ export default function StoreDetailScreen() {
       }
     }
 
-    // All retries failed - log but don't throw (vì ảnh local đã hiển thị)
+    // All retries failed
     console.error(
       `Background upload failed for image ${index + 1} after ${
         maxRetries + 1
       } attempts`
     );
-    // Không throw error để không ảnh hưởng UI
+    return false; // Return false to indicate failure
   };
 
   const handleConfirmUpload = async () => {
@@ -1026,18 +1066,38 @@ export default function StoreDetailScreen() {
     (async () => {
       try {
         // Upload ảnh ở background (không block UI)
-        await Promise.all([
+        const uploadResults = await Promise.all([
           uploadImageWithRetry(imagesToUpload[0], auditId, 0),
           uploadImageWithRetry(imagesToUpload[1], auditId, 1),
           uploadImageWithRetry(imagesToUpload[2], auditId, 2),
         ]);
 
-        // Cập nhật tọa độ cửa hàng sau khi upload xong
-        if (imagesToUpload[0]) {
-          await api.put(`/stores/${store.Id}`, {
-            latitude: imagesToUpload[0].latitude,
-            longitude: imagesToUpload[0].longitude,
+        // Kiểm tra kết quả upload
+        const successCount = uploadResults.filter((result) => result === true).length;
+        const failedCount = uploadResults.filter((result) => result === false).length;
+
+        if (failedCount > 0) {
+          console.warn(
+            `Upload warning: ${successCount} images uploaded successfully, ${failedCount} images failed`
+          );
+          // Log chi tiết ảnh nào thất bại
+          uploadResults.forEach((result, index) => {
+            if (!result) {
+              console.error(`Image ${index + 1} upload failed`);
+            }
           });
+        }
+
+        // Chỉ cập nhật tọa độ nếu có ít nhất 1 ảnh upload thành công
+        if (successCount > 0 && imagesToUpload[0]) {
+          try {
+            await api.put(`/stores/${store.Id}`, {
+              latitude: imagesToUpload[0].latitude,
+              longitude: imagesToUpload[0].longitude,
+            });
+          } catch (error) {
+            console.error("Error updating store coordinates:", error);
+          }
         }
 
         // Sau khi upload xong, fetch lại data để cập nhật URL từ local sang server
