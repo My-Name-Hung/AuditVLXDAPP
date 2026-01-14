@@ -55,18 +55,53 @@ const uploadImage = async (req, res) => {
 
     const rawTimestamp = timestamp || new Date().toISOString();
     const timestampDate = new Date(rawTimestamp);
-    const adjustedTimestamp =
-      timestampDate instanceof Date && !isNaN(timestampDate.valueOf())
-        ? new Date(
-            timestampDate.getTime() -
-              (timezoneOffsetMinutes ? timezoneOffsetMinutes * 60000 : 0)
-          )
-        : new Date();
+
+    // QUAN TRỌNG: Xử lý timezone offset đúng cách
+    // Frontend gửi:
+    // - timestamp: now.toISOString() → UTC time string (ví dụ: "2026-01-14T01:17:00.000Z" cho local 08:17 UTC+7)
+    // - timezoneOffset: now.getTimezoneOffset() → offset từ UTC (ví dụ: -420 cho UTC+7)
+    //
+    // Logic đúng:
+    // - getTimezoneOffset() trả về số phút CHÊNH LỆCH từ UTC (âm = UTC+, dương = UTC-)
+    // - Ví dụ UTC+7: getTimezoneOffset() = -420 (phút) = -7 giờ
+    // - toISOString() convert local time → UTC string
+    // - Để convert UTC → Local: Local = UTC - timezoneOffset
+    // - Local = UTC - (-420 phút) = UTC + 420 phút = UTC + 7 giờ
+    //
+    // Ví dụ: Local 08:17 (UTC+7)
+    // - toISOString() → "2026-01-14T01:17:00.000Z" (UTC)
+    // - getTimezoneOffset() → -420
+    // - Local = 01:17 - (-420 phút) = 01:17 + 7 giờ = 08:17 ✓
+    //
+    // Format timestamp thành local time string để tránh timezone của server ảnh hưởng
+    let adjustedTimestamp = timestampDate;
+    if (
+      timestampDate instanceof Date &&
+      !isNaN(timestampDate.valueOf()) &&
+      timezoneOffsetMinutes !== null &&
+      timezoneOffsetMinutes !== 0
+    ) {
+      // Convert UTC → Local time của client
+      adjustedTimestamp = new Date(
+        timestampDate.getTime() - timezoneOffsetMinutes * 60000
+      );
+    }
+
+    // Format thành local time string (dd.mm.yyyy hh:mm:ss) để truyền vào metadata
+    // Sử dụng UTC methods vì adjustedTimestamp đã là local time được biểu diễn như UTC
+    const day = String(adjustedTimestamp.getUTCDate()).padStart(2, "0");
+    const month = String(adjustedTimestamp.getUTCMonth() + 1).padStart(2, "0");
+    const year = adjustedTimestamp.getUTCFullYear();
+    const hours = String(adjustedTimestamp.getUTCHours()).padStart(2, "0");
+    const minutes = String(adjustedTimestamp.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(adjustedTimestamp.getUTCSeconds()).padStart(2, "0");
+    const localTimeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
 
     const metadata = {
       latitude: latitudeNum,
       longitude: longitudeNum,
       timestamp: adjustedTimestamp.toISOString(),
+      localTimeString: localTimeString, // Thêm local time string đã format sẵn
     };
 
     // Determine font size based on source (header or user agent)
@@ -134,11 +169,11 @@ const getImagesByAudit = async (req, res) => {
     // Tối ưu hóa URLs cho từng ảnh
     const optimizedImages = images.map((image) => {
       const publicId = extractPublicId(image.ImageUrl);
-      
+
       // Xác định source (mobile hoặc web)
       const userAgent = req.headers["user-agent"] || "";
       const isWeb = userAgent.includes("Mozilla") || source === "web";
-      
+
       // Tạo optimized URL dựa trên source và size
       const optimizedUrl = isWeb
         ? getWebOptimizedUrl(publicId, size)
@@ -159,7 +194,7 @@ const getImagesByAudit = async (req, res) => {
     // Set cache headers để tăng tốc độ
     res.set({
       "Cache-Control": "public, max-age=3600", // Cache 1 giờ
-      "ETag": `"${auditId}-${images.length}"`,
+      ETag: `"${auditId}-${images.length}"`,
     });
 
     res.json(optimizedImages);
@@ -180,11 +215,11 @@ const getImageById = async (req, res) => {
     }
 
     const publicId = extractPublicId(image.ImageUrl);
-    
+
     // Xác định source (mobile hoặc web)
     const userAgent = req.headers["user-agent"] || "";
     const isWeb = userAgent.includes("Mozilla") || source === "web";
-    
+
     // Tạo optimized URL
     const optimizedUrl = isWeb
       ? getWebOptimizedUrl(publicId, size)
@@ -196,7 +231,7 @@ const getImageById = async (req, res) => {
     // Set cache headers
     res.set({
       "Cache-Control": "public, max-age=86400", // Cache 24 giờ cho single image
-      "ETag": `"${id}"`,
+      ETag: `"${id}"`,
     });
 
     res.json({
@@ -254,7 +289,7 @@ const getOptimizedImage = async (req, res) => {
     // Set cache headers (ảnh có thể cache lâu hơn vì đã được optimize)
     res.set({
       "Cache-Control": "public, max-age=31536000", // Cache 1 năm (Cloudinary CDN sẽ handle)
-      "ETag": `"${id}-${width || ""}-${height || ""}-${size || ""}"`,
+      ETag: `"${id}-${width || ""}-${height || ""}-${size || ""}"`,
     });
 
     // Redirect đến optimized URL hoặc trả về URL

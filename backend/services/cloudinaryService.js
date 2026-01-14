@@ -15,18 +15,27 @@ const { getProvinceDistrict } = require("./geocodingService");
  */
 async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   const { fontSize = 40 } = options; // Default 60 for mobile app, 10 for web iosauditapp
-  const { latitude, longitude, timestamp } = metadata;
+  const { latitude, longitude, timestamp, localTimeString } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
-  const date = new Date(timestamp);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  // Use . for date separator to avoid URL encoding, keep : for time
-  const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  // QUAN TRỌNG: Sử dụng localTimeString nếu có (đã được format đúng local time trong controller)
+  // Nếu không có, format từ timestamp (đã được điều chỉnh về local time)
+  let timeString;
+  if (localTimeString) {
+    // Sử dụng local time string đã format sẵn từ controller
+    timeString = localTimeString;
+  } else {
+    // Fallback: format từ timestamp (đã là local time sau khi điều chỉnh)
+    const date = new Date(timestamp);
+    // Sử dụng UTC methods vì timestamp đã được điều chỉnh về local time
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    const hours = String(date.getUTCHours()).padStart(2, "0");
+    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+    timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  }
 
   // Create watermark text: Use compact format to prevent overlap
   // Ensure latitude and longitude are numbers before calling toFixed
@@ -105,18 +114,27 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
  * Alternative method using base64 encoding
  */
 async function uploadImageWithWatermarkBase64(base64Image, metadata) {
-  const { latitude, longitude, timestamp } = metadata;
+  const { latitude, longitude, timestamp, localTimeString } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
-  const date = new Date(timestamp);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  // Use . for date separator to avoid URL encoding, keep : for time
-  const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  // QUAN TRỌNG: Sử dụng localTimeString nếu có (đã được format đúng local time trong controller)
+  // Nếu không có, format từ timestamp (đã được điều chỉnh về local time)
+  let timeString;
+  if (localTimeString) {
+    // Sử dụng local time string đã format sẵn từ controller
+    timeString = localTimeString;
+  } else {
+    // Fallback: format từ timestamp (đã là local time sau khi điều chỉnh)
+    const date = new Date(timestamp);
+    // Sử dụng UTC methods vì timestamp đã được điều chỉnh về local time
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    const hours = String(date.getUTCHours()).padStart(2, "0");
+    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+    timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  }
 
   // Create watermark text: Use compact format to prevent overlap
   // Ensure latitude and longitude are numbers before calling toFixed
