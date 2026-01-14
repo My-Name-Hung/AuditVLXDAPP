@@ -612,10 +612,10 @@ export default function StoreDetailScreen() {
                     // Cập nhật tọa độ cửa hàng sau khi upload xong (nếu có ít nhất 1 ảnh thành công)
                     if (successCount > 0 && pending.images[0]) {
                       try {
-                        await api.put(`/stores/${currentStoreId}`, {
-                          latitude: pending.images[0].latitude,
-                          longitude: pending.images[0].longitude,
-                        });
+                      await api.put(`/stores/${currentStoreId}`, {
+                        latitude: pending.images[0].latitude,
+                        longitude: pending.images[0].longitude,
+                      });
                       } catch (error) {
                         console.error("Error updating store coordinates:", error);
                       }
@@ -623,7 +623,7 @@ export default function StoreDetailScreen() {
 
                     // Chỉ xóa pending upload nếu tất cả ảnh đều upload thành công
                     if (allSuccess) {
-                      await removePendingUpload(currentStoreId, pending.auditId);
+                    await removePendingUpload(currentStoreId, pending.auditId);
                     } else {
                       console.warn(
                         `Keeping pending upload due to ${failedCount} failed image(s)`
@@ -1091,10 +1091,10 @@ export default function StoreDetailScreen() {
         // Chỉ cập nhật tọa độ nếu có ít nhất 1 ảnh upload thành công
         if (successCount > 0 && imagesToUpload[0]) {
           try {
-            await api.put(`/stores/${store.Id}`, {
-              latitude: imagesToUpload[0].latitude,
-              longitude: imagesToUpload[0].longitude,
-            });
+          await api.put(`/stores/${store.Id}`, {
+            latitude: imagesToUpload[0].latitude,
+            longitude: imagesToUpload[0].longitude,
+          });
           } catch (error) {
             console.error("Error updating store coordinates:", error);
           }

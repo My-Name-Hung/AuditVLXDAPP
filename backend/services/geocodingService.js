@@ -1,13 +1,19 @@
 const fetch = require("node-fetch");
+const https = require("https");
 
-// VietMap API configuration
-const VIETMAP_API_KEY = process.env.VIETMAP_KEY;
-const VIETMAP_ENDPOINT = "https://maps.vietmap.vn/api/reverse";
+// VN2000 API configuration (revert from VietMap back to VN2000)
+// Example:
+// VN2000_ENDPOINT=https://vn2000.vn/api/thongtindiachinh
+// VN2000_INSECURE_TLS=true   // optional, allow self-signed certs
+const VN2000_ENDPOINT =
+  process.env.VN2000_ENDPOINT || "https://vn2000.vn/api/thongtindiachinh";
+const VN2000_INSECURE_TLS =
+  (process.env.VN2000_INSECURE_TLS || "false").toLowerCase() === "true";
 const REQUEST_INTERVAL_MS = 500; // basic rate limit to avoid hammering the API
-const REQUEST_TIMEOUT_MS = Number(process.env.VIETMAP_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
-const MAX_RETRIES = Number(process.env.VIETMAP_MAX_RETRIES || 3);
+const REQUEST_TIMEOUT_MS = Number(process.env.VN2000_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
+const MAX_RETRIES = Number(process.env.VN2000_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CACHE_VERSION = "v5"; // Update version to invalidate old cache
+const CACHE_VERSION = "v6"; // Update version to invalidate old cache after switching provider
 
 const cache = new Map();
 const pendingRequests = new Map();
@@ -15,10 +21,15 @@ const requestQueue = [];
 let lastRequestTime = 0;
 let isProcessingQueue = false;
 
-// Note: VietMap uses HTTPS, no need for insecure TLS agent
+// Optional HTTPS agent for insecure TLS (self-signed certificate)
+const insecureAgent = VN2000_INSECURE_TLS
+  ? new https.Agent({
+      rejectUnauthorized: false,
+    })
+  : null;
 
 const userAgent =
-  process.env.VIETMAP_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)";
+  process.env.VN2000_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)";
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -98,22 +109,14 @@ async function processQueue() {
 }
 
 async function fetchProvinceDistrict(lat, lon) {
-  if (!VIETMAP_API_KEY) {
-    console.warn("[Geocode] VIETMAP_KEY not configured, returning null");
-    return { province: null, district: null };
-  }
-
-  // Build VietMap API URL
+  // Build VN2000 API URL
+  // Example: https://vn2000.vn/api/thongtindiachinh?vido=16.0302630&kinhdo=107.904724
   const params = new URLSearchParams({
-    "api-version": "1.1",
-    apikey: VIETMAP_API_KEY,
-    "point.lat": lat.toString(),
-    "point.lon": lon.toString(),
-    layers: "address,venue", // Get address and venue information
-    size: "1", // Only need the closest result
+    vido: lat.toString(),
+    kinhdo: lon.toString(),
   });
 
-  const url = `${VIETMAP_ENDPOINT}?${params.toString()}`;
+  const url = `${VN2000_ENDPOINT}?${params.toString()}`;
   let attempt = 0;
 
   while (attempt < MAX_RETRIES) {
@@ -124,6 +127,8 @@ async function fetchProvinceDistrict(lat, lon) {
           "User-Agent": userAgent,
         },
         timeout: REQUEST_TIMEOUT_MS,
+        // Allow insecure TLS if VN2000_INSECURE_TLS=true
+        agent: insecureAgent || undefined,
       });
 
       if (!response.ok) {
@@ -134,93 +139,68 @@ async function fetchProvinceDistrict(lat, lon) {
 
       const data = await response.json();
 
-      // VietMap response structure: { code: "OK", data: { features: [...] } }
-      // Check response code first
-      if (data?.code !== "OK") {
-        console.warn("[Geocode] VietMap error response", {
+      // VN2000 response structure (example):
+      // {
+      //   "success": true,
+      //   "message": "Lấy dữ liệu thành công",
+      //   "data": {
+      //     "lat": 16.030263,
+      //     "lng": 107.904724,
+      //     "diachinh_sausapnhap": {
+      //       "properties": {
+      //         "ten_xa": "Sông Vàng",
+      //         "ten_tinh": "Đà Nẵng",
+      //         ...
+      //       }
+      //     }
+      //   }
+      // }
+
+      if (!data?.success) {
+        console.warn("[Geocode] VN2000 error response", {
           lat,
           lon,
-          code: data?.code,
+          success: data?.success,
           message: data?.message,
         });
         return { province: null, district: null };
       }
 
-      // Get features from data.features (not data.features directly)
-      const features = data?.data?.features || [];
-      if (!Array.isArray(features) || features.length === 0) {
-        console.warn("[Geocode] VietMap no results", { lat, lon, data });
-        return { province: null, district: null };
-      }
+      const propsSauSapNhap =
+        data?.data?.diachinh_sausapnhap?.properties || null;
+      const propsTruocSapNhap =
+        data?.data?.diachinh_truocsapnhap?.properties || null;
 
-      // Get the first (closest) result
-      const feature = features[0];
-      const properties = feature?.properties || {};
-
-      // Extract province and district from VietMap response
-      // VietMap response structure (from actual API):
-      // properties.region = "Thành Phố Hồ Chí Minh" (Tỉnh/Thành phố)
-      // properties.county = "Quận/Huyện" (có thể empty)
-      // properties.locality = "Phường An Đông" (Phường/Xã)
-      // properties.address = "233 Trần Phú Phường An Đông,Thành Phố Hồ Chí Minh"
       let province = null;
       let district = null;
 
-      // Primary: Extract from properties (most reliable)
-      if (properties.region) {
-        province = properties.region.trim();
-      }
-
-      // County = Quận/Huyện (preferred)
-      if (properties.county && properties.county.trim()) {
-        district = properties.county.trim();
-      } else if (properties.locality && properties.locality.trim()) {
-        // Fallback: Use locality (Phường/Xã) if county is empty
-        // Note: Locality is usually Phường/Xã, but can be used as district if county is not available
-        district = properties.locality.trim();
-      }
-
-      // Last fallback: try to parse from address string
-      // Format: "Street Ward,Province" or "Street, Ward, Province"
-      if ((!province || !district) && properties.address) {
-        const address = properties.address.trim();
-        // Split by comma
-        const addressParts = address
-          .split(",")
-          .map((s) => s.trim())
-          .filter((s) => s);
-
-        if (addressParts.length >= 1) {
-          // Last part is usually province
-          if (!province && addressParts.length >= 1) {
-            province = addressParts[addressParts.length - 1];
-          }
-          // If address has format "Street Ward,Province", try to extract ward/district
-          if (!district && addressParts.length >= 2) {
-            // Second to last might be ward/district
-            const secondLast = addressParts[addressParts.length - 2];
-            // Check if it contains "Phường", "Xã", "Quận", "Huyện"
-            if (
-              secondLast.includes("Phường") ||
-              secondLast.includes("Xã") ||
-              secondLast.includes("Quận") ||
-              secondLast.includes("Huyện")
-            ) {
-              district = secondLast;
-            }
-          }
+      // Ưu tiên dùng địa giới hành chính sau sáp nhập
+      if (propsSauSapNhap) {
+        if (propsSauSapNhap.ten_tinh) {
+          province = String(propsSauSapNhap.ten_tinh).trim();
+        }
+        if (propsSauSapNhap.ten_xa) {
+          district = String(propsSauSapNhap.ten_xa).trim();
         }
       }
 
-      console.log("[Geocode] VietMap result", {
+      // Fallback: dùng thông tin trước sáp nhập nếu cần
+      if ((!province || !district) && propsTruocSapNhap) {
+        if (!province && propsTruocSapNhap.ten_tinh) {
+          province = String(propsTruocSapNhap.ten_tinh).trim();
+        }
+        if (!district && propsTruocSapNhap.ten_xa) {
+          district = String(propsTruocSapNhap.ten_xa).trim();
+        }
+      }
+
+      console.log("[Geocode] VN2000 result", {
         lat,
         lon,
         province,
         district,
-        properties: Object.keys(properties),
-        region: properties.region,
-        county: properties.county,
-        locality: properties.locality,
+        hasSauSapNhap: !!propsSauSapNhap,
+        hasTruocSapNhap: !!propsTruocSapNhap,
       });
 
       return {
