@@ -111,6 +111,13 @@ const StoreSurvey = () => {
   const [capturedImages, setCapturedImages] = useState<
     (CapturedImage | undefined)[]
   >([undefined, undefined, undefined]);
+  
+  // QUAN TRỌNG: Clear capturedImages mỗi khi id thay đổi (khi chuyển cửa hàng)
+  useEffect(() => {
+    console.log("[StoreSurvey Web] Clearing capturedImages for store:", id);
+    setCapturedImages([undefined, undefined, undefined]);
+  }, [id]);
+  
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(
     null

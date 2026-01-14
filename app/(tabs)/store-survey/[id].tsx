@@ -174,6 +174,15 @@ export default function StoreSurveyScreen() {
     latitude: number;
     longitude: number;
   } | null>(null);
+
+  // QUAN TRỌNG: Clear capturedImages mỗi khi id thay đổi (khi chuyển cửa hàng)
+  // Effect này phải chạy TRƯỚC tất cả các effects khác
+  useEffect(() => {
+    console.log("[StoreSurvey Mobile] Force clearing capturedImages for store:", id);
+    setCapturedImages([undefined, undefined, undefined]);
+    setCachedLocation(null);
+    clearSurveyData(); // Clear context để tránh restore ảnh từ store trước
+  }, [id, clearSurveyData]);
   const [locationLoadingModalVisible, setLocationLoadingModalVisible] =
     useState(false);
 

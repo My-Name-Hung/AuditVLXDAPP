@@ -9,6 +9,7 @@ import {
   removePendingUpload,
 } from "@/src/utils/pendingUploads";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
@@ -277,13 +278,13 @@ export default function StoreDetailScreen() {
     } catch (error) {
       // Chỉ hiển thị lỗi nếu id vẫn khớp
       if (id === fetchStoreId) {
-        console.error("Error fetching store:", error);
-        Alert.alert("Lỗi", "Không thể tải thông tin cửa hàng");
+      console.error("Error fetching store:", error);
+      Alert.alert("Lỗi", "Không thể tải thông tin cửa hàng");
       }
     } finally {
       // Chỉ set loading false nếu id vẫn khớp
       if (id === fetchStoreId) {
-        setLoading(false);
+      setLoading(false);
       }
     }
   }, [id, user?.id]);
@@ -301,6 +302,16 @@ export default function StoreDetailScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Chỉ chạy một lần khi mount
 
+  // QUAN TRỌNG: Force clear capturedImages mỗi khi id thay đổi
+  // Effect này phải chạy TRƯỚC tất cả các effects khác
+  useEffect(() => {
+    console.log("[StoreDetail Mobile] Force clearing capturedImages for store:", id);
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    setCachedLocation(null);
+    clearSurveyData();
+  }, [id, clearSurveyData]);
+
   // Clear all state when store ID changes (navigating to different store)
   // Phải chạy TRƯỚC useFocusEffect để clear audits trước khi load pending uploads
   useEffect(() => {
@@ -310,6 +321,7 @@ export default function StoreDetailScreen() {
 
     // QUAN TRỌNG: Clear capturedImages và context NGAY LẬP TỨC (synchronous)
     // Phải clear cả local state và context để tránh restore từ context
+    console.log("[StoreDetail Mobile] Clearing state for store:", currentStoreId, "Previous:", previousStoreIdRef.current);
     promptedDateRef.current = null;
     setCapturedImages([undefined, undefined, undefined]);
     setNotes("");
@@ -323,9 +335,41 @@ export default function StoreDetailScreen() {
       previousStoreIdRef.current !== null &&
       previousStoreIdRef.current !== currentStoreId
     ) {
+      // Xóa pending uploads khỏi storage
       clearPendingUploadsForStore(previousStoreIdRef.current).catch((error) => {
         console.error("Error clearing pending uploads for store:", error);
       });
+      
+      // QUAN TRỌNG: Xóa file ảnh cũ trong bộ nhớ của store cũ ngay khi chuyển cửa hàng
+      // (Để tránh sticky images khi chuyển cửa hàng)
+      console.log("[StoreDetail Mobile] Clearing pending uploads for old store:", previousStoreIdRef.current);
+      (async () => {
+        try {
+          const oldPending = await getPendingUploadForStore(previousStoreIdRef.current!);
+          if (oldPending) {
+            console.log("[StoreDetail Mobile] Found old pending upload, deleting image files");
+            for (const img of oldPending.images) {
+              if (img.uri && img.uri.startsWith("file://")) {
+                try {
+                  const fileInfo = await FileSystem.getInfoAsync(img.uri);
+                  if (fileInfo.exists) {
+                    await FileSystem.deleteAsync(img.uri, { idempotent: true });
+                    console.log("[StoreDetail Mobile] Deleted old store image file:", img.uri);
+                  }
+                } catch (deleteError) {
+                  console.warn("[StoreDetail Mobile] Error deleting old store image file:", img.uri, deleteError);
+                  // Không throw, chỉ log warning
+                }
+              }
+            }
+          } else {
+            console.log("[StoreDetail Mobile] No old pending upload found");
+          }
+        } catch (cleanupError) {
+          console.warn("[StoreDetail Mobile] Error cleaning up old store images:", cleanupError);
+          // Không throw, chỉ log warning
+        }
+      })();
     }
 
     // Cập nhật previousStoreIdRef
@@ -340,6 +384,7 @@ export default function StoreDetailScreen() {
 
       // QUAN TRỌNG: Clear capturedImages và context NGAY LẬP TỨC khi focus (tránh hiển thị ảnh của store khác)
       // Phải clear cả local state và context để tránh restore từ context
+      console.log("[StoreDetail Mobile] Loading pending uploads for store:", currentStoreId);
       setCapturedImages([undefined, undefined, undefined]);
       setNotes("");
       setCachedLocation(null);
@@ -347,10 +392,10 @@ export default function StoreDetailScreen() {
 
       if (!id || !user?.id || !currentStoreId || isNaN(currentStoreId)) {
         // Normal refresh
-        const timer = setTimeout(() => {
-          fetchStore();
-        }, 300);
-        return () => clearTimeout(timer);
+      const timer = setTimeout(() => {
+        fetchStore();
+      }, 300);
+      return () => clearTimeout(timer);
       }
 
       // Cleanup function để cancel pending operations
@@ -363,9 +408,9 @@ export default function StoreDetailScreen() {
           const checkStoreId = id ? parseInt(id, 10) : null;
           if (!checkStoreId || checkStoreId !== currentStoreId || isCancelled) {
             // Đảm bảo capturedImages được clear nếu storeId không khớp
-            setCapturedImages([undefined, undefined, undefined]);
-            setNotes("");
-            setCachedLocation(null);
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    setCachedLocation(null);
             return; // Store ID changed or cancelled, don't load
           }
 
@@ -375,6 +420,7 @@ export default function StoreDetailScreen() {
           setCachedLocation(null);
 
           const pending = await getPendingUploadForStore(currentStoreId);
+          console.log("[StoreDetail Mobile] Pending upload for store:", currentStoreId, "Found:", !!pending, "Pending storeId:", pending?.storeId);
 
           // Kiểm tra lại storeId một lần nữa sau async operation
           const finalCheckStoreId = id ? parseInt(id, 10) : null;
@@ -383,22 +429,42 @@ export default function StoreDetailScreen() {
             finalCheckStoreId !== currentStoreId ||
             isCancelled
           ) {
+            // Đảm bảo clear nếu storeId không khớp
+            setCapturedImages([undefined, undefined, undefined]);
+            setNotes("");
+            setCachedLocation(null);
             return; // Store ID changed or cancelled
           }
 
-          // Kiểm tra lại storeId của pending upload có khớp với store hiện tại không
+          // QUAN TRỌNG: Kiểm tra lại storeId của pending upload có khớp với store hiện tại không
+          // Phải match CHÍNH XÁC với currentStoreId và finalCheckStoreId
+          // QUAN TRỌNG: KHÔNG BAO GIỜ set capturedImages từ pending uploads
+          // Chỉ thêm vào audits để hiển thị trong lịch sử, KHÔNG hiển thị trong phần chụp ảnh
           if (
             pending &&
             pending.storeId === currentStoreId &&
+            pending.storeId === finalCheckStoreId &&
             pending.images.length === 3
           ) {
+            console.log("[StoreDetail Mobile] Adding optimistic audit for pending upload, storeId:", pending.storeId);
+            // QUAN TRỌNG: Đảm bảo capturedImages vẫn được clear (defensive)
+            setCapturedImages([undefined, undefined, undefined]);
+            setNotes("");
+            setCachedLocation(null);
+            
             // Kiểm tra lại storeId một lần nữa trước khi thêm
             const addCheckStoreId = id ? parseInt(id, 10) : null;
             if (
               !addCheckStoreId ||
               addCheckStoreId !== currentStoreId ||
+              addCheckStoreId !== pending.storeId ||
+              addCheckStoreId !== finalCheckStoreId ||
               isCancelled
             ) {
+              // Đảm bảo clear nếu storeId không khớp
+              setCapturedImages([undefined, undefined, undefined]);
+              setNotes("");
+              setCachedLocation(null);
               return; // Store ID changed or cancelled, don't add
             }
 
@@ -422,6 +488,7 @@ export default function StoreDetailScreen() {
             };
 
             // Thêm vào danh sách audits ngay lập tức (ảnh local)
+            // QUAN TRỌNG: Chỉ thêm vào audits, KHÔNG set capturedImages
             setAudits((prev) => {
               // Kiểm tra lại storeId một lần nữa trước khi thêm
               const checkStoreId = id ? parseInt(id, 10) : null;
@@ -439,8 +506,15 @@ export default function StoreDetailScreen() {
               if (exists) {
                 return prev; // Don't add if already exists
               }
+              console.log("[StoreDetail Mobile] Adding optimistic audit to audits list, NOT to capturedImages");
               return [optimisticAudit, ...prev];
             });
+            
+            // QUAN TRỌNG: Đảm bảo capturedImages vẫn được clear sau khi thêm vào audits
+            // KHÔNG BAO GIỜ set capturedImages từ pending uploads
+            setCapturedImages([undefined, undefined, undefined]);
+            setNotes("");
+            setCachedLocation(null);
 
             // Tự động upload ảnh ở background sau khi hiển thị (delay 500ms)
             uploadTimeout = setTimeout(() => {
@@ -517,6 +591,27 @@ export default function StoreDetailScreen() {
 
                     // Xóa pending upload sau khi upload thành công
                     await removePendingUpload(currentStoreId, pending.auditId);
+
+                    // XÓA FILE ẢNH TRONG BỘ NHỚ sau khi upload thành công
+                    try {
+                      for (const img of pending.images) {
+                        if (img.uri && img.uri.startsWith("file://")) {
+                          try {
+                            const fileInfo = await FileSystem.getInfoAsync(img.uri);
+                            if (fileInfo.exists) {
+                              await FileSystem.deleteAsync(img.uri, { idempotent: true });
+                              console.log("Deleted image file:", img.uri);
+                            }
+                          } catch (deleteError) {
+                            console.warn("Error deleting image file:", img.uri, deleteError);
+                            // Không throw, chỉ log warning
+                          }
+                        }
+                      }
+                    } catch (cleanupError) {
+                      console.warn("Error cleaning up image files:", cleanupError);
+                      // Không throw, chỉ log warning
+                    }
 
                     // Refresh để cập nhật ảnh từ server (chỉ nếu storeId vẫn khớp)
                     const refreshCheckStoreId = id ? parseInt(id, 10) : null;
@@ -879,38 +974,38 @@ export default function StoreDetailScreen() {
     }
 
     // OPTIMISTIC UPDATE: Hiển thị ảnh local ngay lập tức trong UI
-    setAllowNewAudit(false);
-    setCapturedImages([undefined, undefined, undefined]);
-    setNotes("");
+      setAllowNewAudit(false);
+      setCapturedImages([undefined, undefined, undefined]);
+      setNotes("");
 
     // Tạo optimistic audit entry với ảnh local (uri)
-    const optimisticAudit: AuditHistory = {
-      AuditId: auditId,
-      Result: "audited",
-      FailedReason: null,
-      Notes: notes.trim() || "",
-      AuditDate: new Date().toISOString(),
-      AuditCreatedAt: new Date().toISOString(),
-      UserId: user.id,
-      userId: user.id,
-      Images: imagesToUpload.map((img, idx) => ({
-        Id: -(idx + 1), // Use negative ID to avoid conflicts with real IDs
+      const optimisticAudit: AuditHistory = {
+        AuditId: auditId,
+        Result: "audited",
+        FailedReason: null,
+        Notes: notes.trim() || "",
+        AuditDate: new Date().toISOString(),
+        AuditCreatedAt: new Date().toISOString(),
+        UserId: user.id,
+        userId: user.id,
+        Images: imagesToUpload.map((img, idx) => ({
+          Id: -(idx + 1), // Use negative ID to avoid conflicts with real IDs
         ImageUrl: img.uri, // Sử dụng ảnh local ngay lập tức
-        CapturedAt: img.timestamp,
-        Latitude: img.latitude,
-        Longitude: img.longitude,
-      })),
-    };
+          CapturedAt: img.timestamp,
+          Latitude: img.latitude,
+          Longitude: img.longitude,
+        })),
+      };
 
     // Thêm vào danh sách audits ngay lập tức (ảnh local)
-    setAudits((prev) => {
-      // Check if audit already exists to avoid duplicates
-      const exists = prev.some((a) => a.AuditId === auditId);
-      if (exists) {
-        return prev; // Don't add if already exists
-      }
-      return [optimisticAudit, ...prev];
-    });
+      setAudits((prev) => {
+        // Check if audit already exists to avoid duplicates
+        const exists = prev.some((a) => a.AuditId === auditId);
+        if (exists) {
+          return prev; // Don't add if already exists
+        }
+        return [optimisticAudit, ...prev];
+      });
 
     // Hiển thị thông báo thành công ngay (không chờ upload)
     Alert.alert(
