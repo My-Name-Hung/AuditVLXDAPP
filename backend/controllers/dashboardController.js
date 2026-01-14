@@ -8,8 +8,11 @@ async function getSummary(req, res) {
     const request = pool.request();
 
     // Optimized query - use CTE to improve performance
+    // IMPORTANT: Count checkin based on audits (store status "Đã thực hiện"),
+    // not based on existence of images. This ensures checkin is recorded
+    // even if images are missing.
     let query = `
-      WITH AuditsWithImages AS (
+      WITH AuditsWithStatus AS (
         SELECT
           a.UserId,
           a.StoreId,
@@ -17,13 +20,7 @@ async function getSummary(req, res) {
           s.TerritoryId
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
-        WHERE EXISTS (
-          SELECT 1 
-          FROM Images img 
-          WHERE img.AuditId = a.Id 
-            AND img.ImageUrl IS NOT NULL 
-            AND img.ImageUrl != ''
-        )
+        WHERE 1 = 1
     `;
 
     // Filter by date range in CTE
@@ -46,7 +43,7 @@ async function getSummary(req, res) {
         t.TerritoryName,
         COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
-      FROM AuditsWithImages a
+      FROM AuditsWithStatus a
       INNER JOIN Users u ON a.UserId = u.Id
       INNER JOIN Territories t ON a.TerritoryId = t.Id
       WHERE u.Role = 'sales'
@@ -300,8 +297,9 @@ async function exportReport(req, res) {
     const request = pool.request();
 
     // Align export summary with dashboard summary logic
+    // Count checkin based on audits (store status), not strictly on images
     let summaryQuery = `
-      WITH AuditsWithImages AS (
+      WITH AuditsWithStatus AS (
         SELECT
           a.UserId,
           a.StoreId,
@@ -309,13 +307,7 @@ async function exportReport(req, res) {
           s.TerritoryId
         FROM Audits a
         INNER JOIN Stores s ON a.StoreId = s.Id
-        WHERE EXISTS (
-          SELECT 1 
-          FROM Images img 
-          WHERE img.AuditId = a.Id 
-            AND img.ImageUrl IS NOT NULL 
-            AND img.ImageUrl != ''
-        )
+        WHERE 1 = 1
     `;
 
     if (startDate) {
@@ -337,7 +329,7 @@ async function exportReport(req, res) {
         t.TerritoryName,
         COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
-      FROM AuditsWithImages a
+      FROM AuditsWithStatus a
       INNER JOIN Users u ON a.UserId = u.Id
       INNER JOIN Territories t ON a.TerritoryId = t.Id
       WHERE u.Role = 'sales'
@@ -501,16 +493,15 @@ async function getStoresByDate(req, res) {
     const totalStores = totalStoresResult.recordset[0].TotalStores || 0;
 
     // Get audited stores by date
+    // IMPORTANT: Count based on audits (store status) instead of requiring images,
+    // so stores with successful audit but missing images are still counted.
     let query = `
       SELECT 
         CAST(a.AuditDate AS DATE) as AuditDate,
         COUNT(DISTINCT a.StoreId) as AuditedCount
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
-      INNER JOIN Images img ON a.Id = img.AuditId
-      WHERE img.ImageUrl IS NOT NULL 
-        AND img.ImageUrl != ''
-        AND CAST(a.AuditDate AS DATE) IS NOT NULL
+      WHERE CAST(a.AuditDate AS DATE) IS NOT NULL
     `;
 
     // Filter audits by current user (unless admin)
@@ -731,10 +722,7 @@ async function getSummaryTable(req, res) {
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM Audits a
-            INNER JOIN Images img ON a.Id = img.AuditId
             WHERE a.StoreId = s.Id
-              AND img.ImageUrl IS NOT NULL
-              AND img.ImageUrl != ''
           ) THEN 'Đã thực hiện'
           ELSE 'Chưa thực hiện'
         END as AuditStatus,
@@ -786,10 +774,7 @@ async function getSummaryTable(req, res) {
         NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
         OR EXISTS (
           SELECT 1 FROM Audits a2
-          INNER JOIN Images img2 ON a2.Id = img2.AuditId
           WHERE a2.StoreId = s.Id
-            AND img2.ImageUrl IS NOT NULL
-            AND img2.ImageUrl != ''
       `;
       if (startDate) {
         query += " AND CAST(a2.AuditDate AS DATE) >= @startDate";
@@ -831,10 +816,7 @@ async function getSummaryTable(req, res) {
         NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
         OR EXISTS (
           SELECT 1 FROM Audits a2
-          INNER JOIN Images img2 ON a2.Id = img2.AuditId
           WHERE a2.StoreId = s.Id
-            AND img2.ImageUrl IS NOT NULL
-            AND img2.ImageUrl != ''
       `;
       if (startDate) {
         countQuery += " AND CAST(a2.AuditDate AS DATE) >= @startDate";
@@ -872,10 +854,7 @@ async function getSummaryTable(req, res) {
         CASE 
           WHEN EXISTS (
             SELECT 1 FROM Audits a
-            INNER JOIN Images img ON a.Id = img.AuditId
             WHERE a.StoreId = s.Id
-              AND img.ImageUrl IS NOT NULL
-              AND img.ImageUrl != ''
           ) THEN 0
           ELSE 1
         END ASC,
@@ -929,7 +908,9 @@ async function getStoresByTerritory(req, res) {
       req.user?.role || req.user?.Role || req.user?.RoleName;
 
     // Get stores checkin count and checkin days by territory (within date range if provided)
-    // StoresChecked: COUNT(DISTINCT a.StoreId) -  DISTINCT (đếm lần checkin)
+    // IMPORTANT: Count based on audits (store status), not strictly on images,
+    // so stores với trạng thái "Đã thực hiện" nhưng thiếu hình vẫn được ghi nhận.
+    // StoresChecked: COUNT(DISTINCT a.StoreId) - đếm số cửa hàng
     // CheckinDays: COUNT(DISTINCT CAST(a.AuditDate AS DATE)) - đếm số ngày khác nhau
     let query = `
       SELECT 
@@ -939,11 +920,8 @@ async function getStoresByTerritory(req, res) {
         COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as CheckinDays
       FROM Audits a
       INNER JOIN Stores s ON a.StoreId = s.Id
-      INNER JOIN Images img ON a.Id = img.AuditId
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      WHERE img.ImageUrl IS NOT NULL 
-        AND img.ImageUrl != ''
-        AND t.Id IS NOT NULL
+      WHERE t.Id IS NOT NULL
     `;
 
     // Filter audits by current user (unless admin)
