@@ -178,7 +178,7 @@ async function fetchProvinceDistrict(lat, lon) {
       if (propsSauSapNhap) {
         if (propsSauSapNhap.ten_tinh) {
           province = String(propsSauSapNhap.ten_tinh).trim();
-        }
+      }
         if (propsSauSapNhap.ten_xa) {
           district = String(propsSauSapNhap.ten_xa).trim();
         }
