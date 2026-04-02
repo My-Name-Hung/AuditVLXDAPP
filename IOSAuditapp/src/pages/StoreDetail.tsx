@@ -383,7 +383,7 @@ export default function StoreDetail() {
           pending &&
           pending.storeId === currentStoreId &&
           pending.storeId === finalCheckStoreId &&
-          pending.images.length === 3
+          pending.images.length > 0
         ) {
           console.log(
             "[StoreDetail] Adding optimistic audit for pending upload, storeId:",
@@ -510,12 +510,24 @@ export default function StoreDetail() {
                   });
                 };
 
-                // Upload tất cả ảnh ở background (parallel)
-                await Promise.all([
-                  uploadImage(pending.images[0], 0),
-                  uploadImage(pending.images[1], 1),
-                  uploadImage(pending.images[2], 2),
-                ]);
+                // Upload tất cả ảnh pending ở background (parallel, dynamic)
+                const uploadResults = await Promise.allSettled(
+                  pending.images.map((image, index) => uploadImage(image, index))
+                );
+
+                const successCount = uploadResults.filter(
+                  (result) => result.status === "fulfilled"
+                ).length;
+                const failedCount = uploadResults.filter(
+                  (result) => result.status === "rejected"
+                ).length;
+                const allSuccess = failedCount === 0;
+
+                if (failedCount > 0) {
+                  console.warn(
+                    `Pending upload web: ${successCount} images uploaded successfully, ${failedCount} images failed`
+                  );
+                }
 
                 // Kiểm tra lại storeId trước khi cập nhật
                 const finalStoreId = parseInt(id || "0", 10);
@@ -532,30 +544,34 @@ export default function StoreDetail() {
                     });
                   }
 
-                  // Xóa pending upload sau khi upload thành công
-                  removePendingUpload(currentStoreId, pending.auditId);
+                  // Chỉ xóa pending upload khi tất cả ảnh trong pending đã thành công
+                  if (allSuccess) {
+                    removePendingUpload(currentStoreId, pending.auditId);
 
-                  // XÓA BLOB URLs TRONG BỘ NHỚ sau khi upload thành công
-                  // (Để giải phóng memory và tránh sticky images)
-                  try {
-                    for (const img of pending.images) {
-                      if (img.dataUrl && img.dataUrl.startsWith("blob:")) {
-                        try {
-                          URL.revokeObjectURL(img.dataUrl);
-                          console.log("Revoked blob URL:", img.dataUrl);
-                        } catch (revokeError) {
-                          console.warn(
-                            "Error revoking blob URL:",
-                            img.dataUrl,
-                            revokeError
-                          );
-                          // Không throw, chỉ log warning
+                    // XÓA BLOB URLs TRONG BỘ NHỚ sau khi upload thành công
+                    // (Để giải phóng memory và tránh sticky images)
+                    try {
+                      for (const img of pending.images) {
+                        if (img.dataUrl && img.dataUrl.startsWith("blob:")) {
+                          try {
+                            URL.revokeObjectURL(img.dataUrl);
+                            console.log("Revoked blob URL:", img.dataUrl);
+                          } catch (revokeError) {
+                            console.warn(
+                              "Error revoking blob URL:",
+                              img.dataUrl,
+                              revokeError
+                            );
+                            // Không throw, chỉ log warning
+                          }
                         }
                       }
+                    } catch (cleanupError) {
+                      console.warn("Error cleaning up blob URLs:", cleanupError);
+                      // Không throw, chỉ log warning
                     }
-                  } catch (cleanupError) {
-                    console.warn("Error cleaning up blob URLs:", cleanupError);
-                    // Không throw, chỉ log warning
+                  } else {
+                    console.warn("Keeping pending upload due to failed image(s)");
                   }
 
                   // Refresh để cập nhật ảnh từ server (chỉ nếu storeId vẫn khớp)
@@ -1050,7 +1066,7 @@ export default function StoreDetail() {
     auditId: number,
     index: number,
     maxRetries = 2
-  ): Promise<void> => {
+  ): Promise<boolean> => {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         // Resize and compress image for faster upload
@@ -1068,9 +1084,10 @@ export default function StoreDetail() {
           headers: {
             "Content-Type": "multipart/form-data",
           },
+          timeout: 25000,
         });
 
-        return; // Success, exit retry loop
+        return true; // Success, exit retry loop
       } catch (error: unknown) {
         console.error(
           `Background upload attempt ${attempt + 1} failed for image ${
@@ -1080,21 +1097,23 @@ export default function StoreDetail() {
         );
 
         if (attempt < maxRetries) {
-          // Wait before retry (exponential backoff)
+          // Wait before retry (exponential backoff + jitter)
+          const baseDelay = 1000 * (attempt + 1);
+          const jitter = Math.floor(Math.random() * 400);
           await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * (attempt + 1))
+            setTimeout(resolve, baseDelay + jitter)
           );
         }
       }
     }
 
-    // All retries failed - log but don't throw (vì ảnh local đã hiển thị)
+    // All retries failed
     console.error(
       `Background upload failed for image ${index + 1} after ${
         maxRetries + 1
       } attempts`
     );
-    // Không throw error để không ảnh hưởng UI
+    return false;
   };
 
   const handleConfirmUpload = async () => {
@@ -1160,15 +1179,25 @@ export default function StoreDetail() {
     // Upload không await, chạy ở background
     (async () => {
       try {
-        // Upload ảnh ở background (không block UI)
-        await Promise.all([
-          uploadImageWithRetry(imagesToUpload[0], auditId, 0),
-          uploadImageWithRetry(imagesToUpload[1], auditId, 1),
-          uploadImageWithRetry(imagesToUpload[2], auditId, 2),
-        ]);
+        // Upload with limited concurrency = 2 for better stability on weak networks
+        const uploadResults: boolean[] = [];
+        for (let i = 0; i < imagesToUpload.length; i += 2) {
+          const batch = imagesToUpload.slice(i, i + 2);
+          const batchResults = await Promise.all(
+            batch.map((img, batchIdx) =>
+              uploadImageWithRetry(img, auditId, i + batchIdx)
+            )
+          );
+          uploadResults.push(...batchResults);
+          console.log(
+            `[Upload Progress Web] ${uploadResults.filter(Boolean).length}/${imagesToUpload.length} ảnh đã upload thành công`
+          );
+        }
 
-        // Cập nhật tọa độ cửa hàng sau khi upload xong
-        if (imagesToUpload[0]) {
+        const successCount = uploadResults.filter(Boolean).length;
+
+        // Cập nhật tọa độ cửa hàng sau khi upload xong (nếu có ít nhất 1 ảnh thành công)
+        if (successCount > 0 && imagesToUpload[0]) {
           await api.put(`/stores/${store.Id}`, {
             latitude: imagesToUpload[0].latitude,
             longitude: imagesToUpload[0].longitude,

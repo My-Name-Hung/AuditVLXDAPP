@@ -480,7 +480,7 @@ export default function StoreDetailScreen() {
             pending &&
             pending.storeId === currentStoreId &&
             pending.storeId === finalCheckStoreId &&
-            pending.images.length === 3
+            pending.images.length > 0
           ) {
             console.log(
               "[StoreDetail Mobile] Adding optimistic audit for pending upload, storeId:",
@@ -604,16 +604,15 @@ export default function StoreDetailScreen() {
                       headers: {
                         "Content-Type": "multipart/form-data",
                       },
+                      timeout: 25000,
                     });
                   };
 
-                  // Upload tất cả ảnh ở background (parallel)
+                  // Upload tất cả ảnh pending ở background (parallel, dynamic)
                   // Sử dụng Promise.allSettled để xử lý từng ảnh riêng biệt
-                  const uploadResults = await Promise.allSettled([
-                    uploadImage(pending.images[0], 0),
-                    uploadImage(pending.images[1], 1),
-                    uploadImage(pending.images[2], 2),
-                  ]);
+                  const uploadResults = await Promise.allSettled(
+                    pending.images.map((image, index) => uploadImage(image, index))
+                  );
 
                   // Kiểm tra kết quả upload
                   const successCount = uploadResults.filter(
@@ -638,9 +637,9 @@ export default function StoreDetailScreen() {
                     });
                   }
 
-                  // Chỉ xóa pending upload nếu tất cả ảnh đều upload thành công
+                  // Chỉ xóa pending upload nếu tất cả ảnh trong pending đều upload thành công
                   // Nếu có ảnh thất bại, giữ lại pending upload để thử lại sau
-                  const allSuccess = successCount === 3;
+                  const allSuccess = failedCount === 0;
 
                   // Kiểm tra lại storeId trước khi cập nhật
                   const finalStoreId = id ? parseInt(id, 10) : null;
@@ -677,36 +676,38 @@ export default function StoreDetailScreen() {
                       );
                     }
 
-                    // XÓA FILE ẢNH TRONG BỘ NHỚ sau khi upload thành công
-                    try {
-                      for (const img of pending.images) {
-                        if (img.uri && img.uri.startsWith("file://")) {
-                          try {
-                            const fileInfo = await FileSystem.getInfoAsync(
-                              img.uri
-                            );
-                            if (fileInfo.exists) {
-                              await FileSystem.deleteAsync(img.uri, {
-                                idempotent: true,
-                              });
-                              console.log("Deleted image file:", img.uri);
+                    // Chỉ xóa file local khi tất cả ảnh trong pending upload thành công
+                    if (allSuccess) {
+                      try {
+                        for (const img of pending.images) {
+                          if (img.uri && img.uri.startsWith("file://")) {
+                            try {
+                              const fileInfo = await FileSystem.getInfoAsync(
+                                img.uri
+                              );
+                              if (fileInfo.exists) {
+                                await FileSystem.deleteAsync(img.uri, {
+                                  idempotent: true,
+                                });
+                                console.log("Deleted image file:", img.uri);
+                              }
+                            } catch (deleteError) {
+                              console.warn(
+                                "Error deleting image file:",
+                                img.uri,
+                                deleteError
+                              );
+                              // Không throw, chỉ log warning
                             }
-                          } catch (deleteError) {
-                            console.warn(
-                              "Error deleting image file:",
-                              img.uri,
-                              deleteError
-                            );
-                            // Không throw, chỉ log warning
                           }
                         }
+                      } catch (cleanupError) {
+                        console.warn(
+                          "Error cleaning up image files:",
+                          cleanupError
+                        );
+                        // Không throw, chỉ log warning
                       }
-                    } catch (cleanupError) {
-                      console.warn(
-                        "Error cleaning up image files:",
-                        cleanupError
-                      );
-                      // Không throw, chỉ log warning
                     }
 
                     // Refresh để cập nhật ảnh từ server (chỉ nếu storeId vẫn khớp)
@@ -1006,6 +1007,7 @@ export default function StoreDetailScreen() {
           headers: {
             "Content-Type": "multipart/form-data",
           },
+          timeout: 25000,
         });
 
         console.log(`Image ${index + 1} uploaded successfully`);
@@ -1019,9 +1021,11 @@ export default function StoreDetailScreen() {
         );
 
         if (attempt < maxRetries) {
-          // Wait before retry (exponential backoff)
+          // Wait before retry (exponential backoff + jitter)
+          const baseDelay = 1000 * (attempt + 1);
+          const jitter = Math.floor(Math.random() * 400);
           await new Promise((resolve) =>
-            setTimeout(resolve, 1000 * (attempt + 1))
+            setTimeout(resolve, baseDelay + jitter)
           );
         }
       }
@@ -1124,11 +1128,20 @@ export default function StoreDetailScreen() {
     (async () => {
       try {
         // Upload ảnh ở background (không block UI)
-        const uploadResults = await Promise.all([
-          uploadImageWithRetry(imagesToUpload[0], auditId, 0),
-          uploadImageWithRetry(imagesToUpload[1], auditId, 1),
-          uploadImageWithRetry(imagesToUpload[2], auditId, 2),
-        ]);
+        // Upload with limited concurrency = 2 for better stability on weak networks
+        const uploadResults: boolean[] = [];
+        for (let i = 0; i < imagesToUpload.length; i += 2) {
+          const batch = imagesToUpload.slice(i, i + 2);
+          const batchResults = await Promise.all(
+            batch.map((img, batchIdx) =>
+              uploadImageWithRetry(img, auditId, i + batchIdx)
+            )
+          );
+          uploadResults.push(...batchResults);
+          console.log(
+            `[Upload Progress] ${uploadResults.filter(Boolean).length}/${imagesToUpload.length} ảnh đã upload thành công`
+          );
+        }
 
         // Kiểm tra kết quả upload
         const successCount = uploadResults.filter(
