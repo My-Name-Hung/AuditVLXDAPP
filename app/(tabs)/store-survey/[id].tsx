@@ -2,10 +2,10 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useSurvey } from "@/src/contexts/SurveyContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
-import { savePendingUpload } from "@/src/utils/pendingUploads";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -714,7 +714,7 @@ export default function StoreSurveyScreen() {
     setSubmitting(true);
 
     try {
-      // Step 1: Tạo audit ngay lập tức (không chờ upload ảnh)
+      // Step 1: Tạo audit
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: storeId,
@@ -724,7 +724,61 @@ export default function StoreSurveyScreen() {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Tạo survey ngay lập tức (không chờ upload ảnh)
+      // Step 2: Upload ĐỦ 3 ảnh (không background) trước khi hoàn thành
+      const compressedImages = await Promise.all(
+        imagesToUpload.map(async (img) => {
+          const manipulated = await ImageManipulator.manipulateAsync(
+            img.uri,
+            [{ resize: { width: 480, height: 640 } }],
+            {
+              compress: 0.6,
+              format: ImageManipulator.SaveFormat.JPEG,
+            }
+          );
+          return {
+            ...img,
+            uri: manipulated.uri,
+          };
+        })
+      );
+
+      const uploadImageStrict = async (
+        img: {
+          uri: string;
+          latitude: number;
+          longitude: number;
+          timestamp: string;
+          timezoneOffset: number;
+        },
+        index: number
+      ) => {
+        const formData = new FormData();
+        formData.append("image", {
+          uri: img.uri,
+          type: "image/jpeg",
+          name: `image_${index + 1}.jpg`,
+        } as any);
+        formData.append("auditId", auditId.toString());
+        formData.append("latitude", img.latitude.toString());
+        formData.append("longitude", img.longitude.toString());
+        formData.append("timestamp", img.timestamp);
+        formData.append("timezoneOffset", img.timezoneOffset.toString());
+
+        await api.post("/images/upload", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 30000,
+        });
+      };
+
+      await Promise.all([
+        uploadImageStrict(compressedImages[0], 0),
+        uploadImageStrict(compressedImages[1], 1),
+        uploadImageStrict(compressedImages[2], 2),
+      ]);
+
+      // Step 3: Tạo survey chỉ sau khi upload đủ 3 ảnh thành công
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
@@ -777,27 +831,11 @@ export default function StoreSurveyScreen() {
 
       setSubmitting(false);
 
-      // Lưu pending upload vào AsyncStorage để hiển thị khi quay lại
-      await savePendingUpload(
-        storeId,
-        auditId,
-        imagesToUpload.map((img) => ({
-          uri: img.uri,
-          latitude: img.latitude,
-          longitude: img.longitude,
-          timestamp: img.timestamp,
-          timezoneOffset: img.timezoneOffset,
-        })),
-        surveyData.storeComment || ""
-      );
-
       // Hiển thị thông báo thành công trước khi navigate
-      Alert.alert("Thành công", "Đã hoàn thành khảo sát thành công", [
+      Alert.alert("Thành công", "Đã upload đủ 3 ảnh và hoàn thành khảo sát", [
         {
           text: "OK",
           onPress: () => {
-            // Navigate sau khi user nhấn OK
-            // Upload sẽ được thực hiện tự động khi vào store-detail
             router.push(`/(tabs)/store-detail/${id}`);
           },
         },

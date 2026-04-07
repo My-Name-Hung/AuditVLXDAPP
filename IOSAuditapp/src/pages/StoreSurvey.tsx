@@ -8,7 +8,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
-import { savePendingUpload } from "../utils/pendingUploads";
 import "./StoreSurvey.css";
 
 interface CementProduct {
@@ -276,6 +275,47 @@ const StoreSurvey = () => {
   };
 
   // Camera functions
+  const compressImageTo480x640 = (
+    dataUrl: string,
+    quality = 0.6
+  ): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 480;
+        canvas.height = 640;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("Cannot get canvas context"));
+          return;
+        }
+
+        const scale = Math.max(480 / img.width, 640 / img.height);
+        const drawWidth = img.width * scale;
+        const drawHeight = img.height * scale;
+        const offsetX = (480 - drawWidth) / 2;
+        const offsetY = (640 - drawHeight) / 2;
+
+        ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight);
+
+        canvas.toBlob(
+          (blob) => {
+            if (blob) {
+              resolve(blob);
+            } else {
+              reject(new Error("Failed to compress image"));
+            }
+          },
+          "image/jpeg",
+          quality
+        );
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    });
+  };
+
   const getCurrentLocation = (): Promise<{
     latitude: number;
     longitude: number;
@@ -873,7 +913,7 @@ const StoreSurvey = () => {
     setSubmitting(true);
 
     try {
-      // Step 1: Tạo audit ngay lập tức (không chờ upload ảnh)
+      // Step 1: Tạo audit
       const auditResponse = await api.post("/audits", {
         userId: user.id,
         storeId: parsedStoreId,
@@ -883,7 +923,41 @@ const StoreSurvey = () => {
 
       const auditId = auditResponse.data.Id;
 
-      // Step 2: Tạo survey ngay lập tức (không chờ upload ảnh)
+      // Step 2: Upload ĐỦ 3 ảnh (không background) trước khi hoàn thành
+      const uploadImageStrict = async (
+        img: {
+          dataUrl: string;
+          latitude: number;
+          longitude: number;
+          timestamp: string;
+          timezoneOffset: number;
+        },
+        index: number
+      ) => {
+        const compressedBlob = await compressImageTo480x640(img.dataUrl, 0.6);
+        const formData = new FormData();
+        formData.append("image", compressedBlob, `image_${index + 1}.jpg`);
+        formData.append("auditId", auditId.toString());
+        formData.append("latitude", img.latitude.toString());
+        formData.append("longitude", img.longitude.toString());
+        formData.append("timestamp", img.timestamp);
+        formData.append("timezoneOffset", img.timezoneOffset.toString());
+
+        await api.post("/images/upload", formData, {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 30000,
+        });
+      };
+
+      await Promise.all([
+        uploadImageStrict(imagesToUpload[0], 0),
+        uploadImageStrict(imagesToUpload[1], 1),
+        uploadImageStrict(imagesToUpload[2], 2),
+      ]);
+
+      // Step 3: Tạo survey chỉ sau khi upload đủ 3 ảnh thành công
       const newProductImportQty =
         surveyData.newProductImportQuantity?.trim() || null;
 
@@ -933,27 +1007,12 @@ const StoreSurvey = () => {
 
       setSubmitting(false);
 
-      // Lưu pending upload vào localStorage để hiển thị khi quay lại
-      savePendingUpload(
-        parsedStoreId,
-        auditId,
-        imagesToUpload.map((img) => ({
-          dataUrl: img.dataUrl,
-          latitude: img.latitude,
-          longitude: img.longitude,
-          timestamp: img.timestamp,
-          timezoneOffset: img.timezoneOffset,
-        })),
-        surveyData.storeComment || ""
-      );
-
       // Hiển thị thông báo thành công trước khi navigate
-      showNotification("Đã hoàn thành khảo sát thành công", "success");
+      showNotification("Đã upload đủ 3 ảnh và hoàn thành khảo sát", "success");
 
-      // Navigate sau khi hiển thị thông báo (delay ngắn để user thấy thông báo)
       setTimeout(() => {
         navigate(`/stores/${parsedStoreId}`);
-      }, 1000);
+      }, 600);
     } catch (error: unknown) {
       console.error("Error submitting survey:", error);
       setSubmitting(false);
