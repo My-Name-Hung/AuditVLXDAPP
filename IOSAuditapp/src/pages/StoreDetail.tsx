@@ -7,6 +7,7 @@ import {
   clearPendingUploadsForStore,
   getPendingUploadForStore,
   removePendingUpload,
+  savePendingUpload,
 } from "../utils/pendingUploads";
 import "./StoreDetail.css";
 
@@ -1195,6 +1196,34 @@ export default function StoreDetail() {
         }
 
         const successCount = uploadResults.filter(Boolean).length;
+        const failedCount = uploadResults.length - successCount;
+
+        // Nếu còn ảnh lỗi, lưu lại pending để retry lần sau
+        if (failedCount > 0) {
+          const failedImages = imagesToUpload.filter(
+            (_, idx) => !uploadResults[idx]
+          );
+
+          savePendingUpload(
+            store.Id,
+            auditId,
+            failedImages.map((img) => ({
+              dataUrl: img.dataUrl,
+              latitude: img.latitude,
+              longitude: img.longitude,
+              timestamp: img.timestamp,
+              timezoneOffset: img.timezoneOffset,
+            })),
+            notes.trim() || ""
+          );
+
+          console.warn(
+            `Web upload incomplete: ${successCount}/${imagesToUpload.length} uploaded, ${failedCount} pending retry`
+          );
+        } else {
+          // Thành công toàn bộ thì dọn pending cùng auditId
+          removePendingUpload(store.Id, auditId);
+        }
 
         // Cập nhật tọa độ cửa hàng sau khi upload xong (nếu có ít nhất 1 ảnh thành công)
         if (successCount > 0 && imagesToUpload[0]) {
@@ -1205,11 +1234,9 @@ export default function StoreDetail() {
         }
 
         // Sau khi upload xong, fetch lại data để cập nhật URL từ local sang server
-        // (nhưng không cần thiết vì ảnh local đã hiển thị tốt)
         setTimeout(() => {
           fetchStore().catch((error) => {
             console.error("Background fetch error:", error);
-            // Silent fail - ảnh local đã hiển thị tốt
           });
         }, 1000);
       } catch (error) {

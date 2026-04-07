@@ -182,7 +182,7 @@ export default function StoreSurveyScreen() {
     setCapturedImages([undefined, undefined, undefined]);
     setCachedLocation(null);
     clearSurveyData(); // Clear context để tránh restore ảnh từ store trước
-  }, [id, clearSurveyData]);
+  }, [id]);
   const [locationLoadingModalVisible, setLocationLoadingModalVisible] =
     useState(false);
 
@@ -328,10 +328,12 @@ export default function StoreSurveyScreen() {
           timezoneOffset: now.getTimezoneOffset(),
         };
 
-        // Update state immediately
-        const updatedImages = [...capturedImages];
-        updatedImages[index] = newImage;
-        setCapturedImages(updatedImages);
+        // Update state using functional setState to avoid stale closure
+        setCapturedImages((prev) => {
+          const updatedImages = [...prev];
+          updatedImages[index] = newImage;
+          return updatedImages;
+        });
       }
     } catch (error) {
       console.error("Error capturing image:", error);
@@ -341,9 +343,11 @@ export default function StoreSurveyScreen() {
   };
 
   const removeImage = (index: number) => {
-    const updatedImages = [...capturedImages];
-    updatedImages[index] = undefined;
-    setCapturedImages(updatedImages);
+    setCapturedImages((prev) => {
+      const updatedImages = [...prev];
+      updatedImages[index] = undefined;
+      return updatedImages;
+    });
   };
 
   const handleClearAutofill = () => {
