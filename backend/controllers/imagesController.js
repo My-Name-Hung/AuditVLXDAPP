@@ -104,24 +104,10 @@ const uploadImage = async (req, res) => {
       localTimeString: localTimeString, // Thêm local time string đã format sẵn
     };
 
-    // Determine font size based on source (header or user agent)
-    // Mobile app: fontSize 60 (default)
-    // Web iosauditapp: fontSize 10
-    const userAgent = req.headers["user-agent"] || "";
-    const source = req.headers["x-source"] || req.query.source || "";
-    const isWebIOS =
-      userAgent.includes("Mozilla") &&
-      (userAgent.includes("iPhone") ||
-        userAgent.includes("iPad") ||
-        source === "web");
-
-    const fontSize = isWebIOS ? 10 : 30; // 10 for web iosauditapp, 60 for mobile app
-
-    const uploadResult = await uploadImageWithWatermark(
-      req.file.buffer,
-      metadata,
-      { fontSize }
-    );
+    // Force font size for watermark across all sources
+    const uploadResult = await uploadImageWithWatermark(req.file.buffer, metadata, {
+      fontSize: 12,
+    });
 
     // Save to database
     const image = await Image.create({
