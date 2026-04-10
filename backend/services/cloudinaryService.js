@@ -1,10 +1,6 @@
 const cloudinary = require("../config/cloudinary");
 const { getProvinceDistrict } = require("./geocodingService");
 
-const TARGET_WIDTH = 480;
-const TARGET_HEIGHT = 640;
-const TARGET_QUALITY = "auto:good";
-
 /**
  * Upload image to Cloudinary with watermark containing lat/lon/time
  *
@@ -18,7 +14,7 @@ const TARGET_QUALITY = "auto:good";
  * @returns {Promise<Object>} Cloudinary upload result
  */
 async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
-  const { fontSize = 12 } = options;
+  const { fontSize = 12 } = options; // Default 60 for mobile app, 10 for web iosauditapp
   const { latitude, longitude, timestamp, localTimeString } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
@@ -63,7 +59,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   try {
     // Convert buffer to base64
     const base64Image = `data:image/jpeg;base64,${imageBuffer.toString(
-      "base64"
+      "base64",
     )}`;
 
     // Upload image with watermark transformation applied eagerly (stored permanently)
@@ -73,23 +69,11 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     // Lưu ý: format auto không được hỗ trợ trong eager, sẽ áp dụng qua URL transformations
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-      // Force normalize to 480x640 on backend
-      transformation: [
-        {
-          width: TARGET_WIDTH,
-          height: TARGET_HEIGHT,
-          crop: "fill",
-          gravity: "auto",
-          quality: TARGET_QUALITY,
-          flags: "progressive",
-        },
-      ],
+      // Tối ưu hóa quality cho upload
+      quality: "auto:good", // Tự động tối ưu quality
+      flags: ["progressive"], // Progressive JPEG cho tải nhanh hơn
       eager: [
         {
-          width: TARGET_WIDTH,
-          height: TARGET_HEIGHT,
-          crop: "fill",
-          gravity: "auto",
           overlay: {
             font_family: "Arial",
             font_size: fontSize,
@@ -100,11 +84,13 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
           gravity: "north_east",
           x: 20,
           y: 20,
-          quality: TARGET_QUALITY,
-          flags: "progressive",
+          // Áp dụng optimization cho eager transformation
+          // Lưu ý: format auto không được hỗ trợ trong eager transformations
+          quality: "auto:good",
+          flags: ["progressive"],
         },
       ],
-      eager_async: false,
+      eager_async: false, // Wait for transformation to complete
     });
 
     // Return the URL with watermark (use eager transformation URL if available)
@@ -176,25 +162,14 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
     // Lưu ý: format auto không được hỗ trợ trong eager, sẽ áp dụng qua URL transformations
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
-      transformation: [
-        {
-          width: TARGET_WIDTH,
-          height: TARGET_HEIGHT,
-          crop: "fill",
-          gravity: "auto",
-          quality: TARGET_QUALITY,
-          flags: "progressive",
-        },
-      ],
+      // Tối ưu hóa quality cho upload
+      quality: "auto:good", // Tự động tối ưu quality
+      flags: ["progressive"], // Progressive JPEG cho tải nhanh hơn
       eager: [
         {
-          width: TARGET_WIDTH,
-          height: TARGET_HEIGHT,
-          crop: "fill",
-          gravity: "auto",
           overlay: {
             font_family: "Arial",
-            font_size: 12,
+            font_size: 24,
             font_weight: "bold",
             text: watermarkText,
           },
@@ -202,11 +177,13 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
           gravity: "north_east",
           x: 20,
           y: 20,
-          quality: TARGET_QUALITY,
-          flags: "progressive",
+          // Áp dụng optimization cho eager transformation
+          // Lưu ý: format auto không được hỗ trợ trong eager transformations
+          quality: "auto:good",
+          flags: ["progressive"],
         },
       ],
-      eager_async: false,
+      eager_async: false, // Wait for transformation to complete
     });
 
     // Return the URL with watermark (use eager transformation URL if available)

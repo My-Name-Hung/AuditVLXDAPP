@@ -83,7 +83,7 @@ const uploadImage = async (req, res) => {
     ) {
       // Convert UTC → Local time của client
       adjustedTimestamp = new Date(
-        timestampDate.getTime() - timezoneOffsetMinutes * 60000
+        timestampDate.getTime() - timezoneOffsetMinutes * 60000,
       );
     }
 
@@ -104,10 +104,24 @@ const uploadImage = async (req, res) => {
       localTimeString: localTimeString, // Thêm local time string đã format sẵn
     };
 
-    // Force font size for watermark across all sources
-    const uploadResult = await uploadImageWithWatermark(req.file.buffer, metadata, {
-      fontSize: 12,
-    });
+    // Determine font size based on source (header or user agent)
+    // Mobile app: fontSize 60 (default)
+    // Web iosauditapp: fontSize 10
+    const userAgent = req.headers["user-agent"] || "";
+    const source = req.headers["x-source"] || req.query.source || "";
+    const isWebIOS =
+      userAgent.includes("Mozilla") &&
+      (userAgent.includes("iPhone") ||
+        userAgent.includes("iPad") ||
+        source === "web");
+
+    const fontSize = isWebIOS ? 12 : 12; // 10 for web iosauditapp, 12 for mobile app
+
+    const uploadResult = await uploadImageWithWatermark(
+      req.file.buffer,
+      metadata,
+      { fontSize },
+    );
 
     // Save to database
     const image = await Image.create({
