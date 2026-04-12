@@ -3,7 +3,7 @@ const { getPool, sql } = require("../config/database");
 // Get dashboard summary with filters
 async function getSummary(req, res) {
   try {
-    const { territoryIds, startDate, endDate } = req.query;
+    const { territoryIds, userIds, startDate, endDate } = req.query;
     const pool = await getPool();
     const request = pool.request();
 
@@ -32,6 +32,27 @@ async function getSummary(req, res) {
     if (endDate) {
       query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       request.input("endDate", sql.Date, endDate);
+    }
+
+    // Filter by userIds
+    if (userIds) {
+      const userArray = Array.isArray(userIds)
+        ? userIds
+        : userIds
+            .split(",")
+            .map((id) => parseInt(id.trim()))
+            .filter((id) => !isNaN(id));
+
+      if (userArray.length > 0) {
+        query += " AND a.UserId IN (";
+        userArray.forEach((id, index) => {
+          const paramName = `user${index}`;
+          request.input(paramName, sql.Int, id);
+          query += `@${paramName}`;
+          if (index < userArray.length - 1) query += ",";
+        });
+        query += ")";
+      }
     }
 
     query += `
@@ -288,7 +309,7 @@ async function getTerritoryDetail(req, res) {
 // Export Excel report
 async function exportReport(req, res) {
   try {
-    const { territoryIds, startDate, endDate } = req.query;
+    const { territoryIds, userIds, startDate, endDate } = req.query;
     const pool = await getPool();
     const request = pool.request();
 
@@ -314,6 +335,27 @@ async function exportReport(req, res) {
     if (endDate) {
       summaryQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       request.input("endDate", sql.Date, endDate);
+    }
+
+    // Filter by userIds
+    if (userIds) {
+      const userArray = Array.isArray(userIds)
+        ? userIds
+        : userIds
+            .split(",")
+            .map((id) => parseInt(id.trim()))
+            .filter((id) => !isNaN(id));
+
+      if (userArray.length > 0) {
+        summaryQuery += " AND a.UserId IN (";
+        userArray.forEach((id, index) => {
+          const paramName = `user${index}`;
+          request.input(paramName, sql.Int, id);
+          summaryQuery += `@${paramName}`;
+          if (index < userArray.length - 1) summaryQuery += ",";
+        });
+        summaryQuery += ")";
+      }
     }
 
     summaryQuery += `

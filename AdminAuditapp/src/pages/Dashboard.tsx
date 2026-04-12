@@ -65,13 +65,37 @@ export default function Dashboard() {
       "0"
     )}`
   );
+  const [selectedEmployee, setSelectedEmployee] = useState<number[]>([]);
+  const [allEmployees, setAllEmployees] = useState<
+    Array<{ userId: number; fullName: string }>
+  >([]);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
   const isInitialMount = useRef(true);
 
+  // Fetch all employees for the filter dropdown (not derived from summaryData)
+  const fetchAllEmployees = async () => {
+    try {
+      const res = await api.get("/users", { timeout: 30000 });
+      const users = res.data.data || res.data || [];
+      setAllEmployees(
+        users.map((u: { UserId?: number; Id?: number; FullName?: string; fullName?: string; UserCode?: string; userCode?: string }) => ({
+          userId: u.UserId || u.Id || 0,
+          fullName: u.FullName || u.fullName || u.UserCode || u.userCode || "",
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  };
+
+  // uniqueEmployees comes from allEmployees (full list), not summaryData
+  const uniqueEmployees = allEmployees;
+
   useEffect(() => {
     fetchTerritories();
+    fetchAllEmployees();
     fetchSummary(); // Initial load
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -84,7 +108,7 @@ export default function Dashboard() {
       isInitialMount.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth]);
+  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth, selectedEmployee]);
 
   const fetchTerritories = async () => {
     try {
@@ -104,6 +128,10 @@ export default function Dashboard() {
       }
 
       const params: Record<string, string> = {};
+
+      if (selectedEmployee.length > 0) {
+        params.userIds = selectedEmployee.join(",");
+      }
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
@@ -159,6 +187,10 @@ export default function Dashboard() {
       setExportProgress(0);
 
       const params: Record<string, string> = {};
+
+      if (selectedEmployee.length > 0) {
+        params.userIds = selectedEmployee.join(",");
+      }
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
@@ -505,6 +537,23 @@ export default function Dashboard() {
       </div>
 
       <div className="dashboard-filters">
+        <div className="filter-group">
+          <label>Tên nhân viên</label>
+          <MultiSelect
+            options={uniqueEmployees.map((e) => ({
+              id: e.userId,
+              name: e.fullName,
+            }))}
+            selected={selectedEmployee}
+            onChange={setSelectedEmployee}
+            placeholder="Chọn nhân viên..."
+            itemLabel="nhân viên"
+            searchPlaceholder="Tìm kiếm nhân viên..."
+            enableSelectAll={true}
+            selectAllLabel="Chọn tất cả"
+          />
+        </div>
+
         <div className="filter-group">
           <label>Địa bàn phụ trách</label>
           <MultiSelect
