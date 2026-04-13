@@ -9,7 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "reseed": "node scripts/reseedData.js",
     "update-store-status": "node scripts/updateStoreStatus.js",
-    "migrate:newproductimportquantity": "node scripts/runMigration.js"
+    "migrate:newproductimportquantity": "node scripts/runMigration.js",
+    "merge:backup": "node scripts/mergeBackupData.js"
   },
   "keywords": [],
   "author": "",
