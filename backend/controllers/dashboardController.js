@@ -1,63 +1,65 @@
-const { getPool, sql } = require("../config/database");
+const { getPool, dualDB, sql } = require("../config/database");
 
 // Get dashboard summary with filters
 async function getSummary(req, res) {
   try {
     const { territoryIds, userIds, startDate, endDate } = req.query;
-    const pool = await getPool();
-    const request = pool.request();
+    const { main, backup } = await dualDB.getBothPools();
+    const request = main.request();
 
-    // Optimized query - use CTE to improve performance
-    // IMPORTANT: Count checkin based on audits (store status "Đã thực hiện"),
-    // not based on existence of images. This ensures checkin is recorded
-    // even if images are missing.
-    let query = `
+    // Build CTE filter conditions once (shared by both DB queries)
+    const dateConditions = [];
+
+    if (startDate) {
+      dateConditions.push("CAST(a.AuditDate AS DATE) >= @startDate");
+      request.input("startDate", sql.Date, startDate);
+    }
+    if (endDate) {
+      dateConditions.push("CAST(a.AuditDate AS DATE) <= @endDate");
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    const dateClause = dateConditions.length > 0 ? " AND " + dateConditions.join(" AND ") : "";
+
+    const territoryClause = (() => {
+      if (!territoryIds) return "";
+      const arr = Array.isArray(territoryIds) ? territoryIds : territoryIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (arr.length === 0) return "";
+      const parts = arr.map((id, i) => {
+        const p = `territory${i}`;
+        request.input(p, sql.Int, id);
+        return `@${p}`;
+      });
+      return " AND a.TerritoryId IN (" + parts.join(",") + ")";
+    })();
+
+    const userClause = (() => {
+      if (!userIds) return "";
+      const arr = Array.isArray(userIds) ? userIds : userIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (arr.length === 0) return "";
+      const parts = arr.map((id, i) => {
+        const p = `user${i}`;
+        request.input(p, sql.Int, id);
+        return `@${p}`;
+      });
+      return " AND a.UserId IN (" + parts.join(",") + ")";
+    })();
+
+    const cteWhere = dateClause + territoryClause + userClause;
+
+    // Main DB query
+    const mainQuery = `
       WITH AuditsWithStatus AS (
         SELECT
           a.UserId,
           a.StoreId,
           CAST(a.AuditDate AS DATE) as AuditDate,
           s.TerritoryId
-        FROM Audits a
-        INNER JOIN Stores s ON a.StoreId = s.Id
-        WHERE 1 = 1
-    `;
-
-    // Filter by date range in CTE
-    if (startDate) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-    }
-
-    if (endDate) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-    }
-
-    // Filter by userIds
-    if (userIds) {
-      const userArray = Array.isArray(userIds)
-        ? userIds
-        : userIds
-            .split(",")
-            .map((id) => parseInt(id.trim()))
-            .filter((id) => !isNaN(id));
-
-      if (userArray.length > 0) {
-        query += " AND a.UserId IN (";
-        userArray.forEach((id, index) => {
-          const paramName = `user${index}`;
-          request.input(paramName, sql.Int, id);
-          query += `@${paramName}`;
-          if (index < userArray.length - 1) query += ",";
-        });
-        query += ")";
-      }
-    }
-
-    query += `
+        FROM [DBXMTD].[dbo].[Audits] a
+        INNER JOIN [DBXMTD].[dbo].[Stores] s ON a.StoreId = s.Id
+        WHERE 1=1 ${cteWhere}
       )
-      SELECT 
+      SELECT
         a.UserId as UserId,
         u.FullName,
         a.TerritoryId,
@@ -65,47 +67,89 @@ async function getSummary(req, res) {
         COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM AuditsWithStatus a
-      INNER JOIN Users u ON a.UserId = u.Id
-      INNER JOIN Territories t ON a.TerritoryId = t.Id
+      INNER JOIN [DBXMTD].[dbo].[Users] u ON a.UserId = u.Id
+      INNER JOIN [DBXMTD].[dbo].[Territories] t ON a.TerritoryId = t.Id
       WHERE u.Role = 'sales'
         AND a.UserId IS NOT NULL
-    `;
-
-    // Filter by territories
-    if (territoryIds) {
-      const territoryArray = Array.isArray(territoryIds)
-        ? territoryIds
-        : territoryIds
-            .split(",")
-            .map((id) => parseInt(id.trim()))
-            .filter((id) => !isNaN(id));
-
-      if (territoryArray.length > 0) {
-        query += " AND a.TerritoryId IN (";
-        territoryArray.forEach((id, index) => {
-          const paramName = `territory${index}`;
-          request.input(paramName, sql.Int, id);
-          query += `@${paramName}`;
-          if (index < territoryArray.length - 1) query += ",";
-        });
-        query += ")";
-      }
-    }
-
-    query += `
       GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
       HAVING COUNT(DISTINCT a.AuditDate) > 0
       ORDER BY u.FullName ASC
     `;
 
-    // Set timeout to 60 seconds for dashboard query
-    request.timeout = 60000;
-    const result = await request.query(query);
+    // Backup DB query (only if backup DB is available)
+    let backupQuery = null;
+    let backupRequest = null;
+    if (backup) {
+      backupRequest = backup.request();
+      // Copy date params
+      if (startDate) backupRequest.input("startDate", sql.Date, startDate);
+      if (endDate) backupRequest.input("endDate", sql.Date, endDate);
+      // Copy territory params
+      if (territoryIds) {
+        const arr = Array.isArray(territoryIds) ? territoryIds : territoryIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        arr.forEach((id, i) => {
+          backupRequest.input(`territory${i}`, sql.Int, id);
+        });
+      }
+      // Copy user params
+      if (userIds) {
+        const arr = Array.isArray(userIds) ? userIds : userIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        arr.forEach((id, i) => {
+          backupRequest.input(`user${i}`, sql.Int, id);
+        });
+      }
 
-    res.json({
-      success: true,
-      data: result.recordset,
-    });
+      backupQuery = `
+        WITH AuditsWithStatus AS (
+          SELECT
+            a.UserId,
+            a.StoreId,
+            CAST(a.AuditDate AS DATE) as AuditDate,
+            s.TerritoryId
+          FROM [RE_SALE_20260410].[dbo].[Audits] a
+          INNER JOIN [RE_SALE_20260410].[dbo].[Stores] s ON a.StoreId = s.Id
+          WHERE 1=1 ${cteWhere}
+        )
+        SELECT
+          a.UserId as UserId,
+          u.FullName,
+          a.TerritoryId,
+          t.TerritoryName,
+          COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
+          COUNT(DISTINCT a.StoreId) as TotalStoresChecked
+        FROM AuditsWithStatus a
+        INNER JOIN [RE_SALE_20260410].[dbo].[Users] u ON a.UserId = u.Id
+        INNER JOIN [RE_SALE_20260410].[dbo].[Territories] t ON a.TerritoryId = t.Id
+        WHERE u.Role = 'sales'
+          AND a.UserId IS NOT NULL
+        GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
+        HAVING COUNT(DISTINCT a.AuditDate) > 0
+        ORDER BY u.FullName ASC
+      `;
+    }
+
+    // Execute both queries in parallel
+    const [mainResult, backupResult] = await Promise.all([
+      request.query(mainQuery),
+      backupQuery && backupRequest ? backupRequest.query(backupQuery) : Promise.resolve({ recordset: [] }),
+    ]);
+
+    // Merge & deduplicate: main DB takes precedence
+    const seen = new Set();
+    const merged = [];
+    for (const row of mainResult.recordset) {
+      seen.add(`${row.UserId}|${row.TerritoryId}`);
+      merged.push(row);
+    }
+    for (const row of backupResult.recordset) {
+      if (!seen.has(`${row.UserId}|${row.TerritoryId}`)) {
+        merged.push(row);
+      }
+    }
+
+    request.timeout = 60000;
+
+    res.json({ success: true, data: merged });
   } catch (error) {
     console.error("Error fetching dashboard summary:", error);
     res.status(500).json({
@@ -116,82 +160,87 @@ async function getSummary(req, res) {
   }
 }
 
-// Get user detail checkin data
+// Get user detail checkin data (dual DB)
 async function getUserDetail(req, res) {
   try {
     const { userId } = req.params;
     const { startDate, endDate, storeName, territoryId } = req.query;
 
-    console.log("getUserDetail called with params:", {
-      userId,
-      startDate,
-      endDate,
-      storeName,
-    });
+    console.log("getUserDetail called with params:", { userId, startDate, endDate, storeName });
 
-    const pool = await getPool();
-    const request = pool.request();
-
+    const { main, backup } = await dualDB.getBothPools();
+    const request = main.request();
     request.input("UserId", sql.Int, userId);
 
-    let query = `
-      SELECT 
-        CAST(a.AuditDate AS DATE) as CheckinDate,
-        a.Id as AuditId,
-        s.Id as StoreId,
-        s.StoreName,
-        s.Address,
-        t.TerritoryName,
-        MIN(img.CapturedAt) as CheckinTime,
-        a.Notes
-      FROM Audits a
-      INNER JOIN Stores s ON a.StoreId = s.Id
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN Images img ON a.Id = img.AuditId
-      WHERE a.UserId = @UserId
-    `;
+    const buildAuditQuery = (dbPrefix, reqObj) => {
+      let q = `
+        SELECT
+          CAST(a.AuditDate AS DATE) as CheckinDate,
+          a.Id as AuditId,
+          s.Id as StoreId,
+          s.StoreName,
+          s.Address,
+          t.TerritoryName,
+          MIN(img.CapturedAt) as CheckinTime,
+          a.Notes
+        FROM ${dbPrefix}[Audits] a
+        INNER JOIN ${dbPrefix}[Stores] s ON a.StoreId = s.Id
+        LEFT JOIN ${dbPrefix}[Territories] t ON s.TerritoryId = t.Id
+        LEFT JOIN ${dbPrefix}[Images] img ON a.Id = img.AuditId
+        WHERE a.UserId = @UserId
+      `;
+      if (territoryId) {
+        q += " AND s.TerritoryId = @TerritoryId";
+        reqObj.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+      }
+      if (startDate) {
+        q += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+        reqObj.input("startDate", sql.Date, startDate);
+      }
+      if (endDate) {
+        q += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+        reqObj.input("endDate", sql.Date, endDate);
+      }
+      if (storeName && storeName.trim() !== "") {
+        q += " AND s.StoreName LIKE @storeName";
+        reqObj.input("storeName", sql.NVarChar(200), `%${storeName.trim()}%`);
+      }
+      q += `
+        GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.Id, s.StoreName, s.Address, t.TerritoryName, a.Notes
+        ORDER BY CheckinDate DESC, CheckinTime DESC
+      `;
+      return q;
+    };
 
-    if (territoryId) {
-      query += " AND s.TerritoryId = @TerritoryId";
-      request.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+    const mainQuery = buildAuditQuery("[DBXMTD].[dbo].", request);
+
+    let backupRequest = null;
+    let backupQuery = null;
+    if (backup) {
+      backupRequest = backup.request();
+      backupRequest.input("UserId", sql.Int, userId);
+      if (territoryId) backupRequest.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+      if (startDate) backupRequest.input("startDate", sql.Date, startDate);
+      if (endDate) backupRequest.input("endDate", sql.Date, endDate);
+      if (storeName && storeName.trim() !== "") {
+        backupRequest.input("storeName", sql.NVarChar(200), `%${storeName.trim()}%`);
+      }
+      backupQuery = buildAuditQuery("[RE_SALE_20260410].[dbo].", backupRequest);
     }
 
-    if (startDate) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-    }
-
-    if (endDate) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-    }
-
-    // Filter by store name
-    if (storeName && storeName.trim() !== "") {
-      const storeNamePattern = `%${storeName.trim()}%`;
-      query += " AND s.StoreName LIKE @storeName";
-      request.input("storeName", sql.NVarChar(200), storeNamePattern);
-    }
-
-    query += `
-      GROUP BY CAST(a.AuditDate AS DATE),
-               a.Id,
-               s.Id,
-               s.StoreName,
-               s.Address,
-               t.TerritoryName,
-               a.Notes
-      ORDER BY CheckinDate DESC, CheckinTime DESC
-    `;
-
-    // Set timeout to 60 seconds
     request.timeout = 60000;
-    const result = await request.query(query);
+    const [mainResult, backupResult] = await Promise.all([
+      request.query(mainQuery),
+      backupQuery && backupRequest ? backupRequest.query(backupQuery) : Promise.resolve({ recordset: [] }),
+    ]);
 
-    res.json({
-      success: true,
-      data: result.recordset,
-    });
+    // Merge & dedupe by AuditId
+    const seen = new Set();
+    const merged = [];
+    for (const row of mainResult.recordset) { seen.add(row.AuditId); merged.push(row); }
+    for (const row of backupResult.recordset) { if (!seen.has(row.AuditId)) merged.push(row); }
+
+    res.json({ success: true, data: merged });
   } catch (error) {
     console.error("Error fetching user detail:", error);
     res.status(500).json({
@@ -202,100 +251,92 @@ async function getUserDetail(req, res) {
   }
 }
 
-// Get territory detail checkin data
+// Get territory detail checkin data (dual DB)
 async function getTerritoryDetail(req, res) {
   try {
     const { territoryId } = req.params;
     const { startDate, endDate, storeName } = req.query;
 
-    console.log("getTerritoryDetail called with params:", {
-      territoryId,
-      startDate,
-      endDate,
-      storeName,
-    });
+    console.log("getTerritoryDetail called with params:", { territoryId, startDate, endDate, storeName });
 
-    const pool = await getPool();
-    const request = pool.request();
-
-    // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole =
-      req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
+    const { main, backup } = await dualDB.getBothPools();
+    const request = main.request();
     request.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
 
-    let query = `
-      SELECT 
-        CAST(a.AuditDate AS DATE) as CheckinDate,
-        a.Id as AuditId,
-        s.Id as StoreId,
-        s.StoreName,
-        s.Address,
-        t.TerritoryName,
-        MIN(img.CapturedAt) as CheckinTime,
-        a.Notes
-      FROM Audits a
-      INNER JOIN Stores s ON a.StoreId = s.Id
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN Images img ON a.Id = img.AuditId
-      WHERE s.TerritoryId = @TerritoryId
-    `;
+    const buildAuditQuery = (dbPrefix, reqObj) => {
+      let q = `
+        SELECT
+          CAST(a.AuditDate AS DATE) as CheckinDate,
+          a.Id as AuditId,
+          s.Id as StoreId,
+          s.StoreName,
+          s.Address,
+          t.TerritoryName,
+          MIN(img.CapturedAt) as CheckinTime,
+          a.Notes
+        FROM ${dbPrefix}[Audits] a
+        INNER JOIN ${dbPrefix}[Stores] s ON a.StoreId = s.Id
+        LEFT JOIN ${dbPrefix}[Territories] t ON s.TerritoryId = t.Id
+        LEFT JOIN ${dbPrefix}[Images] img ON a.Id = img.AuditId
+        WHERE s.TerritoryId = @TerritoryId
+      `;
+      if (currentUserId && currentUserRole !== "admin") {
+        q += ` AND a.UserId = @currentUserId`;
+        reqObj.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+        q += ` AND (s.UserId = @currentUserId OR EXISTS (SELECT 1 FROM ${dbPrefix}[StoreUsers] su WHERE su.StoreId = s.Id AND su.UserId = @currentUserId))`;
+      }
+      if (startDate) {
+        q += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+        reqObj.input("startDate", sql.Date, startDate);
+      }
+      if (endDate) {
+        q += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+        reqObj.input("endDate", sql.Date, endDate);
+      }
+      if (storeName && storeName.trim() !== "") {
+        q += " AND s.StoreName LIKE @storeName";
+        reqObj.input("storeName", sql.NVarChar(200), `%${storeName.trim()}%`);
+      }
+      q += `
+        GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.Id, s.StoreName, s.Address, t.TerritoryName, a.Notes
+        ORDER BY CheckinDate DESC, CheckinTime DESC
+      `;
+      return q;
+    };
 
-    // Filter audits by current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND a.UserId = @currentUserId`;
-      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    const mainQuery = buildAuditQuery("[DBXMTD].[dbo].", request);
+
+    let backupRequest = null;
+    let backupQuery = null;
+    if (backup) {
+      backupRequest = backup.request();
+      backupRequest.input("TerritoryId", sql.Int, parseInt(territoryId, 10));
+      if (currentUserId && currentUserRole !== "admin") {
+        backupRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+      }
+      if (startDate) backupRequest.input("startDate", sql.Date, startDate);
+      if (endDate) backupRequest.input("endDate", sql.Date, endDate);
+      if (storeName && storeName.trim() !== "") {
+        backupRequest.input("storeName", sql.NVarChar(200), `%${storeName.trim()}%`);
+      }
+      backupQuery = buildAuditQuery("[RE_SALE_20260410].[dbo].", backupRequest);
     }
 
-    // Also filter stores by current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-      // Note: currentUserId already declared above, no need to declare again
-    }
-
-    if (startDate) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-    }
-
-    if (endDate) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-    }
-
-    // Filter by store name
-    if (storeName && storeName.trim() !== "") {
-      const storeNamePattern = `%${storeName.trim()}%`;
-      query += " AND s.StoreName LIKE @storeName";
-      request.input("storeName", sql.NVarChar(200), storeNamePattern);
-    }
-
-    query += `
-      GROUP BY CAST(a.AuditDate AS DATE),
-               a.Id,
-               s.Id,
-               s.StoreName,
-               s.Address,
-               t.TerritoryName,
-               a.Notes
-      ORDER BY CheckinDate DESC, CheckinTime DESC
-    `;
-
-    // Set timeout to 60 seconds
     request.timeout = 60000;
-    const result = await request.query(query);
+    const [mainResult, backupResult] = await Promise.all([
+      request.query(mainQuery),
+      backupQuery && backupRequest ? backupRequest.query(backupQuery) : Promise.resolve({ recordset: [] }),
+    ]);
 
-    res.json({
-      success: true,
-      data: result.recordset,
-    });
+    const seen = new Set();
+    const merged = [];
+    for (const row of mainResult.recordset) { seen.add(row.AuditId); merged.push(row); }
+    for (const row of backupResult.recordset) { if (!seen.has(row.AuditId)) merged.push(row); }
+
+    res.json({ success: true, data: merged });
   } catch (error) {
     console.error("Error fetching territory detail:", error);
     res.status(500).json({
@@ -310,57 +351,50 @@ async function getTerritoryDetail(req, res) {
 async function exportReport(req, res) {
   try {
     const { territoryIds, userIds, startDate, endDate } = req.query;
-    const pool = await getPool();
-    const request = pool.request();
+    const { main, backup } = await dualDB.getBothPools();
+    const request = main.request();
 
-    // Align export summary with dashboard summary logic
-    // Count checkin based on audits (store status), not strictly on images
-    let summaryQuery = `
+    const dateConditions = [];
+    if (startDate) {
+      dateConditions.push("CAST(a.AuditDate AS DATE) >= @startDate");
+      request.input("startDate", sql.Date, startDate);
+    }
+    if (endDate) {
+      dateConditions.push("CAST(a.AuditDate AS DATE) <= @endDate");
+      request.input("endDate", sql.Date, endDate);
+    }
+    const dateClause = dateConditions.length > 0 ? " AND " + dateConditions.join(" AND ") : "";
+
+    const territoryClause = (() => {
+      if (!territoryIds) return "";
+      const arr = Array.isArray(territoryIds) ? territoryIds : territoryIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (arr.length === 0) return "";
+      const parts = arr.map((id, i) => { request.input(`territory${i}`, sql.Int, id); return `@territory${i}`; });
+      return " AND a.TerritoryId IN (" + parts.join(",") + ")";
+    })();
+
+    const userClause = (() => {
+      if (!userIds) return "";
+      const arr = Array.isArray(userIds) ? userIds : userIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (arr.length === 0) return "";
+      const parts = arr.map((id, i) => { request.input(`user${i}`, sql.Int, id); return `@user${i}`; });
+      return " AND a.UserId IN (" + parts.join(",") + ")";
+    })();
+
+    const cteWhere = dateClause + territoryClause + userClause;
+
+    const mainQuery = `
       WITH AuditsWithStatus AS (
         SELECT
           a.UserId,
           a.StoreId,
           CAST(a.AuditDate AS DATE) as AuditDate,
           s.TerritoryId
-        FROM Audits a
-        INNER JOIN Stores s ON a.StoreId = s.Id
-        WHERE 1 = 1
-    `;
-
-    if (startDate) {
-      summaryQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-    }
-
-    if (endDate) {
-      summaryQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-    }
-
-    // Filter by userIds
-    if (userIds) {
-      const userArray = Array.isArray(userIds)
-        ? userIds
-        : userIds
-            .split(",")
-            .map((id) => parseInt(id.trim()))
-            .filter((id) => !isNaN(id));
-
-      if (userArray.length > 0) {
-        summaryQuery += " AND a.UserId IN (";
-        userArray.forEach((id, index) => {
-          const paramName = `user${index}`;
-          request.input(paramName, sql.Int, id);
-          summaryQuery += `@${paramName}`;
-          if (index < userArray.length - 1) summaryQuery += ",";
-        });
-        summaryQuery += ")";
-      }
-    }
-
-    summaryQuery += `
+        FROM [DBXMTD].[dbo].[Audits] a
+        INNER JOIN [DBXMTD].[dbo].[Stores] s ON a.StoreId = s.Id
+        WHERE 1=1 ${cteWhere}
       )
-      SELECT 
+      SELECT
         a.UserId as UserId,
         u.FullName,
         a.TerritoryId,
@@ -368,59 +402,89 @@ async function exportReport(req, res) {
         COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
         COUNT(DISTINCT a.StoreId) as TotalStoresChecked
       FROM AuditsWithStatus a
-      INNER JOIN Users u ON a.UserId = u.Id
-      INNER JOIN Territories t ON a.TerritoryId = t.Id
-      WHERE u.Role = 'sales'
-        AND a.UserId IS NOT NULL
-    `;
-
-    if (territoryIds) {
-      const territoryArray = Array.isArray(territoryIds)
-        ? territoryIds
-        : territoryIds
-            .split(",")
-            .map((id) => parseInt(id.trim()))
-            .filter((id) => !isNaN(id));
-
-      if (territoryArray.length > 0) {
-        summaryQuery += " AND a.TerritoryId IN (";
-        territoryArray.forEach((id, index) => {
-          const paramName = `territory${index}`;
-          request.input(paramName, sql.Int, id);
-          summaryQuery += `@${paramName}`;
-          if (index < territoryArray.length - 1) summaryQuery += ",";
-        });
-        summaryQuery += ")";
-      }
-    }
-
-    summaryQuery += `
+      INNER JOIN [DBXMTD].[dbo].[Users] u ON a.UserId = u.Id
+      INNER JOIN [DBXMTD].[dbo].[Territories] t ON a.TerritoryId = t.Id
+      WHERE u.Role = 'sales' AND a.UserId IS NOT NULL
       GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
       HAVING COUNT(DISTINCT a.AuditDate) > 0
       ORDER BY u.FullName ASC
     `;
 
-    // Set timeout to 60 seconds
+    let backupQuery = null;
+    let backupRequest = null;
+    if (backup) {
+      backupRequest = backup.request();
+      if (startDate) backupRequest.input("startDate", sql.Date, startDate);
+      if (endDate) backupRequest.input("endDate", sql.Date, endDate);
+      if (territoryIds) {
+        const arr = Array.isArray(territoryIds) ? territoryIds : territoryIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        arr.forEach((id, i) => backupRequest.input(`territory${i}`, sql.Int, id));
+      }
+      if (userIds) {
+        const arr = Array.isArray(userIds) ? userIds : userIds.split(",").map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+        arr.forEach((id, i) => backupRequest.input(`user${i}`, sql.Int, id));
+      }
+
+      backupQuery = `
+        WITH AuditsWithStatus AS (
+          SELECT
+            a.UserId,
+            a.StoreId,
+            CAST(a.AuditDate AS DATE) as AuditDate,
+            s.TerritoryId
+          FROM [RE_SALE_20260410].[dbo].[Audits] a
+          INNER JOIN [RE_SALE_20260410].[dbo].[Stores] s ON a.StoreId = s.Id
+          WHERE 1=1 ${cteWhere}
+        )
+        SELECT
+          a.UserId as UserId,
+          u.FullName,
+          a.TerritoryId,
+          t.TerritoryName,
+          COUNT(DISTINCT a.AuditDate) as TotalCheckinDays,
+          COUNT(DISTINCT a.StoreId) as TotalStoresChecked
+        FROM AuditsWithStatus a
+        INNER JOIN [RE_SALE_20260410].[dbo].[Users] u ON a.UserId = u.Id
+        INNER JOIN [RE_SALE_20260410].[dbo].[Territories] t ON a.TerritoryId = t.Id
+        WHERE u.Role = 'sales' AND a.UserId IS NOT NULL
+        GROUP BY a.UserId, u.FullName, a.TerritoryId, t.TerritoryName
+        HAVING COUNT(DISTINCT a.AuditDate) > 0
+        ORDER BY u.FullName ASC
+      `;
+    }
+
     request.timeout = 60000;
-    const summaryResult = await request.query(summaryQuery);
-    const summaryData = summaryResult.recordset;
+    const [mainResult, backupResult] = await Promise.all([
+      request.query(mainQuery),
+      backupQuery && backupRequest ? backupRequest.query(backupQuery) : Promise.resolve({ recordset: [] }),
+    ]);
+
+    const seen = new Set();
+    const merged = [];
+    for (const row of mainResult.recordset) {
+      seen.add(`${row.UserId}|${row.TerritoryId}`);
+      merged.push(row);
+    }
+    for (const row of backupResult.recordset) {
+      if (!seen.has(`${row.UserId}|${row.TerritoryId}`)) {
+        merged.push(row);
+      }
+    }
+
+    const summaryData = merged;
 
     // Get detail data for each user-territory combination
     const detailDataMap = {};
     for (const user of summaryData) {
-      const detailRequest = pool.request();
+      const detailRequest = main.request();
       detailRequest.input("UserId", sql.Int, user.UserId);
       detailRequest.input("TerritoryId", sql.Int, user.TerritoryId);
-
-      if (startDate) {
-        detailRequest.input("startDate", sql.Date, startDate);
-      }
-      if (endDate) {
-        detailRequest.input("endDate", sql.Date, endDate);
-      }
+      if (startDate) detailRequest.input("startDate", sql.Date, startDate);
+      if (endDate) detailRequest.input("endDate", sql.Date, endDate);
+      detailRequest.timeout = 30000;
 
       let detailQuery = `
-        SELECT 
+        SELECT
           CAST(a.AuditDate AS DATE) as CheckinDate,
           a.Id as AuditId,
           s.StoreName,
@@ -428,42 +492,25 @@ async function exportReport(req, res) {
           t.TerritoryName,
           MIN(img.CapturedAt) as CheckinTime,
           COALESCE(ss.StoreComment, a.Notes) as Notes
-        FROM Audits a
-        INNER JOIN Stores s ON a.StoreId = s.Id
-        LEFT JOIN Territories t ON s.TerritoryId = t.Id
-        LEFT JOIN Images img ON a.Id = img.AuditId
-        LEFT JOIN StoreSurveys ss ON a.Id = ss.AuditId
-        WHERE a.UserId = @UserId
-          AND s.TerritoryId = @TerritoryId
+        FROM [DBXMTD].[dbo].[Audits] a
+        INNER JOIN [DBXMTD].[dbo].[Stores] s ON a.StoreId = s.Id
+        LEFT JOIN [DBXMTD].[dbo].[Territories] t ON s.TerritoryId = t.Id
+        LEFT JOIN [DBXMTD].[dbo].[Images] img ON a.Id = img.AuditId
+        LEFT JOIN [DBXMTD].[dbo].[StoreSurveys] ss ON a.Id = ss.AuditId
+        WHERE a.UserId = @UserId AND s.TerritoryId = @TerritoryId
       `;
-
-      if (startDate) {
-        detailQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      }
-      if (endDate) {
-        detailQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      }
-
+      if (startDate) detailQuery += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      if (endDate) detailQuery += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       detailQuery += `
-        GROUP BY CAST(a.AuditDate AS DATE),
-                 a.Id,
-                 s.StoreName,
-                 s.Address,
-                 t.TerritoryName,
-                 ss.StoreComment,
-                 a.Notes
+        GROUP BY CAST(a.AuditDate AS DATE), a.Id, s.StoreName, s.Address, t.TerritoryName, ss.StoreComment, a.Notes
         ORDER BY CheckinDate DESC, CheckinTime DESC
       `;
 
-      // Set timeout to 30 seconds
-      detailRequest.timeout = 30000;
       const detailResult = await detailRequest.query(detailQuery);
-      // Use combination key to avoid overwriting data for same user in different territories
       const detailKey = `${user.UserId}-${user.TerritoryId}`;
       detailDataMap[detailKey] = detailResult.recordset;
     }
 
-    // Return data for Excel generation (will be handled by frontend)
     res.json({
       success: true,
       data: {
@@ -481,135 +528,117 @@ async function exportReport(req, res) {
   }
 }
 
-// Get stores by date (for bar chart) - số cửa hàng đã/chưa thực hiện theo ngày
+// Get stores by date (for bar chart) - dual DB
 async function getStoresByDate(req, res) {
   try {
     const { startDate, endDate, territoryId } = req.query;
-    const pool = await getPool();
-    const request = pool.request();
+    const { main, backup } = await dualDB.getBothPools();
+    const request = main.request();
 
-    // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole =
-      req.user?.role || req.user?.Role || req.user?.RoleName;
-
-    console.log("getStoresByDate - Current user:", {
-      userId: currentUserId,
-      role: currentUserRole,
-      userObject: req.user,
-    });
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
     // Build user filter - only show stores assigned to current user (unless admin)
     let userFilter = "";
     if (currentUserId && currentUserRole !== "admin") {
-      userFilter = ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
+      userFilter = ` AND (s.UserId = @currentUserId OR EXISTS (SELECT 1 FROM [DBXMTD].[dbo].[StoreUsers] su WHERE su.StoreId = s.Id AND su.UserId = @currentUserId))`;
       request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
     }
 
-    // Build territory filter
     let territoryFilter = "";
     if (territoryId) {
       territoryFilter = " AND s.TerritoryId = @territoryId";
       request.input("territoryId", sql.Int, parseInt(territoryId, 10));
     }
 
-    // Get total stores count (for calculating not audited)
+    // Get total stores count (from main DB only – Stores are not backed up)
     let totalStoresQuery = `
       SELECT COUNT(DISTINCT s.Id) as TotalStores
-      FROM Stores s
+      FROM [DBXMTD].[dbo].[Stores] s
       WHERE 1=1 ${userFilter} ${territoryFilter}
     `;
     const totalStoresResult = await request.query(totalStoresQuery);
     const totalStores = totalStoresResult.recordset[0].TotalStores || 0;
 
-    // Get audited stores by date
-    // IMPORTANT: Count based on audits (store status) instead of requiring images,
-    // so stores with successful audit but missing images are still counted.
-    let query = `
-      SELECT 
-        CAST(a.AuditDate AS DATE) as AuditDate,
-        COUNT(DISTINCT a.StoreId) as AuditedCount
-      FROM Audits a
-      INNER JOIN Stores s ON a.StoreId = s.Id
-      WHERE CAST(a.AuditDate AS DATE) IS NOT NULL
-    `;
-
-    // Filter audits by current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND a.UserId = @currentUserId`;
-    }
-
-    // Also filter stores by current user (unless admin) - stores must be assigned to user
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-    }
-
-    if (territoryId) {
-      query += " AND s.TerritoryId = @territoryId";
-    }
-
+    // Build date filters
+    let dateFilters = "";
     if (startDate) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      dateFilters += " AND CAST(a.AuditDate AS DATE) >= @startDate";
       request.input("startDate", sql.Date, startDate);
     }
-
     if (endDate) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      dateFilters += " AND CAST(a.AuditDate AS DATE) <= @endDate";
       request.input("endDate", sql.Date, endDate);
     }
 
-    query += `
+    const mainQuery = `
+      SELECT
+        CAST(a.AuditDate AS DATE) as AuditDate,
+        COUNT(DISTINCT a.StoreId) as AuditedCount
+      FROM [DBXMTD].[dbo].[Audits] a
+      INNER JOIN [DBXMTD].[dbo].[Stores] s ON a.StoreId = s.Id
+      WHERE CAST(a.AuditDate AS DATE) IS NOT NULL
+        ${currentUserId && currentUserRole !== "admin" ? `AND a.UserId = @currentUserId ${userFilter}` : ""}
+        ${territoryFilter}${dateFilters}
       GROUP BY CAST(a.AuditDate AS DATE)
       ORDER BY AuditDate ASC
     `;
 
-    const result = await request.query(query);
+    let backupRequest = null;
+    let backupQuery = null;
+    if (backup) {
+      backupRequest = backup.request();
+      if (currentUserId && currentUserRole !== "admin") {
+        backupRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+        const backupUserFilter = ` AND (s.UserId = @currentUserId OR EXISTS (SELECT 1 FROM [RE_SALE_20260410].[dbo].[StoreUsers] su WHERE su.StoreId = s.Id AND su.UserId = @currentUserId))`;
+        backupQuery = `
+          SELECT
+            CAST(a.AuditDate AS DATE) as AuditDate,
+            COUNT(DISTINCT a.StoreId) as AuditedCount
+          FROM [RE_SALE_20260410].[dbo].[Audits] a
+          INNER JOIN [RE_SALE_20260410].[dbo].[Stores] s ON a.StoreId = s.Id
+          WHERE CAST(a.AuditDate AS DATE) IS NOT NULL
+            AND a.UserId = @currentUserId ${backupUserFilter}
+            ${territoryId ? ` AND s.TerritoryId = @territoryId` : ""}
+            ${dateFilters}
+          GROUP BY CAST(a.AuditDate AS DATE)
+          ORDER BY AuditDate ASC
+        `;
+        if (territoryId) backupRequest.input("territoryId", sql.Int, parseInt(territoryId, 10));
+        if (startDate) backupRequest.input("startDate", sql.Date, startDate);
+        if (endDate) backupRequest.input("endDate", sql.Date, endDate);
+      }
+    }
 
-    // Format date to YYYY-MM-DD string format
-    const formatDate = (dateValue) => {
-      if (!dateValue) return null;
-      const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
-      if (isNaN(date.getTime())) return null;
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, "0");
-      const day = String(date.getDate()).padStart(2, "0");
-      return `${year}-${month}-${day}`;
-    };
+    request.timeout = 60000;
+    const [mainResult, backupResult] = await Promise.all([
+      request.query(mainQuery),
+      backupQuery && backupRequest ? backupRequest.query(backupQuery) : Promise.resolve({ recordset: [] }),
+    ]);
 
-    // Calculate not audited count for each date
-    // Not audited = Total stores - stores audited on that specific date
-    const processedData = result.recordset
-      .map((row) => {
-        const formattedDate = formatDate(row.AuditDate);
-        if (!formattedDate) return null;
+    // Merge: sum AuditedCount per date, main DB takes precedence in key
+    const dateMap = new Map();
+    for (const row of mainResult.recordset) {
+      dateMap.set(row.AuditDate.toISOString().split("T")[0], row.AuditedCount || 0);
+    }
+    for (const row of backupResult.recordset) {
+      const key = row.AuditDate.toISOString().split("T")[0];
+      if (!dateMap.has(key)) {
+        dateMap.set(key, row.AuditedCount || 0);
+      }
+    }
 
-      return {
-          AuditDate: formattedDate,
-          AuditedCount: row.AuditedCount || 0,
-          NotAuditedCount: Math.max(0, totalStores - (row.AuditedCount || 0)),
-      };
-      })
-      .filter((item) => item !== null);
+    const processedData = Array.from(dateMap.entries())
+      .map(([dateStr, count]) => ({
+        AuditDate: dateStr,
+        AuditedCount: count,
+        NotAuditedCount: Math.max(0, totalStores - count),
+      }))
+      .sort((a, b) => a.AuditDate.localeCompare(b.AuditDate));
 
-    console.log("getStoresByDate - Total stores:", totalStores);
-    console.log("getStoresByDate - Processed data:", processedData);
+    console.log("getStoresByDate - Total stores:", totalStores, "Data points:", processedData.length);
 
-    res.json({
-      success: true,
-      data: processedData,
-    });
+    res.json({ success: true, data: processedData });
   } catch (error) {
     console.error("Error fetching stores by date:", error);
     res.status(500).json({
@@ -731,185 +760,91 @@ async function getProductTypes(req, res) {
 // Get summary table - table tổng hợp cửa hàng, audit status, sản phẩm, giá
 async function getSummaryTable(req, res) {
   try {
-    const {
-      page = 1,
-      pageSize = 20,
-      territoryId,
-      startDate,
-      endDate,
-    } = req.query;
-    const pool = await getPool();
-    const request = pool.request();
+    const { page = 1, pageSize = 20, territoryId, startDate, endDate } = req.query;
+    const { main } = await dualDB.getBothPools();
+    const request = main.request();
 
-    // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole =
-      req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
     const offset = (parseInt(page, 10) - 1) * parseInt(pageSize, 10);
     const limit = parseInt(pageSize, 10);
 
-    let query = `
-      SELECT 
+    let userFilter = "";
+    if (currentUserId && currentUserRole !== "admin") {
+      userFilter = ` AND (s.UserId = @currentUserId OR EXISTS (SELECT 1 FROM [DBXMTD].[dbo].[StoreUsers] su WHERE su.StoreId = s.Id AND su.UserId = @currentUserId))`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+    }
+
+    let territoryFilter = "";
+    if (territoryId) {
+      territoryFilter = " AND s.TerritoryId = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
+    let dateFilter = "";
+    if (startDate || endDate) {
+      const hasStart = !!startDate;
+      const hasEnd = !!endDate;
+      if (hasStart) request.input("startDate", sql.Date, startDate);
+      if (hasEnd) request.input("endDate", sql.Date, endDate);
+      dateFilter = `
+        AND (
+          NOT EXISTS (SELECT 1 FROM [DBXMTD].[dbo].[Audits] a3 WHERE a3.StoreId = s.Id)
+          OR EXISTS (
+            SELECT 1 FROM [DBXMTD].[dbo].[Audits] a2
+            WHERE a2.StoreId = s.Id
+              ${hasStart ? "AND CAST(a2.AuditDate AS DATE) >= @startDate" : ""}
+              ${hasEnd ? "AND CAST(a2.AuditDate AS DATE) <= @endDate" : ""}
+          )
+        )
+      `;
+    }
+
+    const mainQuery = `
+      SELECT
         s.Id as StoreId,
         s.StoreCode,
         s.StoreName,
         t.TerritoryName,
-        CASE 
-          WHEN EXISTS (
-            SELECT 1 FROM Audits a
-            WHERE a.StoreId = s.Id
-          ) THEN 'Đã thực hiện'
+        CASE
+          WHEN EXISTS (SELECT 1 FROM [DBXMTD].[dbo].[Audits] a WHERE a.StoreId = s.Id) THEN 'Đã thực hiện'
           ELSE 'Chưa thực hiện'
         END as AuditStatus,
         cp.Name as ProductName,
         ssp.PurchasePrice,
         ssp.SellingPrice
-      FROM Stores s
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      LEFT JOIN StoreSurveys ss ON s.Id = ss.StoreId
-      LEFT JOIN StoreSurveyProducts ssp ON ss.Id = ssp.StoreSurveyId
-      LEFT JOIN CementProducts cp ON ssp.CementProductId = cp.Id
-      WHERE 1=1
+      FROM [DBXMTD].[dbo].[Stores] s
+      LEFT JOIN [DBXMTD].[dbo].[Territories] t ON s.TerritoryId = t.Id
+      LEFT JOIN [DBXMTD].[dbo].[StoreSurveys] ss ON s.Id = ss.StoreId
+      LEFT JOIN [DBXMTD].[dbo].[StoreSurveyProducts] ssp ON ss.Id = ssp.StoreSurveyId
+      LEFT JOIN [DBXMTD].[dbo].[CementProducts] cp ON ssp.CementProductId = cp.Id
+      WHERE 1=1 ${userFilter}${territoryFilter}${dateFilter}
+      ORDER BY
+        CASE WHEN EXISTS (SELECT 1 FROM [DBXMTD].[dbo].[Audits] a WHERE a.StoreId = s.Id) THEN 0 ELSE 1 END ASC,
+        CASE WHEN ssp.PurchasePrice IS NOT NULL AND ssp.SellingPrice IS NOT NULL THEN 0 ELSE 1 END ASC,
+        s.StoreName ASC, cp.Name ASC
+      OFFSET @offset ROWS FETCH NEXT @limit ROWS ONLY
     `;
 
-    // Filter by user - only show stores assigned to current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
-    }
-
-    // Filter by user - only show stores assigned to current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
-    }
-
-    if (territoryId) {
-      query += " AND s.TerritoryId = @territoryId";
-      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
-    }
-
-    // Date filters should apply to audit date
-    // If date filters are provided, only show stores that have audits in that date range
-    // OR stores that have no audits at all (so they appear in the "Chưa thực hiện" status)
-    if (startDate || endDate) {
-      query += ` AND (
-        NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
-        OR EXISTS (
-          SELECT 1 FROM Audits a2
-          WHERE a2.StoreId = s.Id
-      `;
-      if (startDate) {
-        query += " AND CAST(a2.AuditDate AS DATE) >= @startDate";
-        request.input("startDate", sql.Date, startDate);
-      }
-      if (endDate) {
-        query += " AND CAST(a2.AuditDate AS DATE) <= @endDate";
-        request.input("endDate", sql.Date, endDate);
-      }
-      query += " )";
-      query += " )";
-    }
-
-    // Count total - build separate count query
+    // Count total
     let countQuery = `
       SELECT COUNT(DISTINCT s.Id) as Total
-      FROM Stores s
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
-      WHERE 1=1
-    `;
-    
-    // Apply user filter to count query
-    if (currentUserId && currentUserRole !== "admin") {
-      countQuery += ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-    }
-    
-    if (territoryId) {
-      countQuery += " AND s.TerritoryId = @territoryId";
-    }
-    
-    if (startDate || endDate) {
-      countQuery += ` AND (
-        NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
-        OR EXISTS (
-          SELECT 1 FROM Audits a2
-          WHERE a2.StoreId = s.Id
-      `;
-      if (startDate) {
-        countQuery += " AND CAST(a2.AuditDate AS DATE) >= @startDate";
-      }
-      if (endDate) {
-        countQuery += " AND CAST(a2.AuditDate AS DATE) <= @endDate";
-      }
-      countQuery += " )";
-      countQuery += " )";
-    }
-    
-    const countRequest = pool.request();
-    if (currentUserId && currentUserRole !== "admin") {
-      countRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
-    }
-    if (territoryId) {
-      countRequest.input("territoryId", sql.Int, parseInt(territoryId, 10));
-    }
-    if (startDate) {
-      countRequest.input("startDate", sql.Date, startDate);
-    }
-    if (endDate) {
-      countRequest.input("endDate", sql.Date, endDate);
-    }
-    const countResult = await countRequest.query(countQuery);
-    const total = countResult.recordset[0].Total || 0;
-
-    // Build ORDER BY clause to prioritize:
-    // 1. "Đã thực hiện" stores with purchase/selling prices
-    // 2. "Đã thực hiện" stores without prices
-    // 3. "Chưa thực hiện" stores with prices
-    // 4. "Chưa thực hiện" stores without prices
-    query += `
-      ORDER BY 
-        CASE 
-          WHEN EXISTS (
-            SELECT 1 FROM Audits a
-            WHERE a.StoreId = s.Id
-          ) THEN 0
-          ELSE 1
-        END ASC,
-        CASE 
-          WHEN ssp.PurchasePrice IS NOT NULL AND ssp.SellingPrice IS NOT NULL THEN 0
-          ELSE 1
-        END ASC,
-        s.StoreName ASC, 
-        cp.Name ASC
-      OFFSET @offset ROWS
-      FETCH NEXT @limit ROWS ONLY
+      FROM [DBXMTD].[dbo].[Stores] s
+      WHERE 1=1 ${userFilter}${territoryFilter}${dateFilter}
     `;
 
     request.input("offset", sql.Int, offset);
     request.input("limit", sql.Int, limit);
+    request.timeout = 60000;
 
-    const result = await request.query(query);
+    const [result, countResult] = await Promise.all([
+      request.query(mainQuery),
+      request.query(countQuery),
+    ]);
 
-    // Set UTF-8 encoding for response
+    const total = countResult.recordset[0]?.Total || 0;
+
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json({
       success: true,
@@ -931,85 +866,119 @@ async function getSummaryTable(req, res) {
   }
 }
 
-// Get stores summary by territory (for table below bar chart)
+// Get stores summary by territory (for table below bar chart) - dual DB
 async function getStoresByTerritory(req, res) {
   try {
-    const { startDate, endDate } = req.query;
-    const pool = await getPool();
-    const request = pool.request();
+    const { startDate, endDate, territoryId } = req.query;
+    const { main, backup } = await dualDB.getBothPools();
+    const request = main.request();
 
-    // Get current user from token
     const currentUserId = req.user?.id || req.user?.userId;
-    const currentUserRole =
-      req.user?.role || req.user?.Role || req.user?.RoleName;
+    const currentUserRole = req.user?.role || req.user?.Role || req.user?.RoleName;
 
-    // Get stores checkin count and checkin days by territory (within date range if provided)
-    // IMPORTANT: Count based on audits (store status), not strictly on images,
-    // so stores với trạng thái "Đã thực hiện" nhưng thiếu hình vẫn được ghi nhận.
-    // StoresChecked: COUNT(DISTINCT a.StoreId) - đếm số cửa hàng
-    // CheckinDays: COUNT(DISTINCT CAST(a.AuditDate AS DATE)) - đếm số ngày khác nhau
-    let query = `
-      SELECT 
+    let dateFilters = "";
+    if (startDate) {
+      dateFilters += " AND CAST(a.AuditDate AS DATE) >= @startDate";
+      request.input("startDate", sql.Date, startDate);
+    }
+    if (endDate) {
+      dateFilters += " AND CAST(a.AuditDate AS DATE) <= @endDate";
+      request.input("endDate", sql.Date, endDate);
+    }
+
+    let territoryFilter = "";
+    if (territoryId) {
+      territoryFilter = " AND t.Id = @territoryId";
+      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
+    }
+
+    let userFilter = "";
+    if (currentUserId && currentUserRole !== "admin") {
+      userFilter = ` AND a.UserId = @currentUserId`;
+      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+      userFilter += ` AND (s.UserId = @currentUserId OR EXISTS (SELECT 1 FROM [DBXMTD].[dbo].[StoreUsers] su WHERE su.StoreId = s.Id AND su.UserId = @currentUserId))`;
+    }
+
+    const mainQuery = `
+      SELECT
         t.Id as TerritoryId,
         t.TerritoryName,
         COUNT(DISTINCT a.StoreId) as StoresChecked,
         COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as CheckinDays
-      FROM Audits a
-      INNER JOIN Stores s ON a.StoreId = s.Id
-      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      FROM [DBXMTD].[dbo].[Audits] a
+      INNER JOIN [DBXMTD].[dbo].[Stores] s ON a.StoreId = s.Id
+      LEFT JOIN [DBXMTD].[dbo].[Territories] t ON s.TerritoryId = t.Id
       WHERE t.Id IS NOT NULL
-    `;
-
-    // Filter audits by current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND a.UserId = @currentUserId`;
-      request.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
-    }
-
-    // Also filter stores by current user (unless admin)
-    if (currentUserId && currentUserRole !== "admin") {
-      query += ` AND (
-        s.UserId = @currentUserId
-        OR EXISTS (
-          SELECT 1 FROM StoreUsers su
-          WHERE su.StoreId = s.Id AND su.UserId = @currentUserId
-        )
-      )`;
-      // Note: currentUserId already declared above, no need to declare again
-    }
-
-    if (startDate) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @startDate";
-      request.input("startDate", sql.Date, startDate);
-    }
-
-    if (endDate) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @endDate";
-      request.input("endDate", sql.Date, endDate);
-    }
-
-    // Filter by territory if provided
-    const territoryId = req.query.territoryId;
-    if (territoryId) {
-      query += " AND t.Id = @territoryId";
-      request.input("territoryId", sql.Int, parseInt(territoryId, 10));
-    }
-
-    query += `
+        ${userFilter}${territoryFilter}${dateFilters}
       GROUP BY t.Id, t.TerritoryName
       ORDER BY t.TerritoryName ASC
     `;
 
-    const result = await request.query(query);
+    let backupRequest = null;
+    let backupQuery = null;
+    if (backup) {
+      backupRequest = backup.request();
+      let backupUserFilter = "";
+      if (currentUserId && currentUserRole !== "admin") {
+        backupUserFilter = ` AND a.UserId = @currentUserId`;
+        backupRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
+        backupUserFilter += ` AND (s.UserId = @currentUserId OR EXISTS (SELECT 1 FROM [RE_SALE_20260410].[dbo].[StoreUsers] su WHERE su.StoreId = s.Id AND su.UserId = @currentUserId))`;
+      }
+      if (territoryId) backupRequest.input("territoryId", sql.Int, parseInt(territoryId, 10));
+      if (startDate) backupRequest.input("startDate", sql.Date, startDate);
+      if (endDate) backupRequest.input("endDate", sql.Date, endDate);
 
-    const data = result.recordset.map((row) => ({
-      TerritoryId: row.TerritoryId,
-      TerritoryName: row.TerritoryName,
-      StoresChecked: row.StoresChecked || 0,
-      CheckinDays: row.CheckinDays || 0,
-    }));
+      backupQuery = `
+        SELECT
+          t.Id as TerritoryId,
+          t.TerritoryName,
+          COUNT(DISTINCT a.StoreId) as StoresChecked,
+          COUNT(DISTINCT CAST(a.AuditDate AS DATE)) as CheckinDays
+        FROM [RE_SALE_20260410].[dbo].[Audits] a
+        INNER JOIN [RE_SALE_20260410].[dbo].[Stores] s ON a.StoreId = s.Id
+        LEFT JOIN [RE_SALE_20260410].[dbo].[Territories] t ON s.TerritoryId = t.Id
+        WHERE t.Id IS NOT NULL
+          ${backupUserFilter}${territoryFilter}${dateFilters}
+        GROUP BY t.Id, t.TerritoryName
+        ORDER BY t.TerritoryName ASC
+      `;
+    }
 
-    // Calculate totals
+    request.timeout = 60000;
+    const [mainResult, backupResult] = await Promise.all([
+      request.query(mainQuery),
+      backupQuery && backupRequest ? backupRequest.query(backupQuery) : Promise.resolve({ recordset: [] }),
+    ]);
+
+    // Merge by TerritoryId
+    const territoryMap = new Map();
+    for (const row of mainResult.recordset) {
+      territoryMap.set(row.TerritoryId, {
+        TerritoryId: row.TerritoryId,
+        TerritoryName: row.TerritoryName,
+        StoresChecked: row.StoresChecked || 0,
+        CheckinDays: row.CheckinDays || 0,
+      });
+    }
+    for (const row of backupResult.recordset) {
+      if (territoryMap.has(row.TerritoryId)) {
+        const existing = territoryMap.get(row.TerritoryId);
+        existing.StoresChecked += row.StoresChecked || 0;
+        existing.CheckinDays += row.CheckinDays || 0;
+      } else {
+        territoryMap.set(row.TerritoryId, {
+          TerritoryId: row.TerritoryId,
+          TerritoryName: row.TerritoryName,
+          StoresChecked: row.StoresChecked || 0,
+          CheckinDays: row.CheckinDays || 0,
+        });
+      }
+    }
+
+    const data = Array.from(territoryMap.values()).sort((a, b) =>
+      (a.TerritoryName || "").localeCompare(b.TerritoryName || "")
+    );
+
     const totals = data.reduce(
       (acc, item) => {
         acc.StoresChecked += item.StoresChecked || 0;
@@ -1019,18 +988,11 @@ async function getStoresByTerritory(req, res) {
       { StoresChecked: 0, CheckinDays: 0 }
     );
 
-    console.log("getStoresByTerritory - Data:", {
-      territoriesCount: data.length,
-      data: data,
-      totals: totals,
-    });
+    console.log("getStoresByTerritory - Territories:", data.length, "Totals:", totals);
 
     res.json({
       success: true,
-      data: {
-        territories: data,
-        totals: totals,
-      },
+      data: { territories: data, totals },
     });
   } catch (error) {
     console.error("Error fetching stores by territory:", error);
