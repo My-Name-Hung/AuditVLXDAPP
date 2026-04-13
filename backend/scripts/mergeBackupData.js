@@ -1,401 +1,330 @@
 /**
- * Script merge data từ RE_SALE_20260410 (backup) vào DBXMTD (hiện tại)
- * Chỉ merge Audits có AuditDate < '2026-04-11' và Images liên quan
- * KHÔNG ghi đè data hiện có trong DBXMTD
+ * Script merge an toàn: RE_SALE_20260410 (Backup) → DBXMTD
+ *
+ * Nguyên tắc: CHỈ INSERT - KHÔNG UPDATE - KHÔNG XÓA
+ * Giữ nguyên mọi data hiện tại trong DBXMTD
+ * Chỉ thêm records hoàn toàn mới (Id chưa tồn tại)
  *
  * Chạy: node scripts/mergeBackupData.js
  */
 
 const sql = require("mssql");
 
-// ─── Cấu hình 2 database ───
 const DBXMTD_CONFIG = {
-  server: process.env.DB_SERVER || "113.161.208.240",
-  port: parseInt(process.env.DB_PORT || "3433"),
-  user: process.env.DB_USER || "sa",
-  password: process.env.DB_PASSWORD || "XMTD@@@2025",
+  server: "113.161.208.240",
+  port: 3433,
+  user: "sa",
+  password: "XMTD@@@2025",
   database: "DBXMTD",
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-    enableArithAbort: true,
-  },
+  options: { encrypt: false, trustServerCertificate: true, enableArithAbort: true, requestTimeout: 300000 },
 };
 
 const BACKUP_CONFIG = {
-  server: process.env.DB_SERVER || "113.161.208.240",
-  port: parseInt(process.env.DB_PORT || "3433"),
-  user: process.env.DB_USER || "sa",
-  password: process.env.DB_PASSWORD || "XMTD@@@2025",
+  server: "113.161.208.240",
+  port: 3433,
+  user: "sa",
+  password: "XMTD@@@2025",
   database: "RE_SALE_20260410",
-  options: {
-    encrypt: false,
-    trustServerCertificate: true,
-    enableArithAbort: true,
-  },
+  options: { encrypt: false, trustServerCertificate: true, enableArithAbort: true, requestTimeout: 300000 },
 };
 
-const CUTOFF_DATE = "2026-04-11"; // Chỉ merge data trước ngày này
-
 async function connectDB(config, name) {
+  const pool = await sql.connect(config);
+  console.log(`✅ Kết nối: ${name}`);
+  return pool;
+}
+
+// ─── Lấy column list từ bảng thực tế ───
+async function getColumns(pool, db, table) {
+  const result = await pool.request().query(
+    `SELECT COLUMN_NAME FROM ${db}.INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = '${table}' ORDER BY ORDINAL_POSITION`
+  );
+  return result.recordset.map(r => r.COLUMN_NAME);
+}
+
+// ─── Chẩn đoán ───
+async function diagnose(backupPool, dbxmtdPool) {
+  console.log("\n🔍 Chẩn đoán trước merge...");
+
+  for (const t of ["Stores", "Users", "Audits", "Images", "StoreSurveys", "StoreSurveyProducts"]) {
+    try {
+      const bc = await backupPool.request().query(`SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.${t}`);
+      const dc = await dbxmtdPool.request().query(`SELECT COUNT(*) as c FROM DBXMTD.dbo.${t}`);
+      const diff = bc.recordset[0].c - dc.recordset[0].c;
+      const mark = diff === 0 ? "✅" : diff > 0 ? "📥" : "📤";
+      console.log(`   ${mark} ${t}: DBXMTD=${dc.recordset[0].c}, Backup=${bc.recordset[0].c}, Chênh=${diff >= 0 ? "+" : ""}${diff}`);
+    } catch (e) {
+      console.log(`   ❌ ${t}: ${e.message}`);
+    }
+  }
+
+  const dDist = await dbxmtdPool.request().query(`
+    SELECT CAST(AuditDate AS DATE) as d, COUNT(*) as c
+    FROM DBXMTD.dbo.Audits GROUP BY CAST(AuditDate AS DATE) ORDER BY d DESC
+  `);
+  const total = dDist.recordset.reduce((s, x) => s + x.c, 0);
+  console.log(`\n   📅 DBXMTD - ${total} records across ${dDist.recordset.length} ngày:`);
+  for (const r of dDist.recordset.slice(0, 10)) {
+    console.log(`      ${r.d}: ${r.c}`);
+  }
+  if (dDist.recordset.length > 10) {
+    const hidden = total - dDist.recordset.slice(0, 10).reduce((s, x) => s + x.c, 0);
+    console.log(`      ... và ${dDist.recordset.length - 10} ngày khác (${hidden} records)`);
+  }
+
+  const needAudit = await backupPool.request().query(`
+    SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.Audits b
+    WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Audits d WHERE d.Id = b.Id)
+  `);
+  const needImg = await backupPool.request().query(`
+    SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.Images b
+    WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Images d WHERE d.Id = b.Id)
+  `);
+  console.log(`\n   ⚠️  Cần INSERT: ${needAudit.recordset[0].c} Audits, ${needImg.recordset[0].c} Images`);
+}
+
+// ─── INSERT Stores (schema động) ───
+async function insertStores(backupPool, dbxmtdPool) {
+  console.log("\n📋 Bước 1: INSERT Stores...");
+
+  const needed = await backupPool.request().query(`
+    SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.Stores b
+    WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Stores d WHERE d.Id = b.Id)
+  `);
+  console.log(`   Cần INSERT ${needed.recordset[0].c} Stores...`);
+
+  if (needed.recordset[0].c === 0) {
+    console.log("   ⏭️  Đã đủ Stores");
+    return;
+  }
+
+  const cols = await getColumns(dbxmtdPool, "DBXMTD", "Stores");
+  console.log(`   Schema: ${cols.join(", ")}`);
+
   try {
-    const pool = await sql.connect(config);
-    console.log(`✅ Kết nối thành công: ${name}`);
-    return pool;
-  } catch (err) {
-    console.error(`❌ Kết nối thất bại: ${name}`, err.message);
-    throw err;
+    await dbxmtdPool.request().query(`
+      SET IDENTITY_INSERT DBXMTD.dbo.Stores ON;
+      INSERT INTO DBXMTD.dbo.Stores (${cols.join(", ")})
+      SELECT ${cols.join(", ")}
+      FROM RE_SALE_20260410.dbo.Stores b
+      WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Stores d WHERE d.Id = b.Id);
+      SET IDENTITY_INSERT DBXMTD.dbo.Stores OFF;
+    `);
+    console.log("   ✅ Inserted Stores");
+  } catch (e) {
+    console.log(`   ❌ Lỗi: ${e.message}`);
   }
 }
 
-async function mergeAudits(backupPool, dbxmtdPool) {
-  console.log("\n📋 Bước 1: Merge bảng Audits...");
+// ─── INSERT Users (schema động) ───
+async function insertUsers(backupPool, dbxmtdPool) {
+  console.log("\n📋 Bước 2: INSERT Users...");
 
-  // Lấy Audits từ backup có AuditDate < cutoff
-  const backupAudits = await backupPool.request().query(`
-    SELECT Id, UserId, StoreId, Result, Notes, AuditDate, CreatedAt, UpdatedAt
-    FROM Audits
-    WHERE CAST(AuditDate AS DATE) < '${CUTOFF_DATE}'
+  const needed = await backupPool.request().query(`
+    SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.Users b
+    WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Users d WHERE d.Id = b.Id)
   `);
+  console.log(`   Cần INSERT ${needed.recordset[0].c} Users...`);
 
-  console.log(`   Tìm thấy ${backupAudits.recordset.length} Audits trong backup`);
-
-  if (backupAudits.recordset.length === 0) {
-    console.log("   ⏭️  Bỏ qua - không có Audits cần merge");
-    return [];
+  if (needed.recordset[0].c === 0) {
+    console.log("   ⏭️  Đã đủ Users");
+    return;
   }
 
-  // Lấy danh sách AuditId đã có trong DBXMTD
-  const existingAudits = await dbxmtdPool.request().query("SELECT Id FROM Audits");
-  const existingIds = new Set(existingAudits.recordset.map((r) => r.Id));
+  const cols = await getColumns(dbxmtdPool, "DBXMTD", "Users");
+  console.log(`   Schema: ${cols.join(", ")}`);
 
-  // Lọc Audits chưa có trong DBXMTD
-  const newAudits = backupAudits.recordset.filter((a) => !existingIds.has(a.Id));
-  console.log(`   ${newAudits.length} Audits mới cần insert (đã loại ${backupAudits.recordset.length - newAudits.length} trùng lặp)`);
+  try {
+    await dbxmtdPool.request().query(`
+      SET IDENTITY_INSERT DBXMTD.dbo.Users ON;
+      INSERT INTO DBXMTD.dbo.Users (${cols.join(", ")})
+      SELECT ${cols.join(", ")}
+      FROM RE_SALE_20260410.dbo.Users b
+      WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Users d WHERE d.Id = b.Id);
+      SET IDENTITY_INSERT DBXMTD.dbo.Users OFF;
+    `);
+    console.log("   ✅ Inserted Users");
+  } catch (e) {
+    console.log(`   ❌ Lỗi: ${e.message}`);
+  }
+}
 
-  if (newAudits.length === 0) {
-    console.log("   ⏭️  Bỏ qua - tất cả đã tồn tại");
-    return [];
+// ─── INSERT Audits ───
+async function insertAudits(backupPool, dbxmtdPool) {
+  console.log("\n📋 Bước 3: INSERT Audits...");
+
+  const countResult = await backupPool.request().query(`
+    SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.Audits b
+    WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Audits d WHERE d.Id = b.Id)
+  `);
+  const count = countResult.recordset[0].c;
+  console.log(`   Cần INSERT ${count} Audits...`);
+
+  if (count === 0) {
+    console.log("   ⏭️  Không có Audits mới");
+    return 0;
   }
 
-  // Insert từng Audit
-  let insertedCount = 0;
-  let errorCount = 0;
+  const cols = await getColumns(dbxmtdPool, "DBXMTD", "Audits");
+  console.log(`   Schema: ${cols.join(", ")}`);
 
-  for (const audit of newAudits) {
+  const start = Date.now();
+  try {
+    await dbxmtdPool.request().query(`
+      SET IDENTITY_INSERT DBXMTD.dbo.Audits ON;
+      INSERT INTO DBXMTD.dbo.Audits (${cols.join(", ")})
+      SELECT ${cols.join(", ")}
+      FROM RE_SALE_20260410.dbo.Audits b
+      WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Audits d WHERE d.Id = b.Id);
+      SET IDENTITY_INSERT DBXMTD.dbo.Audits OFF;
+    `);
+    console.log(`   ✅ Inserted ${count} Audits trong ${((Date.now() - start) / 1000).toFixed(1)}s`);
+    return count;
+  } catch (e) {
+    console.log(`   ❌ Lỗi: ${e.message}`);
+    return 0;
+  }
+}
+
+// ─── INSERT Images ───
+async function insertImages(backupPool, dbxmtdPool) {
+  console.log("\n📋 Bước 4: INSERT Images...");
+
+  const countResult = await backupPool.request().query(`
+    SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.Images b
+    WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Images d WHERE d.Id = b.Id)
+  `);
+  const count = countResult.recordset[0].c;
+  console.log(`   Cần INSERT ${count} Images...`);
+
+  if (count === 0) {
+    console.log("   ⏭️  Không có Images mới");
+    return 0;
+  }
+
+  const cols = await getColumns(dbxmtdPool, "DBXMTD", "Images");
+  const start = Date.now();
+  try {
+    await dbxmtdPool.request().query(`
+      SET IDENTITY_INSERT DBXMTD.dbo.Images ON;
+      INSERT INTO DBXMTD.dbo.Images (${cols.join(", ")})
+      SELECT ${cols.join(", ")}
+      FROM RE_SALE_20260410.dbo.Images b
+      WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.Images d WHERE d.Id = b.Id);
+      SET IDENTITY_INSERT DBXMTD.dbo.Images OFF;
+    `);
+    console.log(`   ✅ Inserted ${count} Images trong ${((Date.now() - start) / 1000).toFixed(1)}s`);
+    return count;
+  } catch (e) {
+    console.log(`   ❌ Lỗi: ${e.message}`);
+    return 0;
+  }
+}
+
+// ─── StoreSurveys & StoreSurveyProducts ───
+async function syncStoreSurveys(backupPool, dbxmtdPool) {
+  for (const [t, name] of [["StoreSurveys", "StoreSurveys"], ["StoreSurveyProducts", "StoreSurveyProducts"]]) {
+    try {
+      await backupPool.request().query(`SELECT TOP 1 Id FROM RE_SALE_20260410.dbo.${t}`);
+    } catch {
+      console.log(`   ⏭️  Bảng ${t} không tồn tại trong backup`);
+      continue;
+    }
+
+    const countS = await backupPool.request().query(`
+      SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.${t} b
+      WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.${t} d WHERE d.Id = b.Id)
+    `);
+    console.log(`\n   Cần INSERT ${countS.recordset[0].c} ${t}...`);
+
+    if (countS.recordset[0].c === 0) {
+      console.log(`   ⏭️  Không có ${t} mới`);
+      continue;
+    }
+
+    const cols = await getColumns(dbxmtdPool, "DBXMTD", t);
+    const start = Date.now();
     try {
       await dbxmtdPool.request().query(`
-        SET IDENTITY_INSERT Audits ON;
-        INSERT INTO Audits (Id, UserId, StoreId, Result, Notes, AuditDate, CreatedAt, UpdatedAt)
-        VALUES (
-          ${audit.Id},
-          ${audit.UserId},
-          ${audit.StoreId},
-          '${escapeString(audit.Result)}',
-          ${audit.Notes ? `'${escapeString(audit.Notes)}'` : "NULL"},
-          '${formatDate(audit.AuditDate)}',
-          '${formatDate(audit.CreatedAt)}',
-          '${formatDate(audit.UpdatedAt)}'
-        );
-        SET IDENTITY_INSERT Audits OFF;
+        SET IDENTITY_INSERT DBXMTD.dbo.${t} ON;
+        INSERT INTO DBXMTD.dbo.${t} (${cols.join(", ")})
+        SELECT ${cols.join(", ")}
+        FROM RE_SALE_20260410.dbo.${t} b
+        WHERE NOT EXISTS (SELECT 1 FROM DBXMTD.dbo.${t} d WHERE d.Id = b.Id);
+        SET IDENTITY_INSERT DBXMTD.dbo.${t} OFF;
       `);
-      insertedCount++;
-    } catch (err) {
-      errorCount++;
-      if (errorCount <= 5) {
-        console.error(`   ⚠️  Lỗi insert Audit Id=${audit.Id}: ${err.message}`);
-      }
+      console.log(`   ✅ Inserted ${countS.recordset[0].c} ${t} trong ${((Date.now() - start) / 1000).toFixed(1)}s`);
+    } catch (e) {
+      console.log(`   ❌ Lỗi: ${e.message}`);
     }
   }
-
-  console.log(`   ✅ Đã insert ${insertedCount} Audits, ${errorCount} lỗi`);
-  return newAudits;
 }
 
-async function mergeImages(backupPool, dbxmtdPool) {
-  console.log("\n📋 Bước 2: Merge bảng Images...");
-
-  // Lấy Images từ backup
-  const backupImages = await backupPool.request().query(`
-    SELECT Id, AuditId, ImageUrl, ReferenceImageUrl, Latitude, Longitude, CapturedAt, CreatedAt, UpdatedAt
-    FROM Images
-    WHERE AuditId IN (
-      SELECT Id FROM Audits WHERE CAST(AuditDate AS DATE) < '${CUTOFF_DATE}'
-    )
-  `);
-
-  console.log(`   Tìm thấy ${backupImages.recordset.length} Images trong backup`);
-
-  if (backupImages.recordset.length === 0) {
-    console.log("   ⏭️  Bỏ qua - không có Images cần merge");
-    return;
-  }
-
-  // Lấy danh sách ImageId đã có trong DBXMTD
-  const existingImages = await dbxmtdPool.request().query("SELECT Id FROM Images");
-  const existingIds = new Set(existingImages.recordset.map((r) => r.Id));
-
-  // Lọc Images chưa có trong DBXMTD
-  const newImages = backupImages.recordset.filter((img) => !existingIds.has(img.Id));
-  console.log(`   ${newImages.length} Images mới cần insert (đã loại ${backupImages.recordset.length - newImages.length} trùng lặp)`);
-
-  if (newImages.length === 0) {
-    console.log("   ⏭️  Bỏ qua - tất cả đã tồn tại");
-    return;
-  }
-
-  let insertedCount = 0;
-  let errorCount = 0;
-
-  for (const img of newImages) {
-    try {
-      await dbxmtdPool.request().query(`
-        SET IDENTITY_INSERT Images ON;
-        INSERT INTO Images (Id, AuditId, ImageUrl, ReferenceImageUrl, Latitude, Longitude, CapturedAt, CreatedAt, UpdatedAt)
-        VALUES (
-          ${img.Id},
-          ${img.AuditId},
-          '${escapeString(img.ImageUrl)}',
-          ${img.ReferenceImageUrl ? `'${escapeString(img.ReferenceImageUrl)}'` : "NULL"},
-          ${img.Latitude !== null ? img.Latitude : "NULL"},
-          ${img.Longitude !== null ? img.Longitude : "NULL"},
-          '${formatDate(img.CapturedAt)}',
-          '${formatDate(img.CreatedAt)}',
-          '${formatDate(img.UpdatedAt)}'
-        );
-        SET IDENTITY_INSERT Images OFF;
-      `);
-      insertedCount++;
-    } catch (err) {
-      errorCount++;
-      if (errorCount <= 5) {
-        console.error(`   ⚠️  Lỗi insert Image Id=${img.Id}: ${err.message}`);
-      }
-    }
-  }
-
-  console.log(`   ✅ Đã insert ${insertedCount} Images, ${errorCount} lỗi`);
-}
-
-async function mergeStoreSurveys(backupPool, dbxmtdPool) {
-  console.log("\n📋 Bước 3: Merge bảng StoreSurveys...");
-
-  const backupSurveys = await backupPool.request().query(`
-    SELECT * FROM StoreSurveys
-    WHERE AuditId IN (
-      SELECT Id FROM Audits WHERE CAST(AuditDate AS DATE) < '${CUTOFF_DATE}'
-    )
-  `);
-
-  console.log(`   Tìm thấy ${backupSurveys.recordset.length} StoreSurveys trong backup`);
-
-  if (backupSurveys.recordset.length === 0) {
-    console.log("   ⏭️  Bỏ qua - không có StoreSurveys cần merge");
-    return;
-  }
-
-  const existingSurveys = await dbxmtdPool.request().query("SELECT Id FROM StoreSurveys");
-  const existingIds = new Set(existingSurveys.recordset.map((r) => r.Id));
-
-  const newSurveys = backupSurveys.recordset.filter((s) => !existingIds.has(s.Id));
-  console.log(`   ${newSurveys.length} StoreSurveys mới cần insert`);
-
-  if (newSurveys.length === 0) {
-    console.log("   ⏭️  Bỏ qua - tất cả đã tồn tại");
-    return;
-  }
-
-  let insertedCount = 0;
-  let errorCount = 0;
-
-  for (const survey of newSurveys) {
-    try {
-      // Xây dựng INSERT statement động
-      const cols = [];
-      const vals = [];
-
-      for (const [key, value] of Object.entries(survey)) {
-        if (key === "Id") {
-          cols.push("Id");
-          vals.push(value);
-        } else if (value !== null && value !== undefined) {
-          cols.push(key);
-          if (typeof value === "string") {
-            vals.push(`'${escapeString(value)}'`);
-          } else if (value instanceof Date) {
-            vals.push(`'${formatDate(value)}'`);
-          } else {
-            vals.push(value);
-          }
-        }
-      }
-
-      await dbxmtdPool.request().query(`
-        SET IDENTITY_INSERT StoreSurveys ON;
-        INSERT INTO StoreSurveys (${cols.join(", ")}) VALUES (${vals.join(", ")});
-        SET IDENTITY_INSERT StoreSurveys OFF;
-      `);
-      insertedCount++;
-    } catch (err) {
-      errorCount++;
-      if (errorCount <= 5) {
-        console.error(`   ⚠️  Lỗi insert StoreSurvey Id=${survey.Id}: ${err.message}`);
-      }
-    }
-  }
-
-  console.log(`   ✅ Đã insert ${insertedCount} StoreSurveys, ${errorCount} lỗi`);
-}
-
-async function mergeStoreSurveyProducts(backupPool, dbxmtdPool) {
-  console.log("\n📋 Bước 4: Merge bảng StoreSurveyProducts...");
-
-  const backupProducts = await backupPool.request().query(`
-    SELECT * FROM StoreSurveyProducts
-    WHERE StoreSurveyId IN (
-      SELECT Id FROM StoreSurveys WHERE AuditId IN (
-        SELECT Id FROM Audits WHERE CAST(AuditDate AS DATE) < '${CUTOFF_DATE}'
-      )
-    )
-  `);
-
-  console.log(`   Tìm thấy ${backupProducts.recordset.length} StoreSurveyProducts trong backup`);
-
-  if (backupProducts.recordset.length === 0) {
-    console.log("   ⏭️  Bỏ qua - không có StoreSurveyProducts cần merge");
-    return;
-  }
-
-  const existingProducts = await dbxmtdPool.request().query("SELECT Id FROM StoreSurveyProducts");
-  const existingIds = new Set(existingProducts.recordset.map((r) => r.Id));
-
-  const newProducts = backupProducts.recordset.filter((p) => !existingIds.has(p.Id));
-  console.log(`   ${newProducts.length} StoreSurveyProducts mới cần insert`);
-
-  if (newProducts.length === 0) {
-    console.log("   ⏭️  Bỏ qua - tất cả đã tồn tại");
-    return;
-  }
-
-  let insertedCount = 0;
-  let errorCount = 0;
-
-  for (const product of newProducts) {
-    try {
-      const cols = [];
-      const vals = [];
-
-      for (const [key, value] of Object.entries(product)) {
-        if (key === "Id") {
-          cols.push("Id");
-          vals.push(value);
-        } else if (value !== null && value !== undefined) {
-          cols.push(key);
-          if (typeof value === "string") {
-            vals.push(`'${escapeString(value)}'`);
-          } else if (value instanceof Date) {
-            vals.push(`'${formatDate(value)}'`);
-          } else {
-            vals.push(value);
-          }
-        }
-      }
-
-      await dbxmtdPool.request().query(`
-        SET IDENTITY_INSERT StoreSurveyProducts ON;
-        INSERT INTO StoreSurveyProducts (${cols.join(", ")}) VALUES (${vals.join(", ")});
-        SET IDENTITY_INSERT StoreSurveyProducts OFF;
-      `);
-      insertedCount++;
-    } catch (err) {
-      errorCount++;
-      if (errorCount <= 5) {
-        console.error(`   ⚠️  Lỗi insert StoreSurveyProduct Id=${product.Id}: ${err.message}`);
-      }
-    }
-  }
-
-  console.log(`   ✅ Đã insert ${insertedCount} StoreSurveyProducts, ${errorCount} lỗi`);
-}
-
+// ─── Tổng kết ───
 async function showSummary(backupPool, dbxmtdPool) {
-  console.log("\n📊 Tổng kết data sau khi merge:");
+  console.log("\n📊 Tổng kết sau merge:");
 
-  const tables = ["Audits", "Images", "StoreSurveys", "StoreSurveyProducts"];
-  for (const table of tables) {
+  for (const t of ["Stores", "Users", "Audits", "Images", "StoreSurveys", "StoreSurveyProducts"]) {
     try {
-      const backupCount = await backupPool.request().query(`SELECT COUNT(*) as cnt FROM ${table}`);
-      const dbxmtdCount = await dbxmtdPool.request().query(`SELECT COUNT(*) as cnt FROM ${table}`);
-      console.log(`   ${table}: DBXMTD=${dbxmtdCount.recordset[0].cnt}, Backup=${backupCount.recordset[0].cnt}`);
-    } catch (err) {
-      console.log(`   ${table}: Không thể đếm (${err.message})`);
-    }
+      const bc = await backupPool.request().query(`SELECT COUNT(*) as c FROM RE_SALE_20260410.dbo.${t}`);
+      const dc = await dbxmtdPool.request().query(`SELECT COUNT(*) as c FROM DBXMTD.dbo.${t}`);
+      const diff = dc.recordset[0].c - bc.recordset[0].c;
+      const mark = diff === 0 ? "✅" : "⚠️";
+      console.log(`   ${mark} ${t}: DBXMTD=${dc.recordset[0].c}, Backup=${bc.recordset[0].c}`);
+    } catch {}
+  }
+
+  const dist = await dbxmtdPool.request().query(`
+    SELECT CAST(AuditDate AS DATE) as d, COUNT(*) as c
+    FROM DBXMTD.dbo.Audits GROUP BY CAST(AuditDate AS DATE) ORDER BY d DESC
+  `);
+  const total = dist.recordset.reduce((s, x) => s + x.c, 0);
+  console.log(`\n📅 Phân bổ ngày (sau merge): Tổng=${total} records across ${dist.recordset.length} ngày`);
+  for (const r of dist.recordset.slice(0, 15)) {
+    console.log(`   ${r.d}: ${r.c}`);
+  }
+  if (dist.recordset.length > 15) {
+    const hidden = total - dist.recordset.slice(0, 15).reduce((s, x) => s + x.c, 0);
+    console.log(`   ... và ${dist.recordset.length - 15} ngày khác (${hidden} records)`);
   }
 }
 
-// ─── Utility functions ───
-function escapeString(str) {
-  if (str === null || str === undefined) return "";
-  return String(str).replace(/'/g, "''").replace(/\\/g, "\\\\");
-}
-
-function formatDate(dateValue) {
-  if (!dateValue) return "GETDATE()";
-  const d = dateValue instanceof Date ? dateValue : new Date(dateValue);
-  if (isNaN(d.getTime())) return "GETDATE()";
-  const y = d.getFullYear();
-  const mo = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  const h = String(d.getHours()).padStart(2, "0");
-  const mi = String(d.getMinutes()).padStart(2, "0");
-  const s = String(d.getSeconds()).padStart(2, "0");
-  return `${y}-${mo}-${day} ${h}:${mi}:${s}`;
-}
-
-// ─── Main ───
+// ─── MAIN ───
 async function main() {
-  console.log("═══════════════════════════════════════════");
-  console.log("   MERGE DATA: RE_SALE_20260410 → DBXMTD");
-  console.log(`   Cutoff date: ${CUTOFF_DATE} (AuditDate < ngày này)`);
-  console.log("═══════════════════════════════════════════");
+  console.log("═══════════════════════════════════════════════════════");
+  console.log("   MERGE AN TOÀN: RE_SALE_20260410 → DBXMTD");
+  console.log("   Chỉ INSERT bản ghi mới - KHÔNG UPDATE - KHÔNG XÓA");
+  console.log("═══════════════════════════════════════════════════════");
 
   let backupPool = null;
   let dbxmtdPool = null;
 
   try {
-    // Kết nối cả 2 database
     backupPool = await connectDB(BACKUP_CONFIG, "RE_SALE_20260410 (Backup)");
     dbxmtdPool = await connectDB(DBXMTD_CONFIG, "DBXMTD (Hiện tại)");
 
-    // Merge theo thứ tự: Audits → Images → StoreSurveys → StoreSurveyProducts
-    await mergeAudits(backupPool, dbxmtdPool);
-    await mergeImages(backupPool, dbxmtdPool);
+    await diagnose(backupPool, dbxmtdPool);
 
-    // Kiểm tra xem bảng StoreSurveys có tồn tại không
-    try {
-      await backupPool.request().query("SELECT 1 FROM StoreSurveys WHERE 1=0");
-      await mergeStoreSurveys(backupPool, dbxmtdPool);
-      await mergeStoreSurveyProducts(backupPool, dbxmtdPool);
-    } catch (e) {
-      if (e.message.includes("Invalid object name")) {
-        console.log("\n📋 Bước 3+4: Bảng StoreSurveys/StoreSurveyProducts không tồn tại trong backup — bỏ qua");
-      } else {
-        throw e;
-      }
-    }
+    await insertStores(backupPool, dbxmtdPool);
+    await insertUsers(backupPool, dbxmtdPool);
+    const insertedAudits = await insertAudits(backupPool, dbxmtdPool);
+    const insertedImages = await insertImages(backupPool, dbxmtdPool);
+    await syncStoreSurveys(backupPool, dbxmtdPool);
 
     await showSummary(backupPool, dbxmtdPool);
 
-    console.log("\n═══════════════════════════════════════════");
-    console.log("   ✅ MERGE HOÀN TẤT!");
-    console.log("═══════════════════════════════════════════");
+    console.log("\n═══════════════════════════════════════════════════════");
+    console.log(`   ✅ HOÀN TẤT!`);
+    console.log(`   Audits: +${insertedAudits} (data cũ KHÔNG bị ảnh hưởng)`);
+    console.log(`   Images: +${insertedImages}`);
+    console.log("═══════════════════════════════════════════════════════");
   } catch (err) {
-    console.error("\n❌ Lỗi nghiêm trọng:", err.message);
+    console.error("\n❌ Lỗi:", err.message);
     process.exit(1);
   } finally {
     if (backupPool) await backupPool.close();
     if (dbxmtdPool) await dbxmtdPool.close();
-    console.log("🔌 Đã đóng kết nối database");
+    console.log("🔌 Đã đóng kết nối");
   }
 }
 

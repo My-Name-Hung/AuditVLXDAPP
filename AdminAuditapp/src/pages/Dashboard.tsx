@@ -55,7 +55,7 @@ export default function Dashboard() {
   const [summaryData, setSummaryData] = useState<DashboardSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
-  const [dateFilter, setDateFilter] = useState<"day" | "month">("month");
+  const [dateFilter, setDateFilter] = useState<"day" | "month" | "week">("month");
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -65,6 +65,14 @@ export default function Dashboard() {
       "0"
     )}`
   );
+  const [weekOptions, setWeekOptions] = useState<
+    Array<{ label: string; startDate: string; endDate: string }>
+  >([]);
+  const [selectedWeek, setSelectedWeek] = useState<{
+    label: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<number[]>([]);
   const [allEmployees, setAllEmployees] = useState<
     Array<{ userId: number; fullName: string }>
@@ -73,6 +81,54 @@ export default function Dashboard() {
   const [exportProgress, setExportProgress] = useState(0);
 
   const isInitialMount = useRef(true);
+
+  // Generate week options for the selected month
+  const generateWeekOptions = (yearMonth: string) => {
+    const [year, month] = yearMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    const weeks: Array<{ label: string; startDate: string; endDate: string }> = [];
+    let weekStart = new Date(firstDay);
+
+    // Adjust to Monday if first day is not Monday
+    while (weekStart.getDay() !== 1) {
+      weekStart = new Date(weekStart.getTime());
+      weekStart.setDate(weekStart.getDate() - 1);
+    }
+
+    while (weekStart <= lastDay) {
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      if (weekEnd > lastDay) weekEnd.setTime(lastDay.getTime());
+
+      const formatD = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      const label = `T${Math.ceil(
+        ((weekStart.getTime() - firstDay.getTime()) / 86400000 + 1) / 7
+      )} (${formatD(weekStart)} - ${formatD(weekEnd)})`;
+
+      weeks.push({ label, startDate: formatD(weekStart), endDate: formatD(weekEnd) });
+
+      weekStart = new Date(weekStart.getTime());
+      weekStart.setDate(weekStart.getDate() + 7);
+    }
+
+    return weeks;
+  };
+
+  // Generate weeks whenever month changes
+  useEffect(() => {
+    const currentYearMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    const opts = generateWeekOptions(dateFilter === "week" ? selectedMonth : currentYearMonth);
+    setWeekOptions(opts);
+    if (dateFilter === "week" && opts.length > 0) {
+      const currentWeek = opts.find(
+        (w) => w.startDate <= new Date().toISOString().split("T")[0] && w.endDate >= new Date().toISOString().split("T")[0]
+      );
+      setSelectedWeek(currentWeek || opts[opts.length - 1]);
+    }
+  }, [dateFilter, selectedMonth]);
 
   // Fetch all employees for the filter dropdown (not derived from summaryData)
   const fetchAllEmployees = async () => {
@@ -108,7 +164,7 @@ export default function Dashboard() {
       isInitialMount.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth, selectedEmployee]);
+  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth, selectedEmployee, selectedWeek]);
 
   const fetchTerritories = async () => {
     try {
@@ -140,13 +196,16 @@ export default function Dashboard() {
       if (dateFilter === "day") {
         params.startDate = selectedDate;
         params.endDate = selectedDate;
-      } else {
+      } else if (dateFilter === "month") {
         // Calculate start and end of month
         const [year, month] = selectedMonth.split("-");
         const startOfMonth = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         params.startDate = startOfMonth;
         params.endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+      } else if (dateFilter === "week" && selectedWeek) {
+        params.startDate = selectedWeek.startDate;
+        params.endDate = selectedWeek.endDate;
       }
 
       const res = await api.get("/dashboard/summary", {
@@ -199,13 +258,16 @@ export default function Dashboard() {
       if (dateFilter === "day") {
         params.startDate = selectedDate;
         params.endDate = selectedDate;
-      } else {
+      } else if (dateFilter === "month") {
         const [year, month] = selectedMonth.split("-");
         const startDate = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         const endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
         params.startDate = startDate;
         params.endDate = endDate;
+      } else if (dateFilter === "week" && selectedWeek) {
+        params.startDate = selectedWeek.startDate;
+        params.endDate = selectedWeek.endDate;
       }
 
       setExportProgress(20);
@@ -570,10 +632,11 @@ export default function Dashboard() {
           <label>Thời gian</label>
           <select
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as "day" | "month")}
+            onChange={(e) => setDateFilter(e.target.value as "day" | "month" | "week")}
             className="filter-select"
           >
             <option value="month">Theo tháng</option>
+            <option value="week">Theo tuần</option>
             <option value="day">Theo ngày</option>
           </select>
         </div>
@@ -586,6 +649,29 @@ export default function Dashboard() {
               onChange={(e) => setSelectedDate(e.target.value)}
               className="filter-input"
             />
+          ) : dateFilter === "week" ? (
+            <div className="week-filter-container">
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="filter-input"
+              />
+              <select
+                value={selectedWeek?.startDate || ""}
+                onChange={(e) => {
+                  const w = weekOptions.find((wo) => wo.startDate === e.target.value);
+                  if (w) setSelectedWeek(w);
+                }}
+                className="filter-input week-select"
+              >
+                {weekOptions.map((w) => (
+                  <option key={w.startDate} value={w.startDate}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
             <input
               type="month"

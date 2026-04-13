@@ -184,6 +184,20 @@
   font-size: 1rem;
 }
 
+.week-filter-container {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.week-filter-container .filter-input {
+  flex: 1;
+}
+
+.week-select {
+  min-width: 180px;
+}
+
 @media (max-width: 768px) {
   .dashboard-filters {
     flex-direction: column;
