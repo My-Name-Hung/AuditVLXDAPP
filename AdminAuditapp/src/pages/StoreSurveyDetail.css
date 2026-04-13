@@ -1,0 +1,237 @@
+.store-survey-detail {
+  padding: 24px;
+  max-width: none; /* allow full width so horizontal scroll can show */
+  margin: 0 auto;
+  width: 100%; /* ensure container stretches so inner table can scroll */
+}
+
+.store-survey-detail-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 32px;
+  flex-wrap: wrap;
+}
+
+.store-survey-detail-header h1 {
+  flex: 1;
+  margin: 0;
+}
+
+.btn-export {
+  padding: 0.75rem 1.5rem;
+  background: #3d805f;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  transition: all 0.3s;
+}
+
+.btn-export:hover:not(:disabled) {
+  background: #207245;
+}
+
+.btn-export:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-export svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
+.back-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: #f5f5f5;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #0138c3;
+}
+
+.back-button:hover {
+  background: #e0e0e0;
+}
+
+.store-survey-detail-header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.store-survey-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.survey-section {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.survey-section h2 {
+  margin: 0 0 24px 0;
+  font-size: 18px;
+  color: #0138c3;
+  border-bottom: 2px solid #0138c3;
+  padding-bottom: 8px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+}
+
+.info-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.info-item label {
+  font-weight: 600;
+  color: #666;
+  font-size: 14px;
+}
+
+.info-item span {
+  color: #333;
+  font-size: 14px;
+}
+
+.survey-table-container {
+  overflow-x: auto;
+  overflow-y: hidden;
+  margin-top: 16px;
+  width: 100%;
+}
+
+.survey-table {
+  width: 100%;
+  min-width: 2000px; /* ensure horizontal scrollbar appears when many columns */
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.survey-table thead {
+  background: #0138c3;
+  color: #fff;
+}
+
+.survey-table th {
+  padding: 12px;
+  text-align: center;
+  font-weight: 600;
+  white-space: nowrap;
+  border: 1px solid #ddd;
+}
+
+.survey-table td {
+  padding: 12px;
+  border: 1px solid #e0e0e0;
+  text-align: center;
+  vertical-align: middle;
+  height: auto;
+  min-height: 48px;
+}
+
+/* Cột Tên sản phẩm - hiển thị trên 1 dòng */
+.survey-table tbody tr td:nth-child(5) {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 300px;
+}
+
+/* Cột Tên cửa hàng - tự động xuống dòng, căn giữa đẹp mắt */
+.survey-table tbody tr td:nth-child(2) {
+   white-space: nowrap;
+      width: auto;
+        min-width: 200px;
+  max-width: 350px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+    word-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: center;
+}
+
+/* Cột Loại XM - tự động xuống dòng, căn giữa đẹp mắt (bảng Thông tin bán hàng) */
+.survey-table:not(.survey-table-xmtd) tbody tr td:nth-child(6) {
+    white-space: nowrap;
+      width: auto;
+        min-width: 200px;
+  max-width: 350px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+    word-wrap: break-word;
+  word-break: break-word;
+  white-space: normal;
+  line-height: 1.5;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  text-align: center;
+}
+
+.survey-table tbody tr:hover {
+  background: #f5f5f5;
+}
+
+.loading,
+.no-data {
+  text-align: center;
+  padding: 48px;
+  color: #666;
+  font-size: 16px;
+}
+
+@media (max-width: 768px) {
+  .store-survey-detail {
+    padding: 16px;
+  }
+
+  .store-survey-detail-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .store-survey-detail-header h1 {
+    width: 100%;
+  }
+
+  .btn-export {
+    width: 100%;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .survey-table-container {
+    overflow-x: scroll;
+  }
+}
