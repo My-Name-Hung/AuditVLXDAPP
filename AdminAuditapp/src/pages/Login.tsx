@@ -145,7 +145,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary btn-full"
+              className="btn-primary-login btn-full"
             >
               {loading ? "Đang đăng nhập..." : "Đăng nhập"}
             </button>
@@ -161,7 +161,7 @@ export default function Login() {
             <p>Bạn là nhân viên Sales và không thể truy cập trang quản trị này.</p>
             <div className="modal-actions">
               <button
-                className="btn-primary"
+                className="btn-primary-login"
                 onClick={() => {
                   setSalesModalOpen(false);
                   setUsername("");

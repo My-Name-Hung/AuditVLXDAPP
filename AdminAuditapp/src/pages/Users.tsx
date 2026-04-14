@@ -27,6 +27,11 @@ interface User {
   IsChangePassword: boolean;
   CreatedAt: string;
   UpdatedAt: string;
+  AssignedStores?: {
+    StoreId: number;
+    StoreName: string;
+    StoreCode: string;
+  }[];
 }
 
 type PositionFilter = "all" | string;
@@ -301,8 +306,8 @@ export default function Users() {
     }
   };
 
-  const handleEditUser = (userId: number) => {
-    navigate(`/users/${userId}/edit`);
+  const handleEditUser = (user: User) => {
+    navigate(`/users/${user.Id}/edit`, { state: { user } });
   };
 
   const handleResetPassword = (user: User) => {
@@ -403,7 +408,7 @@ export default function Users() {
 
     if (progressCallback) progressCallback(60);
 
-    const sheet = workbook.addWorksheet("Danh sách nhân viên");
+    const sheet = workbook.addWorksheet("Danh sách tài khoản");
 
     // Header style
     const headerStyle = {
@@ -429,7 +434,7 @@ export default function Users() {
     sheet.getCell("A1").alignment = { horizontal: "center" };
 
     sheet.mergeCells("A2:F2");
-    sheet.getCell("A2").value = "DANH SÁCH NHÂN VIÊN";
+    sheet.getCell("A2").value = "Danh sách tài khoản";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
 
@@ -539,10 +544,10 @@ export default function Users() {
       <div className="users-header">
         <h1>Danh sách tài khoản</h1>
         <div className="users-actions">
-          <button className="btn-add" onClick={() => navigate("/users/new")}>
+          <button className="btn-add-user" onClick={() => navigate("/users/new")}>
             <HiPlus /> Thêm tài khoản
           </button>
-          <button className="btn-download" onClick={handleExportUsers}>
+          <button className="btn-download-user" onClick={handleExportUsers}>
             <HiArrowDownTray /> Xuất Excel
           </button>
         </div>
@@ -631,7 +636,7 @@ export default function Users() {
                     <div className="action-buttons">
                       <button
                         className="btn-edit"
-                        onClick={() => handleEditUser(user.Id)}
+                        onClick={() => handleEditUser(user)}
                         title="Chỉnh sửa"
                       >
                         <HiPencil />

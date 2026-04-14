@@ -3,6 +3,12 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
+import {
+  clearPendingUploadsForStore,
+  getPendingUploadForStore,
+  removePendingUpload,
+  savePendingUpload,
+} from "../utils/pendingUploads";
 import "./StoreDetail.css";
 
 interface Store {
@@ -38,6 +44,15 @@ interface StoreImage {
   CapturedAt: string;
   Latitude: number;
   Longitude: number;
+  // Optimized URLs (mới từ backend)
+  optimizedUrl?: string;
+  optimizedUrls?: {
+    thumbnail: string;
+    small: string;
+    medium: string;
+    large: string;
+    original: string;
+  };
 }
 
 interface AuditHistory {
@@ -114,6 +129,53 @@ const getAuditStatusStyle = (result: string) => {
   }
 };
 
+// Helper function to compress image using canvas
+const compressImage = (
+  dataUrl: string,
+  maxWidth: number,
+  quality: number
+): Promise<Blob> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      // Calculate new dimensions
+      let width = img.width;
+      let height = img.height;
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+
+      // Create canvas and draw resized image
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Cannot get canvas context"));
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Convert to blob with compression
+      canvas.toBlob(
+        (blob) => {
+          if (blob) {
+            resolve(blob);
+          } else {
+            reject(new Error("Failed to compress image"));
+          }
+        },
+        "image/jpeg",
+        quality
+      );
+    };
+    img.onerror = reject;
+    img.src = dataUrl;
+  });
+};
+
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -129,7 +191,7 @@ export default function StoreDetail() {
   const [allowNewAudit, setAllowNewAudit] = useState(false);
   const [showNewAuditModal, setShowNewAuditModal] = useState(false);
   const promptedDateRef = useRef<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const previousStoreIdRef = useRef<number | null>(null);
   const [notesModalVisible, setNotesModalVisible] = useState(false);
   const [imageModalVisible, setImageModalVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -143,6 +205,8 @@ export default function StoreDetail() {
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  // Track các auditId đã upload để tránh duplicate
+  const uploadedAuditIdsRef = useRef<Set<number>>(new Set());
 
   // Filter audits by current user ID
   const userAudits = audits.filter((audit) => {
@@ -156,23 +220,75 @@ export default function StoreDetail() {
   const showCameraSection = allowNewAudit || sortedAudits.length === 0;
 
   const fetchStore = useCallback(async () => {
+    // Capture id tại thời điểm fetch được gọi
+    const fetchStoreId = id;
+    if (!fetchStoreId) {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const response = await api.get(`/stores/${id}`);
+      const response = await api.get(`/stores/${fetchStoreId}`);
+
+      // Kiểm tra lại id hiện tại sau khi fetch xong
+      if (id !== fetchStoreId) {
+        console.log("Store ID changed during fetch, ignoring response");
+        return;
+      }
+
       const storeData = response.data;
+
+      // Kiểm tra lại id một lần nữa trước khi set state
+      if (id !== fetchStoreId) {
+        console.log("Store ID changed before setting state, ignoring response");
+        return;
+      }
+
       setStore(storeData);
       const auditData = storeData.audits || storeData.Audits || [];
-      setAudits(auditData);
+
+      // Replace audits completely (don't merge) to prevent showing previous store's audits
+      const sortedAudits = auditData.sort(
+        (a: AuditHistory, b: AuditHistory) =>
+          new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+      );
+
+      // Kiểm tra lại id một lần nữa trước khi set audits
+      if (id !== fetchStoreId) {
+        console.log(
+          "Store ID changed before setting audits, ignoring response"
+        );
+        return;
+      }
+
+      setAudits(sortedAudits);
+
       // Filter audits by current user to check if user has any audits
       const userAuditData = auditData.filter((audit: AuditHistory) => {
         return audit.UserId === user?.id || audit.userId === user?.id;
       });
+
+      // Kiểm tra lại id một lần nữa trước khi set allowNewAudit
+      if (id !== fetchStoreId) {
+        console.log(
+          "Store ID changed before setting allowNewAudit, ignoring response"
+        );
+        return;
+      }
+
       setAllowNewAudit(userAuditData.length === 0);
     } catch (error) {
-      console.error("Error fetching store:", error);
-      alert("Không thể tải thông tin cửa hàng");
+      // Chỉ hiển thị lỗi nếu id vẫn khớp
+      if (id === fetchStoreId) {
+        console.error("Error fetching store:", error);
+        alert("Không thể tải thông tin cửa hàng");
+      }
     } finally {
-      setLoading(false);
+      // Chỉ set loading false nếu id vẫn khớp
+      if (id === fetchStoreId) {
+        setLoading(false);
+      }
     }
   }, [id, user?.id]);
 
@@ -180,8 +296,397 @@ export default function StoreDetail() {
     fetchStore();
   }, [fetchStore]);
 
+  // Clear capturedImages và notes khi component mount lần đầu (tránh restore từ locationState)
   useEffect(() => {
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+  }, []); // Chỉ chạy một lần khi mount
+
+  // QUAN TRỌNG: Force clear capturedImages mỗi khi id thay đổi
+  // Effect này phải chạy TRƯỚC tất cả các effects khác
+  useEffect(() => {
+    console.log("[StoreDetail] Force clearing capturedImages for store:", id);
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+  }, [id]);
+
+  // Load pending uploads từ localStorage khi mount và tự động upload
+  // QUAN TRỌNG: Effect này phải chạy SAU effect clear state (dựa vào dependency order)
+  useEffect(() => {
+    if (!id || !user?.id) return;
+
+    // Capture storeId tại thời điểm effect được tạo
+    const currentStoreId = parseInt(id, 10);
+    if (isNaN(currentStoreId)) return;
+
+    // QUAN TRỌNG: Clear capturedImages NGAY LẬP TỨC khi mount (tránh hiển thị ảnh của store khác)
+    // Phải clear trước khi load pending uploads
+    console.log(
+      "[StoreDetail] Loading pending uploads for store:",
+      currentStoreId
+    );
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+
+    // QUAN TRỌNG: Đảm bảo pending uploads của store cũ đã được xóa
+    // Kiểm tra lại một lần nữa để chắc chắn
+    if (
+      previousStoreIdRef.current !== null &&
+      previousStoreIdRef.current !== currentStoreId
+    ) {
+      console.log(
+        "[StoreDetail] Defensive clear pending uploads for old store:",
+        previousStoreIdRef.current
+      );
+      // Xóa lại một lần nữa để đảm bảo (defensive)
+      clearPendingUploadsForStore(previousStoreIdRef.current);
+    }
+
+    // Cleanup function để cancel pending operations
+    let isCancelled = false;
+    let uploadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const loadAndUploadPending = async () => {
+      try {
+        // Kiểm tra lại storeId hiện tại
+        const checkStoreId = parseInt(id || "0", 10);
+        if (
+          checkStoreId !== currentStoreId ||
+          isNaN(checkStoreId) ||
+          isCancelled
+        ) {
+          // Đảm bảo capturedImages được clear nếu storeId không khớp
+          setCapturedImages([undefined, undefined, undefined]);
+          setNotes("");
+          return; // Store ID changed or cancelled, don't load
+        }
+
+        // Đảm bảo capturedImages vẫn được clear trước khi load pending
+        setCapturedImages([undefined, undefined, undefined]);
+        setNotes("");
+
+        const pending = getPendingUploadForStore(currentStoreId);
+
+        // Kiểm tra lại storeId một lần nữa sau sync operation
+        const finalCheckStoreId = parseInt(id || "0", 10);
+        if (finalCheckStoreId !== currentStoreId || isCancelled) {
+          // Đảm bảo clear nếu storeId không khớp
+          setCapturedImages([undefined, undefined, undefined]);
+          setNotes("");
+          return; // Store ID changed or cancelled
+        }
+
+        // QUAN TRỌNG: Kiểm tra lại storeId của pending upload có khớp với store hiện tại không
+        // Phải match CHÍNH XÁC với currentStoreId
+        // QUAN TRỌNG: KHÔNG BAO GIỜ set capturedImages từ pending uploads
+        // Chỉ thêm vào audits để hiển thị trong lịch sử
+        if (
+          pending &&
+          pending.storeId === currentStoreId &&
+          pending.storeId === finalCheckStoreId &&
+          pending.images.length > 0
+        ) {
+          console.log(
+            "[StoreDetail] Adding optimistic audit for pending upload, storeId:",
+            pending.storeId
+          );
+          // QUAN TRỌNG: Đảm bảo capturedImages vẫn được clear (defensive)
+          setCapturedImages([undefined, undefined, undefined]);
+          setNotes("");
+
+          // Kiểm tra xem audit này đã được upload chưa
+          if (uploadedAuditIdsRef.current.has(pending.auditId)) {
+            console.log("Audit already uploaded, skipping");
+            // Xóa pending upload vì đã upload rồi
+            removePendingUpload(currentStoreId, pending.auditId);
+            return;
+          }
+
+          // Kiểm tra lại storeId một lần nữa trước khi thêm
+          const addCheckStoreId = parseInt(id || "0", 10);
+          if (
+            addCheckStoreId !== currentStoreId ||
+            addCheckStoreId !== pending.storeId ||
+            addCheckStoreId !== finalCheckStoreId ||
+            isCancelled
+          ) {
+            // Đảm bảo clear nếu storeId không khớp
+            setCapturedImages([undefined, undefined, undefined]);
+            setNotes("");
+            return; // Store ID changed or cancelled, don't add
+          }
+
+          // Tạo optimistic audit entry với ảnh local (đã có watermark từ dataUrl)
+          const optimisticAudit: AuditHistory = {
+            AuditId: pending.auditId,
+            Result: "audited",
+            FailedReason: null,
+            Notes: pending.notes || "",
+            AuditDate: new Date(pending.timestamp).toISOString(),
+            AuditCreatedAt: new Date(pending.timestamp).toISOString(),
+            UserId: user.id,
+            userId: user.id,
+            Images: pending.images.map((img, idx) => ({
+              Id: -(idx + 1), // Use negative ID to avoid conflicts
+              ImageUrl: img.dataUrl, // Sử dụng ảnh local với watermark ngay lập tức
+              CapturedAt: img.timestamp,
+              Latitude: img.latitude,
+              Longitude: img.longitude,
+            })),
+          };
+
+          // Thêm vào danh sách audits ngay lập tức (ảnh local)
+          setAudits((prev) => {
+            // Kiểm tra lại storeId một lần nữa trước khi thêm
+            const checkStoreId = parseInt(id || "0", 10);
+            if (
+              checkStoreId !== currentStoreId ||
+              checkStoreId !== pending.storeId ||
+              isCancelled
+            ) {
+              return prev; // Store ID changed or cancelled, don't add
+            }
+
+            // Check if audit already exists to avoid duplicates
+            const exists = prev.some((a) => a.AuditId === pending.auditId);
+            if (exists) {
+              return prev; // Don't add if already exists
+            }
+            return [optimisticAudit, ...prev];
+          });
+
+          // Tự động upload ảnh ở background sau khi hiển thị (delay 500ms)
+          uploadTimeout = setTimeout(() => {
+            (async () => {
+              try {
+                // Kiểm tra lại storeId trước khi upload
+                const checkStoreId = parseInt(id || "0", 10);
+                if (
+                  checkStoreId !== currentStoreId ||
+                  checkStoreId !== pending.storeId ||
+                  isCancelled
+                ) {
+                  console.log("Store ID changed or cancelled, skipping upload");
+                  return; // Don't upload if store changed or cancelled
+                }
+
+                // Kiểm tra lại xem đã upload chưa (double check)
+                if (uploadedAuditIdsRef.current.has(pending.auditId)) {
+                  console.log(
+                    "Audit already uploaded (double check), skipping"
+                  );
+                  removePendingUpload(currentStoreId, pending.auditId);
+                  return;
+                }
+
+                // Đánh dấu đang upload để tránh duplicate
+                uploadedAuditIdsRef.current.add(pending.auditId);
+
+                const uploadImage = async (
+                  img: {
+                    dataUrl: string;
+                    latitude: number;
+                    longitude: number;
+                    timestamp: string;
+                    timezoneOffset: number;
+                  },
+                  index: number
+                ) => {
+                  const formData = new FormData();
+                  const blob = await fetch(img.dataUrl).then((r) => r.blob());
+                  formData.append("image", blob, `image_${index + 1}.jpg`);
+                  formData.append("auditId", pending.auditId.toString());
+                  formData.append("latitude", img.latitude.toString());
+                  formData.append("longitude", img.longitude.toString());
+                  formData.append("timestamp", img.timestamp);
+                  formData.append(
+                    "timezoneOffset",
+                    img.timezoneOffset.toString()
+                  );
+
+                  return api.post("/images/upload", formData, {
+                    headers: {
+                      "Content-Type": "multipart/form-data",
+                    },
+                  });
+                };
+
+                // Upload tất cả ảnh pending ở background (parallel, dynamic)
+                const uploadResults = await Promise.allSettled(
+                  pending.images.map((image, index) => uploadImage(image, index))
+                );
+
+                const successCount = uploadResults.filter(
+                  (result) => result.status === "fulfilled"
+                ).length;
+                const failedCount = uploadResults.filter(
+                  (result) => result.status === "rejected"
+                ).length;
+                const allSuccess = failedCount === 0;
+
+                if (failedCount > 0) {
+                  console.warn(
+                    `Pending upload web: ${successCount} images uploaded successfully, ${failedCount} images failed`
+                  );
+                }
+
+                // Kiểm tra lại storeId trước khi cập nhật
+                const finalStoreId = parseInt(id || "0", 10);
+                if (
+                  finalStoreId === currentStoreId &&
+                  finalStoreId === pending.storeId &&
+                  !isCancelled
+                ) {
+                  // Cập nhật tọa độ cửa hàng sau khi upload xong
+                  if (pending.images[0]) {
+                    await api.put(`/stores/${currentStoreId}`, {
+                      latitude: pending.images[0].latitude,
+                      longitude: pending.images[0].longitude,
+                    });
+                  }
+
+                  // Chỉ xóa pending upload khi tất cả ảnh trong pending đã thành công
+                  if (allSuccess) {
+                    removePendingUpload(currentStoreId, pending.auditId);
+
+                    // XÓA BLOB URLs TRONG BỘ NHỚ sau khi upload thành công
+                    // (Để giải phóng memory và tránh sticky images)
+                    try {
+                      for (const img of pending.images) {
+                        if (img.dataUrl && img.dataUrl.startsWith("blob:")) {
+                          try {
+                            URL.revokeObjectURL(img.dataUrl);
+                            console.log("Revoked blob URL:", img.dataUrl);
+                          } catch (revokeError) {
+                            console.warn(
+                              "Error revoking blob URL:",
+                              img.dataUrl,
+                              revokeError
+                            );
+                            // Không throw, chỉ log warning
+                          }
+                        }
+                      }
+                    } catch (cleanupError) {
+                      console.warn("Error cleaning up blob URLs:", cleanupError);
+                      // Không throw, chỉ log warning
+                    }
+                  } else {
+                    console.warn("Keeping pending upload due to failed image(s)");
+                  }
+
+                  // Refresh để cập nhật ảnh từ server (chỉ nếu storeId vẫn khớp)
+                  const refreshCheckStoreId = parseInt(id || "0", 10);
+                  if (refreshCheckStoreId === currentStoreId && !isCancelled) {
+                    fetchStore().catch((error) => {
+                      console.error("Error refreshing after upload:", error);
+                    });
+                  }
+                } else {
+                  // Nếu upload không thành công, xóa khỏi Set để có thể thử lại
+                  uploadedAuditIdsRef.current.delete(pending.auditId);
+                }
+              } catch (error) {
+                console.error("Background upload error:", error);
+                // Xóa khỏi Set để có thể thử lại sau
+                uploadedAuditIdsRef.current.delete(pending.auditId);
+                // Giữ lại pending upload để thử lại sau
+              }
+            })();
+          }, 500);
+        }
+      } catch (error) {
+        console.error("Error loading pending upload:", error);
+      }
+    };
+
+    loadAndUploadPending();
+
+    // Cleanup function
+    return () => {
+      isCancelled = true;
+      if (uploadTimeout) {
+        clearTimeout(uploadTimeout);
+      }
+    };
+  }, [id, user?.id, fetchStore]);
+
+  // Refresh when navigating back from survey page
+  useEffect(() => {
+    // Normal refresh handlers
+    const handleFocus = () => {
+      fetchStore();
+    };
+    // Listen for page visibility change (when user navigates back)
+    document.addEventListener("visibilitychange", handleFocus);
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [fetchStore]);
+
+  useEffect(() => {
+    // Clear state IMMEDIATELY when store ID changes (synchronous)
+    // Phải clear audits trước để tránh hiển thị ảnh của store khác
+    const currentStoreId = id ? parseInt(id, 10) : null;
+
+    // QUAN TRỌNG: Clear capturedImages NGAY LẬP TỨC khi id thay đổi (synchronous)
+    // Phải clear ngay lập tức để tránh hiển thị ảnh của store khác
+    console.log(
+      "[StoreDetail] Clearing state for store:",
+      currentStoreId,
+      "Previous:",
+      previousStoreIdRef.current
+    );
     promptedDateRef.current = null;
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+    setAudits([]); // Clear audits IMMEDIATELY to prevent showing previous store's audits
+    setStore(null); // Clear store data
+    // Clear uploaded audit IDs khi chuyển store
+    uploadedAuditIdsRef.current.clear();
+
+    // QUAN TRỌNG: Xóa pending uploads của store cũ NGAY LẬP TỨC (synchronous)
+    // Phải xóa TRƯỚC khi load pending uploads của store mới
+    if (
+      previousStoreIdRef.current !== null &&
+      previousStoreIdRef.current !== currentStoreId
+    ) {
+      console.log(
+        "[StoreDetail] Clearing pending uploads for old store:",
+        previousStoreIdRef.current
+      );
+      // Xóa pending uploads khỏi storage (synchronous)
+      clearPendingUploadsForStore(previousStoreIdRef.current);
+
+      // Revoke blob URLs của store cũ
+      try {
+        const oldPending = getPendingUploadForStore(previousStoreIdRef.current);
+        if (oldPending) {
+          console.log(
+            "[StoreDetail] Found old pending upload, revoking blob URLs"
+          );
+          for (const img of oldPending.images) {
+            if (img.dataUrl && img.dataUrl.startsWith("blob:")) {
+              try {
+                URL.revokeObjectURL(img.dataUrl);
+                console.log("[StoreDetail] Revoked blob URL:", img.dataUrl);
+              } catch (e) {
+                console.warn("[StoreDetail] Error revoking blob URL:", e);
+              }
+            }
+          }
+        } else {
+          console.log("[StoreDetail] No old pending upload found");
+        }
+      } catch (e) {
+        console.warn("[StoreDetail] Error getting old pending upload:", e);
+      }
+    }
+
+    // Cập nhật previousStoreIdRef
+    previousStoreIdRef.current = currentStoreId;
   }, [id]);
 
   useEffect(() => {
@@ -206,6 +711,9 @@ export default function StoreDetail() {
       return;
     }
     if (hasUserTodayAudit) {
+      // Clear captured images if user has completed audit today (navigated back from survey)
+      setCapturedImages([undefined, undefined, undefined]);
+      setNotes("");
       setShowNewAuditModal(false);
       promptedDateRef.current = formatDateKey(new Date());
       setAllowNewAudit(false);
@@ -252,37 +760,38 @@ export default function StoreDetail() {
     });
   };
 
-  const openCamera = async (index: number) => {
-    try {
-      // Reset to rear camera (environment) when opening camera
-      setFacingMode("environment");
-      // Use rear camera (environment) instead of front camera (user)
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment", // Use rear camera
-        },
-      });
-      streamRef.current = stream;
-      setCurrentCameraIndex(index);
-      setCameraModalVisible(true);
+  // // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // const _openCamera = async (index: number) => {
+  //   try {
+  //     // Reset to rear camera (environment) when opening camera
+  //     setFacingMode("environment");
+  //     // Use rear camera (environment) instead of front camera (user)
+  //     const stream = await navigator.mediaDevices.getUserMedia({
+  //       video: {
+  //         facingMode: "environment", // Use rear camera
+  //       },
+  //     });
+  //     streamRef.current = stream;
+  //     setCurrentCameraIndex(index);
+  //     setCameraModalVisible(true);
 
-      // Wait for video element to be ready and set stream
-      setTimeout(() => {
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          // Ensure video plays and loads metadata
-          videoRef.current.play().catch((err) => {
-            console.warn("Video play error:", err);
-          });
-        }
-      }, 100);
-    } catch (error) {
-      console.error("Error accessing camera:", error);
-      alert(
-        "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera."
-      );
-    }
-  };
+  //     // Wait for video element to be ready and set stream
+  //     setTimeout(() => {
+  //       if (videoRef.current) {
+  //         videoRef.current.srcObject = stream;
+  //         // Ensure video plays and loads metadata
+  //         videoRef.current.play().catch((err) => {
+  //           console.warn("Video play error:", err);
+  //         });
+  //       }
+  //     }, 100);
+  //   } catch (error) {
+  //     console.error("Error accessing camera:", error);
+  //     alert(
+  //       "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera."
+  //     );
+  //   }
+  // };
 
   const closeCamera = () => {
     if (streamRef.current) {
@@ -529,88 +1038,216 @@ export default function StoreDetail() {
     }
   };
 
-  const removeImage = (index: number) => {
-    const newImages = [...capturedImages];
-    newImages[index] = undefined;
-    setCapturedImages(newImages);
-  };
+  // // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // const _removeImage = (index: number) => {
+  //   const newImages = [...capturedImages];
+  //   newImages[index] = undefined;
+  //   setCapturedImages(newImages);
+  // };
 
-  const handleComplete = () => {
-    const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
-    if (!allImagesCaptured) {
-      alert("Vui lòng chụp đủ 3 ảnh");
-      return;
-    }
-    setNotesModalVisible(true);
-  };
+  // const _handleComplete = () => {
+  //   const allImagesCaptured = [0, 1, 2].every((index) => capturedImages[index]);
+  //   if (!allImagesCaptured) {
+  //     alert("Vui lòng chụp đủ 3 ảnh");
+  //     return;
+  //   }
+  //   // Navigate to survey page instead of opening notes modal
+  //   navigate(`/stores/${store?.Id}/survey`, {
+  //     state: {
+  //       storeId: store?.Id,
+  //       capturedImages: capturedImages.filter((img) => img !== undefined),
+  //       notes: notes,
+  //     },
+  //   });
+  // };
 
-  const handleConfirmUpload = async () => {
-    if (!user || !store) return;
-
-    setUploading(true);
-    setNotesModalVisible(false);
-
-    try {
-      // Create audit first
-      const auditResponse = await api.post("/audits", {
-        userId: user.id,
-        storeId: store.Id,
-        notes: notes.trim() || null,
-        auditDate: new Date().toISOString(),
-      });
-
-      const auditId = auditResponse.data.Id;
-
-      // Upload 3 images
-      const imagesToUpload = capturedImages.filter(
-        (img): img is CapturedImage => img !== undefined
-      );
-
-      const uploadPromises = imagesToUpload.map(async (img, index) => {
-        // Convert data URL to blob
-        const response = await fetch(img.dataUrl);
-        const blob = await response.blob();
+  // Helper function to upload single image with retry (chạy ở background)
+  const uploadImageWithRetry = async (
+    img: CapturedImage,
+    auditId: number,
+    index: number,
+    maxRetries = 2
+  ): Promise<boolean> => {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        // Resize and compress image for faster upload
+        const compressedBlob = await compressImage(img.dataUrl, 800, 0.5);
 
         const formData = new FormData();
-        formData.append("image", blob, `image_${index + 1}.jpg`);
+        formData.append("image", compressedBlob, `image_${index + 1}.jpg`);
         formData.append("auditId", auditId.toString());
         formData.append("latitude", img.latitude.toString());
         formData.append("longitude", img.longitude.toString());
         formData.append("timestamp", img.timestamp);
         formData.append("timezoneOffset", img.timezoneOffset.toString());
 
-        return api.post("/images/upload", formData, {
+        await api.post("/images/upload", formData, {
           headers: {
             "Content-Type": "multipart/form-data",
           },
+          timeout: 25000,
         });
-      });
 
-      await Promise.all(uploadPromises);
+        return true; // Success, exit retry loop
+      } catch (error: unknown) {
+        console.error(
+          `Background upload attempt ${attempt + 1} failed for image ${
+            index + 1
+          }:`,
+          error
+        );
 
-      // Update store latitude/longitude from first image
-      if (imagesToUpload[0]) {
-        await api.put(`/stores/${store.Id}`, {
-          latitude: imagesToUpload[0].latitude,
-          longitude: imagesToUpload[0].longitude,
-        });
+        if (attempt < maxRetries) {
+          // Wait before retry (exponential backoff + jitter)
+          const baseDelay = 1000 * (attempt + 1);
+          const jitter = Math.floor(Math.random() * 400);
+          await new Promise((resolve) =>
+            setTimeout(resolve, baseDelay + jitter)
+          );
+        }
       }
-
-      setAllowNewAudit(false);
-
-      alert("Đã hoàn thành audit cửa hàng");
-      setCapturedImages([undefined, undefined, undefined]);
-      setNotes("");
-      fetchStore();
-    } catch (error: unknown) {
-      console.error("Error uploading images:", error);
-      const errorMessage =
-        (error as { response?: { data?: { error?: string } } })?.response?.data
-          ?.error || "Upload ảnh thất bại";
-      alert(errorMessage);
-    } finally {
-      setUploading(false);
     }
+
+    // All retries failed
+    console.error(
+      `Background upload failed for image ${index + 1} after ${
+        maxRetries + 1
+      } attempts`
+    );
+    return false;
+  };
+
+  const handleConfirmUpload = async () => {
+    if (!user || !store) return;
+
+    // Filter out undefined images
+    const imagesToUpload = capturedImages.filter(
+      (img): img is CapturedImage => img !== undefined
+    );
+
+    if (imagesToUpload.length !== 3) {
+      alert("Vui lòng chụp đầy đủ 3 ảnh");
+      return;
+    }
+
+    // Đóng modal ngay lập tức - không block UI
+    setNotesModalVisible(false);
+
+    // Tạo audit ngay lập tức (không chờ upload ảnh)
+    let auditId: number;
+    try {
+      const auditResponse = await api.post("/audits", {
+        userId: user.id,
+        storeId: store.Id,
+        notes: notes.trim() || null,
+        auditDate: new Date().toISOString(),
+      });
+      auditId = auditResponse.data.Id;
+    } catch (error) {
+      console.error("Error creating audit:", error);
+      alert("Không thể tạo audit. Vui lòng thử lại.");
+      return;
+    }
+
+    // OPTIMISTIC UPDATE: Hiển thị ảnh local ngay lập tức trong UI
+    setAllowNewAudit(false);
+    setCapturedImages([undefined, undefined, undefined]);
+    setNotes("");
+
+    // Tạo optimistic audit entry với ảnh local (dataUrl)
+    const optimisticAudit: AuditHistory = {
+      AuditId: auditId,
+      Result: "audited",
+      FailedReason: null,
+      Notes: notes.trim() || "",
+      AuditDate: new Date().toISOString(),
+      AuditCreatedAt: new Date().toISOString(),
+      UserId: user.id,
+      userId: user.id,
+      Images: imagesToUpload.map((img) => ({
+        Id: 0, // Temporary ID
+        ImageUrl: img.dataUrl, // Sử dụng ảnh local ngay lập tức
+        CapturedAt: img.timestamp,
+        Latitude: img.latitude,
+        Longitude: img.longitude,
+      })),
+    };
+
+    // Thêm vào danh sách audits ngay lập tức (ảnh local)
+    setAudits((prev) => [optimisticAudit, ...prev]);
+
+    // UPLOAD ẢNH Ở BACKGROUND - không block UI
+    // Upload không await, chạy ở background
+    (async () => {
+      try {
+        // Upload with limited concurrency = 2 for better stability on weak networks
+        const uploadResults: boolean[] = [];
+        for (let i = 0; i < imagesToUpload.length; i += 2) {
+          const batch = imagesToUpload.slice(i, i + 2);
+          const batchResults = await Promise.all(
+            batch.map((img, batchIdx) =>
+              uploadImageWithRetry(img, auditId, i + batchIdx)
+            )
+          );
+          uploadResults.push(...batchResults);
+          console.log(
+            `[Upload Progress Web] ${uploadResults.filter(Boolean).length}/${imagesToUpload.length} ảnh đã upload thành công`
+          );
+        }
+
+        const successCount = uploadResults.filter(Boolean).length;
+        const failedCount = uploadResults.length - successCount;
+
+        // Nếu còn ảnh lỗi, lưu lại pending để retry lần sau
+        if (failedCount > 0) {
+          const failedImages = imagesToUpload.filter(
+            (_, idx) => !uploadResults[idx]
+          );
+
+          savePendingUpload(
+            store.Id,
+            auditId,
+            failedImages.map((img) => ({
+              dataUrl: img.dataUrl,
+              latitude: img.latitude,
+              longitude: img.longitude,
+              timestamp: img.timestamp,
+              timezoneOffset: img.timezoneOffset,
+            })),
+            notes.trim() || ""
+          );
+
+          console.warn(
+            `Web upload incomplete: ${successCount}/${imagesToUpload.length} uploaded, ${failedCount} pending retry`
+          );
+        } else {
+          // Thành công toàn bộ thì dọn pending cùng auditId
+          removePendingUpload(store.Id, auditId);
+        }
+
+        // Cập nhật tọa độ cửa hàng sau khi upload xong (nếu có ít nhất 1 ảnh thành công)
+        if (successCount > 0 && imagesToUpload[0]) {
+          await api.put(`/stores/${store.Id}`, {
+            latitude: imagesToUpload[0].latitude,
+            longitude: imagesToUpload[0].longitude,
+          });
+        }
+
+        // Sau khi upload xong, fetch lại data để cập nhật URL từ local sang server
+        setTimeout(() => {
+          fetchStore().catch((error) => {
+            console.error("Background fetch error:", error);
+          });
+        }, 1000);
+      } catch (error) {
+        console.error("Background upload error:", error);
+        // Không hiển thị lỗi cho user vì ảnh local đã hiển thị
+        // Có thể thử lại sau hoặc để user biết qua notification nhẹ
+      }
+    })();
+
+    // Hiển thị thông báo thành công ngay (không chờ upload)
+    alert("Đã lưu audit cửa hàng. Ảnh đang được tải lên ở chế độ nền.");
   };
 
   if (loading) {
@@ -622,7 +1259,14 @@ export default function StoreDetail() {
         <div className="store-detail-header">
           <button
             className="store-detail-back-button"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Check if we can go back, otherwise navigate to stores list
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/stores");
+              }
+            }}
             style={{ color: colors.text }}
           >
             ← Quay lại
@@ -653,7 +1297,14 @@ export default function StoreDetail() {
         <div className="store-detail-header">
           <button
             className="store-detail-back-button"
-            onClick={() => navigate(-1)}
+            onClick={() => {
+              // Check if we can go back, otherwise navigate to stores list
+              if (window.history.length > 1) {
+                navigate(-1);
+              } else {
+                navigate("/stores");
+              }
+            }}
             style={{ color: colors.text }}
           >
             ← Quay lại
@@ -898,66 +1549,28 @@ export default function StoreDetail() {
           </div>
         )}
 
-        {/* Camera Section */}
+        {/* Start Survey Section */}
         {showCameraSection && (
           <div
             className="store-detail-camera-section"
             style={{ backgroundColor: colors.background }}
           >
-            <h2
-              className="store-detail-section-title"
-              style={{ color: colors.text }}
-            >
-              Chụp ảnh {sortedAudits.length > 0 ? "ngày hôm nay" : ""}
-            </h2>
-            <div className="store-detail-camera-grid">
-              {[0, 1, 2].map((index) => {
-                const image = capturedImages[index];
-                return (
-                  <div key={index} className="store-detail-camera-item">
-                    {image ? (
-                      <div className="store-detail-captured-image-container">
-                        <img
-                          src={image.dataUrl}
-                          alt={`Captured ${index + 1}`}
-                          className="store-detail-captured-image"
-                        />
-                        <button
-                          className="store-detail-remove-button"
-                          onClick={() => removeImage(index)}
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <button
-                        className="store-detail-camera-button"
-                        onClick={() => openCamera(index)}
-                        style={{ borderColor: colors.icon + "40" }}
-                      >
-                        📷
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
             <button
               className="store-detail-complete-button"
-              onClick={handleComplete}
-              disabled={
-                !capturedImages.every((img) => img !== undefined) || uploading
-              }
+              onClick={() => {
+                // Navigate directly to survey page
+                navigate(`/stores/${store?.Id}/survey`);
+              }}
               style={{
-                backgroundColor:
-                  capturedImages.every((img) => img !== undefined) && !uploading
-                    ? colors.primary
-                    : colors.icon + "40",
+                backgroundColor: colors.primary,
                 color: "#fff",
+                width: "100%",
+                padding: "14px",
+                fontSize: "16px",
+                fontWeight: 600,
               }}
             >
-              {uploading ? "Đang tải..." : "Hoàn thành"}
+              Bắt đầu khảo sát
             </button>
           </div>
         )}
@@ -1015,30 +1628,63 @@ export default function StoreDetail() {
                     </div>
                   )}
                   <div className="store-detail-history-images">
-                    {audit.Images.map((img) => (
-                      <div
-                        key={img.Id}
-                        className="store-detail-history-image-wrapper"
-                      >
-                        <img
-                          src={img.ImageUrl}
-                          alt="Audit"
-                          className="store-detail-history-image"
-                          onClick={() => {
-                            setSelectedImage(img.ImageUrl);
-                            setImageModalVisible(true);
-                          }}
-                        />
-                        <p
-                          className="store-detail-history-image-time"
-                          style={{ color: colors.icon }}
+                    {audit.Images.map((img) => {
+                      // Helper function để lấy URL tối ưu cho ảnh
+                      const getOptimizedImageUrl = (
+                        image: StoreImage,
+                        size:
+                          | "thumbnail"
+                          | "small"
+                          | "medium"
+                          | "large"
+                          | "original" = "medium"
+                      ) => {
+                        // Ưu tiên dùng optimizedUrls nếu có
+                        if (image.optimizedUrls) {
+                          return (
+                            image.optimizedUrls[size] ||
+                            image.optimizedUrls.medium ||
+                            image.optimizedUrl ||
+                            image.ImageUrl
+                          );
+                        }
+                        // Fallback về optimizedUrl nếu có
+                        if (image.optimizedUrl) {
+                          return image.optimizedUrl;
+                        }
+                        // Cuối cùng dùng ImageUrl gốc (backward compatibility)
+                        return image.ImageUrl;
+                      };
+
+                      const optimizedUrl = getOptimizedImageUrl(img, "medium");
+                      const fullSizeUrl = getOptimizedImageUrl(img, "large");
+
+                      return (
+                        <div
+                          key={img.Id}
+                          className="store-detail-history-image-wrapper"
                         >
-                          {new Date(img.CapturedAt).toLocaleString("vi-VN", {
-                            hour12: false,
-                          })}
-                        </p>
-                      </div>
-                    ))}
+                          <img
+                            src={optimizedUrl}
+                            alt="Audit"
+                            className="store-detail-history-image"
+                            loading="lazy"
+                            onClick={() => {
+                              setSelectedImage(fullSizeUrl);
+                              setImageModalVisible(true);
+                            }}
+                          />
+                          <p
+                            className="store-detail-history-image-time"
+                            style={{ color: colors.icon }}
+                          >
+                            {new Date(img.CapturedAt).toLocaleString("vi-VN", {
+                              hour12: false,
+                            })}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
@@ -1111,10 +1757,9 @@ export default function StoreDetail() {
               <button
                 className="store-detail-modal-button store-detail-modal-button-confirm"
                 onClick={handleConfirmUpload}
-                disabled={uploading}
                 style={{ backgroundColor: colors.primary, color: "#fff" }}
               >
-                {uploading ? "Đang tải..." : "Xác nhận"}
+                Xác nhận
               </button>
             </div>
           </div>

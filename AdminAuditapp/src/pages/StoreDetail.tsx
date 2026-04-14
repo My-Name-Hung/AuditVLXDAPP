@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { HiDownload } from "react-icons/hi";
 import { HiArrowLeft, HiArrowPath } from "react-icons/hi2";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import NotificationModal from "../components/NotificationModal";
 import api from "../services/api";
@@ -48,6 +48,15 @@ interface Image {
   Latitude: number | null;
   Longitude: number | null;
   CapturedAt: string;
+  // Optimized URLs (mới từ backend)
+  optimizedUrl?: string;
+  optimizedUrls?: {
+    thumbnail: string;
+    small: string;
+    medium: string;
+    large: string;
+    original: string;
+  };
 }
 
 interface Audit {
@@ -66,12 +75,39 @@ interface Audit {
 export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [store, setStore] = useState<Store | null>(null);
+  const location = useLocation();
+  const locationState = location.state as
+    | {
+        store?: Store;
+        from?: string;
+        userId?: string;
+        startDate?: string;
+        endDate?: string;
+        storeName?: string;
+        territoryId?: string;
+        territoryName?: string;
+      }
+    | null;
+  const preloadedStore = locationState?.store;
+  const navigationSource = locationState?.from;
+  const userIdFromState = locationState?.userId
+    ? parseInt(locationState.userId, 10)
+    : null;
+  const sanitizedPreloadedStore = preloadedStore
+    ? {
+        ...preloadedStore,
+        userStatuses: (preloadedStore.userStatuses || []).filter(
+          (status: UserStatus) => status.Status !== "not_audited"
+        ),
+      }
+    : null;
+  const hasPreloadedStore = Boolean(sanitizedPreloadedStore);
+  const [store, setStore] = useState<Store | null>(sanitizedPreloadedStore);
   const [audits, setAudits] = useState<Audit[]>([]);
   const [selectedAuditId, setSelectedAuditId] = useState<number | null>(null);
   const [auditDateDropdownOpen, setAuditDateDropdownOpen] = useState(false);
   const [auditDateSearch, setAuditDateSearch] = useState("");
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!hasPreloadedStore);
   const [dataLoading, setDataLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{
     url: string;
@@ -106,29 +142,48 @@ export default function StoreDetail() {
   });
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
-  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(
+    userIdFromState
+  );
   const [userSelectModalOpen, setUserSelectModalOpen] = useState(false);
   const isInitialMount = useRef(true);
   const previousId = useRef<string | undefined>(id);
-  const hasSelectedUserRef = useRef(false); // Track if user has already selected
+  const hasSelectedUserRef = useRef(Boolean(userIdFromState)); // Track if user has already selected
 
   useEffect(() => {
-    if (id) {
-      if (isInitialMount.current) {
-        // Initial load
-        isInitialMount.current = false;
-        previousId.current = id;
+    if (!id) {
+      return;
+    }
+
+    const shouldShowModal =
+      isInitialMount.current && hasPreloadedStore ? true : false;
+
+    if (isInitialMount.current) {
+      // Initial load
+      isInitialMount.current = false;
+      previousId.current = id;
+      // If userId is provided from navigation state, auto-select it
+      if (userIdFromState) {
+        hasSelectedUserRef.current = true;
+        fetchStoreDetail(shouldShowModal, userIdFromState);
+      } else {
         hasSelectedUserRef.current = false; // Reset when loading new store
-        fetchStoreDetail();
-      } else if (previousId.current !== id) {
-        // Navigate to different store - show loading modal
-        previousId.current = id;
+        fetchStoreDetail(shouldShowModal);
+      }
+    } else if (previousId.current !== id) {
+      // Navigate to different store - always show loading modal
+      previousId.current = id;
+      // If userId is provided from navigation state, auto-select it
+      if (userIdFromState) {
+        hasSelectedUserRef.current = true;
+        fetchStoreDetail(true, userIdFromState);
+      } else {
         hasSelectedUserRef.current = false; // Reset when navigating to different store
         fetchStoreDetail(true);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, hasPreloadedStore, userIdFromState]);
 
   const fetchStoreDetail = async (
     showLoading = false,
@@ -137,7 +192,7 @@ export default function StoreDetail() {
     try {
       if (showLoading) {
         setDataLoading(true);
-      } else {
+      } else if (!hasPreloadedStore) {
         setLoading(true);
       }
 
@@ -149,6 +204,9 @@ export default function StoreDetail() {
 
       const res = await api.get(`/stores/${id}`, { params });
       const data = res.data;
+      const filteredUserStatuses = (data.userStatuses || []).filter(
+        (status: UserStatus) => status.Status !== "not_audited"
+      );
       setStore({
         Id: data.Id,
         StoreCode: data.StoreCode,
@@ -168,7 +226,7 @@ export default function StoreDetail() {
         Latitude: data.Latitude,
         Longitude: data.Longitude,
         FailedReason: data.FailedReason || null,
-        userStatuses: data.userStatuses || [],
+        userStatuses: filteredUserStatuses,
         assignedUsers: data.assignedUsers || [],
       });
       const auditsData = data.audits || [];
@@ -176,7 +234,7 @@ export default function StoreDetail() {
       setAudits(auditsData);
 
       // Check if we need to show user selection modal
-      const userStatuses = data.userStatuses || [];
+      const userStatuses = filteredUserStatuses;
       if (userStatuses.length > 1) {
         // Multiple users - only show modal if user hasn't selected yet (first load)
         if (!hasSelectedUserRef.current && !userId) {
@@ -262,14 +320,14 @@ export default function StoreDetail() {
     return "-";
   };
 
-const formatAuditDateTime = (value: string) => {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString("vi-VN", {
-    hour12: false,
-  });
-};
+  const formatAuditDateTime = (value: string) => {
+    if (!value) return "-";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString("vi-VN", {
+      hour12: false,
+    });
+  };
 
   const mapAuditResultToStoreStatus = (result?: string | null) => {
     if (!result) return "audited";
@@ -293,10 +351,26 @@ const formatAuditDateTime = (value: string) => {
     return { lat: null, lon: null };
   };
 
+  // Helper function để lấy URL tối ưu cho ảnh
+  const getOptimizedImageUrl = (image: Image, size: 'thumbnail' | 'small' | 'medium' | 'large' | 'original' = 'large') => {
+    // Ưu tiên dùng optimizedUrls nếu có
+    if (image.optimizedUrls) {
+      return image.optimizedUrls[size] || image.optimizedUrls.large || image.optimizedUrl || image.ImageUrl;
+    }
+    // Fallback về optimizedUrl nếu có
+    if (image.optimizedUrl) {
+      return image.optimizedUrl;
+    }
+    // Cuối cùng dùng ImageUrl gốc (backward compatibility)
+    return image.ImageUrl;
+  };
+
   const handleImageClick = (image: Image, index: number) => {
     const coords = getImageCoordinates(image);
+    // Sử dụng optimized URL cho full size view
+    const imageUrl = getOptimizedImageUrl(image, 'large');
     setSelectedImage({
-      url: image.ImageUrl,
+      url: imageUrl,
       lat: coords.lat,
       lon: coords.lon,
     });
@@ -526,6 +600,8 @@ const formatAuditDateTime = (value: string) => {
       });
     }
   };
+  // Keep handler for potential future use (buttons currently hidden)
+  void handleStatusUpdateClick;
 
   const handleResetStoreConfirm = async () => {
     if (!store || !selectedAudit) {
@@ -610,7 +686,15 @@ const formatAuditDateTime = (value: string) => {
   };
 
   if (loading) {
-    return <div className="loading">Đang tải dữ liệu...</div>;
+    return (
+      <div className="store-detail">
+        <LoadingModal
+          isOpen={true}
+          message="Đang tải dữ liệu cửa hàng..."
+          progress={0}
+        />
+      </div>
+    );
   }
 
   if (!store) {
@@ -625,7 +709,30 @@ const formatAuditDateTime = (value: string) => {
         progress={0}
       />
       <div className="store-detail-header">
-        <button className="btn-back" onClick={() => navigate("/stores")}>
+        <button
+          className="btn-back"
+          onClick={() => {
+            if (navigationSource === "userDetail" && locationState?.userId) {
+              // Navigate back to UserDetail with filters
+              const params = new URLSearchParams();
+              if (locationState.territoryId) {
+                params.set("territoryId", locationState.territoryId);
+                if (locationState.territoryName) {
+                  params.set("territoryName", locationState.territoryName);
+                }
+              }
+              const queryString = params.toString();
+              navigate(
+                `/dashboard/user/${locationState.userId}${
+                  queryString ? `?${queryString}` : ""
+                }`
+              );
+            } else {
+              // Navigate back to Stores list
+              navigate("/stores");
+            }
+          }}
+        >
           <HiArrowLeft /> Quay lại
         </button>
       </div>
@@ -778,21 +885,7 @@ const formatAuditDateTime = (value: string) => {
             </div>
             <div className="status-action-buttons">
               <button
-                className="btn-status btn-passed"
-                onClick={() => handleStatusUpdateClick("passed")}
-                disabled={!selectedAudit}
-              >
-                Đạt
-              </button>
-              <button
-                className="btn-status btn-failed"
-                onClick={() => handleStatusUpdateClick("failed")}
-                disabled={!selectedAudit}
-              >
-                Không đạt
-              </button>
-              <button
-                className="btn-status btn-reset"
+                className="btn-status btn-reset-store"
                 onClick={() => setResetModalOpen(true)}
                 disabled={!selectedAudit}
               >
@@ -816,10 +909,11 @@ const formatAuditDateTime = (value: string) => {
                   return (
                     <div key={`${image.Id}-${index}`} className="image-card">
                       <img
-                        src={image.ImageUrl}
+                        src={getOptimizedImageUrl(image, 'medium')}
                         alt={`Image ${image.Id}`}
                         onClick={() => handleImageClick(image, index)}
                         className="grid-image"
+                        loading="lazy"
                       />
                       <div className="image-info">
                         <span className="image-time">

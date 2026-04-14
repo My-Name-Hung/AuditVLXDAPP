@@ -1,5 +1,68 @@
 const bcrypt = require("bcryptjs");
 const User = require("../models/User");
+const Store = require("../models/Store");
+const StoreUser = require("../models/StoreUser");
+
+const mapAssignedStores = (stores = []) =>
+  stores.map((store) => ({
+    StoreId: store.StoreId,
+    StoreName: store.StoreName,
+    StoreCode: store.StoreCode,
+    Address: store.Address || null,
+    Status: store.Status || null,
+  }));
+
+const resolveStoreAssignment = async (storeAssignment) => {
+  if (!storeAssignment || typeof storeAssignment !== "object") {
+    return { storeIds: [] };
+  }
+
+  let mode = storeAssignment.mode || storeAssignment.type || null;
+  if (!mode) {
+    if (Array.isArray(storeAssignment.storeIds)) {
+      mode = "custom";
+    } else if (storeAssignment.assignAll === true) {
+      mode = "all";
+    } else {
+      mode = "none";
+    }
+  }
+
+  if (mode === "none") {
+    return { storeIds: [] };
+  }
+
+  if (mode === "all") {
+    const ids = await Store.getAllStoreIds();
+    return { storeIds: ids };
+  }
+
+  if (mode === "custom") {
+    const rawIds = Array.isArray(storeAssignment.storeIds)
+      ? storeAssignment.storeIds
+      : [];
+    const storeIds = rawIds
+      .map((value) => parseInt(value, 10))
+      .filter((value) => !Number.isNaN(value));
+
+    if (storeAssignment.enforceSelection && storeIds.length === 0) {
+      return {
+        storeIds: [],
+        error:
+          "Vui lòng chọn ít nhất một cửa hàng hoặc chọn phân công tất cả cửa hàng.",
+        status: 400,
+      };
+    }
+
+    return { storeIds };
+  }
+
+  return {
+    storeIds: [],
+    error: "Tùy chọn phân công cửa hàng không hợp lệ.",
+    status: 400,
+  };
+};
 
 const getAllUsers = async (req, res) => {
   try {
@@ -41,7 +104,12 @@ const getAllUsers = async (req, res) => {
 const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
-    const user = await User.findById(id);
+    const userId = parseInt(id, 10);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid user id" });
+    }
+
+    const user = await User.findById(userId);
 
     if (!user) {
       return res.status(404).json({ error: "User not found" });
@@ -49,7 +117,11 @@ const getUserById = async (req, res) => {
 
     // Remove password from response
     const { Password, ...userWithoutPassword } = user;
-    res.json(userWithoutPassword);
+    const assignedStores = await StoreUser.getStoresByUserId(userId);
+    res.json({
+      ...userWithoutPassword,
+      AssignedStores: mapAssignedStores(assignedStores),
+    });
   } catch (error) {
     console.error("Get user by id error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -58,8 +130,16 @@ const getUserById = async (req, res) => {
 
 const createUser = async (req, res) => {
   try {
-    const { username, password, fullName, email, phone, role, position } =
-      req.body;
+    const {
+      username,
+      password,
+      fullName,
+      email,
+      phone,
+      role,
+      position,
+      storeAssignment,
+    } = req.body;
 
     if (!username || !fullName) {
       return res.status(400).json({ error: "Username và Họ tên là bắt buộc" });
@@ -71,6 +151,23 @@ const createUser = async (req, res) => {
     }
 
     const normalizedRole = (role || "user").toLowerCase();
+
+    let assignmentResult = { storeIds: [] };
+    if (storeAssignment !== undefined && storeAssignment !== null) {
+      const enforceSelection =
+        (storeAssignment.mode || storeAssignment.type || "").toLowerCase() ===
+        "custom";
+      assignmentResult = await resolveStoreAssignment({
+        ...storeAssignment,
+        enforceSelection,
+      });
+
+      if (assignmentResult.error) {
+        return res.status(assignmentResult.status || 400).json({
+          error: assignmentResult.error,
+        });
+      }
+    }
 
     if (!position || !position.toString().trim()) {
       return res.status(400).json({ error: "Chức vụ là bắt buộc" });
@@ -104,8 +201,20 @@ const createUser = async (req, res) => {
       IsChangePassword: true, // Default to true - user must change password on first login
     });
 
+    if (assignmentResult.storeIds.length > 0) {
+      await StoreUser.replaceStoresForUser(user.Id, assignmentResult.storeIds);
+    }
+
+    const assignedStores =
+      assignmentResult.storeIds.length > 0
+        ? await StoreUser.getStoresByUserId(user.Id)
+        : [];
+
     const { Password, ...userWithoutPassword } = user;
-    res.status(201).json(userWithoutPassword);
+    res.status(201).json({
+      ...userWithoutPassword,
+      AssignedStores: mapAssignedStores(assignedStores),
+    });
   } catch (error) {
     console.error("Create user error:", error);
     res.status(500).json({ error: "Internal server error" });
@@ -115,9 +224,22 @@ const createUser = async (req, res) => {
 const updateUser = async (req, res) => {
   try {
     const { id } = req.params;
-    const { fullName, email, phone, role, password, position } = req.body;
+    const {
+      fullName,
+      email,
+      phone,
+      role,
+      password,
+      position,
+      storeAssignment,
+    } = req.body;
 
-    const user = await User.findById(id);
+    const userId = parseInt(id, 10);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: "Invalid user id" });
+    }
+
+    const user = await User.findById(userId);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
@@ -131,10 +253,26 @@ const updateUser = async (req, res) => {
     }
 
     const { getPool, sql } = require("../config/database");
+    let assignmentResult = null;
+    if (storeAssignment !== undefined) {
+      const enforceSelection =
+        (storeAssignment?.mode || storeAssignment?.type || "").toLowerCase() ===
+        "custom";
+      assignmentResult = await resolveStoreAssignment({
+        ...(storeAssignment || {}),
+        enforceSelection,
+      });
+      if (assignmentResult.error) {
+        return res.status(assignmentResult.status || 400).json({
+          error: assignmentResult.error,
+        });
+      }
+    }
+
     const pool = await getPool();
     const request = pool.request();
 
-    request.input("Id", sql.Int, id);
+    request.input("Id", sql.Int, userId);
     request.input("FullName", sql.NVarChar(200), fullName || user.FullName);
     request.input("Email", sql.NVarChar(200), email || user.Email);
     request.input("Phone", sql.VarChar(20), phone || user.Phone);
@@ -166,9 +304,19 @@ const updateUser = async (req, res) => {
     updateQuery += " OUTPUT INSERTED.* WHERE Id = @Id";
 
     const result = await request.query(updateQuery);
-    const { Password, ...userWithoutPassword } = result.recordset[0];
+    const updatedUser = result.recordset[0];
 
-    res.json(userWithoutPassword);
+    if (assignmentResult && assignmentResult.storeIds) {
+      await StoreUser.replaceStoresForUser(userId, assignmentResult.storeIds);
+    }
+
+    const assignedStores = await StoreUser.getStoresByUserId(userId);
+
+    const { Password, ...userWithoutPassword } = updatedUser;
+    res.json({
+      ...userWithoutPassword,
+      AssignedStores: mapAssignedStores(assignedStores),
+    });
   } catch (error) {
     console.error("Update user error:", error);
     res.status(500).json({ error: "Internal server error" });

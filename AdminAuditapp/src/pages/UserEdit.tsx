@@ -1,11 +1,18 @@
 import { useEffect, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
+import MultiSelect from "../components/MultiSelect";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
 import api from "../services/api";
 import "./UserEdit.css";
+
+interface AssignedStore {
+  StoreId: number;
+  StoreName: string;
+  StoreCode: string;
+}
 
 interface User {
   Id: number;
@@ -16,13 +23,25 @@ interface User {
   Phone: string;
   Role: string;
   Position?: string | null;
+  AssignedStores?: AssignedStore[];
 }
+
+const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
+
+const mergePositionOptions = (current: string[], incoming: string[]) => {
+  const normalized = [...current];
+  incoming.forEach((item) => {
+    const trimmed = item?.trim();
+    if (trimmed && !normalized.includes(trimmed)) {
+      normalized.push(trimmed);
+    }
+  });
+  return normalized;
+};
 
 export default function UserEdit() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState<{
     isOpen: boolean;
     type: "success" | "error";
@@ -34,24 +53,45 @@ export default function UserEdit() {
   });
   const [updateLoading, setUpdateLoading] = useState(false);
 
-  const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
-  const [positionOptions, setPositionOptions] =
-    useState<string[]>(DEFAULT_POSITIONS);
+  const location = useLocation();
+  const preloadedUser =
+    (location.state as { user?: User } | null)?.user || null;
+  const initialRole = preloadedUser?.Role || "sales";
+  const initialPosition =
+    (preloadedUser?.Position && preloadedUser.Position.trim()) ||
+    (initialRole === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường");
+
+  const [positionOptions, setPositionOptions] = useState<string[]>(
+    mergePositionOptions(DEFAULT_POSITIONS, [initialPosition])
+  );
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
+  const initialStoreIds =
+    preloadedUser?.AssignedStores?.map((store) => store.StoreId) || [];
+  const [storeOptions, setStoreOptions] = useState<
+    { id: number; name: string }[]
+  >([]);
+  const [storeOptionsLoading, setStoreOptionsLoading] = useState(false);
+  const [storeAssignmentMode, setStoreAssignmentMode] = useState<
+    "none" | "all" | "custom"
+  >(initialStoreIds.length > 0 ? "custom" : "none");
+  const [selectedStoreIds, setSelectedStoreIds] =
+    useState<number[]>(initialStoreIds);
+  const [storeAssignmentError, setStoreAssignmentError] = useState("");
 
   const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    phone: "",
-    role: "sales" as "admin" | "sales",
-    position: "",
+    fullName: preloadedUser?.FullName || "",
+    email: preloadedUser?.Email || "",
+    phone: preloadedUser?.Phone || "",
+    role: (initialRole as "admin" | "sales") || "sales",
+    position: initialPosition,
     password: "",
   });
+  const [user, setUser] = useState<User | null>(preloadedUser);
+  const [loading, setLoading] = useState(!preloadedUser);
 
   useEffect(() => {
     fetchPositions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -61,16 +101,29 @@ export default function UserEdit() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  const mergePositionOptions = (current: string[], incoming: string[]) => {
-    const normalized = [...current];
-    incoming.forEach((item) => {
-      const trimmed = item?.trim();
-      if (trimmed && !normalized.includes(trimmed)) {
-        normalized.push(trimmed);
+  useEffect(() => {
+    const fetchStoreOptions = async () => {
+      try {
+        setStoreOptionsLoading(true);
+        const res = await api.get("/stores/options");
+        const data = res.data?.data || res.data || [];
+        if (Array.isArray(data)) {
+          setStoreOptions(
+            data.map((item: { Id: number; StoreName: string; StoreCode: string }) => ({
+              id: item.Id,
+              name: `${item.StoreName} (${item.StoreCode})`,
+            }))
+          );
+        }
+      } catch (error) {
+        console.error("Không thể tải danh sách cửa hàng:", error);
+        setStoreOptions([]);
+      } finally {
+        setStoreOptionsLoading(false);
       }
-    });
-    return normalized;
-  };
+    };
+    fetchStoreOptions();
+  }, []);
 
   const fetchPositions = async () => {
     try {
@@ -99,7 +152,9 @@ export default function UserEdit() {
 
   const fetchUser = async () => {
     try {
-      setLoading(true);
+      if (!preloadedUser) {
+        setLoading(true);
+      }
       const res = await api.get(`/users/${id}`);
       const data = res.data;
       setUser(data);
@@ -115,6 +170,16 @@ export default function UserEdit() {
         position: resolvedPosition,
         password: "",
       });
+      const assignedStoreIds =
+        Array.isArray(data.AssignedStores) && data.AssignedStores.length > 0
+          ? data.AssignedStores.map((store: AssignedStore) =>
+              Number(store.StoreId)
+            ).filter((value: number) => !Number.isNaN(value))
+          : [];
+      setSelectedStoreIds(assignedStoreIds);
+      setStoreAssignmentMode(
+        assignedStoreIds.length > 0 ? "custom" : "none"
+      );
     } catch (error) {
       console.error("Error fetching user:", error);
       setNotification({
@@ -159,6 +224,12 @@ export default function UserEdit() {
       return;
     }
 
+    if (storeAssignmentMode === "custom" && selectedStoreIds.length === 0) {
+      setStoreAssignmentError("Vui lòng chọn ít nhất một cửa hàng.");
+      return;
+    }
+    setStoreAssignmentError("");
+
     try {
       setUpdateLoading(true);
 
@@ -169,6 +240,10 @@ export default function UserEdit() {
         role: string;
         position: string;
         password?: string;
+        storeAssignment?: {
+          mode: "none" | "all" | "custom";
+          storeIds?: number[];
+        };
       } = {
         fullName: formData.fullName.trim(),
         email: formData.email?.trim() || null,
@@ -180,6 +255,17 @@ export default function UserEdit() {
       // Only include password if it's provided
       if (formData.password.trim()) {
         payload.password = formData.password;
+      }
+
+      if (storeAssignmentMode === "all") {
+        payload.storeAssignment = { mode: "all" };
+      } else if (storeAssignmentMode === "custom") {
+        payload.storeAssignment = {
+          mode: "custom",
+          storeIds: selectedStoreIds,
+        };
+      } else if (storeAssignmentMode === "none") {
+        payload.storeAssignment = { mode: "none" };
       }
 
       await api.put(`/users/${id}`, payload);
@@ -257,7 +343,11 @@ export default function UserEdit() {
   if (loading) {
     return (
       <div className="user-edit-container">
-        <div className="loading">Đang tải...</div>
+        <LoadingModal
+          isOpen={true}
+          message="Đang tải dữ liệu nhân viên..."
+          progress={0}
+        />
       </div>
     );
   }
@@ -353,6 +443,91 @@ export default function UserEdit() {
             placeholder="Chọn vai trò"
             searchable={false}
           />
+        </div>
+
+        <div className="form-group">
+          <label>Phân công cửa hàng</label>
+          <div className="store-assignment-options">
+            <label className="store-assignment-option">
+              <input
+                type="radio"
+                name="storeAssignmentMode"
+                value="none"
+                checked={storeAssignmentMode === "none"}
+                onChange={() => {
+                  setStoreAssignmentMode("none");
+                  setSelectedStoreIds([]);
+                  setStoreAssignmentError("");
+                }}
+              />
+              <span className="store-assignment-label">Chưa gán</span>
+            </label>
+            <label className="store-assignment-option">
+              <input
+                type="radio"
+                name="storeAssignmentMode"
+                value="all"
+                checked={storeAssignmentMode === "all"}
+                onChange={() => {
+                  setStoreAssignmentMode("all");
+                  setSelectedStoreIds([]);
+                  setStoreAssignmentError("");
+                }}
+              />
+              <span className="store-assignment-label">
+                Gán cho tất cả cửa hàng
+              </span>
+            </label>
+            <label className="store-assignment-option">
+              <input
+                type="radio"
+                name="storeAssignmentMode"
+                value="custom"
+                checked={storeAssignmentMode === "custom"}
+                onChange={() => {
+                  setStoreAssignmentMode("custom");
+                  setStoreAssignmentError("");
+                }}
+              />
+              <span className="store-assignment-label">
+                Chọn cửa hàng cụ thể
+              </span>
+            </label>
+          </div>
+          <small className="store-assignment-helper">
+            Các cửa hàng được chọn tại đây sẽ hiển thị ngay khi nhân viên đăng
+            nhập ứng dụng.
+          </small>
+          {storeAssignmentMode === "custom" && (
+            <div className="store-assignment-selector">
+              {storeOptionsLoading ? (
+                <p className="store-assignment-helper">
+                  Đang tải danh sách cửa hàng...
+                </p>
+              ) : (
+                <MultiSelect
+                  options={storeOptions}
+                  selected={selectedStoreIds}
+                  onChange={setSelectedStoreIds}
+                  placeholder="Chọn cửa hàng cần phân công"
+                  itemLabel="cửa hàng"
+                  searchPlaceholder="Tìm cửa hàng theo mã hoặc tên..."
+                  enableSelectAll
+                  selectAllLabel="Chọn toàn bộ trong danh sách"
+                />
+              )}
+              {selectedStoreIds.length > 0 && (
+                <small className="store-assignment-helper">
+                  Đã chọn {selectedStoreIds.length} cửa hàng.
+                </small>
+              )}
+              {storeAssignmentError && (
+                <small className="store-assignment-error">
+                  {storeAssignmentError}
+                </small>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="form-group">

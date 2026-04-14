@@ -49,8 +49,39 @@ export default function Header({ title }: HeaderProps) {
         </h1>
       )}
 
-      <div className="header-logo-container">
-        <img src={iconImage} alt="Logo" className="header-logo" />
+      <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+        <div
+          className="header-dashboard-button"
+          onClick={() => navigate("/dashboard")}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "4px",
+            cursor: "pointer",
+            padding: "4px 8px",
+          }}
+        >
+          <svg
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={colors.primary}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="18" y1="20" x2="18" y2="10"></line>
+            <line x1="12" y1="20" x2="12" y2="4"></line>
+            <line x1="6" y1="20" x2="6" y2="14"></line>
+          </svg>
+          <span style={{ fontSize: "12px", fontWeight: "500", color: colors.text }}>
+            Thống kê
+          </span>
+        </div>
+        <div className="header-logo-container">
+          <img src={iconImage} alt="Logo" className="header-logo" />
+        </div>
       </div>
     </header>
   );

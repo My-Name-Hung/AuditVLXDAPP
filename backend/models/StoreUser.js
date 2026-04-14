@@ -1,4 +1,5 @@
 const { getPool, sql } = require('../config/database');
+const BULK_ASSIGN_CHUNK_SIZE = 500;
 
 class StoreUser {
   /**
@@ -154,6 +155,57 @@ class StoreUser {
 
       await transaction.commit();
       return assignments;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  }
+
+  /**
+   * Replace all store assignments for a user
+   * @param {number} userId - User ID
+   * @param {Array<number>} storeIds - Array of Store IDs
+   * @returns {Promise<void>}
+   */
+  static async replaceStoresForUser(userId, storeIds = []) {
+    const pool = await getPool();
+    const transaction = new sql.Transaction(pool);
+
+    try {
+      await transaction.begin();
+
+      const deleteRequest = new sql.Request(transaction);
+      deleteRequest.input('UserId', sql.Int, userId);
+      await deleteRequest.query('DELETE FROM StoreUsers WHERE UserId = @UserId');
+
+      if (Array.isArray(storeIds) && storeIds.length > 0) {
+        const normalizedIds = storeIds
+          .map((value) => parseInt(value, 10))
+          .filter((value) => !Number.isNaN(value));
+
+        for (let i = 0; i < normalizedIds.length; i += BULK_ASSIGN_CHUNK_SIZE) {
+          const chunk = normalizedIds.slice(i, i + BULK_ASSIGN_CHUNK_SIZE);
+          if (chunk.length === 0) continue;
+
+          const insertRequest = new sql.Request(transaction);
+          insertRequest.input('UserId', sql.Int, userId);
+
+          const rows = chunk
+            .map((storeId, index) => {
+              insertRequest.input(`StoreId${index}`, sql.Int, storeId);
+              return `SELECT @UserId AS UserId, @StoreId${index} AS StoreId`;
+            })
+            .join(' UNION ALL ');
+
+          await insertRequest.query(`
+            INSERT INTO StoreUsers (UserId, StoreId, CreatedAt)
+            SELECT src.UserId, src.StoreId, GETDATE()
+            FROM (${rows}) AS src
+          `);
+        }
+      }
+
+      await transaction.commit();
     } catch (error) {
       await transaction.rollback();
       throw error;

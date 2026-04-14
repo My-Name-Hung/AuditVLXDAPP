@@ -157,7 +157,15 @@ class Store {
     }
 
     if (filters.UserId) {
-      query += " AND s.UserId = @UserId";
+      query += `
+        AND (
+          s.UserId = @UserId
+          OR EXISTS (
+            SELECT 1 FROM StoreUsers su
+            WHERE su.StoreId = s.Id AND su.UserId = @UserId
+          )
+        )
+      `;
       request.input("UserId", sql.Int, filters.UserId);
     }
 
@@ -214,7 +222,15 @@ class Store {
     }
 
     if (filters.UserId) {
-      query += " AND s.UserId = @UserId";
+      query += `
+        AND (
+          s.UserId = @UserId
+          OR EXISTS (
+            SELECT 1 FROM StoreUsers su
+            WHERE su.StoreId = s.Id AND su.UserId = @UserId
+          )
+        )
+      `;
       request.input("UserId", sql.Int, filters.UserId);
     }
 
@@ -238,6 +254,91 @@ class Store {
     request.timeout = 60000;
     const result = await request.query(query);
     return result.recordset[0].Total;
+  }
+
+  static async getAllStoreIds() {
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT Id FROM Stores
+    `);
+    return result.recordset.map((row) => row.Id);
+  }
+
+  static async getStoreOptions() {
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT Id, StoreCode, StoreName
+      FROM Stores
+      ORDER BY StoreName ASC
+    `);
+    return result.recordset;
+  }
+
+  static async countByStatus(filters = {}) {
+    const pool = await getPool();
+    let query = `
+      SELECT s.Status, COUNT(*) as Count
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      LEFT JOIN Users u ON s.UserId = u.Id
+      WHERE 1=1
+    `;
+    const request = pool.request();
+
+    if (filters.TerritoryId) {
+      query += " AND s.TerritoryId = @TerritoryId";
+      request.input("TerritoryId", sql.Int, filters.TerritoryId);
+    }
+
+    if (filters.UserId) {
+      query += `
+        AND (
+          s.UserId = @UserId
+          OR EXISTS (
+            SELECT 1 FROM StoreUsers su
+            WHERE su.StoreId = s.Id AND su.UserId = @UserId
+          )
+        )
+      `;
+      request.input("UserId", sql.Int, filters.UserId);
+    }
+
+    if (filters.Rank !== undefined && filters.Rank !== null) {
+      query += " AND s.Rank = @Rank";
+      request.input("Rank", sql.Int, filters.Rank);
+    }
+
+    if (filters.storeName) {
+      query +=
+        " AND (s.StoreName LIKE @StoreName OR s.StoreCode LIKE @StoreName)";
+      request.input("StoreName", sql.NVarChar(200), `%${filters.storeName}%`);
+    }
+
+    query += `
+      GROUP BY s.Status
+    `;
+
+    request.timeout = 60000;
+    const result = await request.query(query);
+
+    const counts = {
+      all: 0,
+      not_audited: 0,
+      audited: 0,
+      passed: 0,
+      failed: 0,
+    };
+
+    result.recordset.forEach((row) => {
+      const status = row.Status || "not_audited";
+      const count = Number(row.Count) || 0;
+      counts.all += count;
+      if (counts[status] !== undefined) {
+        counts[status] += count;
+      }
+    });
+
+    return counts;
   }
 
   static async updateStatus(storeId, status, failedReason = null) {

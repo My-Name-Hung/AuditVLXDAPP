@@ -1,21 +1,32 @@
 const fetch = require("node-fetch");
+const https = require("https");
 
+// VN2000 API configuration (revert from VietMap back to VN2000)
+// Example:
+// VN2000_ENDPOINT=https://vn2000.vn/api/thongtindiachinh
+// VN2000_INSECURE_TLS=true   // optional, allow self-signed certs
 const VN2000_ENDPOINT =
-  process.env.VN2000_ENDPOINT ||
-  "https://vn2000.vn/api/thongtindiachinh";
+  process.env.VN2000_ENDPOINT || "https://vn2000.vn/api/thongtindiachinh";
+const VN2000_INSECURE_TLS =
+  (process.env.VN2000_INSECURE_TLS || "false").toLowerCase() === "true";
 const REQUEST_INTERVAL_MS = 500; // basic rate limit to avoid hammering the API
-const REQUEST_TIMEOUT_MS = Number(
-  process.env.VN2000_TIMEOUT_MS || 8000
-); // Fail fast if provider is unreachable
+const REQUEST_TIMEOUT_MS = Number(process.env.VN2000_TIMEOUT_MS || 8000); // Fail fast if provider is unreachable
 const MAX_RETRIES = Number(process.env.VN2000_MAX_RETRIES || 3);
 const CACHE_TTL_MS = 1000 * 60 * 60 * 6; // 6 hours
-const CACHE_VERSION = "v4";
+const CACHE_VERSION = "v6"; // Update version to invalidate old cache after switching provider
 
 const cache = new Map();
 const pendingRequests = new Map();
 const requestQueue = [];
 let lastRequestTime = 0;
 let isProcessingQueue = false;
+
+// Optional HTTPS agent for insecure TLS (self-signed certificate)
+const insecureAgent = VN2000_INSECURE_TLS
+  ? new https.Agent({
+      rejectUnauthorized: false,
+    })
+  : null;
 
 const userAgent =
   process.env.VN2000_USER_AGENT || "AuditApp/1.0 (contact@ximangtaydo.vn)";
@@ -98,6 +109,8 @@ async function processQueue() {
 }
 
 async function fetchProvinceDistrict(lat, lon) {
+  // Build VN2000 API URL
+  // Example: https://vn2000.vn/api/thongtindiachinh?vido=16.0302630&kinhdo=107.904724
   const params = new URLSearchParams({
     vido: lat.toString(),
     kinhdo: lon.toString(),
@@ -114,44 +127,81 @@ async function fetchProvinceDistrict(lat, lon) {
           "User-Agent": userAgent,
         },
         timeout: REQUEST_TIMEOUT_MS,
+        // Allow insecure TLS if VN2000_INSECURE_TLS=true
+        agent: insecureAgent || undefined,
       });
 
       if (!response.ok) {
         throw new Error(
-          `VN2000 error: ${response.status} ${response.statusText}`
+          `VietMap error: ${response.status} ${response.statusText}`
         );
       }
 
       const data = await response.json();
-      if (!data?.success || !data?.data) {
-        throw new Error(
-          `VN2000 invalid response: ${JSON.stringify(data).slice(0, 200)}`
-        );
+
+      // VN2000 response structure (example):
+      // {
+      //   "success": true,
+      //   "message": "Lấy dữ liệu thành công",
+      //   "data": {
+      //     "lat": 16.030263,
+      //     "lng": 107.904724,
+      //     "diachinh_sausapnhap": {
+      //       "properties": {
+      //         "ten_xa": "Sông Vàng",
+      //         "ten_tinh": "Đà Nẵng",
+      //         ...
+      //       }
+      //     }
+      //   }
+      // }
+
+      if (!data?.success) {
+        console.warn("[Geocode] VN2000 error response", {
+          lat,
+          lon,
+          success: data?.success,
+          message: data?.message,
+        });
+        return { province: null, district: null };
       }
 
-      const propsAfter =
-        data.data.diachinh_sausapnhap?.properties ||
-        data.data.diachinh_truocsapnhap?.properties ||
-        {};
+      const propsSauSapNhap =
+        data?.data?.diachinh_sausapnhap?.properties || null;
+      const propsTruocSapNhap =
+        data?.data?.diachinh_truocsapnhap?.properties || null;
 
-      const propsBefore =
-        data.data.diachinh_truocsapnhap?.properties ||
-        data.data.diachinh_sausapnhap?.properties ||
-        {};
+      let province = null;
+      let district = null;
 
-      const province =
-        propsAfter.ten_tinh ||
-        propsBefore.ten_tinh ||
-        propsAfter.ten_huyen ||
-        propsBefore.ten_huyen ||
-        null;
+      // Ưu tiên dùng địa giới hành chính sau sáp nhập
+      if (propsSauSapNhap) {
+        if (propsSauSapNhap.ten_tinh) {
+          province = String(propsSauSapNhap.ten_tinh).trim();
+      }
+        if (propsSauSapNhap.ten_xa) {
+          district = String(propsSauSapNhap.ten_xa).trim();
+        }
+      }
 
-      const district =
-        propsAfter.ten_xa ||
-        propsBefore.ten_xa ||
-        propsAfter.ten_huyen ||
-        propsBefore.ten_huyen ||
-        null;
+      // Fallback: dùng thông tin trước sáp nhập nếu cần
+      if ((!province || !district) && propsTruocSapNhap) {
+        if (!province && propsTruocSapNhap.ten_tinh) {
+          province = String(propsTruocSapNhap.ten_tinh).trim();
+        }
+        if (!district && propsTruocSapNhap.ten_xa) {
+          district = String(propsTruocSapNhap.ten_xa).trim();
+        }
+      }
+
+      console.log("[Geocode] VN2000 result", {
+        lat,
+        lon,
+        province,
+        district,
+        hasSauSapNhap: !!propsSauSapNhap,
+        hasTruocSapNhap: !!propsTruocSapNhap,
+      });
 
       return {
         province: province || null,
@@ -167,7 +217,6 @@ async function fetchProvinceDistrict(lat, lon) {
         message: error.message || error,
         type: error.type,
         code: error.code,
-        stack: error.stack,
         url,
       });
       if (attempt >= MAX_RETRIES) {

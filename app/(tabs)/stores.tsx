@@ -3,12 +3,13 @@ import Header from "@/src/components/Header";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -75,6 +76,21 @@ const sortStoresByStatus = (stores: Store[]): Store[] => {
   });
 };
 
+const filterStoresByStatus = (
+  stores: Store[],
+  selectedStatus: string | null
+): Store[] => {
+  if (!selectedStatus) return stores;
+  if (selectedStatus === "audited") {
+    // Any store that is not "not_audited" is considered audited
+    return stores.filter((store) => store.Status !== "not_audited");
+  }
+  if (selectedStatus === "not_audited") {
+    return stores.filter((store) => store.Status === "not_audited");
+  }
+  return stores;
+};
+
 export default function StoresScreen() {
   const router = useRouter();
   const { colors } = useTheme();
@@ -126,6 +142,59 @@ export default function StoresScreen() {
     fetchTerritories();
     fetchStores();
   }, []);
+
+  // Auto-refresh stores list when screen comes into focus (e.g., navigating back from store detail)
+  useFocusEffect(
+    React.useCallback(() => {
+      let isRefreshing = false;
+      
+      // Refresh stores in background without blocking UI
+      const refreshStores = async () => {
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) return;
+        
+        try {
+          isRefreshing = true;
+          // Small delay to ensure navigation completes
+          await new Promise((resolve) => setTimeout(resolve, 300));
+          
+          // Refresh stores silently in background
+          const params: any = {
+            page: 1,
+            pageSize: 50,
+          };
+
+          if (searchText.trim()) {
+            params.storeName = searchText.trim();
+          }
+          if (selectedTerritory) {
+            params.territoryId = selectedTerritory;
+          }
+          if (selectedStatus) {
+            params.status = selectedStatus;
+          }
+
+          const response = await api.get("/stores", { params });
+          const data = response.data.data || [];
+          const sortedData = sortStoresByStatus(data);
+          const filteredData = filterStoresByStatus(sortedData, selectedStatus);
+          
+          // Update stores silently without showing loading state
+          setStores(filteredData);
+        } catch (error) {
+          // Silent fail - don't show error to user
+          console.error("Background refresh stores error:", error);
+        } finally {
+          isRefreshing = false;
+        }
+      };
+
+      // Only refresh if stores list is not empty (user has been here before)
+      if (stores.length > 0) {
+        refreshStores();
+      }
+    }, [searchText, selectedTerritory, selectedStatus, stores.length])
+  );
 
   useEffect(() => {
     // Debounce search and show searching state
@@ -186,14 +255,15 @@ export default function StoresScreen() {
 
       // Sort stores by status priority
       const sortedData = sortStoresByStatus(data);
+      const filteredData = filterStoresByStatus(sortedData, selectedStatus);
 
       if (reset) {
-        setStores(sortedData);
+        setStores(filteredData);
       } else {
         // When loading more, remove duplicates by Id before combining
         setStores((prev) => {
           const existingIds = new Set(prev.map((store) => store.Id));
-          const newStores = sortedData.filter(
+          const newStores = filteredData.filter(
             (store) => !existingIds.has(store.Id)
           );
           return sortStoresByStatus([...prev, ...newStores]);
@@ -491,38 +561,6 @@ export default function StoresScreen() {
                     Đã thực hiện
                   </Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.secondary },
-                  ]}
-                  onPress={() => {
-                    setSelectedStatus("passed");
-                    setShowStatusDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.dropdownItemText, { color: colors.text }]}
-                  >
-                    Đạt
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[
-                    styles.dropdownItem,
-                    { borderBottomColor: colors.secondary },
-                  ]}
-                  onPress={() => {
-                    setSelectedStatus("failed");
-                    setShowStatusDropdown(false);
-                  }}
-                >
-                  <Text
-                    style={[styles.dropdownItemText, { color: colors.text }]}
-                  >
-                    Không đạt
-                  </Text>
-                </TouchableOpacity>
               </View>
             )}
           </View>
@@ -530,10 +568,31 @@ export default function StoresScreen() {
       </View>
 
       {/* Store List */}
-      {loading && stores.length === 0 ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+      {(loading && stores.length === 0) || isSearching ? (
+        <ScrollView
+          contentContainerStyle={styles.listContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
+          <View style={styles.skeletonContainer}>
+            {Array.from({ length: 5 }).map((_, index) => (
+              <View
+                key={index}
+                style={[
+                  styles.storeCard,
+                  styles.skeletonCard,
+                  { borderColor: colors.icon + "10" },
+                ]}
+              >
+                <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+                <View style={[styles.skeletonLine, styles.skeletonCode]} />
+                <View style={[styles.skeletonLine, styles.skeletonAddress]} />
+                <View style={[styles.skeletonLine, styles.skeletonContact]} />
+              </View>
+            ))}
+          </View>
+        </ScrollView>
       ) : (
         <FlatList
           data={stores}
@@ -544,27 +603,6 @@ export default function StoresScreen() {
           onEndReachedThreshold={0.5}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-          }
-          ListHeaderComponent={
-            isSearching ? (
-              <View style={styles.skeletonContainer}>
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <View
-                    key={index}
-                    style={[
-                      styles.storeCard,
-                      styles.skeletonCard,
-                      { borderColor: colors.icon + "10" },
-                    ]}
-                  >
-                    <View style={[styles.skeletonLine, styles.skeletonTitle]} />
-                    <View style={[styles.skeletonLine, styles.skeletonCode]} />
-                    <View style={[styles.skeletonLine, styles.skeletonAddress]} />
-                    <View style={[styles.skeletonLine, styles.skeletonContact]} />
-                  </View>
-                ))}
-              </View>
-            ) : null
           }
           ListFooterComponent={
             loading && stores.length > 0 ? (
@@ -721,5 +759,37 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
+  },
+  skeletonContainer: {
+    padding: 16,
+  },
+  skeletonCard: {
+    backgroundColor: "#f5f5f5",
+    opacity: 0.7,
+  },
+  skeletonLine: {
+    backgroundColor: "#e0e0e0",
+    borderRadius: 4,
+    marginBottom: 8,
+    height: 16,
+  },
+  skeletonTitle: {
+    width: "70%",
+    height: 20,
+    marginBottom: 12,
+  },
+  skeletonCode: {
+    width: "40%",
+    height: 14,
+    marginBottom: 8,
+  },
+  skeletonAddress: {
+    width: "90%",
+    height: 14,
+    marginBottom: 8,
+  },
+  skeletonContact: {
+    width: "60%",
+    height: 14,
   },
 });

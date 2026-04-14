@@ -13,6 +13,7 @@ import PermissionModal, {
   checkPermissionsAsked,
 } from "@/src/components/PermissionModal";
 import { AuthProvider, useAuth } from "@/src/contexts/AuthContext";
+import { SurveyProvider } from "@/src/contexts/SurveyContext";
 import { ThemeProvider as CustomThemeProvider } from "@/src/contexts/ThemeContext";
 
 function RootNavigation() {
@@ -97,6 +98,7 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
+      <SurveyProvider>
       <CustomThemeProvider>
         <ThemeProvider value={isDarkMode ? DarkTheme : DefaultTheme}>
           <RootNavigation />
@@ -107,6 +109,7 @@ export default function RootLayout() {
           />
         </ThemeProvider>
       </CustomThemeProvider>
+      </SurveyProvider>
     </AuthProvider>
   );
 }

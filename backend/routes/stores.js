@@ -6,9 +6,34 @@ const { authenticateToken } = require("../middlewares/auth");
 
 router.get("/", authenticateToken, storesController.getAllStores);
 router.get(
+  "/export/data",
+  authenticateToken,
+  storesController.exportStores
+);
+router.get(
+  "/export/file",
+  authenticateToken,
+  storesController.exportStoresExcel
+);
+router.get(
+  "/export/count",
+  authenticateToken,
+  storesController.getStoresExportCount
+);
+router.get(
+  "/export/batch",
+  authenticateToken,
+  storesController.exportStoresExcelBatch
+);
+router.get(
   "/status-summary",
   authenticateToken,
   storesController.getStatusSummary
+);
+router.get(
+  "/options",
+  authenticateToken,
+  storesController.getStoreOptions
 );
 router.get("/:id", authenticateToken, storesController.getStoreById);
 router.post("/", authenticateToken, storesController.createStore);

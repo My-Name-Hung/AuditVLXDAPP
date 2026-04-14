@@ -10,23 +10,32 @@ const { getProvinceDistrict } = require("./geocodingService");
  *
  * @param {Buffer} imageBuffer - Image file buffer from frontend
  * @param {Object} metadata - Metadata containing latitude, longitude, timestamp
- * @param {Object} options - Optional settings: { fontSize: number } (default: 36 for mobile app)
+ * @param {Object} options - Optional settings: { fontSize: number } (default: 60 for mobile app)
  * @returns {Promise<Object>} Cloudinary upload result
  */
 async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
-  const { fontSize = 36 } = options; // Default 36 for mobile app, 10 for web iosauditapp
-  const { latitude, longitude, timestamp } = metadata;
+  const { fontSize = 12 } = options; // Default 60 for mobile app, 10 for web iosauditapp
+  const { latitude, longitude, timestamp, localTimeString } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
-  const date = new Date(timestamp);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  // Use . for date separator to avoid URL encoding, keep : for time
-  const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  // QUAN TRỌNG: Sử dụng localTimeString nếu có (đã được format đúng local time trong controller)
+  // Nếu không có, format từ timestamp (đã được điều chỉnh về local time)
+  let timeString;
+  if (localTimeString) {
+    // Sử dụng local time string đã format sẵn từ controller
+    timeString = localTimeString;
+  } else {
+    // Fallback: format từ timestamp (đã là local time sau khi điều chỉnh)
+    const date = new Date(timestamp);
+    // Sử dụng UTC methods vì timestamp đã được điều chỉnh về local time
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    const hours = String(date.getUTCHours()).padStart(2, "0");
+    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+    timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  }
 
   // Create watermark text: Use compact format to prevent overlap
   // Ensure latitude and longitude are numbers before calling toFixed
@@ -50,14 +59,19 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   try {
     // Convert buffer to base64
     const base64Image = `data:image/jpeg;base64,${imageBuffer.toString(
-      "base64"
+      "base64",
     )}`;
 
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
-    // Font size: 36 for mobile app (default), 10 for web iosauditapp
+    // Font size: 45 for mobile app (default), 10 for web iosauditapp
+    // Tối ưu hóa: quality auto, progressive JPEG
+    // Lưu ý: format auto không được hỗ trợ trong eager, sẽ áp dụng qua URL transformations
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
+      // Tối ưu hóa quality cho upload
+      quality: "auto:good", // Tự động tối ưu quality
+      flags: ["progressive"], // Progressive JPEG cho tải nhanh hơn
       eager: [
         {
           overlay: {
@@ -70,6 +84,10 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
           gravity: "north_east",
           x: 20,
           y: 20,
+          // Áp dụng optimization cho eager transformation
+          // Lưu ý: format auto không được hỗ trợ trong eager transformations
+          quality: "auto:good",
+          flags: ["progressive"],
         },
       ],
       eager_async: false, // Wait for transformation to complete
@@ -96,18 +114,27 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
  * Alternative method using base64 encoding
  */
 async function uploadImageWithWatermarkBase64(base64Image, metadata) {
-  const { latitude, longitude, timestamp } = metadata;
+  const { latitude, longitude, timestamp, localTimeString } = metadata;
 
   // Format timestamp: dd.mm.yyyy hh:mm:ss (using . instead of / to avoid URL encoding)
-  const date = new Date(timestamp);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  const hours = String(date.getHours()).padStart(2, "0");
-  const minutes = String(date.getMinutes()).padStart(2, "0");
-  const seconds = String(date.getSeconds()).padStart(2, "0");
-  // Use . for date separator to avoid URL encoding, keep : for time
-  const timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  // QUAN TRỌNG: Sử dụng localTimeString nếu có (đã được format đúng local time trong controller)
+  // Nếu không có, format từ timestamp (đã được điều chỉnh về local time)
+  let timeString;
+  if (localTimeString) {
+    // Sử dụng local time string đã format sẵn từ controller
+    timeString = localTimeString;
+  } else {
+    // Fallback: format từ timestamp (đã là local time sau khi điều chỉnh)
+    const date = new Date(timestamp);
+    // Sử dụng UTC methods vì timestamp đã được điều chỉnh về local time
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const year = date.getUTCFullYear();
+    const hours = String(date.getUTCHours()).padStart(2, "0");
+    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+    timeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  }
 
   // Create watermark text: Use compact format to prevent overlap
   // Ensure latitude and longitude are numbers before calling toFixed
@@ -131,8 +158,13 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
   try {
     // Upload image with watermark transformation applied eagerly (stored permanently)
     // This ensures watermark is always visible, not just in URL transformation
+    // Tối ưu hóa: quality auto, progressive JPEG
+    // Lưu ý: format auto không được hỗ trợ trong eager, sẽ áp dụng qua URL transformations
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
       folder: "auditapp",
+      // Tối ưu hóa quality cho upload
+      quality: "auto:good", // Tự động tối ưu quality
+      flags: ["progressive"], // Progressive JPEG cho tải nhanh hơn
       eager: [
         {
           overlay: {
@@ -145,6 +177,10 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata) {
           gravity: "north_east",
           x: 20,
           y: 20,
+          // Áp dụng optimization cho eager transformation
+          // Lưu ý: format auto không được hỗ trợ trong eager transformations
+          quality: "auto:good",
+          flags: ["progressive"],
         },
       ],
       eager_async: false, // Wait for transformation to complete

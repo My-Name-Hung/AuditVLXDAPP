@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { HiArrowLeft } from "react-icons/hi2";
+import { HiArrowLeft, HiEye } from "react-icons/hi2";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import api from "../services/api";
 import "./UserDetail.css";
@@ -7,6 +7,7 @@ import "./UserDetail.css";
 interface UserDetailItem {
   CheckinDate: string;
   AuditId: number;
+  StoreId: number;
   StoreName: string;
   Address: string;
   TerritoryName: string | null;
@@ -33,6 +34,7 @@ const formatLocalTime = (value: string) => {
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleTimeString("vi-VN", {
     hour12: false,
+    timeZone: "UTC",
   });
 };
 
@@ -153,6 +155,31 @@ export default function UserDetail() {
     setStoreNameFilter("");
   };
 
+  const handleViewStore = (storeId: number) => {
+    const navigationState: {
+      from: string;
+      userId: string;
+      startDate?: string;
+      endDate?: string;
+      storeName?: string;
+      territoryId?: string;
+      territoryName?: string;
+    } = {
+      from: "userDetail",
+      userId: userId || "",
+    };
+
+    if (startDate) navigationState.startDate = startDate;
+    if (endDate) navigationState.endDate = endDate;
+    if (storeNameFilter) navigationState.storeName = storeNameFilter;
+    if (territoryId) {
+      navigationState.territoryId = territoryId;
+      navigationState.territoryName = territoryName;
+    }
+
+    navigate(`/stores/${storeId}`, { state: navigationState });
+  };
+
   if (loading && !hasLoaded) {
     return <div className="loading">Đang tải dữ liệu...</div>;
   }
@@ -238,6 +265,7 @@ export default function UserDetail() {
               <th>Địa chỉ cửa hàng</th>
               <th>Thời Gian Checkin</th>
               <th>Ghi chú</th>
+              <th>Xem chi tiết</th>
             </tr>
           </thead>
           <tbody>
@@ -251,12 +279,14 @@ export default function UserDetail() {
                     <td className="skeleton-cell" />
                     <td className="skeleton-cell" />
                     <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
+                    <td className="skeleton-cell" />
                   </tr>
                 ))}
               </>
             ) : detailData.length === 0 ? (
               <tr>
-                <td colSpan={6} className="no-data-cell">
+                <td colSpan={8} className="no-data-cell">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -269,7 +299,29 @@ export default function UserDetail() {
                   <td>{item.TerritoryName || territoryName || ""}</td>
                   <td>{item.Address || ""}</td>
                   <td>{formatLocalTime(item.CheckinTime)}</td>
-                  <td>{item.Notes || ""}</td>
+                  <td>
+                    <button
+                      className="btn-view"
+                      onClick={() =>
+                        navigate(
+                          `/stores/${item.StoreId}/survey?auditId=${item.AuditId}&userId=${userId}`
+                        )
+                      }
+                      title="Xem thông tin khảo sát"
+                      style={{ margin: "0 auto", display: "block" }}
+                    >
+                      <HiEye />
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      className="btn-view"
+                      onClick={() => handleViewStore(item.StoreId)}
+                      title="Xem chi tiết cửa hàng"
+                    >
+                      <HiEye />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}

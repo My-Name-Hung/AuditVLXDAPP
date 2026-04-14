@@ -135,12 +135,12 @@ export default function StoreSurveyDetail() {
 
     // Calculate days since year start
     const daysSinceYearStart = Math.floor(
-      (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24),
+      (date.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
     );
 
     // Calculate week number: (days + offset to first Monday) / 7, rounded up
     const weekNumberInYear = Math.ceil(
-      (daysSinceYearStart + firstMondayOffset + 1) / 7,
+      (daysSinceYearStart + firstMondayOffset + 1) / 7
     );
 
     return { weekNumberInMonth, weekNumberInYear, year };
@@ -186,8 +186,9 @@ export default function StoreSurveyDetail() {
 
       // Title rows
       sheet.mergeCells("A1:N1");
-      sheet.getCell("A1").value =
-        `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+      sheet.getCell(
+        "A1"
+      ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
       sheet.getCell("A1").font = { bold: true, size: 14 };
       sheet.getCell("A1").alignment = { horizontal: "center" };
 
@@ -199,8 +200,9 @@ export default function StoreSurveyDetail() {
       sheet.getCell("A2").alignment = { horizontal: "center" };
 
       sheet.mergeCells("A3:N3");
-      sheet.getCell("A3").value =
-        `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+      sheet.getCell(
+        "A3"
+      ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
       sheet.getCell("A3").font = { bold: true, size: 12 };
       sheet.getCell("A3").alignment = { horizontal: "left" };
 
@@ -260,10 +262,10 @@ export default function StoreSurveyDetail() {
 
           row.eachCell((cell) => {
             cell.border = {
-              top: { style: "slantDashDot" },
-              bottom: { style: "medium" },
+              top: { style: "thin" },
+              bottom: { style: "thin" },
               left: { style: "thin" },
-              right: { style: "dashDot" },
+              right: { style: "thin" },
             };
             cell.alignment = { vertical: "middle" };
           });
@@ -555,7 +557,7 @@ export default function StoreSurveyDetail() {
                     const totalAverageStockQuantity =
                       survey.products.reduce(
                         (sum, p) => sum + (p.AverageStockQuantity || 0),
-                        0,
+                        0
                       ) || 0;
 
                     return (

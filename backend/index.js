@@ -1,6 +1,5 @@
 const express = require("express");
 const cors = require("cors");
-const cron = require("node-cron");
 require("dotenv").config();
 
 const app = express();
@@ -11,7 +10,6 @@ const { getPool } = require("./config/database");
 require("./config/cloudinary");
 const { seedAdminUser } = require("./utils/seedAdmin");
 const seedSampleData = require("./utils/seedSampleData");
-const { resetAllStoreAudits } = require("./utils/auditReset");
 
 // Middleware
 const corsOptions = {
@@ -31,6 +29,9 @@ app.use("/api/images", require("./routes/images"));
 app.use("/api/dashboard", require("./routes/dashboard"));
 app.use("/api/territories", require("./routes/territories"));
 app.use("/api/import", require("./routes/import"));
+app.use("/api/cement-products", require("./routes/cementProducts"));
+app.use("/api/store-surveys", require("./routes/storeSurveys"));
+app.use("/api/store-survey-products", require("./routes/storeSurveyProducts"));
 
 // Health check endpoint
 app.get("/health", async (req, res) => {
@@ -77,11 +78,6 @@ app.get("/health", async (req, res) => {
   res.json(healthStatus);
 });
 
-const isLastDayOfMonth = (date) => {
-  const check = new Date(date);
-  check.setDate(check.getDate() + 1);
-  return check.getDate() === 1;
-};
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -173,28 +169,10 @@ app.listen(PORT, async () => {
     });
   }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
 
-  // Schedule monthly audit reset at 23:59 every day, only execute on last day
-  cron.schedule("0 59 23 * * *", async () => {
-    const now = new Date();
-    if (!isLastDayOfMonth(now)) {
-      return;
-    }
-
-    console.log("🗓️  Running monthly audit reset job...");
-    try {
-      const result = await resetAllStoreAudits();
-      console.log(
-        `✅ Monthly audit reset completed. Audits deleted: ${result.auditsDeleted}, Stores reset: ${result.storesUpdated}`
-      );
-    } catch (error) {
-      console.error("❌ Monthly audit reset failed:", error);
-    }
-  });
 
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);
   console.log(`🧹 Import history cleanup scheduled (runs every 24 hours)`);
-  console.log(`🗓️  Monthly audit reset scheduled (23:59 on last day of month)`);
   console.log("=".repeat(50));
 });
 

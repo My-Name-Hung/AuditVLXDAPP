@@ -120,7 +120,7 @@ const importStores = async (req, res) => {
       // Format: "User1, User2, User3" or "User1; User2; User3"
       let userId = null; // Primary user (first user)
       let userIds = []; // All assigned users
-      
+
       if (rowData.userName) {
         // Split by comma or semicolon
         const userNames = rowData.userName
@@ -134,7 +134,7 @@ const importStores = async (req, res) => {
         for (const userName of userNames) {
           const userKey = userName.toLowerCase().trim();
           const foundUserId = userMap[userKey];
-          
+
           if (foundUserId) {
             foundUserIds.push(foundUserId);
           } else {
@@ -146,7 +146,9 @@ const importStores = async (req, res) => {
           results.errors.push({
             row: rowData.rowNumber,
             storeName: rowData.storeName,
-            error: `Không tìm thấy nhân viên: "${notFoundUsers.join(", ")}". Vui lòng kiểm tra lại tên nhân viên, mã nhân viên (UserCode) hoặc tên đăng nhập (Username) trong file Excel.`,
+            error: `Không tìm thấy nhân viên: "${notFoundUsers.join(
+              ", "
+            )}". Vui lòng kiểm tra lại tên nhân viên, mã nhân viên (UserCode) hoặc tên đăng nhập (Username) trong file Excel.`,
           });
           results.errorCount++;
           continue;
@@ -178,7 +180,7 @@ const importStores = async (req, res) => {
         request.input("Phone", sql.VarChar(20), rowData.phone);
         request.input("Email", sql.NVarChar(200), rowData.email);
         request.input("Status", sql.VarChar(20), "not_audited");
-        
+
         if (rowData.rank !== undefined && rowData.rank !== null) {
           request.input("Rank", sql.Int, rowData.rank);
         }
@@ -198,7 +200,7 @@ const importStores = async (req, res) => {
         let query = `
           INSERT INTO Stores (StoreCode, StoreName, Address, Phone, Email, Status`;
         let values = `@StoreCode, @StoreName, @Address, @Phone, @Email, @Status`;
-        
+
         if (rowData.rank !== undefined && rowData.rank !== null) {
           query += `, Rank`;
           values += `, @Rank`;
@@ -231,21 +233,24 @@ const importStores = async (req, res) => {
         if (createdStore && createdStore.Id) {
           const link = `https://ximang.netlify.app/stores/${createdStore.Id}`;
           const updateRequest = pool.request();
-          updateRequest.input('Id', sql.Int, createdStore.Id);
-          updateRequest.input('Link', sql.NVarChar(500), link);
-          
+          updateRequest.input("Id", sql.Int, createdStore.Id);
+          updateRequest.input("Link", sql.NVarChar(500), link);
+
           await updateRequest.query(`
             UPDATE Stores 
             SET Link = @Link 
             WHERE Id = @Id
           `);
-          
+
           createdStore.Link = link;
 
           // Assign users to store (if multiple users provided)
           if (rowData.userIds && rowData.userIds.length > 0) {
             const StoreUser = require("../models/StoreUser");
-            await StoreUser.assignUsersToStore(createdStore.Id, rowData.userIds);
+            await StoreUser.assignUsersToStore(
+              createdStore.Id,
+              rowData.userIds
+            );
           } else if (rowData.userId) {
             // Fallback: sync single user for backward compatibility
             const StoreUser = require("../models/StoreUser");
@@ -281,7 +286,7 @@ const importStores = async (req, res) => {
 
     await historyRequest.query(`
       INSERT INTO ImportHistory (Type, Total, SuccessCount, ErrorCount, UserId, CreatedAt)
-      VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, GETDATE())
+      VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, DATEADD(HOUR, 7, GETUTCDATE()))
     `);
 
     res.json({
@@ -364,9 +369,7 @@ const importUsers = async (req, res) => {
 
       if (!rowData.position) {
         rowData.position =
-          rowData.role === "admin"
-            ? "Quản trị Viên"
-            : "Nhân viên Thị Trường";
+          rowData.role === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường";
       }
 
       validRows.push(rowData);
@@ -384,15 +387,19 @@ const importUsers = async (req, res) => {
         // Create user with pre-generated UserCode
         const pool = await getPool();
         const request = pool.request();
-        request.input('UserCode', sql.VarChar(50), userCode);
-        request.input('Username', sql.NVarChar(100), rowData.username);
-        request.input('Password', sql.NVarChar(255), require("bcryptjs").hashSync("123456", 10));
-        request.input('FullName', sql.NVarChar(200), rowData.fullName);
-        request.input('Email', sql.NVarChar(200), rowData.email);
-        request.input('Phone', sql.VarChar(20), rowData.phone);
-        request.input('Role', sql.VarChar(50), rowData.role);
-        request.input('Position', sql.NVarChar(200), rowData.position);
-        request.input('IsChangePassword', sql.Bit, true);
+        request.input("UserCode", sql.VarChar(50), userCode);
+        request.input("Username", sql.NVarChar(100), rowData.username);
+        request.input(
+          "Password",
+          sql.NVarChar(255),
+          require("bcryptjs").hashSync("123456", 10)
+        );
+        request.input("FullName", sql.NVarChar(200), rowData.fullName);
+        request.input("Email", sql.NVarChar(200), rowData.email);
+        request.input("Phone", sql.VarChar(20), rowData.phone);
+        request.input("Role", sql.VarChar(50), rowData.role);
+        request.input("Position", sql.NVarChar(200), rowData.position);
+        request.input("IsChangePassword", sql.Bit, true);
 
         const result = await request.query(`
           INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, Position, IsChangePassword, CreatedAt, UpdatedAt)
@@ -410,7 +417,11 @@ const importUsers = async (req, res) => {
         results.successCount++;
       } catch (error) {
         let errorMessage = "Lỗi khi tạo nhân viên";
-        if (error.message && (error.message.includes("already exists") || error.message.includes("UNIQUE"))) {
+        if (
+          error.message &&
+          (error.message.includes("already exists") ||
+            error.message.includes("UNIQUE"))
+        ) {
           errorMessage = "Tên đăng nhập đã tồn tại";
         } else {
           errorMessage = error.message || "Lỗi khi tạo nhân viên";
@@ -435,7 +446,7 @@ const importUsers = async (req, res) => {
 
     await historyRequest.query(`
       INSERT INTO ImportHistory (Type, Total, SuccessCount, ErrorCount, UserId, CreatedAt)
-      VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, GETDATE())
+      VALUES (@Type, @Total, @SuccessCount, @ErrorCount, @UserId, DATEADD(HOUR, 7, GETUTCDATE()))
     `);
 
     res.json({

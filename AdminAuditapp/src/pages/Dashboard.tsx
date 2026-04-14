@@ -9,6 +9,7 @@ import {
 } from "chart.js";
 import { useEffect, useRef, useState } from "react";
 import { Bar } from "react-chartjs-2";
+import { HiArrowDownTray } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
 import MultiSelect from "../components/MultiSelect";
@@ -38,6 +39,15 @@ interface DashboardSummaryItem {
   TotalStoresChecked: number;
 }
 
+interface DashboardDetailItem {
+  CheckinDate: string;
+  CheckinTime: string | null;
+  StoreName: string;
+  TerritoryName?: string;
+  Address: string | null;
+  Notes: string | null;
+}
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const [territories, setTerritories] = useState<Territory[]>([]);
@@ -45,7 +55,7 @@ export default function Dashboard() {
   const [summaryData, setSummaryData] = useState<DashboardSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
-  const [dateFilter, setDateFilter] = useState<"day" | "month">("month");
+  const [dateFilter, setDateFilter] = useState<"day" | "month" | "week">("month");
   const [selectedDate, setSelectedDate] = useState<string>(
     new Date().toISOString().split("T")[0]
   );
@@ -55,14 +65,95 @@ export default function Dashboard() {
       "0"
     )}`
   );
+  const [weekOptions, setWeekOptions] = useState<
+    Array<{ label: string; startDate: string; endDate: string }>
+  >([]);
+  const [selectedWeek, setSelectedWeek] = useState<{
+    label: string;
+    startDate: string;
+    endDate: string;
+  } | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<number[]>([]);
+  const [allEmployees, setAllEmployees] = useState<
+    Array<{ userId: number; fullName: string }>
+  >([]);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
 
   const isInitialMount = useRef(true);
 
+  // Generate week options for the selected month
+  const generateWeekOptions = (yearMonth: string) => {
+    const [year, month] = yearMonth.split("-").map(Number);
+    const firstDay = new Date(year, month - 1, 1);
+    const lastDay = new Date(year, month, 0);
+    const weeks: Array<{ label: string; startDate: string; endDate: string }> = [];
+    let weekStart = new Date(firstDay);
+
+    // Adjust to Monday if first day is not Monday
+    while (weekStart.getDay() !== 1) {
+      weekStart = new Date(weekStart.getTime());
+      weekStart.setDate(weekStart.getDate() - 1);
+    }
+
+    while (weekStart <= lastDay) {
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      if (weekEnd > lastDay) weekEnd.setTime(lastDay.getTime());
+
+      const formatD = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+      const label = `T${Math.ceil(
+        ((weekStart.getTime() - firstDay.getTime()) / 86400000 + 1) / 7
+      )} (${formatD(weekStart)} - ${formatD(weekEnd)})`;
+
+      weeks.push({ label, startDate: formatD(weekStart), endDate: formatD(weekEnd) });
+
+      weekStart = new Date(weekStart.getTime());
+      weekStart.setDate(weekStart.getDate() + 7);
+    }
+
+    return weeks;
+  };
+
+  // Generate weeks whenever month changes
+  useEffect(() => {
+    const currentYearMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
+    const opts = generateWeekOptions(dateFilter === "week" ? selectedMonth : currentYearMonth);
+    setWeekOptions(opts);
+    if (dateFilter === "week" && opts.length > 0) {
+      const currentWeek = opts.find(
+        (w) => w.startDate <= new Date().toISOString().split("T")[0] && w.endDate >= new Date().toISOString().split("T")[0]
+      );
+      setSelectedWeek(currentWeek || opts[opts.length - 1]);
+    }
+  }, [dateFilter, selectedMonth]);
+
+  // Fetch all employees for the filter dropdown (not derived from summaryData)
+  const fetchAllEmployees = async () => {
+    try {
+      const res = await api.get("/users", { timeout: 30000 });
+      const users = res.data.data || res.data || [];
+      setAllEmployees(
+        users.map((u: { UserId?: number; Id?: number; FullName?: string; fullName?: string; UserCode?: string; userCode?: string }) => ({
+          userId: u.UserId || u.Id || 0,
+          fullName: u.FullName || u.fullName || u.UserCode || u.userCode || "",
+        }))
+      );
+    } catch (error) {
+      console.error("Error fetching employees:", error);
+    }
+  };
+
+  // uniqueEmployees comes from allEmployees (full list), not summaryData
+  const uniqueEmployees = allEmployees;
+
   useEffect(() => {
     fetchTerritories();
+    fetchAllEmployees();
     fetchSummary(); // Initial load
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -72,7 +163,8 @@ export default function Dashboard() {
     } else {
       isInitialMount.current = false;
     }
-  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth, selectedEmployee, selectedWeek]);
 
   const fetchTerritories = async () => {
     try {
@@ -91,7 +183,11 @@ export default function Dashboard() {
         setLoading(true);
       }
 
-      const params: any = {};
+      const params: Record<string, string> = {};
+
+      if (selectedEmployee.length > 0) {
+        params.userIds = selectedEmployee.join(",");
+      }
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
@@ -100,13 +196,16 @@ export default function Dashboard() {
       if (dateFilter === "day") {
         params.startDate = selectedDate;
         params.endDate = selectedDate;
-      } else {
+      } else if (dateFilter === "month") {
         // Calculate start and end of month
         const [year, month] = selectedMonth.split("-");
         const startOfMonth = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         params.startDate = startOfMonth;
         params.endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
+      } else if (dateFilter === "week" && selectedWeek) {
+        params.startDate = selectedWeek.startDate;
+        params.endDate = selectedWeek.endDate;
       }
 
       const res = await api.get("/dashboard/summary", {
@@ -146,7 +245,11 @@ export default function Dashboard() {
       setExportLoading(true);
       setExportProgress(0);
 
-      const params: any = {};
+      const params: Record<string, string> = {};
+
+      if (selectedEmployee.length > 0) {
+        params.userIds = selectedEmployee.join(",");
+      }
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
@@ -155,20 +258,23 @@ export default function Dashboard() {
       if (dateFilter === "day") {
         params.startDate = selectedDate;
         params.endDate = selectedDate;
-      } else {
+      } else if (dateFilter === "month") {
         const [year, month] = selectedMonth.split("-");
         const startDate = `${year}-${month}-01`;
         const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate();
         const endDate = `${year}-${month}-${String(lastDay).padStart(2, "0")}`;
         params.startDate = startDate;
         params.endDate = endDate;
+      } else if (dateFilter === "week" && selectedWeek) {
+        params.startDate = selectedWeek.startDate;
+        params.endDate = selectedWeek.endDate;
       }
 
       setExportProgress(20);
       // Fetch export data for details
       const res = await api.get("/dashboard/export", { params });
       setExportProgress(50);
-      
+
       // Use summaryData from state (which matches the UI) instead of data from export API
       // This ensures the summary table in Excel matches what's shown on the UI
       await generateExcel(
@@ -194,7 +300,10 @@ export default function Dashboard() {
   };
 
   const generateExcel = async (
-    data: { summary: DashboardSummaryItem[]; details: Record<string, any[]> },
+    data: {
+      summary: DashboardSummaryItem[];
+      details: Record<string, DashboardDetailItem[]>;
+    },
     progressCallback?: (progress: number) => void
   ) => {
     const ExcelJS = (await import("exceljs")).default;
@@ -312,7 +421,10 @@ export default function Dashboard() {
         userGroupMap.set(item.UserId, {
           user: item,
           territories: [
-            { territoryId: item.TerritoryId, territoryName: item.TerritoryName },
+            {
+              territoryId: item.TerritoryId,
+              territoryName: item.TerritoryName,
+            },
           ],
         });
       }
@@ -361,31 +473,31 @@ export default function Dashboard() {
         const userDetails = data.details[detailKey] || [];
 
         userDetails.forEach((detail) => {
-        const checkinDate = new Date(detail.CheckinDate);
-        const checkinTime = detail.CheckinTime
-          ? new Date(detail.CheckinTime)
-          : null;
+          const checkinDate = new Date(detail.CheckinDate);
+          const checkinTime = detail.CheckinTime
+            ? new Date(detail.CheckinTime)
+            : null;
 
-        // Format date and time using UTC timezone to match UI display
-        const formattedDate = checkinDate.toLocaleDateString("vi-VN", {
-          timeZone: "UTC",
-        });
-        const formattedTime = checkinTime
-          ? checkinTime.toLocaleTimeString("vi-VN", {
-              hour12: false,
-              timeZone: "UTC",
-            })
-          : "";
+          // Format date and time using UTC timezone to match UI display
+          const formattedDate = checkinDate.toLocaleDateString("vi-VN", {
+            timeZone: "UTC",
+          });
+          const formattedTime = checkinTime
+            ? checkinTime.toLocaleTimeString("vi-VN", {
+                hour12: false,
+                timeZone: "UTC",
+              })
+            : "";
 
-        detailSheet.addRow([
-          formattedDate,
+          detailSheet.addRow([
+            formattedDate,
             ++rowIndex,
-          detail.StoreName,
+            detail.StoreName,
             detail.TerritoryName || territoryName || "",
-          detail.Address || "",
-          formattedTime,
-          detail.Notes || "",
-        ]);
+            detail.Address || "",
+            formattedTime,
+            detail.Notes || "",
+          ]);
         });
       });
 
@@ -480,12 +592,30 @@ export default function Dashboard() {
           <p className="page-kicker">Thống kê</p>
           <h2>Tổng quan hoạt động</h2>
         </div>
-        <button className="btn-export" onClick={handleExport}>
-          Tải báo cáo
+        <button className="btn-export-dashboard" onClick={handleExport}>
+          <HiArrowDownTray />
+          Xuất báo cáo
         </button>
       </div>
 
       <div className="dashboard-filters">
+        <div className="filter-group">
+          <label>Tên nhân viên</label>
+          <MultiSelect
+            options={uniqueEmployees.map((e) => ({
+              id: e.userId,
+              name: e.fullName,
+            }))}
+            selected={selectedEmployee}
+            onChange={setSelectedEmployee}
+            placeholder="Chọn nhân viên..."
+            itemLabel="nhân viên"
+            searchPlaceholder="Tìm kiếm nhân viên..."
+            enableSelectAll={true}
+            selectAllLabel="Chọn tất cả"
+          />
+        </div>
+
         <div className="filter-group">
           <label>Địa bàn phụ trách</label>
           <MultiSelect
@@ -502,10 +632,11 @@ export default function Dashboard() {
           <label>Thời gian</label>
           <select
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as "day" | "month")}
+            onChange={(e) => setDateFilter(e.target.value as "day" | "month" | "week")}
             className="filter-select"
           >
             <option value="month">Theo tháng</option>
+            <option value="week">Theo tuần</option>
             <option value="day">Theo ngày</option>
           </select>
         </div>
@@ -518,6 +649,29 @@ export default function Dashboard() {
               onChange={(e) => setSelectedDate(e.target.value)}
               className="filter-input"
             />
+          ) : dateFilter === "week" ? (
+            <div className="week-filter-container">
+              <input
+                type="month"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                className="filter-input"
+              />
+              <select
+                value={selectedWeek?.startDate || ""}
+                onChange={(e) => {
+                  const w = weekOptions.find((wo) => wo.startDate === e.target.value);
+                  if (w) setSelectedWeek(w);
+                }}
+                className="filter-input week-select"
+              >
+                {weekOptions.map((w) => (
+                  <option key={w.startDate} value={w.startDate}>
+                    {w.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
             <input
               type="month"

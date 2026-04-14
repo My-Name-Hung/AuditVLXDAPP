@@ -9,9 +9,12 @@ import Stores from "./pages/Stores";
 import StoreDetail from "./pages/StoreDetail";
 import StoreEdit from "./pages/StoreEdit";
 import StoreAdd from "./pages/StoreAdd";
+import StoreSurveyDetail from "./pages/StoreSurveyDetail";
+import StoreSurveyList from "./pages/StoreSurveyList";
 import Audits from "./pages/Audits";
 import Distributors from "./pages/Distributors";
 import ImportExport from "./pages/ImportExport";
+import CementProducts from "./pages/CementProducts";
 import Layout from "./components/Layout";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import "./App.css";
@@ -51,10 +54,13 @@ function AppRoutes() {
         <Route path="stores" element={<Stores />} />
         <Route path="stores/new" element={<StoreAdd />} />
         <Route path="stores/:id/edit" element={<StoreEdit />} />
+        <Route path="stores/:storeId/survey" element={<StoreSurveyDetail />} />
         <Route path="stores/:id" element={<StoreDetail />} />
+        <Route path="store-surveys" element={<StoreSurveyList />} />
         <Route path="audits" element={<Audits />} />
         <Route path="distributors" element={<Distributors />} />
         <Route path="import-export" element={<ImportExport />} />
+        <Route path="cement-products" element={<CementProducts />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

@@ -308,7 +308,7 @@
   background: #fecaca;
 }
 
-.btn-reset {
+.btn-reset-store {
   background: #dbeafe;
   color: #1d4ed8;
   border: 1px solid #1d4ed8;
@@ -316,7 +316,7 @@
   box-shadow: 0 0 0 1px rgba(29, 78, 216, 0.15);
 }
 
-.btn-reset:hover {
+.btn-reset-store:hover {
   background: #bfdbfe;
 }
 

@@ -9,7 +9,10 @@ import Login from './pages/Login';
 import ChangePassword from './pages/ChangePassword';
 import Stores from './pages/Stores';
 import StoreDetail from './pages/StoreDetail';
+import StoreSurvey from './pages/StoreSurvey';
 import Profile from './pages/Profile';
+import Dashboard from './pages/Dashboard';
+import TerritoryDetail from './pages/TerritoryDetail';
 import './App.css';
 
 function ProtectedRoute({ children, allowPasswordChange = false }: { children: React.ReactNode; allowPasswordChange?: boolean }) {
@@ -143,10 +146,34 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/stores/:id/survey"
+          element={
+            <ProtectedRoute>
+              <StoreSurvey />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/profile"
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/territory-detail/:id"
+          element={
+            <ProtectedRoute>
+              <TerritoryDetail />
             </ProtectedRoute>
           }
         />

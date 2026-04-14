@@ -163,8 +163,8 @@
   margin-top: 1rem;
 }
 
-.btn-cancel,
-.btn-submit {
+.btn-cancel-user,
+.btn-submit-user {
   padding: 0.75rem 2rem;
   border: none;
   border-radius: 6px;
@@ -174,22 +174,83 @@
   transition: all 0.2s;
 }
 
-.btn-cancel {
-  background: #f3f4f6;
-  color: #333;
+.btn-cancel-user {
+  background: #dc3545;
+  color: #fff;
 }
 
-.btn-cancel:hover {
-  background: #e5e7eb;
+.btn-cancel-user:hover {
+  background: #c82333;
 }
 
-.btn-submit {
+.btn-submit-user {
   background: #0138c3;
   color: white;
 }
 
-.btn-submit:hover {
+.btn-submit-user:hover {
   background: #0129a0;
+}
+
+.store-assignment-options {
+  display: flex;
+  gap: 3rem 1.5rem; /* more horizontal space between options */
+  flex-wrap: wrap;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.store-assignment-option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap; /* keep radio + label on one line */
+  flex-shrink: 0;
+  padding: 0.15rem 0;
+}
+
+.store-assignment-label {
+  line-height: 1.25;
+  white-space: nowrap; /* text stays horizontal */
+}
+
+.store-assignment-helper {
+  font-size: 0.85rem;
+  color: #555;
+  margin-top: 0.35rem;
+}
+
+.store-assignment-selector {
+  margin-top: 0.75rem;
+  width: 100%;
+}
+
+.store-assignment-selector .multi-select {
+  width: 100%;
+}
+
+.store-assignment-error {
+  color: #dc2626;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .user-add-form {
+    padding: 1.25rem;
+  }
+
+  .position-select-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .btn-add-position {
+    width: 100%;
+    height: auto;
+    text-align: center;
+  }
 }
 
 /* Modal */
@@ -249,4 +310,3 @@
 .btn-confirm:hover {
   background: #c82333;
 }
-

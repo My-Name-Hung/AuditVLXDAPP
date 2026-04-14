@@ -80,7 +80,7 @@ button {
   font-size: 1em;
   font-weight: 500;
   font-family: inherit;
-  background-color: var(--primary-color);
+  background-color: #3D805F;
   color: white;
   cursor: pointer;
   transition: all 0.25s;
@@ -88,6 +88,7 @@ button {
 
 button:hover {
   transform: translateY(-1px);
+  /* background-color: #588157; */
 }
 
 button:focus,

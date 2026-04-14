@@ -65,6 +65,42 @@ const sortStoresByStatus = (stores: Store[]): Store[] => {
   });
 };
 
+const filterStoresByStatus = (
+  stores: Store[],
+  selectedStatus: string | null
+): Store[] => {
+  if (!selectedStatus) return stores;
+  if (selectedStatus === "audited") {
+    // Any status except "not_audited" is treated as audited
+    return stores.filter((store) => store.Status !== "not_audited");
+  }
+  if (selectedStatus === "not_audited") {
+    return stores.filter((store) => store.Status === "not_audited");
+  }
+  return stores;
+};
+
+const loadSavedFilters = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem("storesFilters");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return {
+      searchText: parsed.searchText || "",
+      selectedTerritory:
+        parsed.selectedTerritory === undefined ||
+        parsed.selectedTerritory === null
+          ? null
+          : Number(parsed.selectedTerritory),
+      selectedStatus:
+        parsed.selectedStatus === undefined ? null : parsed.selectedStatus,
+    };
+  } catch {
+    return null;
+  }
+};
+
 export default function Stores() {
   const navigate = useNavigate();
   const { colors } = useTheme();
@@ -75,12 +111,21 @@ export default function Stores() {
   const [hasMore, setHasMore] = useState(true);
 
   // Filters
-  const [searchText, setSearchText] = useState("");
+  const [searchText, setSearchText] = useState(() => {
+    const saved = loadSavedFilters();
+    return saved?.searchText ?? "";
+  });
   const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
-    null
+    () => {
+      const saved = loadSavedFilters();
+      return saved?.selectedTerritory ?? null;
+    }
   );
-  const [selectedStatus, setSelectedStatus] = useState<string | null>(null);
-  const [showTerritoryDropdown, setShowTerritoryDropdown] = useState(false);
+  const [selectedStatus, setSelectedStatus] = useState<string | null>(() => {
+    const saved = loadSavedFilters();
+    return saved?.selectedStatus ?? null;
+  });
+  const [showTerritoryModal, setShowTerritoryModal] = useState(false);
   const [showStatusDropdown, setShowStatusDropdown] = useState(false);
   const [territorySearch, setTerritorySearch] = useState("");
   const [isSearching, setIsSearching] = useState(false);
@@ -128,12 +173,13 @@ export default function Stores() {
       const pagination = response.data.pagination || {};
 
       const sortedData = sortStoresByStatus(data);
+      const filteredData = filterStoresByStatus(sortedData, selectedStatus);
 
       if (reset) {
-        setStores(sortedData);
+        setStores(filteredData);
           setPage(2); // Set next page for pagination
       } else {
-        setStores((prev) => sortStoresByStatus([...prev, ...sortedData]));
+          setStores((prev) => sortStoresByStatus([...prev, ...filteredData]));
           setPage((prev) => prev + 1);
       }
 
@@ -166,6 +212,79 @@ export default function Stores() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Auto-refresh stores list when page comes into focus (e.g., navigating back from store detail)
+  useEffect(() => {
+    let isRefreshing = false;
+    let wasHidden = document.hidden;
+    
+    const handleVisibilityChange = () => {
+      // Only refresh when page becomes visible (user navigated back)
+      if (!document.hidden && wasHidden) {
+        wasHidden = false;
+        refreshStores();
+      } else if (document.hidden) {
+        wasHidden = true;
+      }
+    };
+    
+    const handleFocus = () => {
+      // Only refresh if page was previously hidden
+      if (wasHidden) {
+        wasHidden = false;
+        refreshStores();
+      }
+    };
+    
+    // Refresh stores in background without blocking UI
+    const refreshStores = async () => {
+      // Prevent multiple simultaneous refreshes
+      if (isRefreshing) return;
+      
+      try {
+        isRefreshing = true;
+        // Small delay to ensure navigation completes
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        
+        const params: Record<string, string | number> = {
+          page: 1,
+          pageSize: 50,
+        };
+
+        if (searchText.trim()) {
+          params.storeName = searchText.trim();
+        }
+        if (selectedTerritory) {
+          params.territoryId = selectedTerritory;
+        }
+        if (selectedStatus) {
+          params.status = selectedStatus;
+        }
+
+        const response = await api.get("/stores", { params });
+        const data = response.data.data || [];
+        const sortedData = sortStoresByStatus(data);
+        const filteredData = filterStoresByStatus(sortedData, selectedStatus);
+        
+        // Update stores silently without showing loading state
+        setStores(filteredData);
+      } catch (error) {
+        // Silent fail - don't show error to user
+        console.error("Background refresh stores error:", error);
+      } finally {
+        isRefreshing = false;
+      }
+    };
+
+    // Listen for page visibility change and window focus
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+    
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [searchText, selectedTerritory, selectedStatus]);
+
   useEffect(() => {
     if (searchTimeoutRef.current) {
       clearTimeout(searchTimeoutRef.current);
@@ -186,6 +305,18 @@ export default function Stores() {
       }
     };
   }, [searchText, selectedTerritory, selectedStatus, fetchStores]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem(
+      "storesFilters",
+      JSON.stringify({
+        searchText,
+        selectedTerritory,
+        selectedStatus,
+      })
+    );
+  }, [searchText, selectedTerritory, selectedStatus]);
 
   const handleLoadMore = () => {
     if (!loading && hasMore) {
@@ -236,7 +367,7 @@ export default function Stores() {
           <div className="stores-dropdown-container">
             <button
               className="stores-dropdown"
-              onClick={() => setShowTerritoryDropdown(!showTerritoryDropdown)}
+              onClick={() => setShowTerritoryModal(true)}
               style={{
                 backgroundColor:
                   colors.background === "#fefefe"
@@ -251,60 +382,8 @@ export default function Stores() {
                       ?.TerritoryName
                   : "Địa bàn phụ trách"}
               </span>
-              <span>{showTerritoryDropdown ? "▲" : "▼"}</span>
+              <span>▼</span>
             </button>
-            {showTerritoryDropdown && (
-              <div
-                className="stores-dropdown-menu"
-                style={{
-                  backgroundColor: colors.background,
-                  borderColor: colors.icon + "20",
-                }}
-              >
-                <input
-                  type="text"
-                  className="stores-dropdown-search"
-                  placeholder="Tìm địa bàn..."
-                  value={territorySearch}
-                  onChange={(e) => setTerritorySearch(e.target.value)}
-                  style={{
-                    color: colors.text,
-                    borderBottomColor: colors.icon + "20",
-                  }}
-                />
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedTerritory(null);
-                    setShowTerritoryDropdown(false);
-                    setTerritorySearch("");
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.primary,
-                  }}
-                >
-                  Tất cả
-                </button>
-                {filteredTerritories.map((item) => (
-                  <button
-                    key={item.Id}
-                    className="stores-dropdown-item"
-                    onClick={() => {
-                      setSelectedTerritory(item.Id);
-                      setShowTerritoryDropdown(false);
-                      setTerritorySearch("");
-                    }}
-                    style={{
-                      borderBottomColor: colors.secondary,
-                      color: colors.text,
-                    }}
-                  >
-                    {item.TerritoryName}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
 
           <div className="stores-dropdown-container">
@@ -371,32 +450,6 @@ export default function Stores() {
                 >
                   Đã thực hiện
                 </button>
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedStatus("passed");
-                    setShowStatusDropdown(false);
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.text,
-                  }}
-                >
-                  Đạt
-                </button>
-                <button
-                  className="stores-dropdown-item"
-                  onClick={() => {
-                    setSelectedStatus("failed");
-                    setShowStatusDropdown(false);
-                  }}
-                  style={{
-                    borderBottomColor: colors.secondary,
-                    color: colors.text,
-                  }}
-                >
-                  Không đạt
-                </button>
               </div>
             )}
           </div>
@@ -405,14 +458,7 @@ export default function Stores() {
 
       {/* Store List */}
       <div className="stores-list-container">
-        {loading && stores.length === 0 ? (
-          <div className="stores-loading-container">
-            <div
-              className="stores-loading-spinner"
-              style={{ borderTopColor: colors.primary }}
-            />
-          </div>
-        ) : isSearching ? (
+        {(loading && stores.length === 0) || isSearching ? (
           <div className="stores-list">
             <StoreSkeletonList count={5} />
           </div>
@@ -424,21 +470,6 @@ export default function Stores() {
           </div>
         ) : (
           <div className="stores-list">
-            {isSearching && (
-              <div className="stores-skeleton-list">
-                {Array.from({ length: 5 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="stores-store-card stores-store-card-skeleton"
-                  >
-                    <div className="skeleton-line skeleton-line-title" />
-                    <div className="skeleton-line skeleton-line-code" />
-                    <div className="skeleton-line skeleton-line-address" />
-                    <div className="skeleton-line skeleton-line-contact" />
-                  </div>
-                ))}
-              </div>
-            )}
             {stores.map((item) => (
               <div
                 key={item.Id}
@@ -497,6 +528,115 @@ export default function Stores() {
           </div>
         )}
       </div>
+
+      {/* Territory Picker Modal */}
+      {showTerritoryModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowTerritoryModal(false);
+            setTerritorySearch("");
+          }}
+        >
+          <div
+            className="modal-content"
+            style={{ backgroundColor: colors.background }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: "16px",
+              }}
+            >
+              <h3
+                className="modal-title"
+                style={{ color: colors.text, margin: 0 }}
+              >
+                Chọn địa bàn
+              </h3>
+              <button
+                onClick={() => {
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+                style={{
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "24px",
+                  color: colors.icon,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <input
+              type="text"
+              className="modal-search-input"
+              style={{
+                backgroundColor: colors.background,
+                color: colors.text,
+                borderColor: colors.icon + "40",
+                marginBottom: "12px",
+              }}
+              value={territorySearch}
+              onChange={(e) => setTerritorySearch(e.target.value)}
+              placeholder="Tìm kiếm địa bàn"
+            />
+            <div className="modal-scroll-view">
+              <div
+                className="modal-option"
+                style={{
+                  backgroundColor: !selectedTerritory
+                    ? colors.primary + "20"
+                    : "transparent",
+                  cursor: "pointer",
+                }}
+                onClick={() => {
+                  setSelectedTerritory(null);
+                  setShowTerritoryModal(false);
+                  setTerritorySearch("");
+                }}
+              >
+                <span
+                  className="modal-option-text"
+                  style={{ color: colors.text }}
+                >
+                  Tất cả
+                </span>
+              </div>
+              {filteredTerritories.map((territory) => (
+                <div
+                  key={territory.Id}
+                  className="modal-option"
+                  style={{
+                    backgroundColor:
+                      selectedTerritory === territory.Id
+                        ? colors.primary + "20"
+                        : "transparent",
+                    cursor: "pointer",
+                  }}
+                  onClick={() => {
+                    setSelectedTerritory(territory.Id);
+                    setShowTerritoryModal(false);
+                    setTerritorySearch("");
+                  }}
+                >
+                  <span
+                    className="modal-option-text"
+                    style={{ color: colors.text }}
+                  >
+                    {territory.TerritoryName}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

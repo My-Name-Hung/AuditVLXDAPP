@@ -2,6 +2,7 @@ const Store = require("../models/Store");
 const Audit = require("../models/Audit");
 const { resetStoreAuditById } = require("../utils/auditReset");
 const { getPool, sql } = require("../config/database");
+const ExcelJS = require("exceljs");
 
 const getAllStores = async (req, res) => {
   try {
@@ -17,9 +18,21 @@ const getAllStores = async (req, res) => {
     } = req.query;
     const filters = {};
 
+    // Get current user from token
+    const currentUserId = req.user?.id || req.user?.userId;
+    const currentUserRole =
+      req.user?.role || req.user?.Role || req.user?.RoleName;
+
     if (status) filters.Status = status;
     if (territoryId) filters.TerritoryId = parseInt(territoryId);
-    if (userId) filters.UserId = parseInt(userId);
+    if (userId) {
+      // If explicit userId is provided (e.g. Admin web filter), always respect it
+      filters.UserId = parseInt(userId);
+    } else if (currentUserId && currentUserRole !== "admin") {
+      // Default behaviour for sales user on mobile app & iosauditapp:
+      // only show stores that this user is assigned to (via Stores.UserId or StoreUsers)
+      filters.UserId = parseInt(currentUserId, 10);
+    }
     if (rank !== undefined && rank !== null && rank !== "") {
       filters.Rank = parseInt(rank);
     }
@@ -38,9 +51,6 @@ const getAllStores = async (req, res) => {
       Store.findAll(filters),
       Store.count(filters),
     ]);
-
-    // Get current user ID from token
-    const currentUserId = req.user?.id || req.user?.userId;
 
     if (stores.length === 0) {
       return res.json({
@@ -80,7 +90,7 @@ const getAllStores = async (req, res) => {
           UserCode: assignedUser.UserCode,
           Status: mapAuditResultToStatus(latestAuditResult),
         };
-        });
+      });
 
       store.userStatuses = userStatuses;
 
@@ -94,7 +104,7 @@ const getAllStores = async (req, res) => {
       } else if (userStatuses.length > 0) {
         store.Status = userStatuses[0].Status;
       } else if (!store.Status) {
-          store.Status = "not_audited";
+        store.Status = "not_audited";
       }
     }
 
@@ -113,34 +123,483 @@ const getAllStores = async (req, res) => {
   }
 };
 
-// Lightweight aggregated status counts for all stores
-const getStatusSummary = async (_req, res) => {
+const fetchStoresForExport = async (offset = 0, limit = null) => {
+  const pool = await getPool();
+  const request = pool.request();
+  request.timeout = 60000;
+
+  let query = `
+    SELECT 
+      s.Id,
+      s.StoreCode,
+      s.StoreName,
+      s.Address,
+      s.Phone,
+      s.Email,
+      s.Status,
+      s.Rank,
+      s.TaxCode,
+      s.PartnerName,
+      s.Latitude,
+      s.Longitude,
+      s.TerritoryId,
+      t.TerritoryName,
+      s.UserId,
+      u.FullName as UserFullName,
+      u.UserCode,
+      (
+        SELECT 
+          su.UserId,
+          usr.FullName,
+          usr.UserCode,
+          latest.Result
+        FROM StoreUsers su
+        INNER JOIN Users usr ON su.UserId = usr.Id
+        OUTER APPLY (
+          SELECT TOP 1 Result
+          FROM Audits a
+          WHERE a.StoreId = s.Id AND a.UserId = su.UserId
+          ORDER BY a.AuditDate DESC, a.CreatedAt DESC
+        ) latest
+        WHERE su.StoreId = s.Id
+        ORDER BY su.CreatedAt ASC
+        FOR JSON PATH
+      ) as AssignedUsersJson,
+      (
+        SELECT TOP 1 Result
+        FROM Audits aPrimary
+        WHERE aPrimary.StoreId = s.Id AND aPrimary.UserId = s.UserId
+        ORDER BY aPrimary.AuditDate DESC, aPrimary.CreatedAt DESC
+      ) as PrimaryLatestResult
+    FROM Stores s
+    LEFT JOIN Territories t ON s.TerritoryId = t.Id
+    LEFT JOIN Users u ON s.UserId = u.Id
+    WHERE 1=1
+  `;
+
+  query += ` ORDER BY s.StoreCode ASC`;
+
+  if (limit !== null) {
+    request.input("Offset", sql.Int, offset);
+    request.input("Limit", sql.Int, limit);
+    query += ` OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
+  }
+
+  const result = await request.query(query);
+
+  return result.recordset.map((row) => {
+    let assignedUsers = [];
+    if (row.AssignedUsersJson) {
+      try {
+        assignedUsers = JSON.parse(row.AssignedUsersJson);
+      } catch (_error) {
+        assignedUsers = [];
+      }
+    }
+
+    if (assignedUsers.length === 0 && row.UserId && row.UserFullName) {
+      assignedUsers = [
+        {
+          UserId: row.UserId,
+          FullName: row.UserFullName,
+          UserCode: row.UserCode,
+          Result: row.PrimaryLatestResult || null,
+        },
+      ];
+    }
+
+    const userStatuses = assignedUsers.map((user) => ({
+      UserId: user.UserId,
+      UserFullName: user.FullName,
+      UserCode: user.UserCode,
+      Status: mapAuditResultToStatus(user.Result),
+    }));
+
+    return {
+      Id: row.Id,
+      StoreCode: row.StoreCode,
+      StoreName: row.StoreName,
+      Address: row.Address,
+      Phone: row.Phone,
+      Email: row.Email,
+      Status: row.Status,
+      Rank: row.Rank,
+      TaxCode: row.TaxCode,
+      PartnerName: row.PartnerName,
+      Latitude: row.Latitude,
+      Longitude: row.Longitude,
+      TerritoryName: row.TerritoryName,
+      UserFullName: row.UserFullName,
+      UserCode: row.UserCode,
+      userStatuses,
+    };
+  });
+};
+
+const buildUserAssignmentSummary = (store) => {
+  const statuses =
+    store.userStatuses && store.userStatuses.length > 0
+      ? store.userStatuses
+      : [
+          {
+            UserFullName: store.UserFullName || "",
+            UserCode: store.UserCode || "",
+            Status: store.Status,
+          },
+        ];
+
+  return (
+    statuses
+      .map((userStatus) => userStatus.UserFullName?.trim())
+      .filter(Boolean)
+      .filter((name, index, self) => self.indexOf(name) === index)
+      .join("; ") || "Không xác định"
+  );
+};
+
+const exportStores = async (_req, res) => {
+  try {
+    const stores = await fetchStoresForExport();
+    res.json({
+      success: true,
+      data: stores,
+    });
+  } catch (error) {
+    console.error("Export stores error:", error);
+    res.status(500).json({ error: "Không thể xuất danh sách cửa hàng" });
+  }
+};
+
+const exportStoresExcel = async (_req, res) => {
+  let workbook;
+  try {
+    // Only export stores that have been audited (have at least one audit record)
+    const stores = await fetchStoresForExport(0, null);
+    const fileName = `DanhSachCuaHang_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: res,
+      useSharedStrings: true,
+      useStyles: true,
+    });
+    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
+
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center", vertical: "middle" },
+      border: {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      },
+    };
+
+    sheet.columns = [
+      { width: 10 },
+      { width: 15 },
+      { width: 30 },
+      { width: 20 },
+      { width: 40 },
+      { width: 15 },
+      { width: 25 },
+      { width: 15 },
+      { width: 25 },
+      { width: 25 },
+      { width: 40 },
+    ];
+
+    sheet.mergeCells("A1:K1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+    sheet.getRow(1).commit();
+
+    sheet.mergeCells("A2:K2");
+    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+    sheet.getRow(2).commit();
+
+    sheet.getRow(3).commit(); // keep empty spacer row
+
+    sheet.getRow(4).values = [
+      "STT",
+      "Mã cửa hàng",
+      "Tên cửa hàng",
+      "Loại đối tượng",
+      "Địa chỉ",
+      "Mã số thuế",
+      "Tên đối tác",
+      "Số điện thoại",
+      "Email",
+      "Địa bàn phụ trách",
+      "User phụ trách",
+    ];
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
+    });
+    sheet.getRow(4).commit();
+
+    let rowIndex = 0;
+    stores.forEach((store) => {
+      rowIndex++;
+      const row = sheet.addRow([
+        rowIndex,
+        store.StoreCode,
+        store.StoreName,
+        store.Rank === 1
+          ? "Đơn vị, tổ chức"
+          : store.Rank === 2
+          ? "Cá nhân"
+          : "-",
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
+        store.TerritoryName || "",
+        buildUserAssignmentSummary(store),
+      ]);
+
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+      row.commit();
+    });
+
+    await sheet.commit();
+    await workbook.commit();
+  } catch (error) {
+    console.error("Export stores excel error:", error);
+    if (workbook) {
+      try {
+        await workbook.commit();
+      } catch (_err) {
+        // ignore double commit errors
+      }
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Không thể tạo file Excel" });
+    } else {
+      res.end();
+    }
+  }
+};
+
+// Get total count of stores for batch export
+const getStoresExportCount = async (_req, res) => {
   try {
     const pool = await getPool();
     const request = pool.request();
+    request.timeout = 30000;
 
     const result = await request.query(`
-      SELECT Status, COUNT(*) as Count
-      FROM Stores
-      GROUP BY Status
+      SELECT COUNT(*) as TotalCount
+      FROM Stores s
     `);
 
-    const counts = {
-      all: 0,
-      not_audited: 0,
-      audited: 0,
-      passed: 0,
-      failed: 0,
+    const totalCount = result.recordset[0]?.TotalCount || 0;
+    res.json({
+      success: true,
+      data: {
+        totalCount: totalCount,
+      },
+    });
+  } catch (error) {
+    console.error("Get stores export count error:", error);
+    res.status(500).json({ error: "Không thể lấy số lượng cửa hàng" });
+  }
+};
+
+// Export stores Excel by batch
+const exportStoresExcelBatch = async (req, res) => {
+  let workbook;
+  try {
+    const offset = parseInt(req.query.offset || "0", 10);
+    const limit = parseInt(req.query.limit || "500", 10);
+    const batchNumber = parseInt(req.query.batchNumber || "1", 10);
+
+    if (offset < 0 || limit <= 0 || limit > 500) {
+      return res.status(400).json({
+        error: "Invalid offset or limit. Limit must be between 1 and 500.",
+      });
+    }
+
+    const stores = await fetchStoresForExport(offset, limit);
+
+    if (stores.length === 0) {
+      return res.status(404).json({ error: "Không có dữ liệu để xuất" });
+    }
+
+    const fileName = `DanhSachCuaHang_Batch${batchNumber}_${
+      new Date().toISOString().split("T")[0]
+    }.xlsx`;
+
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+
+    workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: res,
+      useSharedStrings: true,
+      useStyles: true,
+    });
+    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
+
+    const headerStyle = {
+      font: { bold: true, color: { argb: "FFFFFFFF" } },
+      fill: {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FF0138C3" },
+      },
+      alignment: { horizontal: "center", vertical: "middle" },
+      border: {
+        top: { style: "thin" },
+        bottom: { style: "thin" },
+        left: { style: "thin" },
+        right: { style: "thin" },
+      },
     };
 
-    result.recordset.forEach((row) => {
-      const status = row.Status || "not_audited";
-      const count = Number(row.Count) || 0;
-      counts.all += count;
-      if (status in counts) {
-        counts[status] += count;
-      }
+    sheet.columns = [
+      { width: 10 },
+      { width: 15 },
+      { width: 30 },
+      { width: 20 },
+      { width: 40 },
+      { width: 15 },
+      { width: 25 },
+      { width: 15 },
+      { width: 25 },
+      { width: 25 },
+      { width: 40 },
+    ];
+
+    sheet.mergeCells("A1:K1");
+    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
+    sheet.getCell("A1").font = { bold: true, size: 14 };
+    sheet.getCell("A1").alignment = { horizontal: "center" };
+    sheet.getRow(1).commit();
+
+    sheet.mergeCells("A2:K2");
+    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
+    sheet.getCell("A2").font = { bold: true, size: 12 };
+    sheet.getCell("A2").alignment = { horizontal: "center" };
+    sheet.getRow(2).commit();
+
+    sheet.getRow(3).commit(); // keep empty spacer row
+
+    sheet.getRow(4).values = [
+      "STT",
+      "Mã cửa hàng",
+      "Tên cửa hàng",
+      "Loại đối tượng",
+      "Địa chỉ",
+      "Mã số thuế",
+      "Tên đối tác",
+      "Số điện thoại",
+      "Email",
+      "Địa bàn phụ trách",
+      "User phụ trách",
+    ];
+    sheet.getRow(4).eachCell((cell) => {
+      cell.style = headerStyle;
     });
+    sheet.getRow(4).commit();
+
+    let rowIndex = offset; // Start from offset to maintain global numbering
+    stores.forEach((store) => {
+      rowIndex++;
+      const row = sheet.addRow([
+        rowIndex,
+        store.StoreCode,
+        store.StoreName,
+        store.Rank === 1
+          ? "Đơn vị, tổ chức"
+          : store.Rank === 2
+          ? "Cá nhân"
+          : "-",
+        store.Address || "",
+        store.TaxCode || "",
+        store.PartnerName || "",
+        store.Phone || "",
+        store.Email || "",
+        store.TerritoryName || "",
+        buildUserAssignmentSummary(store),
+      ]);
+
+      row.eachCell((cell) => {
+        cell.border = {
+          top: { style: "thin" },
+          bottom: { style: "thin" },
+          left: { style: "thin" },
+          right: { style: "thin" },
+        };
+      });
+      row.commit();
+    });
+
+    await sheet.commit();
+    await workbook.commit();
+  } catch (error) {
+    console.error("Export stores excel batch error:", error);
+    if (workbook) {
+      try {
+        await workbook.commit();
+      } catch (_err) {
+        // ignore double commit errors
+      }
+    }
+    if (!res.headersSent) {
+      res.status(500).json({ error: "Không thể tạo file Excel" });
+    } else {
+      res.end();
+    }
+  }
+};
+
+// Lightweight aggregated status counts for all stores
+const getStatusSummary = async (req, res) => {
+  try {
+    const { territoryId, userId, rank, storeName } = req.query;
+    const filters = {};
+
+    if (territoryId) {
+      filters.TerritoryId = parseInt(territoryId);
+    }
+    if (userId) {
+      filters.UserId = parseInt(userId);
+    }
+    if (rank !== undefined && rank !== null && rank !== "") {
+      filters.Rank = parseInt(rank);
+    }
+    if (storeName) {
+      filters.storeName = storeName;
+    }
+
+    const counts = await Store.countByStatus(filters);
 
     res.json({
       success: true,
@@ -170,37 +629,51 @@ const buildInClause = (items, prefix, request) => {
     .join(", ");
 };
 
+const CHUNK_SIZE = 2000;
+
+const chunkArray = (arr, size) => {
+  const chunks = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+};
+
 const getStoreUsersMap = async (pool, storeIds) => {
   const map = new Map();
   if (storeIds.length === 0) {
     return map;
   }
 
-  const usersRequest = pool.request();
-  const inClause = buildInClause(storeIds, "StoreId", usersRequest);
+  const chunks = chunkArray(storeIds, CHUNK_SIZE);
 
-  const result = await usersRequest.query(`
-    SELECT 
-      su.StoreId,
-      u.Id as UserId,
-      u.FullName as UserFullName,
-      u.UserCode
-    FROM StoreUsers su
-    INNER JOIN Users u ON su.UserId = u.Id
-    WHERE su.StoreId IN (${inClause})
-    ORDER BY su.StoreId, su.CreatedAt ASC
-  `);
+  for (const chunk of chunks) {
+    const usersRequest = pool.request();
+    const inClause = buildInClause(chunk, "StoreId", usersRequest);
 
-  result.recordset.forEach((row) => {
-    if (!map.has(row.StoreId)) {
-      map.set(row.StoreId, []);
-    }
-    map.get(row.StoreId).push({
-      UserId: row.UserId,
-      UserFullName: row.UserFullName,
-      UserCode: row.UserCode,
+    const result = await usersRequest.query(`
+      SELECT 
+        su.StoreId,
+        u.Id as UserId,
+        u.FullName as UserFullName,
+        u.UserCode
+      FROM StoreUsers su
+      INNER JOIN Users u ON su.UserId = u.Id
+      WHERE su.StoreId IN (${inClause})
+      ORDER BY su.StoreId, su.CreatedAt ASC
+    `);
+
+    result.recordset.forEach((row) => {
+      if (!map.has(row.StoreId)) {
+        map.set(row.StoreId, []);
+      }
+      map.get(row.StoreId).push({
+        UserId: row.UserId,
+        UserFullName: row.UserFullName,
+        UserCode: row.UserCode,
+      });
     });
-  });
+  }
 
   return map;
 };
@@ -219,22 +692,26 @@ const getPrimaryUsersMap = async (pool, stores) => {
     return map;
   }
 
-  const usersRequest = pool.request();
-  const inClause = buildInClause(primaryUserIds, "PrimaryUserId", usersRequest);
+  const chunks = chunkArray(primaryUserIds, CHUNK_SIZE);
 
-  const result = await usersRequest.query(`
-    SELECT Id, FullName, UserCode
-    FROM Users
-    WHERE Id IN (${inClause})
-  `);
+  for (const chunk of chunks) {
+    const usersRequest = pool.request();
+    const inClause = buildInClause(chunk, "PrimaryUserId", usersRequest);
 
-  result.recordset.forEach((row) => {
-    map.set(row.Id, {
-      UserId: row.Id,
-      UserFullName: row.FullName,
-      UserCode: row.UserCode,
+    const result = await usersRequest.query(`
+      SELECT Id, FullName, UserCode
+      FROM Users
+      WHERE Id IN (${inClause})
+    `);
+
+    result.recordset.forEach((row) => {
+      map.set(row.Id, {
+        UserId: row.Id,
+        UserFullName: row.FullName,
+        UserCode: row.UserCode,
+      });
     });
-  });
+  }
 
   return map;
 };
@@ -245,30 +722,34 @@ const getLatestAuditMap = async (pool, storeIds) => {
     return map;
   }
 
-  const auditRequest = pool.request();
-  const inClause = buildInClause(storeIds, "AuditStoreId", auditRequest);
+  const chunks = chunkArray(storeIds, CHUNK_SIZE);
 
-  const result = await auditRequest.query(`
-    WITH RankedAudits AS (
-      SELECT 
-        StoreId,
-        UserId,
-        Result,
-        ROW_NUMBER() OVER (
-          PARTITION BY StoreId, UserId
-          ORDER BY AuditDate DESC, CreatedAt DESC
-        ) AS RowNum
-      FROM Audits
-      WHERE StoreId IN (${inClause})
-    )
-    SELECT StoreId, UserId, Result
-    FROM RankedAudits
-    WHERE RowNum = 1
-  `);
+  for (const chunk of chunks) {
+    const auditRequest = pool.request();
+    const inClause = buildInClause(chunk, "AuditStoreId", auditRequest);
 
-  result.recordset.forEach((row) => {
-    map.set(`${row.StoreId}-${row.UserId}`, row.Result);
-  });
+    const result = await auditRequest.query(`
+      WITH RankedAudits AS (
+        SELECT 
+          StoreId,
+          UserId,
+          Result,
+          ROW_NUMBER() OVER (
+            PARTITION BY StoreId, UserId
+            ORDER BY AuditDate DESC, CreatedAt DESC
+          ) AS RowNum
+        FROM Audits
+        WHERE StoreId IN (${inClause})
+      )
+      SELECT StoreId, UserId, Result
+      FROM RankedAudits
+      WHERE RowNum = 1
+    `);
+
+    result.recordset.forEach((row) => {
+      map.set(`${row.StoreId}-${row.UserId}`, row.Result);
+    });
+  }
 
   return map;
 };
@@ -276,7 +757,14 @@ const getLatestAuditMap = async (pool, storeIds) => {
 const getStoreById = async (req, res) => {
   try {
     const { id } = req.params;
-    const store = await Store.findById(id);
+
+    // Validate and parse id
+    const storeId = parseInt(id, 10);
+    if (Number.isNaN(storeId) || storeId <= 0) {
+      return res.status(400).json({ error: "Invalid store ID" });
+    }
+
+    const store = await Store.findById(storeId);
 
     if (!store) {
       return res.status(404).json({ error: "Store not found" });
@@ -286,7 +774,7 @@ const getStoreById = async (req, res) => {
     const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();
-    request.input("StoreId", sql.Int, id);
+    request.input("StoreId", sql.Int, storeId);
 
     // Set timeout to 60 seconds
     request.timeout = 60000;
@@ -378,19 +866,24 @@ const getStoreById = async (req, res) => {
     let userLongitude = storeDetails.Longitude;
 
     if (currentUserId && userAudits.length > 0) {
-      // Get latest audit for this user
-      const latestAudit = userAudits.sort(
-        (a, b) => new Date(b.AuditDate) - new Date(a.AuditDate)
-      )[0];
+      // Get latest audit for this user (sort by AuditDate DESC, then CreatedAt DESC to match getAllStores logic)
+      const latestAudit = userAudits.sort((a, b) => {
+        const dateA = new Date(a.AuditDate);
+        const dateB = new Date(b.AuditDate);
+        if (dateB.getTime() !== dateA.getTime()) {
+          return dateB.getTime() - dateA.getTime();
+        }
+        // If same AuditDate, sort by CreatedAt
+        const createdA = new Date(a.AuditCreatedAt || a.CreatedAt || 0);
+        const createdB = new Date(b.AuditCreatedAt || b.CreatedAt || 0);
+        return createdB.getTime() - createdA.getTime();
+      })[0];
 
-      if (latestAudit.Result === "pass") {
-        userStatus = "passed";
-        userFailedReason = null;
-      } else if (latestAudit.Result === "fail") {
-        userStatus = "failed";
+      // Use mapAuditResultToStatus to ensure consistency with getAllStores
+      userStatus = mapAuditResultToStatus(latestAudit.Result);
+      if (latestAudit.Result === "fail") {
         userFailedReason = latestAudit.FailedReason;
-      } else if (latestAudit.Result === "audited") {
-        userStatus = "audited";
+      } else {
         userFailedReason = null;
       }
 
@@ -406,7 +899,7 @@ const getStoreById = async (req, res) => {
 
     // Get assigned users for this store
     const StoreUser = require("../models/StoreUser");
-    const assignedUsers = await StoreUser.getUsersByStoreId(parseInt(id));
+    const assignedUsers = await StoreUser.getUsersByStoreId(storeId);
 
     // If no assigned users, check primary user (backward compatibility)
     let allAssignedUsers = assignedUsers;
@@ -418,13 +911,13 @@ const getStoreById = async (req, res) => {
         FROM Users
         WHERE Id = @UserId
       `);
-      
+
       if (userResult.recordset.length > 0) {
         allAssignedUsers = [
           {
-          UserId: userResult.recordset[0].Id,
-          FullName: userResult.recordset[0].FullName,
-          UserCode: userResult.recordset[0].UserCode,
+            UserId: userResult.recordset[0].Id,
+            FullName: userResult.recordset[0].FullName,
+            UserCode: userResult.recordset[0].UserCode,
           },
         ];
       }
@@ -465,7 +958,7 @@ const getStoreById = async (req, res) => {
         Status: mapAuditResultToStatus(latest?.Result),
         FailedReason: latest?.FailedReason || null,
       };
-      });
+    });
 
     res.json({
       ...storeDetails,
@@ -662,7 +1155,7 @@ const updateStore = async (req, res) => {
           TaxCode = @TaxCode,
           PartnerName = @PartnerName,
           UpdatedAt = GETDATE()`;
-    
+
     // Handle Rank separately to allow null
     if (rank !== undefined) {
       if (rank === null || rank === "") {
@@ -673,7 +1166,7 @@ const updateStore = async (req, res) => {
     } else {
       updateQuery += `, Rank = @Rank`;
     }
-    
+
     updateQuery += `
       OUTPUT INSERTED.*
       WHERE Id = @Id`;
@@ -770,6 +1263,7 @@ const resetStoreAuditData = async (req, res) => {
     res.json({
       message: "Đã làm mới dữ liệu audit và hình ảnh của cửa hàng.",
       auditsDeleted: result.auditsDeleted,
+      imagesDeleted: result.imagesDeleted,
       store: updatedStore,
     });
   } catch (error) {
@@ -801,8 +1295,26 @@ const deleteStore = async (req, res) => {
   }
 };
 
+const getStoreOptions = async (_req, res) => {
+  try {
+    const options = await Store.getStoreOptions();
+    res.json({
+      success: true,
+      data: options,
+    });
+  } catch (error) {
+    console.error("Get store options error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   getAllStores,
+  exportStores,
+  exportStoresExcel,
+  getStoresExportCount,
+  exportStoresExcelBatch,
+  getStoreOptions,
   getStoreById,
   createStore,
   updateStore,

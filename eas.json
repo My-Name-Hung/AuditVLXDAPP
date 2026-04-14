@@ -1,6 +1,6 @@
 {
   "cli": {
-    "version": ">= 16.26.0",
+    "version": ">= 16.28.0",
     "appVersionSource": "remote"
   },
   "build": {
@@ -8,24 +8,29 @@
       "developmentClient": true,
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://auditvlxdapp.onrender.com/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.ximangtaydo.vn/api",
         "EXPO_PUBLIC_ENV": "development"
       }
     },
     "preview": {
       "distribution": "internal",
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://auditvlxdapp.onrender.com/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.ximangtaydo.vn/api",
         "EXPO_PUBLIC_ENV": "preview"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
       }
     },
     "production": {
       "distribution": "internal",
+      "channel": "production",
       "android": {
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_BASE_URL": "https://auditvlxdapp.onrender.com/api",
+        "EXPO_PUBLIC_API_BASE_URL": "https://api.ximangtaydo.vn/api",
         "EXPO_PUBLIC_ENV": "production"
       }
     }

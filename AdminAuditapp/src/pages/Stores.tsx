@@ -126,85 +126,6 @@ export default function Stores() {
     }, 100);
   }, []);
 
-  useEffect(() => {
-    fetchTerritories();
-    fetchUsers();
-    fetchStores();
-    fetchStatusCounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Refresh stores when navigating back from add/edit page
-  useEffect(() => {
-    if (location.pathname === "/stores" && !isFilterChangingRef.current) {
-      fetchStores();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.pathname]);
-
-  useEffect(() => {
-    setPage(1); // Reset to first page when filters change
-    fetchStores();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
-
-  useEffect(() => {
-    // Skip fetch if filter is changing to avoid race condition
-    if (isFilterChangingRef.current) {
-      return;
-    }
-    fetchStores();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize]);
-
-  // Debounce store name filter - improved with 800ms delay and search state
-  useEffect(() => {
-    // Skip if filter hasn't actually changed (e.g., on initial mount)
-    if (storeNameFilter === previousStoreNameFilterRef.current) {
-      return;
-    }
-
-    // Update previous value
-    previousStoreNameFilterRef.current = storeNameFilter;
-
-    isFilterChangingRef.current = true;
-
-    // Cancel previous debounce timer
-    if (debounceTimerRef.current) {
-      clearTimeout(debounceTimerRef.current);
-    }
-
-    // Abort previous request if exists
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    // Reset page to 1 when store name filter changes
-    setPage(1);
-
-    if (!storeNameFilter.trim()) {
-      setTimeout(() => {
-        fetchStores();
-      }, 50);
-      return;
-    }
-
-    // Show skeleton while waiting for debounce
-    setIsFiltering(true);
-
-    // Use debounce for filter input - 800ms delay
-    debounceTimerRef.current = setTimeout(() => {
-      fetchStores();
-    }, 800);
-
-    return () => {
-      if (debounceTimerRef.current) {
-        clearTimeout(debounceTimerRef.current);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [storeNameFilter]);
-
   const fetchTerritories = async () => {
     try {
       const res = await api.get("/territories");
@@ -226,153 +147,257 @@ export default function Stores() {
     }
   };
 
-  // Calculate status counts from stores array
-  const calculateStatusCounts = (
-    storesList: Store[]
-  ): Record<StatusFilter, number> => {
-    const counts: Record<StatusFilter, number> = {
-      all: storesList.length,
-      not_audited: 0,
-      audited: 0,
-      passed: 0,
-      failed: 0,
-    };
+  const statusSummaryParams = useCallback(() => {
+    const params: Record<string, string | number> = {};
+    if (selectedTerritory) {
+      params.territoryId = selectedTerritory;
+    }
+    if (selectedRank !== null && selectedRank !== "") {
+      params.rank = selectedRank;
+    }
+    if (selectedUser) {
+      params.userId = selectedUser;
+    }
+    if (storeNameFilter.trim()) {
+      params.storeName = storeNameFilter.trim();
+    }
+    return params;
+  }, [selectedTerritory, selectedRank, selectedUser, storeNameFilter]);
 
-    storesList.forEach((store) => {
-      if (store.userStatuses && store.userStatuses.length > 0) {
-        // Check each status - if any user has this status, count the store
-        const hasNotAudited = store.userStatuses.some(
-          (us) => us.Status === "not_audited"
-        );
-        const hasAudited = store.userStatuses.some(
-          (us) => us.Status === "audited"
-        );
-        const hasPassed = store.userStatuses.some(
-          (us) => us.Status === "passed"
-        );
-        const hasFailed = store.userStatuses.some(
-          (us) => us.Status === "failed"
-        );
-
-        if (hasNotAudited) counts.not_audited++;
-        if (hasAudited) counts.audited++;
-        if (hasPassed) counts.passed++;
-        if (hasFailed) counts.failed++;
-      } else {
-        // If no userStatuses, use store.Status (backward compatibility)
-        if (store.Status === "not_audited") counts.not_audited++;
-        else if (store.Status === "audited") counts.audited++;
-        else if (store.Status === "passed") counts.passed++;
-        else if (store.Status === "failed") counts.failed++;
-      }
-    });
-
-    return counts;
-  };
-
-  const fetchStatusCounts = async () => {
+  const fetchStatusCounts = useCallback(async () => {
     try {
-      const res = await api.get("/stores/status-summary");
+      const res = await api.get("/stores/status-summary", {
+        params: statusSummaryParams(),
+      });
       const data =
-        (res.data && (res.data.data as Partial<Record<StatusFilter, number>>)) ||
+        (res.data &&
+          (res.data.data as Partial<Record<StatusFilter, number>>)) ||
         {};
-      setStatusCounts((prev) => ({
-        all: data.all ?? prev.all,
-        not_audited: data.not_audited ?? prev.not_audited,
-        audited: data.audited ?? prev.audited,
-        passed: data.passed ?? prev.passed,
-        failed: data.failed ?? prev.failed,
-      }));
+      setStatusCounts({
+        all: data.all ?? 0,
+        not_audited: data.not_audited ?? 0,
+        audited: data.audited ?? 0,
+        passed: data.passed ?? 0,
+        failed: data.failed ?? 0,
+      });
     } catch (error) {
       console.error("Error fetching status counts:", error);
     }
-  };
+  }, [statusSummaryParams]);
 
-  const fetchStores = useCallback(async () => {
-    const preserveData = hasFetchedRef.current;
+  const activeRequestIdRef = useRef(0);
 
-    if (preserveData) {
-      setIsFiltering(true);
-    } else {
-      setLoading(true);
+  const fetchStores = useCallback(
+    async (options?: { clearExisting?: boolean }) => {
+      const preserveData = hasFetchedRef.current;
+      const requestId = activeRequestIdRef.current + 1;
+      activeRequestIdRef.current = requestId;
+
+      if (options?.clearExisting) {
+        setStores([]);
+        setIsFiltering(true);
+      } else if (preserveData) {
+        setIsFiltering(true);
+      } else {
+        setLoading(true);
+      }
+
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+      const controller = new AbortController();
+      abortControllerRef.current = controller;
+
+      try {
+        const params: Record<string, string | number> = {
+          page,
+          pageSize,
+          _t: Date.now(), // bust cache
+        };
+
+        if (statusFilter !== "all") {
+          params.status = statusFilter;
+        }
+        if (selectedTerritory) {
+          params.territoryId = selectedTerritory;
+        }
+        if (selectedRank !== null && selectedRank !== "") {
+          params.rank = selectedRank;
+        }
+        if (selectedUser) {
+          params.userId = selectedUser;
+        }
+        if (storeNameFilter.trim()) {
+          params.storeName = storeNameFilter.trim();
+        }
+
+        const res = await api.get("/stores", {
+          params,
+          signal: controller.signal,
+        });
+        const fetchedStores: Store[] = res.data.data || [];
+        let processedStores = fetchedStores;
+
+        if (statusFilter === "audited") {
+          processedStores = fetchedStores
+            .map((store) => {
+              const filteredStatuses = (store.userStatuses || []).filter(
+                (userStatus) => userStatus.Status !== "not_audited"
+              );
+              return {
+                ...store,
+                userStatuses: filteredStatuses,
+              };
+            })
+            .filter(
+              (store) =>
+                (store.userStatuses && store.userStatuses.length > 0) ||
+                store.Status !== "not_audited"
+            );
+        }
+
+        if (requestId === activeRequestIdRef.current) {
+          setStores(sortStoresByStatus(processedStores));
+          hasFetchedRef.current = true;
+
+          if (res.data.pagination) {
+            setTotal(res.data.pagination.total);
+            setTotalPages(res.data.pagination.totalPages);
+          }
+
+          fetchStatusCounts();
+        }
+      } catch (error) {
+        const isAborted =
+          (error as { name?: string; code?: string })?.name ===
+            "CanceledError" ||
+          (error as { code?: string })?.code === "ERR_CANCELED";
+        if (!isAborted) {
+          console.error("Error fetching stores:", error);
+        }
+      } finally {
+        if (requestId === activeRequestIdRef.current) {
+          if (!options?.clearExisting && !preserveData) {
+            setLoading(false);
+          } else if (!options?.clearExisting && preserveData) {
+            setIsFiltering(false);
+          } else {
+            setIsFiltering(false);
+          }
+          resetFilterChangingFlag();
+        }
+      }
+    },
+    [
+      page,
+      pageSize,
+      statusFilter,
+      selectedTerritory,
+      selectedRank,
+      selectedUser,
+      storeNameFilter,
+      resetFilterChangingFlag,
+      fetchStatusCounts,
+    ]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    fetchTerritories();
+    fetchUsers();
+    fetchStores();
+    fetchStatusCounts();
+  }, [fetchStores, fetchStatusCounts]);
+
+  useEffect(() => {
+    if (location.pathname === "/stores" && !isFilterChangingRef.current) {
+      fetchStores();
+    }
+  }, [location.pathname, fetchStores]);
+
+  // Track previous filter values to detect actual changes
+  const prevFiltersRef = useRef({
+    statusFilter,
+    selectedTerritory,
+    selectedRank,
+    selectedUser,
+  });
+
+  useEffect(() => {
+    const prevFilters = prevFiltersRef.current;
+    const filtersChanged =
+      prevFilters.statusFilter !== statusFilter ||
+      prevFilters.selectedTerritory !== selectedTerritory ||
+      prevFilters.selectedRank !== selectedRank ||
+      prevFilters.selectedUser !== selectedUser;
+
+    if (filtersChanged) {
+      prevFiltersRef.current = {
+        statusFilter,
+        selectedTerritory,
+        selectedRank,
+        selectedUser,
+      };
+      setPage(1);
+      fetchStores({ clearExisting: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
+
+  useEffect(() => {
+    if (isFilterChangingRef.current) {
+      return;
+    }
+    // Only fetch when page or pageSize changes, not when fetchStores is recreated
+    fetchStores();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, pageSize]);
+
+  useEffect(() => {
+    if (storeNameFilter === previousStoreNameFilterRef.current) {
+      return;
+    }
+
+    previousStoreNameFilterRef.current = storeNameFilter;
+    isFilterChangingRef.current = true;
+
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
 
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    const controller = new AbortController();
-    abortControllerRef.current = controller;
 
-    try {
-      const params: Record<string, string | number> = {
-        page,
-        pageSize,
-        _t: Date.now(), // bust cache
-      };
+    setPage(1);
 
-      if (statusFilter !== "all") {
-        params.status = statusFilter;
-      }
-      if (selectedTerritory) {
-        params.territoryId = selectedTerritory;
-      }
-      if (selectedRank !== null && selectedRank !== "") {
-        params.rank = selectedRank;
-      }
-      if (selectedUser) {
-        params.userId = selectedUser;
-      }
-      if (storeNameFilter.trim()) {
-        params.storeName = storeNameFilter.trim();
-      }
-
-      const res = await api.get("/stores", {
-        params,
-        signal: controller.signal,
-      });
-      const fetchedStores: Store[] = res.data.data || [];
-      setStores(sortStoresByStatus(fetchedStores));
-      hasFetchedRef.current = true;
-
-      if (res.data.pagination) {
-        setTotal(res.data.pagination.total);
-        setTotalPages(res.data.pagination.totalPages);
-      }
-
-      if (
-        statusFilter === "all" &&
-        !selectedTerritory &&
-        !selectedRank &&
-        !selectedUser &&
-        !storeNameFilter.trim()
-      ) {
-        const counts = calculateStatusCounts(fetchedStores);
-        setStatusCounts(counts);
-      }
-    } catch (error) {
-      const isAborted =
-        (error as { name?: string; code?: string })?.name === "CanceledError" ||
-        (error as { code?: string })?.code === "ERR_CANCELED";
-      if (!isAborted) {
-      console.error("Error fetching stores:", error);
-        }
-    } finally {
-      if (!preserveData) {
-      setLoading(false);
-      }
-      setIsFiltering(false);
-      resetFilterChangingFlag();
+    if (!storeNameFilter.trim()) {
+      setTimeout(() => {
+        fetchStores({ clearExisting: true });
+      }, 50);
+      return;
     }
-  }, [
-    page,
-    pageSize,
-    statusFilter,
-    selectedTerritory,
-    selectedRank,
-    selectedUser,
-    storeNameFilter,
-    resetFilterChangingFlag,
-  ]);
+
+    setIsFiltering(true);
+    setStores([]);
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchStores({ clearExisting: true });
+    }, 800);
+
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+    };
+  }, [storeNameFilter, fetchStores]);
 
   const hasActiveFilters = () => {
     return (
@@ -432,8 +457,8 @@ export default function Stores() {
     }
   };
 
-  const handleViewStore = (storeId: number) => {
-    navigate(`/stores/${storeId}`);
+  const handleViewStore = (store: Store) => {
+    navigate(`/stores/${store.Id}`, { state: { store } });
   };
 
   const handleEditStore = (storeId: number) => {
@@ -458,22 +483,8 @@ export default function Stores() {
 
   const formatStatusWithUsers = (store: Store): React.ReactNode => {
     if (store.userStatuses && store.userStatuses.length > 0) {
-      const userCount = store.userStatuses.length;
-      const uniqueStatuses = new Set(store.userStatuses.map((us) => us.Status));
-      const allSameStatus = uniqueStatuses.size === 1;
-
-      if (allSameStatus) {
-        const status = store.userStatuses[0].Status;
-        return (
-          <div className="status-single-compact">
-            <span className={`status-badge status-${status}`}>
-              {getStatusLabel(status)}
-            </span>
-            <span className="status-user-count">({userCount})</span>
-          </div>
-        );
-      }
-
+      // When filtering by status, always show "user name: status" format
+      if (statusFilter !== "all") {
         return (
           <div className="status-multi-user-compact">
             {store.userStatuses.map((us) => (
@@ -490,6 +501,41 @@ export default function Stores() {
           </div>
         );
       }
+
+      // When showing "all", use compact format if all users have same status
+      const userCount = store.userStatuses.length;
+      const uniqueStatuses = new Set(store.userStatuses.map((us) => us.Status));
+      const allSameStatus = uniqueStatuses.size === 1;
+
+      if (allSameStatus) {
+        const status = store.userStatuses[0].Status;
+        return (
+          <div className="status-single-compact">
+            <span className={`status-badge status-${status}`}>
+              {getStatusLabel(status)}
+            </span>
+            <span className="status-user-count">({userCount})</span>
+          </div>
+        );
+      }
+
+      // Multiple different statuses - show "user name: status" format
+      return (
+        <div className="status-multi-user-compact">
+          {store.userStatuses.map((us) => (
+            <div key={us.UserId} className="status-user-row">
+              <span className="status-user-name-compact">
+                {us.UserFullName}
+              </span>
+              <span className="status-separator">:</span>
+              <span className={`status-badge-inline status-${us.Status}`}>
+                {getStatusLabel(us.Status)}
+              </span>
+            </div>
+          ))}
+        </div>
+      );
+    }
 
     return (
       <span className={`status-badge status-${store.Status}`}>
@@ -508,244 +554,37 @@ export default function Stores() {
   const handleExportStores = async () => {
     try {
       setExportLoading(true);
-      setExportProgress(0);
+      setExportProgress(10);
 
-      // Fetch ALL stores without any filters to get complete data
-      setExportProgress(20);
-      const params: Record<string, string | number> = {
-        page: 1,
-        pageSize: 10000, // Get all stores
-      };
+      const res = await api.get("/stores/export/file", {
+        responseType: "blob",
+      });
 
-      // Don't apply any filters - export all stores
-      const res = await api.get("/stores", { params });
-      setExportProgress(50);
-
-      await generateStoresExcel(res.data.data || [], setExportProgress);
+      setExportProgress(90);
+      const blob = new Blob([res.data], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `DanhSachCuaHang_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`;
+      link.click();
+      window.URL.revokeObjectURL(url);
       setExportProgress(100);
-
-      // Delay a bit to show 100% before closing
-      setTimeout(() => {
-        setExportLoading(false);
-        setExportProgress(0);
-      }, 500);
     } catch (error) {
       console.error("Error exporting stores:", error);
       setExportLoading(false);
       setExportProgress(0);
       alert("Lỗi khi xuất báo cáo. Vui lòng thử lại.");
+      return;
     }
-  };
 
-  const generateStoresExcel = async (
-    storesData: Store[],
-    progressCallback?: (progress: number) => void
-  ) => {
-    const ExcelJS = (await import("exceljs")).default;
-    const workbook = new ExcelJS.Workbook();
-
-    if (progressCallback) progressCallback(60);
-
-    const sheet = workbook.addWorksheet("Danh sách cửa hàng");
-
-    // Header style
-    const headerStyle = {
-      font: { bold: true, color: { argb: "FFFFFFFF" } },
-      fill: {
-        type: "pattern" as const,
-        pattern: "solid" as const,
-        fgColor: { argb: "FF0138C3" },
-      },
-      alignment: { horizontal: "center" as const, vertical: "middle" as const },
-      border: {
-        top: { style: "thin" as const },
-        bottom: { style: "thin" as const },
-        left: { style: "thin" as const },
-        right: { style: "thin" as const },
-      },
-    };
-
-    // Title
-    sheet.mergeCells("A1:P1");
-    sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
-    sheet.getCell("A1").font = { bold: true, size: 14 };
-    sheet.getCell("A1").alignment = { horizontal: "center" };
-
-    sheet.mergeCells("A2:P2");
-    sheet.getCell("A2").value = "DANH SÁCH CỬA HÀNG";
-    sheet.getCell("A2").font = { bold: true, size: 12 };
-    sheet.getCell("A2").alignment = { horizontal: "center" };
-
-    // Headers
-    const headers = [
-      "STT",
-      "Mã cửa hàng",
-      "Tên cửa hàng",
-      "Loại đối tượng",
-      "Địa chỉ",
-      "Mã số thuế",
-      "Tên đối tác",
-      "Số điện thoại",
-      "Email",
-      "Trạng thái",
-      "Địa bàn phụ trách",
-      "User phụ trách",
-      "Link chi tiết",
-      "Latitude",
-      "Longitude",
-      "Xem trên Google Maps",
-    ];
-    sheet.getRow(4).values = headers;
-    sheet.getRow(4).eachCell((cell) => {
-      cell.style = headerStyle;
-    });
-
-    // Data
-    if (progressCallback) progressCallback(70);
-    let rowIndex = 0;
-    storesData.forEach((store) => {
-      // If store has multiple users with different statuses, create one row per user
-      if (store.userStatuses && store.userStatuses.length > 0) {
-        store.userStatuses.forEach((userStatus) => {
-          rowIndex++;
-      const row = sheet.addRow([
-            rowIndex,
-        store.StoreCode,
-        store.StoreName,
-        getRankLabel(store.Rank),
-        store.Address || "",
-        store.TaxCode || "",
-        store.PartnerName || "",
-        store.Phone || "",
-        store.Email || "",
-            getStatusLabel(userStatus.Status), // Trạng thái của user này
-            store.TerritoryName || "",
-            userStatus.UserFullName
-              ? `${userStatus.UserFullName} (${userStatus.UserCode || ""})`
-              : "",
-            "", // Link chi tiết - will be set as hyperlink
-            store.Latitude || "",
-            store.Longitude || "",
-            "", // Google Maps link - will be set as hyperlink
-          ]);
-
-          // Set hyperlink for "Link chi tiết"
-          const detailLinkCell = row.getCell(13);
-          detailLinkCell.value = {
-            text: "Link chi tiết",
-            hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-          };
-          detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-
-          // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
-          const mapLinkCell = row.getCell(16);
-          if (store.Latitude && store.Longitude) {
-            mapLinkCell.value = {
-              text: "Xem trên Google Maps",
-              hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-            };
-            mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-          }
-
-          // Add borders to all cells
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: "thin" },
-              bottom: { style: "thin" },
-              left: { style: "thin" },
-              right: { style: "thin" },
-            };
-          });
-        });
-      } else {
-        // Single row for store without userStatuses or with single status
-        rowIndex++;
-        const row = sheet.addRow([
-          rowIndex,
-          store.StoreCode,
-          store.StoreName,
-          getRankLabel(store.Rank),
-          store.Address || "",
-          store.TaxCode || "",
-          store.PartnerName || "",
-          store.Phone || "",
-          store.Email || "",
-          getStatusLabel(store.Status), // Trạng thái
-        store.TerritoryName || "",
-        store.UserFullName
-          ? `${store.UserFullName} (${store.UserCode || ""})`
-          : "",
-        "", // Link chi tiết - will be set as hyperlink
-        store.Latitude || "",
-        store.Longitude || "",
-        "", // Google Maps link - will be set as hyperlink
-      ]);
-
-      // Set hyperlink for "Link chi tiết"
-      const detailLinkCell = row.getCell(13);
-      detailLinkCell.value = {
-        text: "Link chi tiết",
-          hyperlink: `https://quanlythuongvu.ximangtaydo.vn/stores/${store.Id}`,
-      };
-      detailLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-
-      // Set hyperlink for "Xem trên Google Maps" (only if has coordinates)
-      const mapLinkCell = row.getCell(16);
-      if (store.Latitude && store.Longitude) {
-        mapLinkCell.value = {
-          text: "Xem trên Google Maps",
-          hyperlink: `https://www.google.com/maps?q=${store.Latitude},${store.Longitude}`,
-        };
-        mapLinkCell.font = { color: { argb: "FF0000FF" }, underline: true };
-      }
-
-      // Add borders to all cells
-      row.eachCell((cell) => {
-        cell.border = {
-          top: { style: "thin" },
-          bottom: { style: "thin" },
-          left: { style: "thin" },
-          right: { style: "thin" },
-        };
-      });
-      }
-    });
-
-    // Set column widths
-    sheet.columns = [
-      { width: 10 }, // STT
-      { width: 15 }, // Mã cửa hàng
-      { width: 30 }, // Tên cửa hàng
-      { width: 20 }, // Loại đối tượng
-      { width: 40 }, // Địa chỉ
-      { width: 15 }, // Mã số thuế
-      { width: 25 }, // Tên đối tác
-      { width: 15 }, // Số điện thoại
-      { width: 25 }, // Email
-      { width: 20 }, // Trạng thái
-      { width: 25 }, // Địa bàn phụ trách
-      { width: 30 }, // User phụ trách
-      { width: 20 }, // Link chi tiết
-      { width: 15 }, // Latitude
-      { width: 15 }, // Longitude
-      { width: 25 }, // Xem trên Google Maps
-    ];
-
-    if (progressCallback) progressCallback(90);
-
-    // Generate Excel file
-    const buffer = await workbook.xlsx.writeBuffer();
-    const blob = new Blob([buffer], {
-      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `DanhSachCuaHang_${
-      new Date().toISOString().split("T")[0]
-    }.xlsx`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+    setTimeout(() => {
+      setExportLoading(false);
+      setExportProgress(0);
+    }, 500);
   };
 
   const rankOptions = [
@@ -811,36 +650,12 @@ export default function Stores() {
             <span>Đã thực hiện</span>
             <span className="status-count">({statusCounts.audited})</span>
           </button>
-          <button
-            className={`status-tab ${
-              statusFilter === "passed" ? "active" : ""
-            }`}
-            onClick={() => {
-              setStatusFilter("passed");
-              setPage(1);
-            }}
-          >
-            <span>Đạt</span>
-            <span className="status-count">({statusCounts.passed})</span>
-          </button>
-          <button
-            className={`status-tab ${
-              statusFilter === "failed" ? "active" : ""
-            }`}
-            onClick={() => {
-              setStatusFilter("failed");
-              setPage(1);
-            }}
-          >
-            <span>Không đạt</span>
-            <span className="status-count">({statusCounts.failed})</span>
-          </button>
         </div>
         <div className="stores-actions">
-          <button className="btn-add" onClick={() => navigate("/stores/new")}>
+          <button className="btn-add-store" onClick={() => navigate("/stores/new")}>
             <HiPlus /> Thêm cửa hàng
           </button>
-          <button className="btn-download" onClick={handleExportStores}>
+          <button className="btn-download-store" onClick={handleExportStores}>
             <HiArrowDownTray /> Xuất Excel
           </button>
         </div>
@@ -887,7 +702,7 @@ export default function Stores() {
             options={userOptions}
             value={selectedUser}
             onChange={(value) => setSelectedUser(value as number | null)}
-            placeholder="Chọn nhân viên phụ trách"
+            placeholder="Chọn user phụ trách"
             searchable={true}
           />
         </div>
@@ -950,13 +765,13 @@ export default function Stores() {
                   <td>
                     <div className="action-buttons">
                       {canViewStore(store) && (
-                            <button
-                              className="btn-action btn-view"
-                              onClick={() => handleViewStore(store.Id)}
-                              title="Xem chi tiết"
-                            >
-                              <HiEye />
-                            </button>
+                        <button
+                          className="btn-action btn-view"
+                          onClick={() => handleViewStore(store)}
+                          title="Xem chi tiết"
+                        >
+                          <HiEye />
+                        </button>
                       )}
                       <button
                         className="btn-action btn-edit"

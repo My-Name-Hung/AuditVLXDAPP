@@ -8,6 +8,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 
 router.post('/upload', authenticateToken, upload.single('image'), imagesController.uploadImage);
 router.get('/audit/:auditId', authenticateToken, imagesController.getImagesByAudit);
+router.get('/optimized/:id', authenticateToken, imagesController.getOptimizedImage); // Endpoint mới cho optimized images
 router.get('/:id', authenticateToken, imagesController.getImageById);
 router.delete('/:id', authenticateToken, imagesController.deleteImage);
 
