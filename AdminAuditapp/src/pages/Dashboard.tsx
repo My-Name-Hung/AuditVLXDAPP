@@ -22,7 +22,7 @@ ChartJS.register(
   BarElement,
   Title,
   Tooltip,
-  Legend
+  Legend,
 );
 
 interface Territory {
@@ -55,15 +55,17 @@ export default function Dashboard() {
   const [summaryData, setSummaryData] = useState<DashboardSummaryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [dataLoading, setDataLoading] = useState(false);
-  const [dateFilter, setDateFilter] = useState<"day" | "month" | "week">("month");
+  const [dateFilter, setDateFilter] = useState<"day" | "month" | "week">(
+    "month",
+  );
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date().toISOString().split("T")[0]
+    new Date().toISOString().split("T")[0],
   );
   const [selectedMonth, setSelectedMonth] = useState<string>(
     `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(
       2,
-      "0"
-    )}`
+      "0",
+    )}`,
   );
   const [weekOptions, setWeekOptions] = useState<
     Array<{ label: string; startDate: string; endDate: string }>
@@ -87,7 +89,8 @@ export default function Dashboard() {
     const [year, month] = yearMonth.split("-").map(Number);
     const firstDay = new Date(year, month - 1, 1);
     const lastDay = new Date(year, month, 0);
-    const weeks: Array<{ label: string; startDate: string; endDate: string }> = [];
+    const weeks: Array<{ label: string; startDate: string; endDate: string }> =
+      [];
     let weekStart = new Date(firstDay);
 
     // Adjust to Monday if first day is not Monday
@@ -105,10 +108,14 @@ export default function Dashboard() {
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
       const label = `T${Math.ceil(
-        ((weekStart.getTime() - firstDay.getTime()) / 86400000 + 1) / 7
+        ((weekStart.getTime() - firstDay.getTime()) / 86400000 + 1) / 7,
       )} (${formatD(weekStart)} - ${formatD(weekEnd)})`;
 
-      weeks.push({ label, startDate: formatD(weekStart), endDate: formatD(weekEnd) });
+      weeks.push({
+        label,
+        startDate: formatD(weekStart),
+        endDate: formatD(weekEnd),
+      });
 
       weekStart = new Date(weekStart.getTime());
       weekStart.setDate(weekStart.getDate() + 7);
@@ -120,11 +127,15 @@ export default function Dashboard() {
   // Generate weeks whenever month changes
   useEffect(() => {
     const currentYearMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}`;
-    const opts = generateWeekOptions(dateFilter === "week" ? selectedMonth : currentYearMonth);
+    const opts = generateWeekOptions(
+      dateFilter === "week" ? selectedMonth : currentYearMonth,
+    );
     setWeekOptions(opts);
     if (dateFilter === "week" && opts.length > 0) {
       const currentWeek = opts.find(
-        (w) => w.startDate <= new Date().toISOString().split("T")[0] && w.endDate >= new Date().toISOString().split("T")[0]
+        (w) =>
+          w.startDate <= new Date().toISOString().split("T")[0] &&
+          w.endDate >= new Date().toISOString().split("T")[0],
       );
       setSelectedWeek(currentWeek || opts[opts.length - 1]);
     }
@@ -136,10 +147,20 @@ export default function Dashboard() {
       const res = await api.get("/users", { timeout: 30000 });
       const users = res.data.data || res.data || [];
       setAllEmployees(
-        users.map((u: { UserId?: number; Id?: number; FullName?: string; fullName?: string; UserCode?: string; userCode?: string }) => ({
-          userId: u.UserId || u.Id || 0,
-          fullName: u.FullName || u.fullName || u.UserCode || u.userCode || "",
-        }))
+        users.map(
+          (u: {
+            UserId?: number;
+            Id?: number;
+            FullName?: string;
+            fullName?: string;
+            UserCode?: string;
+            userCode?: string;
+          }) => ({
+            userId: u.UserId || u.Id || 0,
+            fullName:
+              u.FullName || u.fullName || u.UserCode || u.userCode || "",
+          }),
+        ),
       );
     } catch (error) {
       console.error("Error fetching employees:", error);
@@ -164,7 +185,14 @@ export default function Dashboard() {
       isInitialMount.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedTerritories, dateFilter, selectedDate, selectedMonth, selectedEmployee, selectedWeek]);
+  }, [
+    selectedTerritories,
+    dateFilter,
+    selectedDate,
+    selectedMonth,
+    selectedEmployee,
+    selectedWeek,
+  ]);
 
   const fetchTerritories = async () => {
     try {
@@ -282,7 +310,7 @@ export default function Dashboard() {
           summary: summaryData, // Use state data that matches UI
           details: res.data.data.details || {},
         },
-        setExportProgress
+        setExportProgress,
       );
       setExportProgress(100);
 
@@ -304,7 +332,7 @@ export default function Dashboard() {
       summary: DashboardSummaryItem[];
       details: Record<string, DashboardDetailItem[]>;
     },
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
@@ -455,12 +483,12 @@ export default function Dashboard() {
       detailSheet.getCell("A2").alignment = { horizontal: "center" };
 
       detailSheet.getRow(4).values = [
-        "Ngày",
         "STT",
+        "Ngày",
+        "Thời Gian Checkin",
         "NPP/Cửa hàng",
         "Địa bàn phụ trách",
         "Địa chỉ cửa hàng",
-        "Thời Gian Checkin",
         "Ghi chú",
       ];
       detailSheet.getRow(4).eachCell((cell) => {
@@ -490,24 +518,24 @@ export default function Dashboard() {
             : "";
 
           detailSheet.addRow([
-            formattedDate,
             ++rowIndex,
+            formattedDate,
+            formattedTime,
             detail.StoreName,
             detail.TerritoryName || territoryName || "",
             detail.Address || "",
-            formattedTime,
             detail.Notes || "",
           ]);
         });
       });
 
       detailSheet.columns = [
-        { width: 15 },
         { width: 10 },
+        { width: 15 },
+        { width: 20 },
         { width: 25 },
         { width: 30 },
         { width: 40 },
-        { width: 20 },
         { width: 30 },
       ];
     });
@@ -632,7 +660,9 @@ export default function Dashboard() {
           <label>Thời gian</label>
           <select
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as "day" | "month" | "week")}
+            onChange={(e) =>
+              setDateFilter(e.target.value as "day" | "month" | "week")
+            }
             className="filter-select"
           >
             <option value="month">Theo tháng</option>
@@ -660,7 +690,9 @@ export default function Dashboard() {
               <select
                 value={selectedWeek?.startDate || ""}
                 onChange={(e) => {
-                  const w = weekOptions.find((wo) => wo.startDate === e.target.value);
+                  const w = weekOptions.find(
+                    (wo) => wo.startDate === e.target.value,
+                  );
                   if (w) setSelectedWeek(w);
                 }}
                 className="filter-input week-select"
@@ -712,8 +744,8 @@ export default function Dashboard() {
                             `/dashboard/user/${item.UserId}?territoryId=${
                               item.TerritoryId
                             }&territoryName=${encodeURIComponent(
-                              item.TerritoryName || ""
-                            )}`
+                              item.TerritoryName || "",
+                            )}`,
                           )
                         }
                       >
@@ -733,7 +765,7 @@ export default function Dashboard() {
                     <strong>
                       {summaryData.reduce(
                         (sum, item) => sum + item.TotalCheckinDays,
-                        0
+                        0,
                       )}
                     </strong>
                   </td>
@@ -741,7 +773,7 @@ export default function Dashboard() {
                     <strong>
                       {summaryData.reduce(
                         (sum, item) => sum + item.TotalStoresChecked,
-                        0
+                        0,
                       )}
                     </strong>
                   </td>

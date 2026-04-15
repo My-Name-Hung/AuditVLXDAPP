@@ -258,12 +258,12 @@ export default function UserDetail() {
         <table className="detail-table">
           <thead>
             <tr>
-              <th>Ngày</th>
               <th>STT</th>
+              <th>Ngày</th>
+              <th>Thời Gian Checkin</th>
               <th>NPP/Cửa hàng</th>
               <th>Địa bàn phụ trách</th>
               <th>Địa chỉ cửa hàng</th>
-              <th>Thời Gian Checkin</th>
               <th>Ghi chú</th>
               <th>Xem chi tiết</th>
             </tr>
@@ -293,18 +293,18 @@ export default function UserDetail() {
             ) : (
               detailData.map((item, index) => (
                 <tr key={item.AuditId}>
-                  <td>{formatLocalDate(item.CheckinDate)}</td>
                   <td>{index + 1}</td>
+                  <td>{formatLocalDate(item.CheckinDate)}</td>
+                  <td>{formatLocalTime(item.CheckinTime)}</td>
                   <td>{item.StoreName}</td>
                   <td>{item.TerritoryName || territoryName || ""}</td>
                   <td>{item.Address || ""}</td>
-                  <td>{formatLocalTime(item.CheckinTime)}</td>
                   <td>
                     <button
                       className="btn-view"
                       onClick={() =>
                         navigate(
-                          `/stores/${item.StoreId}/survey?auditId=${item.AuditId}&userId=${userId}`
+                          `/stores/${item.StoreId}/survey?auditId=${item.AuditId}&userId=${userId}`,
                         )
                       }
                       title="Xem thông tin khảo sát"

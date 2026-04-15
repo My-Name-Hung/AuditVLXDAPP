@@ -271,8 +271,8 @@ export default function ImportExport() {
         type === "stores"
           ? "CuaHang"
           : type === "cement"
-          ? "XiMang"
-          : "NhanVien"
+            ? "XiMang"
+            : "NhanVien"
       }_${new Date().toISOString().split("T")[0]}.xlsx`;
       link.click();
       window.URL.revokeObjectURL(url);
@@ -515,7 +515,7 @@ export default function ImportExport() {
   };
 
   const handleExportReport = async (
-    type: "dashboard" | "stores" | "users" | "surveys" | "cement"
+    type: "dashboard" | "stores" | "users" | "surveys" | "cement",
   ) => {
     try {
       setExportLoading(true);
@@ -550,7 +550,7 @@ export default function ImportExport() {
         } catch (downloadError) {
           console.warn(
             "Backend export failed, falling back to client-side generation",
-            downloadError
+            downloadError,
           );
           setExportProgress(40);
           const res = await api.get("/stores", {
@@ -573,13 +573,13 @@ export default function ImportExport() {
           res.data.map(async (survey: StoreSurveyItem) => {
             try {
               const productsRes = await api.get(
-                `/store-survey-products/survey/${survey.Id}`
+                `/store-survey-products/survey/${survey.Id}`,
               );
               return { ...survey, products: productsRes.data || [] };
             } catch {
               return { ...survey, products: [] };
             }
-          })
+          }),
         );
         setExportProgress(50);
 
@@ -663,7 +663,7 @@ export default function ImportExport() {
               Phone: string | null;
               Role: string;
             },
-            index: number
+            index: number,
           ) => {
             const row = sheet.addRow([
               index + 1,
@@ -681,7 +681,7 @@ export default function ImportExport() {
                 right: { style: "thin" },
               };
             });
-          }
+          },
         );
 
         sheet.columns = [
@@ -727,7 +727,7 @@ export default function ImportExport() {
   // Generate Stores Excel - same logic as Stores.tsx
   const generateStoresExcel = async (
     storesData: Store[],
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
@@ -884,7 +884,7 @@ export default function ImportExport() {
       summary: DashboardSummaryItem[];
       details: Record<string, DashboardDetailItem[]>;
     },
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
@@ -1026,11 +1026,11 @@ export default function ImportExport() {
 
       // Headers
       detailSheet.getRow(4).values = [
-        "Ngày",
         "STT",
+        "Ngày",
+        "Thời Gian Checkin",
         "NPP/Cửa hàng",
         "Địa chỉ cửa hàng",
-        "Thời Gian Checkin",
         "Ghi chú",
       ];
       detailSheet.getRow(4).eachCell((cell) => {
@@ -1056,22 +1056,22 @@ export default function ImportExport() {
           : "";
 
         detailSheet.addRow([
-          formattedDate,
           index + 1,
+          formattedDate,
+          formattedTime,
           detail.StoreName,
           detail.Address || "",
-          formattedTime,
           detail.Notes || "",
         ]);
       });
 
       // Set column widths
       detailSheet.columns = [
-        { width: 15 },
         { width: 10 },
+        { width: 15 },
+        { width: 20 },
         { width: 25 },
         { width: 40 },
-        { width: 20 },
         { width: 30 },
       ];
     }
@@ -1120,7 +1120,7 @@ export default function ImportExport() {
   // Generate Surveys Excel - same logic as StoreSurveyList.tsx
   const generateSurveysExcel = async (
     surveys: StoreSurveyItem[],
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();
@@ -1140,17 +1140,17 @@ export default function ImportExport() {
     const firstDayOfWeek = januaryFirst.getDay();
     const firstMondayOffset = firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
     const daysSinceYearStart = Math.floor(
-      (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24)
+      (now.getTime() - januaryFirst.getTime()) / (1000 * 60 * 60 * 24),
     );
     const weekNumberInYear = Math.ceil(
-      (daysSinceYearStart + firstMondayOffset + 1) / 7
+      (daysSinceYearStart + firstMondayOffset + 1) / 7,
     );
 
     // Filter only XMTĐ products (Title 2 + 3)
     const xmtdSurveys = surveys.filter(
       (survey) =>
         survey.WhyNotSellNewProduct ||
-        (survey.products && survey.products.length > 0)
+        (survey.products && survey.products.length > 0),
     );
 
     // Group by TerritoryName
@@ -1187,14 +1187,13 @@ export default function ImportExport() {
     territoryGroups.forEach((territorySurveys, territoryName) => {
       // Single sheet with both tables
       const sheet = workbook.addWorksheet(
-        `${territoryName || "Chưa xác định"}`
+        `${territoryName || "Chưa xác định"}`,
       );
 
       // Title rows
       sheet.mergeCells("A1:N1");
-      sheet.getCell(
-        "A1"
-      ).value = `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
+      sheet.getCell("A1").value =
+        `BÁO CÁO THĂM CỬA HÀNG TUẦN ${weekNumberInMonth}`;
       sheet.getCell("A1").font = { bold: true, size: 14 };
       sheet.getCell("A1").alignment = { horizontal: "center" };
 
@@ -1206,9 +1205,8 @@ export default function ImportExport() {
       sheet.getCell("A2").alignment = { horizontal: "center" };
 
       sheet.mergeCells("A3:N3");
-      sheet.getCell(
-        "A3"
-      ).value = `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
+      sheet.getCell("A3").value =
+        `1. BÁO CÁO THỰC TẾ THĂM CỬA HÀNG TUẦN ${weekNumberInYear}/${year}`;
       sheet.getCell("A3").font = { bold: true, size: 12 };
       sheet.getCell("A3").alignment = { horizontal: "left" };
 
@@ -1321,7 +1319,7 @@ export default function ImportExport() {
           survey.NewProductImportQuantity ||
           survey.SupplierName ||
           survey.ImportedBySalesperson ||
-          survey.StoreComment
+          survey.StoreComment,
       );
 
       if (title2Surveys.length > 0) {
