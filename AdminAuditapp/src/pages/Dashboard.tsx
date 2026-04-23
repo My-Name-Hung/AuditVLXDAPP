@@ -229,6 +229,10 @@ export default function Dashboard() {
         params.territoryIds = selectedTerritories.join(",");
       }
 
+      if (selectedWorkPosition && selectedWorkPosition.trim()) {
+        params.workPosition = selectedWorkPosition.trim();
+      }
+
       if (dateFilter === "day") {
         params.startDate = selectedDate;
         params.endDate = selectedDate;

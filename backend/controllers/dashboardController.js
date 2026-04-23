@@ -3,7 +3,7 @@ const { getPool, sql } = require("../config/database");
 // Get dashboard summary with filters
 async function getSummary(req, res) {
   try {
-    const { territoryIds, userIds, startDate, endDate } = req.query;
+    const { territoryIds, userIds, startDate, endDate, workPosition } = req.query;
     const pool = await getPool();
     const request = pool.request();
 
@@ -97,6 +97,20 @@ async function getSummary(req, res) {
       HAVING COUNT(DISTINCT a.AuditDate) > 0
       ORDER BY u.FullName ASC
     `;
+
+    // Filter by work position — applied after CTE to use Users table
+    if (workPosition && workPosition.trim()) {
+      const wpArray = Array.isArray(workPosition) ? workPosition : [workPosition.trim()];
+      wpArray.forEach((wp, idx) => {
+        const paramName = `wp${idx}`;
+        request.input(paramName, sql.NVarChar(200), wp);
+      });
+      const wpPlaceholders = wpArray.map((_, idx) => `@wp${idx}`).join(",");
+      query = query.replace(
+        "WHERE u.Role = 'sales'",
+        `WHERE u.Role = 'sales' AND u.WorkPosition IN (${wpPlaceholders})`
+      );
+    }
 
     // Set timeout to 60 seconds for dashboard query
     request.timeout = 60000;
