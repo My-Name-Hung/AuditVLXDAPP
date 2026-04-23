@@ -23,10 +23,16 @@ export default function UserAdd() {
   });
 
   const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
+  const DEFAULT_WORK_POSITIONS = ["Công ty Xi Măng Tây Đô"];
   const [positionOptions, setPositionOptions] =
     useState<string[]>(DEFAULT_POSITIONS);
+  const [workPositionOptions, setWorkPositionOptions] = useState<string[]>(
+    DEFAULT_WORK_POSITIONS,
+  );
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
+  const [isAddingWorkPosition, setIsAddingWorkPosition] = useState(false);
+  const [newWorkPositionValue, setNewWorkPositionValue] = useState("");
   const [storeOptions, setStoreOptions] = useState<
     { id: number; name: string }[]
   >([]);
@@ -44,15 +50,31 @@ export default function UserAdd() {
     phone: "",
     role: "sales" as "admin" | "sales",
     position: "",
+    workPosition: "Công ty Xi Măng Tây Đô",
     password: "",
   });
 
   useEffect(() => {
     const fetchPositions = async () => {
       try {
-        const res = await api.get<string[]>("/users/positions");
-        if (Array.isArray(res.data)) {
-          setPositionOptions((prev) => mergePositionOptions(prev, res.data));
+        const [posRes, wpRes] = await Promise.all([
+          api.get<string[]>("/users/positions"),
+          api.get<string[]>("/users/work-positions"),
+        ]);
+        if (Array.isArray(posRes.data)) {
+          setPositionOptions((prev) => mergePositionOptions(prev, posRes.data));
+        }
+        if (Array.isArray(wpRes.data)) {
+          setWorkPositionOptions((prev) => {
+            const merged = [...prev];
+            wpRes.data.forEach((item) => {
+              const trimmed = item?.trim();
+              if (trimmed && !merged.includes(trimmed)) {
+                merged.push(trimmed);
+              }
+            });
+            return merged;
+          });
         }
       } catch (error) {
         console.warn("Không thể tải danh sách chức vụ:", error);
@@ -73,8 +95,8 @@ export default function UserAdd() {
               (item: { Id: number; StoreName: string; StoreCode: string }) => ({
                 id: item.Id,
                 name: `${item.StoreName} (${item.StoreCode})`,
-              })
-            )
+              }),
+            ),
           );
         }
       } catch (error) {
@@ -110,13 +132,13 @@ export default function UserAdd() {
 
   const getDefaultPositionForRole = (
     role: "admin" | "sales",
-    options: string[]
+    options: string[],
   ) => {
     const expected =
       role === "admin" ? "Quản trị Viên" : "Nhân viên Thị Trường";
     if (!options.includes(expected)) {
       setPositionOptions((prev) =>
-        prev.includes(expected) ? prev : [...prev, expected]
+        prev.includes(expected) ? prev : [...prev, expected],
       );
     }
     return expected;
@@ -129,6 +151,7 @@ export default function UserAdd() {
       formData.email.trim() !== "" ||
       formData.phone.trim() !== "" ||
       formData.position.trim() !== "" ||
+      formData.workPosition.trim() !== "" ||
       formData.password.trim() !== ""
     );
   };
@@ -202,6 +225,7 @@ export default function UserAdd() {
         phone: formData.phone.trim(),
         role: formData.role,
         position: formData.position.trim(),
+        workPosition: formData.workPosition.trim(),
       };
 
       if (storeAssignmentMode === "all") {
@@ -265,7 +289,7 @@ export default function UserAdd() {
     const role = value as "admin" | "sales";
     const prevDefault = getDefaultPositionForRole(
       formData.role,
-      positionOptions
+      positionOptions,
     );
     const nextDefault = getDefaultPositionForRole(role, positionOptions);
     const shouldReplace =
@@ -291,11 +315,29 @@ export default function UserAdd() {
     }
     const value = newPositionValue.trim();
     setPositionOptions((prev) =>
-      prev.includes(value) ? prev : [...prev, value]
+      prev.includes(value) ? prev : [...prev, value],
     );
     setFormData((prev) => ({ ...prev, position: value }));
     setNewPositionValue("");
     setIsAddingPosition(false);
+  };
+
+  const handleAddWorkPosition = () => {
+    if (!newWorkPositionValue.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng nhập tên vị trí công tác.",
+      });
+      return;
+    }
+    const value = newWorkPositionValue.trim();
+    setWorkPositionOptions((prev) =>
+      prev.includes(value) ? prev : [...prev, value],
+    );
+    setFormData((prev) => ({ ...prev, workPosition: value }));
+    setNewWorkPositionValue("");
+    setIsAddingWorkPosition(false);
   };
 
   return (
@@ -509,6 +551,56 @@ export default function UserAdd() {
         </div>
 
         <div className="form-group">
+          <label>Đơn vị công tác</label>
+          <div className="position-select-group">
+            <div className="position-select">
+              <Select
+                options={workPositionOptions.map((pos) => ({
+                  id: pos,
+                  name: pos,
+                }))}
+                value={formData.workPosition}
+                onChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    workPosition: value ? String(value) : "",
+                  })
+                }
+                placeholder="Chọn đơn vị công tác"
+                searchable={true}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-add-position"
+              onClick={() => {
+                setIsAddingWorkPosition((prev) => !prev);
+                setNewWorkPositionValue("");
+              }}
+            >
+              {isAddingWorkPosition ? "Hủy" : "Thêm đơn vị"}
+            </button>
+          </div>
+          {isAddingWorkPosition && (
+            <div className="position-add-inline">
+              <input
+                type="text"
+                value={newWorkPositionValue}
+                onChange={(e) => setNewWorkPositionValue(e.target.value)}
+                placeholder="Nhập tên đơn vị công tác mới"
+              />
+              <button
+                type="button"
+                className="btn-save-position"
+                onClick={handleAddWorkPosition}
+              >
+                Lưu
+              </button>
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
           <label>
             Chức vụ <span className="required">*</span>
           </label>
@@ -558,7 +650,11 @@ export default function UserAdd() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn-cancel-user" onClick={handleCancel}>
+          <button
+            type="button"
+            className="btn-cancel-user"
+            onClick={handleCancel}
+          >
             Hủy
           </button>
           <button type="submit" className="btn-submit-user">

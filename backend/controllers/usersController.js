@@ -66,12 +66,13 @@ const resolveStoreAssignment = async (storeAssignment) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const { search, role, position, page, pageSize } = req.query;
+    const { search, role, position, workPosition, page, pageSize } = req.query;
     const filters = {};
 
     if (search) filters.search = search;
     if (role) filters.Role = role;
     if (position) filters.Position = position;
+    if (workPosition) filters.WorkPosition = workPosition;
 
     // Pagination
     const currentPage = parseInt(page) || 1;
@@ -96,8 +97,9 @@ const getAllUsers = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Get all users error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("[getAllUsers] ERROR:", error.message);
+    console.error("[getAllUsers] Full error:", error);
+    res.status(500).json({ error: "Internal server error", detail: error.message });
   }
 };
 
@@ -138,6 +140,7 @@ const createUser = async (req, res) => {
       phone,
       role,
       position,
+      workPosition,
       storeAssignment,
     } = req.body;
 
@@ -198,7 +201,10 @@ const createUser = async (req, res) => {
       Phone: phone,
       Role: normalizedRole,
       Position: position.toString().trim(),
-      IsChangePassword: true, // Default to true - user must change password on first login
+      WorkPosition: workPosition && workPosition.toString().trim()
+        ? workPosition.toString().trim()
+        : null,
+      IsChangePassword: true,
     });
 
     if (assignmentResult.storeIds.length > 0) {
@@ -231,6 +237,7 @@ const updateUser = async (req, res) => {
       role,
       password,
       position,
+      workPosition,
       storeAssignment,
     } = req.body;
 
@@ -284,14 +291,22 @@ const updateUser = async (req, res) => {
         ? position.toString().trim()
         : user.Position
     );
+    request.input(
+      "WorkPosition",
+      sql.NVarChar(200),
+      workPosition !== undefined && workPosition !== null
+        ? workPosition.toString().trim()
+        : user.WorkPosition
+    );
 
     let updateQuery = `
-      UPDATE Users 
-      SET FullName = @FullName, 
-          Email = @Email, 
-          Phone = @Phone, 
+      UPDATE Users
+      SET FullName = @FullName,
+          Email = @Email,
+          Phone = @Phone,
           Role = @Role,
           Position = @Position,
+          WorkPosition = @WorkPosition,
           UpdatedAt = GETDATE()
     `;
 
@@ -468,6 +483,27 @@ const getUserPositions = async (_req, res) => {
   }
 };
 
+const getWorkPositions = async (_req, res) => {
+  try {
+    const { getPool } = require("../config/database");
+    const pool = await getPool();
+    console.log("[getWorkPositions] Querying DISTINCT WorkPosition from Users...");
+    const result = await pool.request().query(`
+      SELECT DISTINCT WorkPosition
+      FROM Users
+      WHERE WorkPosition IS NOT NULL AND LTRIM(RTRIM(WorkPosition)) <> ''
+      ORDER BY WorkPosition
+    `);
+    console.log("[getWorkPositions] Rows returned:", result.recordset.length);
+    res.json(result.recordset.map((row) => row.WorkPosition));
+  } catch (error) {
+    console.error("[getWorkPositions] ERROR:", error.message);
+    console.error("[getWorkPositions] SQL State:", error.number);
+    console.error("[getWorkPositions] Full error:", error);
+    res.status(500).json({ error: "Internal server error", detail: error.message });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -477,4 +513,5 @@ module.exports = {
   resetPassword,
   uploadAvatar,
   getUserPositions,
+  getWorkPositions,
 };

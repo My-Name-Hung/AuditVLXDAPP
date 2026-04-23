@@ -33,6 +33,7 @@ interface Territory {
 interface DashboardSummaryItem {
   UserId: number;
   FullName: string;
+  WorkPosition?: string | null;
   TerritoryId: number;
   TerritoryName: string;
   TotalCheckinDays: number;
@@ -77,7 +78,13 @@ export default function Dashboard() {
   } | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<number[]>([]);
   const [allEmployees, setAllEmployees] = useState<
-    Array<{ userId: number; fullName: string }>
+    Array<{ userId: number; fullName: string; workPosition?: string }>
+  >([]);
+  const [selectedWorkPosition, setSelectedWorkPosition] = useState<
+    string | null
+  >(null);
+  const [workPositionOptions, setWorkPositionOptions] = useState<
+    Array<{ id: string; name: string }>
   >([]);
   const [exportLoading, setExportLoading] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
@@ -155,20 +162,37 @@ export default function Dashboard() {
             fullName?: string;
             UserCode?: string;
             userCode?: string;
+            WorkPosition?: string;
           }) => ({
             userId: u.UserId || u.Id || 0,
             fullName:
               u.FullName || u.fullName || u.UserCode || u.userCode || "",
+            workPosition: u.WorkPosition,
           }),
         ),
+      );
+
+      // Build work position options from fetched users
+      const wpSet = new Set<string>();
+      (users as Array<{ WorkPosition?: string }>).forEach((u) => {
+        if (u.WorkPosition && u.WorkPosition.trim()) {
+          wpSet.add(u.WorkPosition.trim());
+        }
+      });
+      setWorkPositionOptions(
+        Array.from(wpSet)
+          .sort()
+          .map((wp) => ({ id: wp, name: wp })),
       );
     } catch (error) {
       console.error("Error fetching employees:", error);
     }
   };
 
-  // uniqueEmployees comes from allEmployees (full list), not summaryData
-  const uniqueEmployees = allEmployees;
+  // uniqueEmployees comes from allEmployees (full list), filtered by workPosition if selected
+  const uniqueEmployees = selectedWorkPosition
+    ? allEmployees.filter((e) => e.workPosition === selectedWorkPosition)
+    : allEmployees;
 
   useEffect(() => {
     fetchTerritories();
@@ -192,6 +216,7 @@ export default function Dashboard() {
     selectedMonth,
     selectedEmployee,
     selectedWeek,
+    selectedWorkPosition,
   ]);
 
   const fetchTerritories = async () => {
@@ -627,6 +652,25 @@ export default function Dashboard() {
       </div>
 
       <div className="dashboard-filters">
+        <div className="filter-group">
+          <label>Đơn vị công tác</label>
+          <select
+            value={selectedWorkPosition || ""}
+            onChange={(e) => {
+              setSelectedWorkPosition(e.target.value || null);
+              setSelectedEmployee([]);
+            }}
+            className="filter-select"
+          >
+            <option value="">Tất cả</option>
+            {workPositionOptions.map((wp) => (
+              <option key={wp.id} value={wp.id}>
+                {wp.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="filter-group">
           <label>Tên nhân viên</label>
           <MultiSelect

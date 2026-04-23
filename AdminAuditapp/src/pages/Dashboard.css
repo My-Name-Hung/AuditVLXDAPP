@@ -186,16 +186,18 @@
 
 .week-filter-container {
   display: flex;
+  flex-direction: column;
   gap: 0.5rem;
-  align-items: center;
 }
 
-.week-filter-container .filter-input {
-  flex: 1;
+.week-filter-container .filter-input,
+.week-filter-container .week-select {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .week-select {
-  min-width: 180px;
+  min-width: unset;
 }
 
 @media (max-width: 768px) {

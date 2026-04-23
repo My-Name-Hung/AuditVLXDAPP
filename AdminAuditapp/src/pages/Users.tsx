@@ -15,6 +15,11 @@ const DEFAULT_POSITION_FILTERS = [
   "Nhân viên Thị Trường",
 ];
 
+const DEFAULT_WORK_POSITION_FILTERS = [
+  "all",
+  "Công ty Xi Măng Tây Đô",
+];
+
 interface User {
   Id: number;
   UserCode: string;
@@ -24,6 +29,7 @@ interface User {
   Phone: string;
   Role: string;
   Position?: string | null;
+  WorkPosition?: string | null;
   IsChangePassword: boolean;
   CreatedAt: string;
   UpdatedAt: string;
@@ -35,6 +41,7 @@ interface User {
 }
 
 type PositionFilter = "all" | string;
+type WorkPositionFilter = "all" | string;
 
 export default function Users() {
   const navigate = useNavigate();
@@ -44,6 +51,11 @@ export default function Users() {
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
   const [positionOptions, setPositionOptions] = useState<string[]>(
     DEFAULT_POSITION_FILTERS
+  );
+  const [workPositionFilter, setWorkPositionFilter] =
+    useState<WorkPositionFilter>("all");
+  const [workPositionOptions, setWorkPositionOptions] = useState<string[]>(
+    DEFAULT_WORK_POSITION_FILTERS
   );
   const [searchFilter, setSearchFilter] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -119,6 +131,9 @@ export default function Users() {
       if (positionFilter !== "all") {
         params.position = positionFilter;
       }
+      if (workPositionFilter !== "all") {
+        params.workPosition = workPositionFilter;
+      }
       if (searchFilter.trim()) {
         params.search = searchFilter.trim();
       }
@@ -153,6 +168,7 @@ export default function Users() {
     page,
     pageSize,
     positionFilter,
+    workPositionFilter,
     searchFilter,
     resetFilterChangingFlag,
   ]);
@@ -171,7 +187,7 @@ export default function Users() {
   useEffect(() => {
     setPage(1); // Reset to first page when filters change
     fetchUsers();
-  }, [positionFilter, fetchUsers]);
+  }, [positionFilter, workPositionFilter, fetchUsers]);
 
   useEffect(() => {
     // Skip fetch if filter is changing to avoid race condition
@@ -353,11 +369,16 @@ export default function Users() {
   };
 
   const hasActiveFilters = () => {
-    return positionFilter !== "all" || searchFilter.trim() !== "";
+    return (
+      positionFilter !== "all" ||
+      workPositionFilter !== "all" ||
+      searchFilter.trim() !== ""
+    );
   };
 
   const handleClearFilters = () => {
     setPositionFilter("all");
+    setWorkPositionFilter("all");
     setSearchFilter("");
   };
 
@@ -375,6 +396,9 @@ export default function Users() {
 
       if (positionFilter !== "all") {
         params.position = positionFilter;
+      }
+      if (workPositionFilter !== "all") {
+        params.workPosition = workPositionFilter;
       }
       if (searchFilter.trim()) {
         params.search = searchFilter.trim();
@@ -428,12 +452,12 @@ export default function Users() {
     };
 
     // Title
-    sheet.mergeCells("A1:F1");
+    sheet.mergeCells("A1:G1");
     sheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     sheet.getCell("A1").font = { bold: true, size: 14 };
     sheet.getCell("A1").alignment = { horizontal: "center" };
 
-    sheet.mergeCells("A2:F2");
+    sheet.mergeCells("A2:G2");
     sheet.getCell("A2").value = "Danh sách tài khoản";
     sheet.getCell("A2").font = { bold: true, size: 12 };
     sheet.getCell("A2").alignment = { horizontal: "center" };
@@ -445,6 +469,7 @@ export default function Users() {
       "Tên nhân viên",
       "Email",
       "Số điện thoại",
+      "Đơn vị công tác",
       "Chức vụ",
       "Vai trò",
     ];
@@ -462,6 +487,7 @@ export default function Users() {
         user.FullName,
         user.Email || "",
         user.Phone || "",
+        user.WorkPosition || "",
         user.Position || "",
         getRoleLabel(user.Role),
       ]);
@@ -484,6 +510,7 @@ export default function Users() {
       { width: 30 }, // Tên nhân viên
       { width: 30 }, // Email
       { width: 15 }, // Số điện thoại
+      { width: 30 }, // Đơn vị công tác
       { width: 25 }, // Chức vụ
       { width: 15 }, // Vai trò
     ];
@@ -525,8 +552,29 @@ export default function Users() {
     }
   };
 
+  const loadWorkPositionOptions = async () => {
+    try {
+      const res = await api.get<string[]>("/users/work-positions");
+      if (Array.isArray(res.data)) {
+        setWorkPositionOptions((prev) => {
+          const merged = [...prev];
+          res.data.forEach((pos) => {
+            const trimmed = pos?.trim();
+            if (trimmed && !merged.includes(trimmed)) {
+              merged.push(trimmed);
+            }
+          });
+          return merged;
+        });
+      }
+    } catch (error) {
+      console.warn("Không thể tải danh sách vị trí công tác:", error);
+    }
+  };
+
   useEffect(() => {
     loadPositionOptions();
+    loadWorkPositionOptions();
   }, []);
 
   useEffect(() => {
@@ -544,7 +592,10 @@ export default function Users() {
       <div className="users-header">
         <h1>Danh sách tài khoản</h1>
         <div className="users-actions">
-          <button className="btn-add-user" onClick={() => navigate("/users/new")}>
+          <button
+            className="btn-add-user"
+            onClick={() => navigate("/users/new")}
+          >
             <HiPlus /> Thêm tài khoản
           </button>
           <button className="btn-download-user" onClick={handleExportUsers}>
@@ -581,6 +632,22 @@ export default function Users() {
           />
         </div>
 
+        <div className="filter-group">
+          <label>Đơn vị công tác</label>
+          <Select
+            options={workPositionOptions.map((pos) => ({
+              id: pos,
+              name: pos === "all" ? "Tất cả" : pos,
+            }))}
+            value={workPositionFilter}
+            onChange={(value) =>
+              setWorkPositionFilter(value as WorkPositionFilter)
+            }
+            placeholder="Chọn vị trí công tác"
+            searchable={false}
+          />
+        </div>
+
         {hasActiveFilters() && (
           <div className="filter-group filter-clear">
             <label>&nbsp;</label>
@@ -600,6 +667,7 @@ export default function Users() {
               <th>Tên nhân viên</th>
               <th>Email</th>
               <th>Số điện thoại</th>
+              <th>Đơn vị công tác</th>
               <th>Chức vụ</th>
               <th>Thao tác</th>
             </tr>
@@ -608,7 +676,7 @@ export default function Users() {
             {showInitialLoading ? (
               <>
                 <tr>
-                  <td colSpan={6} className="no-data">
+                  <td colSpan={7} className="no-data">
                     Đang cập nhật dữ liệu...
                   </td>
                 </tr>
@@ -618,7 +686,7 @@ export default function Users() {
               <UserSkeletonList count={Math.min(pageSize, 8)} />
             ) : users.length === 0 ? (
               <tr>
-                <td colSpan={6} className="no-data">
+                <td colSpan={7} className="no-data">
                   Không có dữ liệu
                 </td>
               </tr>
@@ -631,6 +699,7 @@ export default function Users() {
                   <td>{user.FullName}</td>
                   <td>{user.Email || "-"}</td>
                   <td>{user.Phone || "-"}</td>
+                  <td>{user.WorkPosition || "-"}</td>
                   <td>{user.Position || "-"}</td>
                   <td>
                     <div className="action-buttons">
