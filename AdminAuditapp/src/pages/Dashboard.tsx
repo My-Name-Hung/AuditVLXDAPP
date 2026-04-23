@@ -179,6 +179,14 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Re-fetch territories and reset child filters when work position changes
+  useEffect(() => {
+    setSelectedTerritories([]);
+    setSelectedEmployee([]);
+    fetchTerritories(selectedWorkPosition);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWorkPosition]);
+
   useEffect(() => {
     if (!isInitialMount.current) {
       // Filter change - show loading modal (skip initial load)
@@ -189,9 +197,14 @@ export default function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedTerritories, dateFilter, selectedDate, selectedMonth, selectedEmployee, selectedWeek, selectedWorkPosition]);
 
-  const fetchTerritories = async () => {
+  // Fetch territories — filtered by selectedWorkPosition when set
+  const fetchTerritories = async (workPosition?: string | null) => {
     try {
-      const res = await api.get("/territories");
+      const params: Record<string, string> = {};
+      if (workPosition && workPosition.trim()) {
+        params.workPosition = workPosition.trim();
+      }
+      const res = await api.get("/territories", { params });
       setTerritories(res.data.data || []);
     } catch (error) {
       console.error("Error fetching territories:", error);

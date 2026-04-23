@@ -5,10 +5,34 @@ const { authenticateToken } = require('../middlewares/auth');
 
 router.get('/', authenticateToken, async (req, res) => {
   try {
-    const territories = await Territory.findAll();
+    const { workPosition } = req.query;
+    const pool = await getPool();
+    const request = pool.request();
+
+    let query = `SELECT * FROM Territories`;
+    const conditions = [];
+    const orderBy = ` ORDER BY TerritoryName ASC`;
+
+    // Filter by workPosition: join through Stores → Audits → Users
+    if (workPosition && workPosition.trim()) {
+      request.input('WorkPosition', sql.NVarChar(200), workPosition.trim());
+      query = `
+        SELECT DISTINCT t.Id, t.TerritoryName, t.CreatedAt, t.UpdatedAt
+        FROM Territories t
+        INNER JOIN Stores s ON s.TerritoryId = t.Id
+        INNER JOIN Audits a ON a.StoreId = s.Id
+        INNER JOIN Users u ON a.UserId = u.Id
+        WHERE u.WorkPosition = @WorkPosition
+        ORDER BY t.TerritoryName ASC
+      `;
+    } else {
+      query += orderBy;
+    }
+
+    const result = await request.query(query);
     res.json({
       success: true,
-      data: territories
+      data: result.recordset
     });
   } catch (error) {
     console.error('Error fetching territories:', error);
