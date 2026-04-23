@@ -1,4 +1,4 @@
-const { getPool, sql } = require('../config/database');
+const { getPool, sql } = require("../config/database");
 
 class User {
   static async create(userData) {
@@ -9,29 +9,31 @@ class User {
       FullName,
       Email,
       Phone,
-      Role = 'user',
+      Role = "user",
       Position = null,
-      IsChangePassword = 0
+      WorkPosition = null,
+      IsChangePassword = 0,
     } = userData;
 
     // Generate UserCode
     const userCode = await this.generateUserCode();
 
     const request = pool.request();
-    request.input('UserCode', sql.VarChar(50), userCode);
-    request.input('Username', sql.NVarChar(100), Username);
-    request.input('Password', sql.NVarChar(255), Password);
-    request.input('FullName', sql.NVarChar(200), FullName);
-    request.input('Email', sql.NVarChar(200), Email);
-    request.input('Phone', sql.VarChar(20), Phone);
-    request.input('Role', sql.VarChar(50), Role);
-    request.input('Position', sql.NVarChar(200), Position);
-    request.input('IsChangePassword', sql.Bit, IsChangePassword);
+    request.input("UserCode", sql.VarChar(50), userCode);
+    request.input("Username", sql.NVarChar(100), Username);
+    request.input("Password", sql.NVarChar(255), Password);
+    request.input("FullName", sql.NVarChar(200), FullName);
+    request.input("Email", sql.NVarChar(200), Email);
+    request.input("Phone", sql.VarChar(20), Phone);
+    request.input("Role", sql.VarChar(50), Role);
+    request.input("Position", sql.NVarChar(200), Position);
+    request.input("WorkPosition", sql.NVarChar(200), WorkPosition);
+    request.input("IsChangePassword", sql.Bit, IsChangePassword);
 
     const result = await request.query(`
-      INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, Position, IsChangePassword, CreatedAt, UpdatedAt)
+      INSERT INTO Users (UserCode, Username, Password, FullName, Email, Phone, Role, Position, WorkPosition, IsChangePassword, CreatedAt, UpdatedAt)
       OUTPUT INSERTED.*
-      VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @Position, @IsChangePassword, GETDATE(), GETDATE())
+      VALUES (@UserCode, @Username, @Password, @FullName, @Email, @Phone, @Role, @Position, @WorkPosition, @IsChangePassword, GETDATE(), GETDATE())
     `);
 
     return result.recordset[0];
@@ -40,7 +42,7 @@ class User {
   static async findByUsername(username) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Username', sql.NVarChar(100), username);
+    request.input("Username", sql.NVarChar(100), username);
 
     const result = await request.query(`
       SELECT * FROM Users WHERE Username = @Username
@@ -52,7 +54,7 @@ class User {
   static async findByUsernameOrUserCode(identifier) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Identifier', sql.NVarChar(100), identifier);
+    request.input("Identifier", sql.NVarChar(100), identifier);
 
     const result = await request.query(`
       SELECT * FROM Users WHERE Username = @Identifier OR UserCode = @Identifier
@@ -64,7 +66,7 @@ class User {
   static async findById(id) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, id);
+    request.input("Id", sql.Int, id);
 
     const result = await request.query(`
       SELECT * FROM Users WHERE Id = @Id
@@ -76,7 +78,7 @@ class User {
   static async findAll(filters = {}) {
     const pool = await getPool();
     let query = `
-      SELECT Id, UserCode, Username, FullName, Email, Phone, Role, Position, IsChangePassword, CreatedAt, UpdatedAt
+      SELECT Id, UserCode, Username, FullName, Email, Phone, Role, Position, WorkPosition, IsChangePassword, CreatedAt, UpdatedAt
       FROM Users
       WHERE 1=1
     `;
@@ -84,28 +86,33 @@ class User {
 
     // Filter by search (UserCode or FullName)
     if (filters.search) {
-      query += ' AND (UserCode LIKE @Search OR FullName LIKE @Search)';
-      request.input('Search', sql.NVarChar(200), `%${filters.search}%`);
+      query += " AND (UserCode LIKE @Search OR FullName LIKE @Search)";
+      request.input("Search", sql.NVarChar(200), `%${filters.search}%`);
     }
 
     // Filter by Role
     if (filters.Role) {
-      query += ' AND Role = @Role';
-      request.input('Role', sql.VarChar(50), filters.Role);
+      query += " AND Role = @Role";
+      request.input("Role", sql.VarChar(50), filters.Role);
     }
 
     if (filters.Position) {
-      query += ' AND Position = @Position';
-      request.input('Position', sql.NVarChar(200), filters.Position);
+      query += " AND Position = @Position";
+      request.input("Position", sql.NVarChar(200), filters.Position);
     }
 
-    query += ' ORDER BY UserCode ASC';
+    if (filters.WorkPosition) {
+      query += " AND WorkPosition = @WorkPosition";
+      request.input("WorkPosition", sql.NVarChar(200), filters.WorkPosition);
+    }
+
+    query += " ORDER BY UserCode ASC";
 
     // Add pagination
     if (filters.limit !== undefined && filters.offset !== undefined) {
       query += ` OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY`;
-      request.input('Offset', sql.Int, filters.offset);
-      request.input('Limit', sql.Int, filters.limit);
+      request.input("Offset", sql.Int, filters.offset);
+      request.input("Limit", sql.Int, filters.limit);
     }
 
     const result = await request.query(query);
@@ -123,19 +130,24 @@ class User {
 
     // Filter by search (UserCode or FullName)
     if (filters.search) {
-      query += ' AND (UserCode LIKE @Search OR FullName LIKE @Search)';
-      request.input('Search', sql.NVarChar(200), `%${filters.search}%`);
+      query += " AND (UserCode LIKE @Search OR FullName LIKE @Search)";
+      request.input("Search", sql.NVarChar(200), `%${filters.search}%`);
     }
 
     // Filter by Role
     if (filters.Role) {
-      query += ' AND Role = @Role';
-      request.input('Role', sql.VarChar(50), filters.Role);
+      query += " AND Role = @Role";
+      request.input("Role", sql.VarChar(50), filters.Role);
     }
 
     if (filters.Position) {
-      query += ' AND Position = @Position';
-      request.input('Position', sql.NVarChar(200), filters.Position);
+      query += " AND Position = @Position";
+      request.input("Position", sql.NVarChar(200), filters.Position);
+    }
+
+    if (filters.WorkPosition) {
+      query += " AND WorkPosition = @WorkPosition";
+      request.input("WorkPosition", sql.NVarChar(200), filters.WorkPosition);
     }
 
     const result = await request.query(query);
@@ -145,8 +157,8 @@ class User {
   static async updatePassword(userId, newPassword) {
     const pool = await getPool();
     const request = pool.request();
-    request.input('Id', sql.Int, userId);
-    request.input('Password', sql.NVarChar(255), newPassword);
+    request.input("Id", sql.Int, userId);
+    request.input("Password", sql.NVarChar(255), newPassword);
 
     // Update password
     await request.query(`
@@ -157,7 +169,7 @@ class User {
 
     // Fetch updated user
     const selectRequest = pool.request();
-    selectRequest.input('Id', sql.Int, userId);
+    selectRequest.input("Id", sql.Int, userId);
     const result = await selectRequest.query(`
       SELECT * FROM Users WHERE Id = @Id
     `);
@@ -168,11 +180,11 @@ class User {
   static async generateUserCode() {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
       const request = new sql.Request(transaction);
-      
+
       // Use UPDLOCK to prevent concurrent reads
       const result = await request.query(`
         SELECT TOP 1 UserCode 
@@ -187,7 +199,7 @@ class User {
         nextNumber = parseInt(lastCode.substring(1)) + 1;
       }
 
-      const newCode = `U${nextNumber.toString().padStart(6, '0')}`;
+      const newCode = `U${nextNumber.toString().padStart(6, "0")}`;
       await transaction.commit();
       return newCode;
     } catch (error) {
@@ -199,11 +211,11 @@ class User {
   static async generateMultipleUserCodes(count) {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
-    
+
     try {
       await transaction.begin();
       const request = new sql.Request(transaction);
-      
+
       // Use UPDLOCK to prevent concurrent reads
       const result = await request.query(`
         SELECT TOP 1 UserCode 
@@ -221,7 +233,7 @@ class User {
       const codes = [];
       for (let i = 0; i < count; i++) {
         const number = startNumber + i;
-        codes.push(`U${number.toString().padStart(6, '0')}`);
+        codes.push(`U${number.toString().padStart(6, "0")}`);
       }
 
       await transaction.commit();
@@ -234,4 +246,3 @@ class User {
 }
 
 module.exports = User;
-

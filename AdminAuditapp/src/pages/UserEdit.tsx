@@ -23,12 +23,25 @@ interface User {
   Phone: string;
   Role: string;
   Position?: string | null;
+  WorkPosition?: string | null;
   AssignedStores?: AssignedStore[];
 }
 
 const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
+const DEFAULT_WORK_POSITIONS = ["Công ty Xi Măng Tây Đô"];
 
 const mergePositionOptions = (current: string[], incoming: string[]) => {
+  const normalized = [...current];
+  incoming.forEach((item) => {
+    const trimmed = item?.trim();
+    if (trimmed && !normalized.includes(trimmed)) {
+      normalized.push(trimmed);
+    }
+  });
+  return normalized;
+};
+
+const mergeWorkPositionOptions = (current: string[], incoming: string[]) => {
   const normalized = [...current];
   incoming.forEach((item) => {
     const trimmed = item?.trim();
@@ -64,8 +77,15 @@ export default function UserEdit() {
   const [positionOptions, setPositionOptions] = useState<string[]>(
     mergePositionOptions(DEFAULT_POSITIONS, [initialPosition])
   );
+  const [workPositionOptions, setWorkPositionOptions] = useState<string[]>(
+    mergeWorkPositionOptions(DEFAULT_WORK_POSITIONS, [
+      preloadedUser?.WorkPosition || "",
+    ])
+  );
   const [isAddingPosition, setIsAddingPosition] = useState(false);
   const [newPositionValue, setNewPositionValue] = useState("");
+  const [isAddingWorkPosition, setIsAddingWorkPosition] = useState(false);
+  const [newWorkPositionValue, setNewWorkPositionValue] = useState("");
   const initialStoreIds =
     preloadedUser?.AssignedStores?.map((store) => store.StoreId) || [];
   const [storeOptions, setStoreOptions] = useState<
@@ -85,6 +105,7 @@ export default function UserEdit() {
     phone: preloadedUser?.Phone || "",
     role: (initialRole as "admin" | "sales") || "sales",
     position: initialPosition,
+    workPosition: preloadedUser?.WorkPosition || "Công ty Xi Măng Tây Đô",
     password: "",
   });
   const [user, setUser] = useState<User | null>(preloadedUser);
@@ -127,9 +148,17 @@ export default function UserEdit() {
 
   const fetchPositions = async () => {
     try {
-      const res = await api.get<string[]>("/users/positions");
-      if (Array.isArray(res.data)) {
-        setPositionOptions((prev) => mergePositionOptions(prev, res.data));
+      const [posRes, wpRes] = await Promise.all([
+        api.get<string[]>("/users/positions"),
+        api.get<string[]>("/users/work-positions"),
+      ]);
+      if (Array.isArray(posRes.data)) {
+        setPositionOptions((prev) => mergePositionOptions(prev, posRes.data));
+      }
+      if (Array.isArray(wpRes.data)) {
+        setWorkPositionOptions((prev) =>
+          mergeWorkPositionOptions(prev, wpRes.data)
+        );
       }
     } catch (error) {
       console.warn("Không thể tải danh sách chức vụ:", error);
@@ -139,6 +168,13 @@ export default function UserEdit() {
   const ensurePositionOption = (value: string) => {
     if (!value) return;
     setPositionOptions((prev) =>
+      prev.includes(value) ? prev : [...prev, value]
+    );
+  };
+
+  const ensureWorkPositionOption = (value: string) => {
+    if (!value) return;
+    setWorkPositionOptions((prev) =>
       prev.includes(value) ? prev : [...prev, value]
     );
   };
@@ -161,13 +197,18 @@ export default function UserEdit() {
       const resolvedPosition =
         (data.Position && data.Position.trim()) ||
         getDefaultPositionForRole(data.Role || "sales");
+      const resolvedWorkPosition =
+        (data.WorkPosition && data.WorkPosition.trim()) ||
+        "Công ty Xi Măng Tây Đô";
       ensurePositionOption(resolvedPosition);
+      ensureWorkPositionOption(resolvedWorkPosition);
       setFormData({
         fullName: data.FullName || "",
         email: data.Email || "",
         phone: data.Phone || "",
         role: data.Role || "sales",
         position: resolvedPosition,
+        workPosition: resolvedWorkPosition,
         password: "",
       });
       const assignedStoreIds =
@@ -239,6 +280,7 @@ export default function UserEdit() {
         phone: string;
         role: string;
         position: string;
+        workPosition: string;
         password?: string;
         storeAssignment?: {
           mode: "none" | "all" | "custom";
@@ -250,6 +292,7 @@ export default function UserEdit() {
         phone: formData.phone.trim(),
         role: formData.role,
         position: formData.position.trim(),
+        workPosition: formData.workPosition.trim(),
       };
 
       // Only include password if it's provided
@@ -338,6 +381,22 @@ export default function UserEdit() {
     setFormData((prev) => ({ ...prev, position: value }));
     setNewPositionValue("");
     setIsAddingPosition(false);
+  };
+
+  const handleAddWorkPosition = () => {
+    if (!newWorkPositionValue.trim()) {
+      setNotification({
+        isOpen: true,
+        type: "error",
+        message: "Vui lòng nhập tên vị trí công tác.",
+      });
+      return;
+    }
+    const value = newWorkPositionValue.trim();
+    ensureWorkPositionOption(value);
+    setFormData((prev) => ({ ...prev, workPosition: value }));
+    setNewWorkPositionValue("");
+    setIsAddingWorkPosition(false);
   };
 
   if (loading) {
@@ -526,6 +585,58 @@ export default function UserEdit() {
                   {storeAssignmentError}
                 </small>
               )}
+            </div>
+          )}
+        </div>
+
+        <div className="form-group">
+          <label>
+            Vị trí công tác
+          </label>
+          <div className="position-select-group">
+            <div className="position-select">
+              <Select
+                options={workPositionOptions.map((pos) => ({
+                  id: pos,
+                  name: pos,
+                }))}
+                value={formData.workPosition}
+                onChange={(value) =>
+                  setFormData({
+                    ...formData,
+                    workPosition: value ? String(value) : "",
+                  })
+                }
+                placeholder="Chọn vị trí công tác"
+                searchable={true}
+              />
+            </div>
+            <button
+              type="button"
+              className="btn-add-position"
+              onClick={() => {
+                setIsAddingWorkPosition((prev) => !prev);
+                setNewWorkPositionValue("");
+              }}
+            >
+              {isAddingWorkPosition ? "Hủy" : "Thêm vị trí"}
+            </button>
+          </div>
+          {isAddingWorkPosition && (
+            <div className="position-add-inline">
+              <input
+                type="text"
+                value={newWorkPositionValue}
+                onChange={(e) => setNewWorkPositionValue(e.target.value)}
+                placeholder="Nhập tên vị trí công tác mới"
+              />
+              <button
+                type="button"
+                className="btn-save-position"
+                onClick={handleAddWorkPosition}
+              >
+                Lưu
+              </button>
             </div>
           )}
         </div>

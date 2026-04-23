@@ -76,12 +76,18 @@ export default function Stores() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
   const [storeNameFilter, setStoreNameFilter] = useState("");
   const [selectedTerritory, setSelectedTerritory] = useState<number | null>(
-    null
+    null,
   );
   const [selectedRank, setSelectedRank] = useState<number | string | null>(
-    null
+    null,
   );
   const [selectedUser, setSelectedUser] = useState<number | null>(null);
+  const [selectedWorkPosition, setSelectedWorkPosition] = useState<string | null>(
+    null
+  );
+  const [workPositionOptions, setWorkPositionOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -141,6 +147,19 @@ export default function Stores() {
       // Handle both response formats: { data: [...] } or [...]
       const usersData = res.data.data || res.data || [];
       setUsers(Array.isArray(usersData) ? usersData : []);
+
+      // Build work position options from fetched users
+      const wpSet = new Set<string>();
+      (usersData as Array<{ WorkPosition?: string }>).forEach((u) => {
+        if (u.WorkPosition && u.WorkPosition.trim()) {
+          wpSet.add(u.WorkPosition.trim());
+        }
+      });
+      setWorkPositionOptions(
+        Array.from(wpSet)
+          .sort()
+          .map((wp) => ({ id: wp, name: wp }))
+      );
     } catch (error) {
       console.error("Error fetching users:", error);
       setUsers([]);
@@ -163,7 +182,6 @@ export default function Stores() {
     }
     return params;
   }, [selectedTerritory, selectedRank, selectedUser, storeNameFilter]);
-
   const fetchStatusCounts = useCallback(async () => {
     try {
       const res = await api.get("/stores/status-summary", {
@@ -242,7 +260,7 @@ export default function Stores() {
           processedStores = fetchedStores
             .map((store) => {
               const filteredStatuses = (store.userStatuses || []).filter(
-                (userStatus) => userStatus.Status !== "not_audited"
+                (userStatus) => userStatus.Status !== "not_audited",
               );
               return {
                 ...store,
@@ -252,7 +270,7 @@ export default function Stores() {
             .filter(
               (store) =>
                 (store.userStatuses && store.userStatuses.length > 0) ||
-                store.Status !== "not_audited"
+                store.Status !== "not_audited",
             );
         }
 
@@ -298,7 +316,7 @@ export default function Stores() {
       storeNameFilter,
       resetFilterChangingFlag,
       fetchStatusCounts,
-    ]
+    ],
   );
 
   useEffect(() => {
@@ -328,6 +346,7 @@ export default function Stores() {
     selectedTerritory,
     selectedRank,
     selectedUser,
+    selectedWorkPosition,
   });
 
   useEffect(() => {
@@ -336,7 +355,8 @@ export default function Stores() {
       prevFilters.statusFilter !== statusFilter ||
       prevFilters.selectedTerritory !== selectedTerritory ||
       prevFilters.selectedRank !== selectedRank ||
-      prevFilters.selectedUser !== selectedUser;
+      prevFilters.selectedUser !== selectedUser ||
+      prevFilters.selectedWorkPosition !== selectedWorkPosition;
 
     if (filtersChanged) {
       prevFiltersRef.current = {
@@ -344,12 +364,13 @@ export default function Stores() {
         selectedTerritory,
         selectedRank,
         selectedUser,
+        selectedWorkPosition,
       };
       setPage(1);
       fetchStores({ clearExisting: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [statusFilter, selectedTerritory, selectedRank, selectedUser]);
+  }, [statusFilter, selectedTerritory, selectedRank, selectedUser, selectedWorkPosition]);
 
   useEffect(() => {
     if (isFilterChangingRef.current) {
@@ -405,7 +426,8 @@ export default function Stores() {
       storeNameFilter.trim() !== "" ||
       selectedTerritory !== null ||
       selectedRank !== null ||
-      selectedUser !== null
+      selectedUser !== null ||
+      selectedWorkPosition !== null
     );
   };
 
@@ -415,6 +437,7 @@ export default function Stores() {
     setSelectedTerritory(null);
     setSelectedRank(null);
     setSelectedUser(null);
+    setSelectedWorkPosition(null);
     setPage(1);
   };
 
@@ -652,7 +675,10 @@ export default function Stores() {
           </button>
         </div>
         <div className="stores-actions">
-          <button className="btn-add-store" onClick={() => navigate("/stores/new")}>
+          <button
+            className="btn-add-store"
+            onClick={() => navigate("/stores/new")}
+          >
             <HiPlus /> Thêm cửa hàng
           </button>
           <button className="btn-download-store" onClick={handleExportStores}>
@@ -705,6 +731,25 @@ export default function Stores() {
             placeholder="Chọn user phụ trách"
             searchable={true}
           />
+        </div>
+
+        <div className="filter-group">
+          <label>Vị trí công tác</label>
+          <select
+            value={selectedWorkPosition || ""}
+            onChange={(e) => {
+              setSelectedWorkPosition(e.target.value || null);
+              setSelectedUser(null);
+            }}
+            className="filter-select"
+          >
+            <option value="">Tất cả</option>
+            {workPositionOptions.map((wp) => (
+              <option key={wp.id} value={wp.id}>
+                {wp.name}
+              </option>
+            ))}
+          </select>
         </div>
 
         {hasActiveFilters() && (
@@ -843,7 +888,7 @@ export default function Stores() {
                 let startPage = Math.max(1, page - Math.floor(maxVisible / 2));
                 const endPage = Math.min(
                   totalPages,
-                  startPage + maxVisible - 1
+                  startPage + maxVisible - 1,
                 );
 
                 if (endPage - startPage < maxVisible - 1) {
@@ -858,7 +903,7 @@ export default function Stores() {
                       onClick={() => setPage(i)}
                     >
                       {i}
-                    </button>
+                    </button>,
                   );
                 }
                 return pages;

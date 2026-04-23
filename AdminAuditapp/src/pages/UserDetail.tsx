@@ -18,6 +18,10 @@ interface UserDetailItem {
 interface UserInfo {
   Id: number;
   FullName: string;
+  Position?: string | null;
+  WorkPosition?: string | null;
+  Email?: string | null;
+  Phone?: string | null;
   [key: string]: unknown;
 }
 
@@ -193,6 +197,11 @@ export default function UserDetail() {
         <div>
           <p className="page-kicker">Chi tiết</p>
           <h2>{userInfo?.FullName || "Chi tiết checkin"}</h2>
+          {userInfo?.WorkPosition && (
+            <p style={{ color: "#666", fontSize: "0.9rem", marginTop: "4px" }}>
+              Vị trí công tác: {userInfo.WorkPosition}
+            </p>
+          )}
         </div>
       </div>
 

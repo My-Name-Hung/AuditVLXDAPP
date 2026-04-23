@@ -66,12 +66,13 @@ const resolveStoreAssignment = async (storeAssignment) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const { search, role, position, page, pageSize } = req.query;
+    const { search, role, position, workPosition, page, pageSize } = req.query;
     const filters = {};
 
     if (search) filters.search = search;
     if (role) filters.Role = role;
     if (position) filters.Position = position;
+    if (workPosition) filters.WorkPosition = workPosition;
 
     // Pagination
     const currentPage = parseInt(page) || 1;
@@ -138,6 +139,7 @@ const createUser = async (req, res) => {
       phone,
       role,
       position,
+      workPosition,
       storeAssignment,
     } = req.body;
 
@@ -198,7 +200,10 @@ const createUser = async (req, res) => {
       Phone: phone,
       Role: normalizedRole,
       Position: position.toString().trim(),
-      IsChangePassword: true, // Default to true - user must change password on first login
+      WorkPosition: workPosition && workPosition.toString().trim()
+        ? workPosition.toString().trim()
+        : null,
+      IsChangePassword: true,
     });
 
     if (assignmentResult.storeIds.length > 0) {
@@ -231,6 +236,7 @@ const updateUser = async (req, res) => {
       role,
       password,
       position,
+      workPosition,
       storeAssignment,
     } = req.body;
 
@@ -284,14 +290,22 @@ const updateUser = async (req, res) => {
         ? position.toString().trim()
         : user.Position
     );
+    request.input(
+      "WorkPosition",
+      sql.NVarChar(200),
+      workPosition !== undefined && workPosition !== null
+        ? workPosition.toString().trim()
+        : user.WorkPosition
+    );
 
     let updateQuery = `
-      UPDATE Users 
-      SET FullName = @FullName, 
-          Email = @Email, 
-          Phone = @Phone, 
+      UPDATE Users
+      SET FullName = @FullName,
+          Email = @Email,
+          Phone = @Phone,
           Role = @Role,
           Position = @Position,
+          WorkPosition = @WorkPosition,
           UpdatedAt = GETDATE()
     `;
 
@@ -468,6 +482,23 @@ const getUserPositions = async (_req, res) => {
   }
 };
 
+const getWorkPositions = async (_req, res) => {
+  try {
+    const { getPool } = require("../config/database");
+    const pool = await getPool();
+    const result = await pool.request().query(`
+      SELECT DISTINCT WorkPosition
+      FROM Users
+      WHERE WorkPosition IS NOT NULL AND LTRIM(RTRIM(WorkPosition)) <> ''
+      ORDER BY WorkPosition
+    `);
+    res.json(result.recordset.map((row) => row.WorkPosition));
+  } catch (error) {
+    console.error("Get work positions error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
@@ -477,4 +508,5 @@ module.exports = {
   resetPassword,
   uploadAvatar,
   getUserPositions,
+  getWorkPositions,
 };
