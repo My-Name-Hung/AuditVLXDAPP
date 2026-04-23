@@ -734,7 +734,7 @@ export default function Stores() {
         </div>
 
         <div className="filter-group">
-          <label>Vị trí công tác</label>
+          <label>Đơn vị công tác</label>
           <select
             value={selectedWorkPosition || ""}
             onChange={(e) => {

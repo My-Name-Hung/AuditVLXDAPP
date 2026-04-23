@@ -551,9 +551,7 @@ export default function UserAdd() {
         </div>
 
         <div className="form-group">
-          <label>
-            Vị trí công tác
-          </label>
+          <label>Đơn vị công tác</label>
           <div className="position-select-group">
             <div className="position-select">
               <Select
@@ -652,7 +650,11 @@ export default function UserAdd() {
         </div>
 
         <div className="form-actions">
-          <button type="button" className="btn-cancel-user" onClick={handleCancel}>
+          <button
+            type="button"
+            className="btn-cancel-user"
+            onClick={handleCancel}
+          >
             Hủy
           </button>
           <button type="submit" className="btn-submit-user">

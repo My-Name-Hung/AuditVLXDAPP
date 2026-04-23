@@ -199,7 +199,7 @@ export default function UserDetail() {
           <h2>{userInfo?.FullName || "Chi tiết checkin"}</h2>
           {userInfo?.WorkPosition && (
             <p style={{ color: "#666", fontSize: "0.9rem", marginTop: "4px" }}>
-              Vị trí công tác: {userInfo.WorkPosition}
+              Đơn vị công tác: {userInfo.WorkPosition}
             </p>
           )}
         </div>
@@ -313,7 +313,7 @@ export default function UserDetail() {
                       className="btn-view"
                       onClick={() =>
                         navigate(
-                          `/stores/${item.StoreId}/survey?auditId=${item.AuditId}&userId=${userId}`
+                          `/stores/${item.StoreId}/survey?auditId=${item.AuditId}&userId=${userId}`,
                         )
                       }
                       title="Xem thông tin khảo sát"

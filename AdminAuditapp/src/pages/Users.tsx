@@ -469,7 +469,7 @@ export default function Users() {
       "Tên nhân viên",
       "Email",
       "Số điện thoại",
-      "Vị trí công tác",
+      "Đơn vị công tác",
       "Chức vụ",
       "Vai trò",
     ];
@@ -510,7 +510,7 @@ export default function Users() {
       { width: 30 }, // Tên nhân viên
       { width: 30 }, // Email
       { width: 15 }, // Số điện thoại
-      { width: 30 }, // Vị trí công tác
+      { width: 30 }, // Đơn vị công tác
       { width: 25 }, // Chức vụ
       { width: 15 }, // Vai trò
     ];
@@ -592,7 +592,10 @@ export default function Users() {
       <div className="users-header">
         <h1>Danh sách tài khoản</h1>
         <div className="users-actions">
-          <button className="btn-add-user" onClick={() => navigate("/users/new")}>
+          <button
+            className="btn-add-user"
+            onClick={() => navigate("/users/new")}
+          >
             <HiPlus /> Thêm tài khoản
           </button>
           <button className="btn-download-user" onClick={handleExportUsers}>
@@ -630,7 +633,7 @@ export default function Users() {
         </div>
 
         <div className="filter-group">
-          <label>Vị trí công tác</label>
+          <label>Đơn vị công tác</label>
           <Select
             options={workPositionOptions.map((pos) => ({
               id: pos,
@@ -664,7 +667,7 @@ export default function Users() {
               <th>Tên nhân viên</th>
               <th>Email</th>
               <th>Số điện thoại</th>
-              <th>Vị trí công tác</th>
+              <th>Đơn vị công tác</th>
               <th>Chức vụ</th>
               <th>Thao tác</th>
             </tr>
@@ -673,9 +676,9 @@ export default function Users() {
             {showInitialLoading ? (
               <>
                 <tr>
-                <td colSpan={7} className="no-data">
-                  Đang cập nhật dữ liệu...
-                </td>
+                  <td colSpan={7} className="no-data">
+                    Đang cập nhật dữ liệu...
+                  </td>
                 </tr>
                 <UserSkeletonList count={Math.min(pageSize, 8)} />
               </>

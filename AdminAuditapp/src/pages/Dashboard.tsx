@@ -623,24 +623,7 @@ export default function Dashboard() {
 
       <div className="dashboard-filters">
         <div className="filter-group">
-          <label>Tên nhân viên</label>
-          <MultiSelect
-            options={uniqueEmployees.map((e) => ({
-              id: e.userId,
-              name: e.fullName,
-            }))}
-            selected={selectedEmployee}
-            onChange={setSelectedEmployee}
-            placeholder="Chọn nhân viên..."
-            itemLabel="nhân viên"
-            searchPlaceholder="Tìm kiếm nhân viên..."
-            enableSelectAll={true}
-            selectAllLabel="Chọn tất cả"
-          />
-        </div>
-
-        <div className="filter-group">
-          <label>Vị trí công tác</label>
+          <label>Đơn vị công tác</label>
           <select
             value={selectedWorkPosition || ""}
             onChange={(e) => {
@@ -659,6 +642,23 @@ export default function Dashboard() {
         </div>
 
         <div className="filter-group">
+          <label>Tên nhân viên</label>
+          <MultiSelect
+            options={uniqueEmployees.map((e) => ({
+              id: e.userId,
+              name: e.fullName,
+            }))}
+            selected={selectedEmployee}
+            onChange={setSelectedEmployee}
+            placeholder="Chọn nhân viên..."
+            itemLabel="nhân viên"
+            searchPlaceholder="Tìm kiếm nhân viên..."
+            enableSelectAll={true}
+            selectAllLabel="Chọn tất cả"
+          />
+        </div>
+
+        <div className="filter-group">
           <label>Địa bàn phụ trách</label>
           <MultiSelect
             options={territories.map((t) => ({
@@ -674,7 +674,9 @@ export default function Dashboard() {
           <label>Thời gian</label>
           <select
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value as "day" | "month" | "week")}
+            onChange={(e) =>
+              setDateFilter(e.target.value as "day" | "month" | "week")
+            }
             className="filter-select"
           >
             <option value="month">Theo tháng</option>
@@ -702,7 +704,9 @@ export default function Dashboard() {
               <select
                 value={selectedWeek?.startDate || ""}
                 onChange={(e) => {
-                  const w = weekOptions.find((wo) => wo.startDate === e.target.value);
+                  const w = weekOptions.find(
+                    (wo) => wo.startDate === e.target.value,
+                  );
                   if (w) setSelectedWeek(w);
                 }}
                 className="filter-input week-select"
@@ -754,8 +758,8 @@ export default function Dashboard() {
                             `/dashboard/user/${item.UserId}?territoryId=${
                               item.TerritoryId
                             }&territoryName=${encodeURIComponent(
-                              item.TerritoryName || ""
-                            )}`
+                              item.TerritoryName || "",
+                            )}`,
                           )
                         }
                       >
@@ -775,7 +779,7 @@ export default function Dashboard() {
                     <strong>
                       {summaryData.reduce(
                         (sum, item) => sum + item.TotalCheckinDays,
-                        0
+                        0,
                       )}
                     </strong>
                   </td>
@@ -783,7 +787,7 @@ export default function Dashboard() {
                     <strong>
                       {summaryData.reduce(
                         (sum, item) => sum + item.TotalStoresChecked,
-                        0
+                        0,
                       )}
                     </strong>
                   </td>

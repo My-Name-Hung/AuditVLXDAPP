@@ -590,9 +590,7 @@ export default function UserEdit() {
         </div>
 
         <div className="form-group">
-          <label>
-            Vị trí công tác
-          </label>
+          <label>Đơn vị công tác</label>
           <div className="position-select-group">
             <div className="position-select">
               <Select
