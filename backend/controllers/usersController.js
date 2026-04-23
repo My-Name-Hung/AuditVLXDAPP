@@ -221,7 +221,7 @@ const createUser = async (req, res) => {
       AssignedStores: mapAssignedStores(assignedStores),
     });
   } catch (error) {
-    console.error("Create user error:", error);
+    console.error("[createUser] Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -332,7 +332,7 @@ const updateUser = async (req, res) => {
       AssignedStores: mapAssignedStores(assignedStores),
     });
   } catch (error) {
-    console.error("Update user error:", error);
+    console.error("[updateUser] Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -486,6 +486,20 @@ const getWorkPositions = async (_req, res) => {
   try {
     const { getPool } = require("../config/database");
     const pool = await getPool();
+
+    // Check if WorkPosition column exists
+    const colCheck = await pool.request().query(`
+      SELECT 1
+      FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_NAME = 'Users'
+        AND COLUMN_NAME = 'WorkPosition'
+    `);
+
+    if (colCheck.recordset.length === 0) {
+      console.error('[getWorkPositions] Column WorkPosition does not exist in Users table. Run migration first.');
+      return res.status(500).json({ error: 'Column WorkPosition not found. Please run migration: npm run migrate:users-workposition' });
+    }
+
     const result = await pool.request().query(`
       SELECT DISTINCT WorkPosition
       FROM Users
@@ -494,8 +508,8 @@ const getWorkPositions = async (_req, res) => {
     `);
     res.json(result.recordset.map((row) => row.WorkPosition));
   } catch (error) {
-    console.error("Get work positions error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error('[getWorkPositions] Error:', error);
+    res.status(500).json({ error: 'Internal server error: ' + error.message });
   }
 };
 

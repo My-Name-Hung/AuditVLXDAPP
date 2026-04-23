@@ -7,8 +7,14 @@ const { authenticateToken } = require('../middlewares/auth');
 const upload = multer({ storage: multer.memoryStorage() });
 
 router.get('/', authenticateToken, usersController.getAllUsers);
-router.get('/positions', authenticateToken, usersController.getUserPositions);
-router.get('/work-positions', authenticateToken, usersController.getWorkPositions);
+router.get('/positions', authenticateToken, (req, res, next) => {
+  console.log(`[${new Date().toISOString()}] GET /api/users/positions — user:`, req.user?.username);
+  next();
+}, usersController.getUserPositions);
+router.get('/work-positions', authenticateToken, (req, res, next) => {
+  console.log(`[${new Date().toISOString()}] GET /api/users/work-positions — user:`, req.user?.username, '| role:', req.user?.role);
+  next();
+}, usersController.getWorkPositions);
 router.get('/:id', authenticateToken, usersController.getUserById);
 router.post('/', authenticateToken, usersController.createUser);
 router.put('/:id', authenticateToken, usersController.updateUser);
