@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const Territory = require('../models/Territory');
+const { getPool, sql } = require('../config/database');
 const { authenticateToken } = require('../middlewares/auth');
 
 router.get('/', authenticateToken, async (req, res) => {
