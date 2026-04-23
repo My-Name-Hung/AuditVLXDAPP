@@ -97,8 +97,9 @@ const getAllUsers = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Get all users error:", error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("[getAllUsers] ERROR:", error.message);
+    console.error("[getAllUsers] Full error:", error);
+    res.status(500).json({ error: "Internal server error", detail: error.message });
   }
 };
 
@@ -221,7 +222,7 @@ const createUser = async (req, res) => {
       AssignedStores: mapAssignedStores(assignedStores),
     });
   } catch (error) {
-    console.error("[createUser] Error:", error);
+    console.error("Create user error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -332,7 +333,7 @@ const updateUser = async (req, res) => {
       AssignedStores: mapAssignedStores(assignedStores),
     });
   } catch (error) {
-    console.error("[updateUser] Error:", error);
+    console.error("Update user error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 };
@@ -486,30 +487,20 @@ const getWorkPositions = async (_req, res) => {
   try {
     const { getPool } = require("../config/database");
     const pool = await getPool();
-
-    // Check if WorkPosition column exists
-    const colCheck = await pool.request().query(`
-      SELECT 1
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_NAME = 'Users'
-        AND COLUMN_NAME = 'WorkPosition'
-    `);
-
-    if (colCheck.recordset.length === 0) {
-      console.error('[getWorkPositions] Column WorkPosition does not exist in Users table. Run migration first.');
-      return res.status(500).json({ error: 'Column WorkPosition not found. Please run migration: npm run migrate:users-workposition' });
-    }
-
+    console.log("[getWorkPositions] Querying DISTINCT WorkPosition from Users...");
     const result = await pool.request().query(`
       SELECT DISTINCT WorkPosition
       FROM Users
       WHERE WorkPosition IS NOT NULL AND LTRIM(RTRIM(WorkPosition)) <> ''
       ORDER BY WorkPosition
     `);
+    console.log("[getWorkPositions] Rows returned:", result.recordset.length);
     res.json(result.recordset.map((row) => row.WorkPosition));
   } catch (error) {
-    console.error('[getWorkPositions] Error:', error);
-    res.status(500).json({ error: 'Internal server error: ' + error.message });
+    console.error("[getWorkPositions] ERROR:", error.message);
+    console.error("[getWorkPositions] SQL State:", error.number);
+    console.error("[getWorkPositions] Full error:", error);
+    res.status(500).json({ error: "Internal server error", detail: error.message });
   }
 };
 
