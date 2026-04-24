@@ -28,7 +28,7 @@ interface User {
 }
 
 const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
-const DEFAULT_WORK_POSITIONS = ["Công ty Xi Măng Tây Đô"];
+const DEFAULT_WORK_POSITIONS = ["Công ty Cổ phần Xi Măng Tây Đô"];
 
 const mergePositionOptions = (current: string[], incoming: string[]) => {
   const normalized = [...current];
@@ -105,7 +105,8 @@ export default function UserEdit() {
     phone: preloadedUser?.Phone || "",
     role: (initialRole as "admin" | "sales") || "sales",
     position: initialPosition,
-    workPosition: preloadedUser?.WorkPosition || "Công ty Xi Măng Tây Đô",
+    workPosition:
+      preloadedUser?.WorkPosition || "Công ty Cổ phần Xi Măng Tây Đô",
     password: "",
   });
   const [user, setUser] = useState<User | null>(preloadedUser);
@@ -201,7 +202,7 @@ export default function UserEdit() {
         getDefaultPositionForRole(data.Role || "sales");
       const resolvedWorkPosition =
         (data.WorkPosition && data.WorkPosition.trim()) ||
-        "Công ty Xi Măng Tây Đô";
+        "Công ty Cổ phần Xi Măng Tây Đô";
       ensurePositionOption(resolvedPosition);
       ensureWorkPositionOption(resolvedWorkPosition);
       setFormData({

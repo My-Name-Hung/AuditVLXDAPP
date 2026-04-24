@@ -15,10 +15,7 @@ const DEFAULT_POSITION_FILTERS = [
   "Nhân viên Thị Trường",
 ];
 
-const DEFAULT_WORK_POSITION_FILTERS = [
-  "all",
-  "Công ty Xi Măng Tây Đô",
-];
+const DEFAULT_WORK_POSITION_FILTERS = ["all", "Công ty Cổ phần Xi Măng Tây Đô"];
 
 interface User {
   Id: number;
@@ -50,12 +47,12 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [positionFilter, setPositionFilter] = useState<PositionFilter>("all");
   const [positionOptions, setPositionOptions] = useState<string[]>(
-    DEFAULT_POSITION_FILTERS
+    DEFAULT_POSITION_FILTERS,
   );
   const [workPositionFilter, setWorkPositionFilter] =
     useState<WorkPositionFilter>("all");
   const [workPositionOptions, setWorkPositionOptions] = useState<string[]>(
-    DEFAULT_WORK_POSITION_FILTERS
+    DEFAULT_WORK_POSITION_FILTERS,
   );
   const [searchFilter, setSearchFilter] = useState("");
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -87,7 +84,7 @@ export default function Users() {
   });
   const [resetPasswordModalOpen, setResetPasswordModalOpen] = useState(false);
   const [userToResetPassword, setUserToResetPassword] = useState<User | null>(
-    null
+    null,
   );
   const [resetPasswordLoading, setResetPasswordLoading] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
@@ -156,12 +153,12 @@ export default function Users() {
         (error as { name?: string; code?: string })?.name === "CanceledError" ||
         (error as { code?: string })?.code === "ERR_CANCELED";
       if (!isAborted) {
-      console.error("Error fetching users:", error);
+        console.error("Error fetching users:", error);
       }
     } finally {
       if (!preserveData) {
-      setLoading(false);
-    }
+        setLoading(false);
+      }
       setIsSearching(false);
     }
   }, [
@@ -425,7 +422,7 @@ export default function Users() {
 
   const generateUsersExcel = async (
     usersData: User[],
-    progressCallback?: (progress: number) => void
+    progressCallback?: (progress: number) => void,
   ) => {
     const ExcelJS = (await import("exceljs")).default;
     const workbook = new ExcelJS.Workbook();

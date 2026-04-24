@@ -23,7 +23,7 @@ export default function UserAdd() {
   });
 
   const DEFAULT_POSITIONS = ["Quản trị Viên", "Nhân viên Thị Trường"];
-  const DEFAULT_WORK_POSITIONS = ["Công ty Xi Măng Tây Đô"];
+  const DEFAULT_WORK_POSITIONS = ["Công ty Cổ phần Xi Măng Tây Đô"];
   const [positionOptions, setPositionOptions] =
     useState<string[]>(DEFAULT_POSITIONS);
   const [workPositionOptions, setWorkPositionOptions] = useState<string[]>(
@@ -50,7 +50,7 @@ export default function UserAdd() {
     phone: "",
     role: "sales" as "admin" | "sales",
     position: "",
-    workPosition: "Công ty Xi Măng Tây Đô",
+    workPosition: "Công ty Cổ phần Xi Măng Tây Đô",
     password: "",
   });
 
