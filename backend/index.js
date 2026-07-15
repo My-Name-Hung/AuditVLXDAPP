@@ -1,5 +1,6 @@
 const express = require("express");
 const cors = require("cors");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
@@ -10,6 +11,7 @@ const { getPool } = require("./config/database");
 require("./config/cloudinary");
 const { seedAdminUser } = require("./utils/seedAdmin");
 const seedSampleData = require("./utils/seedSampleData");
+const { ensureUploadDir, UPLOAD_DIR } = require("./services/localUploadService");
 
 // Middleware
 const corsOptions = {
@@ -19,6 +21,19 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Serve uploaded images as static files
+const uploadsDir = path.join(__dirname, "uploads");
+app.use("/uploads", express.static(uploadsDir, {
+  maxAge: "1d", // Cache 1 day
+  etag: true,
+  lastModified: true,
+  setHeaders: (res, filePath) => {
+    res.set("Access-Control-Allow-Origin", "*");
+    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  },
+}));
 
 // Routes
 app.use("/api/auth", require("./routes/auth"));
@@ -41,18 +56,15 @@ app.get("/health", async (req, res) => {
     timestamp: new Date().toISOString(),
     services: {
       database: "unknown",
-      cloudinary: "unknown",
+      localStorage: "unknown",
+      uploadDir: "unknown",
     },
   };
 
-  // Check Cloudinary configuration (independent check)
-  const cloudinaryConfigured =
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET;
-  healthStatus.services.cloudinary = cloudinaryConfigured
-    ? "configured"
-    : "not configured";
+  // Check local storage configuration
+  const baseUrl = process.env.BASE_URL;
+  healthStatus.services.localStorage = baseUrl ? "configured" : "using_default";
+  healthStatus.services.uploadDir = UPLOAD_DIR;
 
   // Check database connection
   try {
@@ -77,7 +89,6 @@ app.get("/health", async (req, res) => {
 
   res.json(healthStatus);
 });
-
 
 // Error handling middleware
 app.use((err, req, res, next) => {
@@ -115,20 +126,9 @@ async function initializeServices() {
     console.error("   Please check your database configuration in .env file");
   }
 
-  // Check Cloudinary configuration
-  const cloudinaryConfigured =
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET;
-
-  if (cloudinaryConfigured) {
-    console.log("✅ Cloudinary configuration loaded successfully");
-  } else {
-    console.warn("⚠️  Cloudinary not configured. Image upload will not work.");
-    console.warn(
-      "   Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET in .env"
-    );
-  }
+  // Log local storage configuration
+  console.log(`📁 Upload directory: ${UPLOAD_DIR}`);
+  console.log(`🔗 Base URL: ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
 
   // Check JWT secret
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
@@ -154,21 +154,28 @@ app.listen(PORT, async () => {
   // Initialize services
   await initializeServices();
 
+  // Ensure upload directory exists
+  try {
+    await ensureUploadDir();
+    console.log("✅ Local storage initialized successfully");
+  } catch (error) {
+    console.error("⚠️  Failed to create upload directory:", error.message);
+  }
+
   // Setup cleanup job for import history (run every 24 hours)
-  const { cleanupImportHistory } = require('./utils/cleanupImportHistory');
-  
+  const { cleanupImportHistory } = require("./utils/cleanupImportHistory");
+
   // Run cleanup immediately on startup
-  cleanupImportHistory().catch(err => {
-    console.error('Error running initial cleanup:', err);
+  cleanupImportHistory().catch((err) => {
+    console.error("Error running initial cleanup:", err);
   });
-  
+
   // Schedule cleanup to run every 24 hours
   setInterval(() => {
-    cleanupImportHistory().catch(err => {
-      console.error('Error running scheduled cleanup:', err);
+    cleanupImportHistory().catch((err) => {
+      console.error("Error running scheduled cleanup:", err);
     });
   }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
-
 
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);

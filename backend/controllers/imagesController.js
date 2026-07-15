@@ -1,13 +1,10 @@
 const Image = require("../models/Image");
 const Audit = require("../models/Audit");
-const { uploadImageWithWatermark } = require("../services/cloudinaryService");
+const { uploadImageWithWatermark } = require("../services/localUploadService");
 const {
-  getOptimizedImageUrl,
-  getResponsiveImageUrls,
-  getMobileOptimizedUrl,
-  getWebOptimizedUrl,
-  extractPublicId,
-} = require("../services/imageOptimizationService");
+  getResponsiveUrls,
+  deleteImage,
+} = require("../services/localUploadService");
 
 const uploadImage = async (req, res) => {
   try {
@@ -44,83 +41,25 @@ const uploadImage = async (req, res) => {
       });
     }
 
-    // Upload to Cloudinary with watermark
+    // Upload to local storage with watermark
     // Convert latitude and longitude to numbers (they come as strings from FormData)
     const latitudeNum = latitude ? parseFloat(latitude) : null;
     const longitudeNum = longitude ? parseFloat(longitude) : null;
-    const timezoneOffsetMinutes =
-      typeof timezoneOffset !== "undefined" && timezoneOffset !== null
-        ? parseInt(timezoneOffset, 10)
-        : null;
-
-    const rawTimestamp = timestamp || new Date().toISOString();
-    const timestampDate = new Date(rawTimestamp);
-
-    // QUAN TRỌNG: Xử lý timezone offset đúng cách
-    // Frontend gửi:
-    // - timestamp: now.toISOString() → UTC time string (ví dụ: "2026-01-14T01:17:00.000Z" cho local 08:17 UTC+7)
-    // - timezoneOffset: now.getTimezoneOffset() → offset từ UTC (ví dụ: -420 cho UTC+7)
-    //
-    // Logic đúng:
-    // - getTimezoneOffset() trả về số phút CHÊNH LỆCH từ UTC (âm = UTC+, dương = UTC-)
-    // - Ví dụ UTC+7: getTimezoneOffset() = -420 (phút) = -7 giờ
-    // - toISOString() convert local time → UTC string
-    // - Để convert UTC → Local: Local = UTC - timezoneOffset
-    // - Local = UTC - (-420 phút) = UTC + 420 phút = UTC + 7 giờ
-    //
-    // Ví dụ: Local 08:17 (UTC+7)
-    // - toISOString() → "2026-01-14T01:17:00.000Z" (UTC)
-    // - getTimezoneOffset() → -420
-    // - Local = 01:17 - (-420 phút) = 01:17 + 7 giờ = 08:17 ✓
-    //
-    // Format timestamp thành local time string để tránh timezone của server ảnh hưởng
-    let adjustedTimestamp = timestampDate;
-    if (
-      timestampDate instanceof Date &&
-      !isNaN(timestampDate.valueOf()) &&
-      timezoneOffsetMinutes !== null &&
-      timezoneOffsetMinutes !== 0
-    ) {
-      // Convert UTC → Local time của client
-      adjustedTimestamp = new Date(
-        timestampDate.getTime() - timezoneOffsetMinutes * 60000,
-      );
-    }
-
-    // Format thành local time string (dd.mm.yyyy hh:mm:ss) để truyền vào metadata
-    // Sử dụng UTC methods vì adjustedTimestamp đã là local time được biểu diễn như UTC
-    const day = String(adjustedTimestamp.getUTCDate()).padStart(2, "0");
-    const month = String(adjustedTimestamp.getUTCMonth() + 1).padStart(2, "0");
-    const year = adjustedTimestamp.getUTCFullYear();
-    const hours = String(adjustedTimestamp.getUTCHours()).padStart(2, "0");
-    const minutes = String(adjustedTimestamp.getUTCMinutes()).padStart(2, "0");
-    const seconds = String(adjustedTimestamp.getUTCSeconds()).padStart(2, "0");
-    const localTimeString = `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+    const timezoneOffsetNum = timezoneOffset !== undefined && timezoneOffset !== null
+      ? parseInt(timezoneOffset, 10)
+      : null;
 
     const metadata = {
       latitude: latitudeNum,
       longitude: longitudeNum,
-      timestamp: adjustedTimestamp.toISOString(),
-      localTimeString: localTimeString, // Thêm local time string đã format sẵn
+      timestamp: timestamp || new Date().toISOString(),
+      timezoneOffset: timezoneOffsetNum,
     };
 
-    // Determine font size based on source (header or user agent)
-    // Mobile app: fontSize 60 (default)
-    // Web iosauditapp: fontSize 10
-    const userAgent = req.headers["user-agent"] || "";
-    const source = req.headers["x-source"] || req.query.source || "";
-    const isWebIOS =
-      userAgent.includes("Mozilla") &&
-      (userAgent.includes("iPhone") ||
-        userAgent.includes("iPad") ||
-        source === "web");
-
-    const fontSize = isWebIOS ? 12 : 12; // 10 for web iosauditapp, 12 for mobile app
-
+    // Upload image with watermark and get all responsive URLs
     const uploadResult = await uploadImageWithWatermark(
       req.file.buffer,
       metadata,
-      { fontSize },
     );
 
     // Save to database
@@ -130,25 +69,17 @@ const uploadImage = async (req, res) => {
       ReferenceImageUrl: referenceImageUrl || null,
       Latitude: latitudeNum,
       Longitude: longitudeNum,
-      CapturedAt: adjustedTimestamp,
+      CapturedAt: timestamp ? new Date(timestamp) : new Date(),
     });
 
-    // Note: Store status refresh is now done once after all images are uploaded
-    // to improve performance. See auditsController for batch refresh logic.
-
-    // Tạo optimized URLs cho các kích thước khác nhau
-    const optimizedUrls = getResponsiveImageUrls(uploadResult.public_id);
+    // Get responsive URLs for different sizes
+    const responsiveUrls = getResponsiveUrls(uploadResult.baseFilename);
 
     res.status(201).json({
       ...image,
-      cloudinaryId: uploadResult.public_id,
-      optimizedUrls: {
-        thumbnail: optimizedUrls.thumbnail,
-        small: optimizedUrls.small,
-        medium: optimizedUrls.medium,
-        large: optimizedUrls.large,
-        original: optimizedUrls.original,
-      },
+      localStorage: true,
+      baseFilename: uploadResult.baseFilename,
+      responsiveUrls: responsiveUrls,
       // Giữ URL gốc để backward compatibility
       ImageUrl: image.ImageUrl,
     });
@@ -163,31 +94,28 @@ const uploadImage = async (req, res) => {
 const getImagesByAudit = async (req, res) => {
   try {
     const { auditId } = req.params;
-    const { size = "medium", source = "mobile" } = req.query; // size: thumbnail, small, medium, large, original
     const images = await Image.findByAuditId(auditId);
 
-    // Tối ưu hóa URLs cho từng ảnh
+    // Return images with responsive URLs
     const optimizedImages = images.map((image) => {
-      const publicId = extractPublicId(image.ImageUrl);
+      // Extract baseFilename from URL if stored as local URL
+      let baseFilename = image.ImageUrl;
+      if (image.ImageUrl && image.ImageUrl.includes("/uploads/")) {
+        // Extract path like: uploads/1234567890_abc123/medium.jpg
+        const match = image.ImageUrl.match(/\/uploads\/([^/]+)\//);
+        if (match) {
+          baseFilename = match[1];
+        }
+      }
 
-      // Xác định source (mobile hoặc web)
-      const userAgent = req.headers["user-agent"] || "";
-      const isWeb = userAgent.includes("Mozilla") || source === "web";
-
-      // Tạo optimized URL dựa trên source và size
-      const optimizedUrl = isWeb
-        ? getWebOptimizedUrl(publicId, size)
-        : getMobileOptimizedUrl(publicId, size);
-
-      // Tạo responsive URLs cho tất cả sizes
-      const responsiveUrls = getResponsiveImageUrls(publicId);
+      // Generate responsive URLs
+      const responsiveUrls = getResponsiveUrls(baseFilename);
 
       return {
         ...image,
-        optimizedUrl, // URL tối ưu cho size được yêu cầu
-        optimizedUrls: responsiveUrls, // Tất cả sizes
-        // Giữ URL gốc để backward compatibility
-        ImageUrl: image.ImageUrl,
+        responsiveUrls,
+        // Default optimized URL based on source
+        optimizedUrl: responsiveUrls.medium,
       };
     });
 
@@ -207,26 +135,23 @@ const getImagesByAudit = async (req, res) => {
 const getImageById = async (req, res) => {
   try {
     const { id } = req.params;
-    const { size = "medium", source = "mobile" } = req.query;
     const image = await Image.findById(id);
 
     if (!image) {
       return res.status(404).json({ error: "Image not found" });
     }
 
-    const publicId = extractPublicId(image.ImageUrl);
+    // Extract baseFilename from URL if stored as local URL
+    let baseFilename = image.ImageUrl;
+    if (image.ImageUrl && image.ImageUrl.includes("/uploads/")) {
+      const match = image.ImageUrl.match(/\/uploads\/([^/]+)\//);
+      if (match) {
+        baseFilename = match[1];
+      }
+    }
 
-    // Xác định source (mobile hoặc web)
-    const userAgent = req.headers["user-agent"] || "";
-    const isWeb = userAgent.includes("Mozilla") || source === "web";
-
-    // Tạo optimized URL
-    const optimizedUrl = isWeb
-      ? getWebOptimizedUrl(publicId, size)
-      : getMobileOptimizedUrl(publicId, size);
-
-    // Tạo responsive URLs
-    const responsiveUrls = getResponsiveImageUrls(publicId);
+    // Generate responsive URLs
+    const responsiveUrls = getResponsiveUrls(baseFilename);
 
     // Set cache headers
     res.set({
@@ -236,9 +161,8 @@ const getImageById = async (req, res) => {
 
     res.json({
       ...image,
-      optimizedUrl,
-      optimizedUrls: responsiveUrls,
-      // Giữ URL gốc để backward compatibility
+      responsiveUrls,
+      optimizedUrl: responsiveUrls.medium,
       ImageUrl: image.ImageUrl,
     });
   } catch (error) {
@@ -250,46 +174,29 @@ const getImageById = async (req, res) => {
 const getOptimizedImage = async (req, res) => {
   try {
     const { id } = req.params;
-    const {
-      width,
-      height,
-      quality = "auto",
-      format = "auto",
-      crop = "limit",
-      size, // Shortcut: thumbnail, small, medium, large, original
-      source = "mobile", // mobile hoặc web
-    } = req.query;
+    const { size = "medium" } = req.query;
 
     const image = await Image.findById(id);
     if (!image) {
       return res.status(404).json({ error: "Image not found" });
     }
 
-    const publicId = extractPublicId(image.ImageUrl);
-    let optimizedUrl;
-
-    // Nếu có size shortcut, sử dụng nó
-    if (size) {
-      const userAgent = req.headers["user-agent"] || "";
-      const isWeb = userAgent.includes("Mozilla") || source === "web";
-      optimizedUrl = isWeb
-        ? getWebOptimizedUrl(publicId, size)
-        : getMobileOptimizedUrl(publicId, size);
-    } else {
-      // Sử dụng custom transformations
-      optimizedUrl = getOptimizedImageUrl(publicId, {
-        width: width ? parseInt(width) : null,
-        height: height ? parseInt(height) : null,
-        quality,
-        format,
-        crop,
-      });
+    // Extract baseFilename from URL if stored as local URL
+    let baseFilename = image.ImageUrl;
+    if (image.ImageUrl && image.ImageUrl.includes("/uploads/")) {
+      const match = image.ImageUrl.match(/\/uploads\/([^/]+)\//);
+      if (match) {
+        baseFilename = match[1];
+      }
     }
+
+    // Generate URL for requested size
+    const optimizedUrl = getResponsiveUrls(baseFilename)[size] || getResponsiveUrls(baseFilename).medium;
 
     // Set cache headers (ảnh có thể cache lâu hơn vì đã được optimize)
     res.set({
-      "Cache-Control": "public, max-age=31536000", // Cache 1 năm (Cloudinary CDN sẽ handle)
-      ETag: `"${id}-${width || ""}-${height || ""}-${size || ""}"`,
+      "Cache-Control": "public, max-age=31536000", // Cache 1 năm
+      ETag: `"${id}-${size}"`,
     });
 
     // Redirect đến optimized URL hoặc trả về URL
@@ -302,7 +209,8 @@ const getOptimizedImage = async (req, res) => {
       auditId: image.AuditId,
       optimizedUrl,
       originalUrl: image.ImageUrl,
-      publicId,
+      baseFilename,
+      responsiveUrls: getResponsiveUrls(baseFilename),
     });
   } catch (error) {
     console.error("Get optimized image error:", error);
@@ -319,6 +227,18 @@ const deleteImage = async (req, res) => {
       return res.status(404).json({ error: "Image not found" });
     }
 
+    // Delete local files if using local storage
+    if (image.ImageUrl && image.ImageUrl.includes("/uploads/")) {
+      const match = image.ImageUrl.match(/\/uploads\/([^/]+)\//);
+      if (match) {
+        const baseFilename = match[1];
+        const { UPLOAD_DIR, deleteImage: deleteImageFile } = require("../services/localUploadService");
+        const folderPath = require("path").join(UPLOAD_DIR, baseFilename);
+        await deleteImageFile(folderPath);
+      }
+    }
+
+    // Delete from database
     const { getPool, sql } = require("../config/database");
     const pool = await getPool();
     const request = pool.request();

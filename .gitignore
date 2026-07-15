@@ -43,3 +43,7 @@ app-example
 
 # Local Netlify folder
 .netlify
+
+# Uploaded images (local storage)
+backend/uploads/
+uploads/
