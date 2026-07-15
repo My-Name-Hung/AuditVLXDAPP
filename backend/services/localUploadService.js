@@ -9,7 +9,6 @@ const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT ||
 
 // Auto-detect BASE_URL from request if behind proxy/load balancer
 function getBaseUrl(req) {
-  // Check for reverse proxy headers first
   const forwardedProto = req?.headers?.["x-forwarded-proto"];
   const forwardedHost = req?.headers?.["x-forwarded-host"];
   const forwardedPort = req?.headers?.["x-forwarded-port"];
@@ -24,18 +23,6 @@ function getBaseUrl(req) {
 
   return BASE_URL;
 }
-
-// Image sizes for responsive images (in pixels)
-const IMAGE_SIZES = {
-  thumbnail: { width: 200, height: 200, quality: 70 },
-  small: { width: 400, height: 400, quality: 75 },
-  medium: { width: 800, height: 800, quality: 80 },
-  large: { width: 1200, height: 1200, quality: 85 },
-};
-
-  // Watermark dimensions
-  const WATERMARK_WIDTH = 400;
-  const WATERMARK_HEIGHT = 60; // approximate
 
 /**
  * Ensure upload directory exists
@@ -72,50 +59,10 @@ function formatTimestamp(timestamp, timezoneOffset) {
 }
 
 /**
- * Create SVG watermark with location info
- */
-async function createWatermarkSvg(metadata) {
-  const { latitude, longitude, timestamp, timezoneOffset, province, district } = metadata;
-
-  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
-  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
-  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
-  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
-
-  const timeString = formatTimestamp(timestamp, timezoneOffset);
-  const locationText = province && district
-    ? `Tỉnh: ${province}\nQuận/Huyện: ${district}`
-    : province
-      ? `Tỉnh: ${province}`
-      : district
-        ? `Quận/Huyện: ${district}`
-        : "";
-
-  const lines = [
-    `Lat: ${latValue}  Long: ${lonValue}  ${timeString}`,
-    locationText,
-  ].filter(line => line.length > 0);
-
-  const lineHeight = 20;
-  const padding = 10;
-  const textHeight = lines.length * lineHeight;
-  const rectHeight = textHeight + padding * 2;
-
-  const svgLines = lines.map((line, i) =>
-    `<text x="${padding}" y="${padding + 14 + i * lineHeight}" fill="white" font-family="Arial" font-size="${WATERMARK_FONT_SIZE}" font-weight="bold">${escapeXml(line)}</text>`
-  ).join("\n");
-
-  return `<svg width="400" height="${rectHeight}">
-    <rect x="0" y="0" width="400" height="${rectHeight}" fill="rgba(0,0,0,0.6)"/>
-    ${svgLines}
-  </svg>`;
-}
-
-/**
  * Escape XML special characters
  */
 function escapeXml(str) {
-  return str
+  return String(str)
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -124,41 +71,52 @@ function escapeXml(str) {
 }
 
 /**
- * Resize and optimize image with sharp
- * @param {Buffer} imageBuffer - Image buffer
- * @param {Object} options - Resize options
- * @returns {Promise<Buffer>} Optimized image buffer
+ * Create SVG watermark with location info (responsive to image size)
  */
-async function resizeImage(imageBuffer, options = {}) {
-  const {
-    width = null,
-    height = null,
-    quality = 80,
-    fit = "inside",
-    withoutEnlargement = true,
-  } = options;
+function createWatermarkSvg(metadata) {
+  const { latitude, longitude, timestamp, timezoneOffset, province, district, width = 300, height = 50 } = metadata;
 
-  return sharp(imageBuffer)
-    .rotate() // Auto-rotate based on EXIF
-    .resize(width, height, {
-      fit,
-      withoutEnlargement,
-      withoutReduction: false,
-    })
-    .jpeg({
-      quality,
-      progressive: true,
-      mozjpeg: true,
-    })
-    .toBuffer();
+  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
+  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
+  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
+
+  const timeString = formatTimestamp(timestamp, timezoneOffset);
+  const locationText = province && district
+    ? `T: ${province} - H: ${district}`
+    : province
+      ? `T: ${province}`
+      : district
+        ? `H: ${district}`
+        : "";
+
+  const lines = [
+    `Lat: ${latValue}  Long: ${lonValue}  ${timeString}`,
+    locationText,
+  ].filter(line => line.length > 0);
+
+  const fontSize = Math.max(10, Math.min(14, Math.floor(width / 40)));
+  const lineHeight = fontSize + 4;
+  const padding = 6;
+  const textHeight = lines.length * lineHeight;
+  const rectHeight = textHeight + padding * 2;
+
+  const svgLines = lines.map((line, i) =>
+    `<text x="${padding}" y="${padding + fontSize + 2 + i * lineHeight}" fill="white" font-family="Arial" font-size="${fontSize}" font-weight="bold">${escapeXml(line)}</text>`
+  ).join("\n");
+
+  return `<svg width="${width}" height="${rectHeight}">
+    <rect x="0" y="0" width="${width}" height="${rectHeight}" fill="rgba(0,0,0,0.6)"/>
+    ${svgLines}
+  </svg>`;
 }
 
 /**
- * Upload image with watermark and create all responsive sizes
+ * Upload image with watermark (no resize, keep original quality)
  * @param {Buffer} imageBuffer - Image buffer from frontend
  * @param {Object} metadata - Metadata containing latitude, longitude, timestamp, timezoneOffset
  * @param {Object} options - Optional settings
- * @returns {Promise<Object>} Upload result with URLs
+ * @returns {Promise<Object>} Upload result with URL
  */
 async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   // Ensure upload directory exists
@@ -171,14 +129,23 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
   const { province, district } = await getProvinceDistrict(latNum, lonNum);
 
-  // Create watermark
-  const watermarkSvg = await createWatermarkSvg({
+  // Get original dimensions for responsive watermark
+  const originalMeta = await sharp(imageBuffer).metadata();
+
+  // Calculate watermark size based on image dimensions (responsive)
+  const wmWidth = Math.min(400, Math.max(200, Math.floor(originalMeta.width * 0.4)));
+  const wmHeight = Math.min(80, Math.max(30, Math.floor(originalMeta.height * 0.12)));
+
+  // Create watermark SVG with responsive dimensions
+  const watermarkSvg = createWatermarkSvg({
     latitude: latNum,
     longitude: lonNum,
     timestamp,
     timezoneOffset,
     province,
     district,
+    width: wmWidth,
+    height: wmHeight,
   });
 
   // Generate unique filename
@@ -190,178 +157,67 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   // Create folder for this image
   await fs.mkdir(folderPath, { recursive: true });
 
-  // Process and upload all sizes
-  const results = {};
-  const metadataEnhance = { ...metadata, province, district };
+  // Apply watermark to original image
+  const watermarkedBuffer = await sharp(imageBuffer)
+    .rotate() // Auto-rotate based on EXIF
+    .composite([
+      {
+        input: Buffer.from(watermarkSvg),
+        gravity: "southeast",
+      },
+    ])
+    .jpeg({ quality: 90, progressive: true })
+    .toBuffer();
 
-  for (const [sizeName, sizeConfig] of Object.entries(IMAGE_SIZES)) {
-    try {
-      // Resize image
-      const resizedBuffer = await resizeImage(imageBuffer, {
-        width: sizeConfig.width,
-        height: sizeConfig.height,
-        quality: sizeConfig.quality,
-      });
+  // Save watermarked image
+  const filePath = path.join(folderPath, "image.jpg");
+  await fs.writeFile(filePath, watermarkedBuffer);
 
-      // Check image dimensions before applying watermark
-      const resizedMeta = await sharp(resizedBuffer).metadata();
-      // Only apply watermark if image is larger than watermark in BOTH dimensions
-      const canApplyWatermark =
-        resizedMeta.width >= WATERMARK_WIDTH &&
-        resizedMeta.height >= WATERMARK_HEIGHT;
+  // Generate URL
+  const url = `${BASE_URL}/uploads/${baseFilename}/image.jpg`;
 
-      // Apply watermark only if image is large enough
-      let finalBuffer = resizedBuffer;
-      if (sizeName !== "thumbnail" && canApplyWatermark) {
-        const watermarkBuffer = Buffer.from(watermarkSvg);
-        finalBuffer = await sharp(resizedBuffer)
-          .composite([
-            {
-              input: watermarkBuffer,
-              gravity: "southeast",
-            },
-          ])
-          .toBuffer();
-      }
-
-      // Save file
-      const filePath = path.join(folderPath, `${sizeName}.jpg`);
-      await fs.writeFile(filePath, finalBuffer);
-
-      // Generate URL
-      const relativePath = path.relative(path.join(__dirname, ".."), filePath);
-      const url = `${BASE_URL}/uploads/${baseFilename}/${sizeName}.jpg`;
-
-      results[sizeName] = {
-        path: filePath,
-        url,
-        width: sizeConfig.width,
-        height: sizeConfig.height,
-      };
-
-      console.log(`✅ Saved ${sizeName}: ${url}`);
-    } catch (error) {
-      console.error(`❌ Error processing ${sizeName}:`, error.message);
-      throw error;
-    }
-  }
-
-  // Save original (no resize, just optimize quality)
-  try {
-    const optimizedOriginal = await sharp(imageBuffer)
-      .rotate()
-      .jpeg({ quality: 90, progressive: true })
-      .toBuffer();
-
-    const originalPath = path.join(folderPath, "original.jpg");
-    await fs.writeFile(originalPath, optimizedOriginal);
-
-    const originalUrl = `${BASE_URL}/uploads/${baseFilename}/original.jpg`;
-    results.original = {
-      path: originalPath,
-      url: originalUrl,
-    };
-
-    // Also save watermark version of original
-    // Check dimensions before applying watermark
-    const originalMeta = await sharp(optimizedOriginal).metadata();
-    let watermarkedBuffer = optimizedOriginal;
-    if (
-      originalMeta.width >= WATERMARK_WIDTH &&
-      originalMeta.height >= WATERMARK_HEIGHT
-    ) {
-      watermarkedBuffer = await sharp(optimizedOriginal)
-        .composite([
-          {
-            input: Buffer.from(watermarkSvg),
-            gravity: "southeast",
-          },
-        ])
-        .toBuffer();
-    }
-
-    const watermarkedPath = path.join(folderPath, "watermarked.jpg");
-    await fs.writeFile(watermarkedPath, watermarkedBuffer);
-
-    results.watermarked = {
-      path: watermarkedPath,
-      url: `${BASE_URL}/uploads/${baseFilename}/watermarked.jpg`,
-    };
-  } catch (error) {
-    console.error(`❌ Error saving original:`, error.message);
-  }
+  console.log(`✅ Saved image with watermark: ${url}`);
 
   return {
     baseFilename,
     folderPath,
-    sizes: results,
-    // Default URL (medium)
-    secure_url: results.medium?.url || results.original?.url,
-    url: results.medium?.url || results.original?.url,
+    url,
+    originalUrl: url,
+    thumbnailUrl: url,
+    smallUrl: url,
+    mediumUrl: url,
+    largeUrl: url,
+    secure_url: url,
+    width: originalMeta.width,
+    height: originalMeta.height,
   };
 }
 
 /**
- * Upload image from base64 string
+ * Delete uploaded image folder
  */
-async function uploadImageWithWatermarkBase64(base64Image, metadata, options = {}) {
-  // Remove data URI prefix if present
-  const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, "");
-  const imageBuffer = Buffer.from(base64Data, "base64");
-  return uploadImageWithWatermark(imageBuffer, metadata, options);
-}
-
-/**
- * Delete image folder and all sizes
- */
-async function deleteImageFolder(folderPath) {
+async function deleteUploadedImage(baseFilename) {
+  const folderPath = path.join(UPLOAD_DIR, baseFilename);
   try {
     await fs.rm(folderPath, { recursive: true, force: true });
-    console.log(`🗑️ Deleted image folder: ${folderPath}`);
+    console.log(`🗑️ Deleted folder: ${folderPath}`);
     return true;
   } catch (error) {
-    console.error(`❌ Error deleting image folder:`, error.message);
+    console.error(`❌ Error deleting folder:`, error.message);
     return false;
   }
 }
 
-/**
- * Get image URL by size
- */
-function getImageUrl(baseFilename, size = "medium") {
-  return `${BASE_URL}/uploads/${baseFilename}/${size}.jpg`;
-}
-
-/**
- * Get responsive image URLs
- */
-function getResponsiveUrls(baseFilename) {
-  return {
-    thumbnail: getImageUrl(baseFilename, "thumbnail"),
-    small: getImageUrl(baseFilename, "small"),
-    medium: getImageUrl(baseFilename, "medium"),
-    large: getImageUrl(baseFilename, "large"),
-    original: getImageUrl(baseFilename, "original"),
-    watermarked: getImageUrl(baseFilename, "watermarked"),
-  };
-}
-
-/**
- * Check if using local storage (for backward compatibility check)
- */
-function isLocalStorage() {
-  return !process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY;
-}
-
 module.exports = {
   uploadImageWithWatermark,
-  uploadImageWithWatermarkBase64,
-  deleteImageFolder,
-  getImageUrl,
-  getResponsiveUrls,
-  isLocalStorage,
-  resizeImage,
+  deleteUploadedImage,
+  getBaseUrl,
   ensureUploadDir,
-  UPLOAD_DIR,
-  BASE_URL,
+  getResponsiveUrls: (baseFilename) => ({
+    thumbnail: `${BASE_URL}/uploads/${baseFilename}/image.jpg`,
+    small: `${BASE_URL}/uploads/${baseFilename}/image.jpg`,
+    medium: `${BASE_URL}/uploads/${baseFilename}/image.jpg`,
+    large: `${BASE_URL}/uploads/${baseFilename}/image.jpg`,
+    original: `${BASE_URL}/uploads/${baseFilename}/image.jpg`,
+  }),
 };
