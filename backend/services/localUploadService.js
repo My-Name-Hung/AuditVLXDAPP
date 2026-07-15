@@ -298,7 +298,7 @@ async function uploadImageWithWatermarkBase64(base64Image, metadata, options = {
 /**
  * Delete image folder and all sizes
  */
-async function deleteImage(folderPath) {
+async function deleteImageFolder(folderPath) {
   try {
     await fs.rm(folderPath, { recursive: true, force: true });
     console.log(`🗑️ Deleted image folder: ${folderPath}`);
@@ -340,7 +340,7 @@ function isLocalStorage() {
 module.exports = {
   uploadImageWithWatermark,
   uploadImageWithWatermarkBase64,
-  deleteImage,
+  deleteImageFolder,
   getImageUrl,
   getResponsiveUrls,
   isLocalStorage,

@@ -1,6 +1,6 @@
 const Image = require("../models/Image");
 const Audit = require("../models/Audit");
-const { uploadImageWithWatermark, deleteImage as deleteLocalImage } = require("../services/localUploadService");
+const { uploadImageWithWatermark, deleteImageFolder } = require("../services/localUploadService");
 const {
   getResponsiveUrls,
 } = require("../services/localUploadService");
@@ -233,7 +233,7 @@ const deleteImage = async (req, res) => {
         const baseFilename = match[1];
         const { UPLOAD_DIR } = require("../services/localUploadService");
         const folderPath = require("path").join(UPLOAD_DIR, baseFilename);
-        await deleteLocalImage(folderPath);
+        await deleteImageFolder(folderPath);
       }
     }
 
