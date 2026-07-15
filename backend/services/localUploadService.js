@@ -202,9 +202,13 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
         quality: sizeConfig.quality,
       });
 
-      // Apply watermark for medium and larger sizes only (not thumbnail)
+      // Check image dimensions before applying watermark
+      const resizedMeta = await sharp(resizedBuffer).metadata();
+      const minDimension = Math.min(resizedMeta.width || 0, resizedMeta.height || 0);
+
+      // Apply watermark only if image is large enough (min 300px)
       let finalBuffer = resizedBuffer;
-      if (sizeName !== "thumbnail") {
+      if (sizeName !== "thumbnail" && minDimension >= 300) {
         const watermarkBuffer = Buffer.from(watermarkSvg);
         finalBuffer = await sharp(resizedBuffer)
           .composite([
@@ -255,17 +259,22 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     };
 
     // Also save watermark version of original
-    const watermarkedOriginal = await sharp(optimizedOriginal)
-      .composite([
-        {
-          input: Buffer.from(watermarkSvg),
-          gravity: "southeast",
-        },
-      ])
-      .toBuffer();
+    // Check dimensions before applying watermark
+    const originalMeta = await sharp(optimizedOriginal).metadata();
+    let watermarkedBuffer = optimizedOriginal;
+    if (Math.min(originalMeta.width || 0, originalMeta.height || 0) >= 300) {
+      watermarkedBuffer = await sharp(optimizedOriginal)
+        .composite([
+          {
+            input: Buffer.from(watermarkSvg),
+            gravity: "southeast",
+          },
+        ])
+        .toBuffer();
+    }
 
     const watermarkedPath = path.join(folderPath, "watermarked.jpg");
-    await fs.writeFile(watermarkedPath, watermarkedOriginal);
+    await fs.writeFile(watermarkedPath, watermarkedBuffer);
 
     results.watermarked = {
       path: watermarkedPath,
