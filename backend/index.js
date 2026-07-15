@@ -24,7 +24,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded images as static files
 const uploadsDir = path.join(__dirname, "uploads");
-app.use("/uploads", express.static(uploadsDir, {
+app.use("/api/uploads", express.static(uploadsDir, {
   maxAge: "1d", // Cache 1 day
   etag: true,
   lastModified: true,
