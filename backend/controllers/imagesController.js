@@ -6,11 +6,11 @@ const {
 } = require("../services/localUploadService");
 
 /**
- * Parse local timestamp to UTC Date object
- * Frontend gửi timestamp là giờ local, cần chuyển về UTC trước khi lưu
- * @param {string} timestamp - ISO timestamp string (giờ local)
+ * Parse timestamp để lưu đúng giờ local vào DB
+ * Frontend gửi timestamp UTC (suffix Z), cần chuyển về giờ local
+ * @param {string} timestamp - ISO timestamp string (UTC format)
  * @param {number} timezoneOffset - getTimezoneOffset() value (VD: -420 cho UTC+7)
- * @returns {Date} UTC Date object
+ * @returns {Date} Date object với giờ local
  */
 function parseLocalTimestampToUTC(timestamp, timezoneOffset) {
   if (!timestamp) {
@@ -22,54 +22,40 @@ function parseLocalTimestampToUTC(timestamp, timezoneOffset) {
     return new Date();
   }
   
-  // timezoneOffset từ JS getTimezoneOffset() có dấu ngược: UTC+7 -> -420
-  // Cần cộng thêm offset để chuyển local → UTC
-  // VD: 15:27:15 local (UTC+7) → 08:27:15 UTC = 15:27:15 + (-offset/60)
   const offsetMinutes = timezoneOffset !== undefined && timezoneOffset !== null
     ? parseInt(timezoneOffset, 10)
     : 0;
   
-  // Lấy local time components
-  const localYear = date.getFullYear();
-  const localMonth = date.getMonth();
-  const localDay = date.getDate();
-  const localHours = date.getHours();
-  const localMinutes = date.getMinutes();
-  const localSeconds = date.getSeconds();
-  const localMs = date.getMilliseconds();
-  
-  // Chuyển local → UTC: utcHours = localHours - (-offset/60)
-  // VD: local 15:27, offset=-420 → UTC = 15:27 - (-7) = 22:27 ← SAI!
-  // Thực ra: local = UTC + 7 → UTC = local - 7
-  // offset = -420 → -offset/60 = 7
-  // UTC = local - (-offset/60) = local + 7 ← Vẫn sai!
-  // 
-  // Đúng: Nếu local = UTC + 7, thì UTC = local - 7
-  // getTimezoneOffset() = -420 cho UTC+7
-  // offsetHours = -offset/60 = 7 (số tiếng chênh lệch)
-  // UTC = localHours - offsetHours = 15 - 7 = 8 ✓
-  
+  // Timestamp có suffix Z → là UTC time
+  // Cần chuyển UTC → local bằng cách cộng thêm offset
+  // VD: UTC 09:18, offset=-420 → local = 09:18 + 7 = 16:18
   const offsetHours = -offsetMinutes / 60;
-  let utcHours = localHours - offsetHours;
   
-  // Xử lý qua ngày nếu giờ âm hoặc quá 24
-  let adjustedDay = localDay;
-  let adjustedMonth = localMonth;
-  let adjustedYear = localYear;
+  // Lấy UTC components
+  const utcYear = date.getUTCFullYear();
+  const utcMonth = date.getUTCMonth();
+  const utcDay = date.getUTCDate();
+  const utcHours = date.getUTCHours();
+  const utcMinutes = date.getUTCMinutes();
+  const utcSeconds = date.getUTCSeconds();
+  const utcMs = date.getUTCMilliseconds();
   
-  if (utcHours < 0) {
-    utcHours += 24;
+  // Chuyển UTC → local
+  let localHours = utcHours + offsetHours;
+  let adjustedDay = utcDay;
+  
+  if (localHours < 0) {
+    localHours += 24;
     adjustedDay -= 1;
-  } else if (utcHours >= 24) {
-    utcHours -= 24;
+  } else if (localHours >= 24) {
+    localHours -= 24;
     adjustedDay += 1;
   }
   
-  // Tạo UTC date
-  const utcDate = Date.UTC(adjustedYear, adjustedMonth, adjustedDay, 
-    Math.floor(utcHours), localMinutes, localSeconds, localMs);
-  
-  return new Date(utcDate);
+  // Tạo Date object với giờ local
+  // Dùng UTC constructor để không bị ảnh hưởng bởi timezone của server
+  return new Date(Date.UTC(utcYear, utcMonth, adjustedDay, 
+    Math.floor(localHours), utcMinutes, utcSeconds, utcMs));
 }
 
 const uploadImage = async (req, res) => {
