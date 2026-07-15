@@ -924,7 +924,7 @@ export default function StoreDetail() {
                       <div className="image-info">
                         <span className="image-time">
                           {image.CapturedAt
-                            ? formatAuditDateTime(image.CapturedAt)
+                            ? image.CapturedAt
                             : "-"}
                         </span>
                         {coords.lat && coords.lon && (

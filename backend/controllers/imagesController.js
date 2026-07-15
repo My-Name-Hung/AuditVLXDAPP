@@ -5,6 +5,73 @@ const {
   getResponsiveUrls,
 } = require("../services/localUploadService");
 
+/**
+ * Parse local timestamp to UTC Date object
+ * Frontend gửi timestamp là giờ local, cần chuyển về UTC trước khi lưu
+ * @param {string} timestamp - ISO timestamp string (giờ local)
+ * @param {number} timezoneOffset - getTimezoneOffset() value (VD: -420 cho UTC+7)
+ * @returns {Date} UTC Date object
+ */
+function parseLocalTimestampToUTC(timestamp, timezoneOffset) {
+  if (!timestamp) {
+    return new Date();
+  }
+  
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) {
+    return new Date();
+  }
+  
+  // timezoneOffset từ JS getTimezoneOffset() có dấu ngược: UTC+7 -> -420
+  // Cần cộng thêm offset để chuyển local → UTC
+  // VD: 15:27:15 local (UTC+7) → 08:27:15 UTC = 15:27:15 + (-offset/60)
+  const offsetMinutes = timezoneOffset !== undefined && timezoneOffset !== null
+    ? parseInt(timezoneOffset, 10)
+    : 0;
+  
+  // Lấy local time components
+  const localYear = date.getFullYear();
+  const localMonth = date.getMonth();
+  const localDay = date.getDate();
+  const localHours = date.getHours();
+  const localMinutes = date.getMinutes();
+  const localSeconds = date.getSeconds();
+  const localMs = date.getMilliseconds();
+  
+  // Chuyển local → UTC: utcHours = localHours - (-offset/60)
+  // VD: local 15:27, offset=-420 → UTC = 15:27 - (-7) = 22:27 ← SAI!
+  // Thực ra: local = UTC + 7 → UTC = local - 7
+  // offset = -420 → -offset/60 = 7
+  // UTC = local - (-offset/60) = local + 7 ← Vẫn sai!
+  // 
+  // Đúng: Nếu local = UTC + 7, thì UTC = local - 7
+  // getTimezoneOffset() = -420 cho UTC+7
+  // offsetHours = -offset/60 = 7 (số tiếng chênh lệch)
+  // UTC = localHours - offsetHours = 15 - 7 = 8 ✓
+  
+  const offsetHours = -offsetMinutes / 60;
+  let utcHours = localHours - offsetHours;
+  
+  // Xử lý qua ngày nếu giờ âm hoặc quá 24
+  let adjustedDay = localDay;
+  let adjustedMonth = localMonth;
+  let adjustedYear = localYear;
+  
+  if (utcHours < 0) {
+    utcHours += 24;
+    adjustedDay -= 1;
+  } else if (utcHours >= 24) {
+    utcHours -= 24;
+    adjustedDay += 1;
+  }
+  
+  // Tạo UTC date
+  const utcDate = Date.UTC(adjustedYear, adjustedMonth, adjustedDay, 
+    Math.floor(utcHours), localMinutes, localSeconds, localMs);
+  
+  return new Date(utcDate);
+}
+
 const uploadImage = async (req, res) => {
   try {
     const {
@@ -61,6 +128,10 @@ const uploadImage = async (req, res) => {
       metadata,
     );
 
+    // Parse local timestamp to UTC for storage
+    // Frontend gửi timestamp là giờ local, cần chuyển về UTC
+    const capturedAtDate = parseLocalTimestampToUTC(timestamp, timezoneOffsetNum);
+
     // Save to database
     const image = await Image.create({
       AuditId: parsedAuditId,
@@ -68,7 +139,7 @@ const uploadImage = async (req, res) => {
       ReferenceImageUrl: referenceImageUrl || null,
       Latitude: latitudeNum,
       Longitude: longitudeNum,
-      CapturedAt: timestamp ? new Date(timestamp) : new Date(),
+      CapturedAt: capturedAtDate,
     });
 
     // Get responsive URLs for different sizes
