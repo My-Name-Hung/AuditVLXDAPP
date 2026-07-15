@@ -37,25 +37,53 @@ async function ensureUploadDir() {
 }
 
 /**
- * Format timestamp for watermark
+ * Format timestamp for watermark (convert UTC to local time)
  */
 function formatTimestamp(timestamp, timezoneOffset) {
-  let adjustedTimestamp = timestamp;
-  if (timestamp && timezoneOffset !== undefined && timezoneOffset !== null) {
-    const offsetMinutes = parseInt(timezoneOffset, 10);
-    if (!isNaN(offsetMinutes) && offsetMinutes !== 0) {
-      adjustedTimestamp = new Date(new Date(timestamp).getTime() - offsetMinutes * 60000);
-    }
+  // timestamp là UTC ISO string, timezoneOffset từ JS getTimezoneOffset()
+  // VD: 15:16:44 local (UTC+7) gửi lên -> timestamp = UTC 08:16:44, offset = -420
+  // Công thức: localHours = utcHours + (-offset/60) = 8 + 7 = 15 ✓
+
+  let hours = 0, minutes = 0, seconds = 0, day = 1, month = 1, year = 2026;
+
+  if (timestamp) {
+    const date = new Date(timestamp);
+    // Lấy giờ UTC
+    const utcHours = date.getUTCHours();
+    const utcMinutes = date.getUTCMinutes();
+    const utcSeconds = date.getUTCSeconds();
+    const utcDay = date.getUTCDate();
+    const utcMonth = date.getUTCMonth() + 1;
+    const utcYear = date.getUTCFullYear();
+
+    // Tính local time từ UTC + offset
+    // offset từ getTimezoneOffset() có dấu ngược: UTC+7 -> offset = -420
+    // local = UTC + (-offset/60)
+    const offsetHours = timezoneOffset !== undefined && timezoneOffset !== null
+      ? -parseInt(timezoneOffset, 10) / 60
+      : 0;
+
+    // Tính local time với ngày chính xác (có thể chuyển ngày)
+    const totalMinutes = utcHours * 60 + utcMinutes + Math.round(offsetHours * 60);
+    const totalSeconds = utcSeconds;
+
+    // Normalize: ngày có thể thay đổi nếu qua nửa đêm
+    const dayOffset = Math.floor(totalMinutes / 1440);
+    const normalizedMinutes = ((totalMinutes % 1440) + 1440) % 1440;
+
+    hours = Math.floor(normalizedMinutes / 60);
+    minutes = normalizedMinutes % 60;
+    seconds = totalSeconds;
+
+    // Tính ngày mới
+    const baseDate = new Date(Date.UTC(utcYear, utcMonth - 1, utcDay));
+    baseDate.setUTCDate(baseDate.getUTCDate() + dayOffset);
+    day = baseDate.getUTCDate();
+    month = baseDate.getUTCMonth() + 1;
+    year = baseDate.getUTCFullYear();
   }
 
-  const date = adjustedTimestamp instanceof Date ? adjustedTimestamp : new Date(adjustedTimestamp || Date.now());
-  const day = String(date.getUTCDate()).padStart(2, "0");
-  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-  const year = date.getUTCFullYear();
-  const hours = String(date.getUTCHours()).padStart(2, "0");
-  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-  const seconds = String(date.getUTCSeconds()).padStart(2, "0");
-  return `${day}.${month}.${year} ${hours}:${minutes}:${seconds}`;
+  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 /**

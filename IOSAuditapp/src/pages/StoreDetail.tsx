@@ -97,7 +97,7 @@ const formatDateKey = (value: string | Date) => {
   const date = typeof value === "string" ? new Date(value) : value;
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
     2,
-    "0"
+    "0",
   )}-${String(date.getDate()).padStart(2, "0")}`;
 };
 
@@ -133,7 +133,7 @@ const getAuditStatusStyle = (result: string) => {
 const compressImage = (
   dataUrl: string,
   maxWidth: number,
-  quality: number
+  quality: number,
 ): Promise<Blob> => {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -168,7 +168,7 @@ const compressImage = (
           }
         },
         "image/jpeg",
-        quality
+        quality,
       );
     };
     img.onerror = reject;
@@ -198,10 +198,10 @@ export default function StoreDetail() {
   const [notes, setNotes] = useState("");
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(
-    null
+    null,
   );
   const [facingMode, setFacingMode] = useState<"environment" | "user">(
-    "environment"
+    "environment",
   );
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -215,7 +215,7 @@ export default function StoreDetail() {
   });
 
   const sortedAudits = [...userAudits].sort(
-    (a, b) => new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+    (a, b) => new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime(),
   );
   const showCameraSection = allowNewAudit || sortedAudits.length === 0;
 
@@ -251,13 +251,13 @@ export default function StoreDetail() {
       // Replace audits completely (don't merge) to prevent showing previous store's audits
       const sortedAudits = auditData.sort(
         (a: AuditHistory, b: AuditHistory) =>
-          new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+          new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime(),
       );
 
       // Kiểm tra lại id một lần nữa trước khi set audits
       if (id !== fetchStoreId) {
         console.log(
-          "Store ID changed before setting audits, ignoring response"
+          "Store ID changed before setting audits, ignoring response",
         );
         return;
       }
@@ -272,7 +272,7 @@ export default function StoreDetail() {
       // Kiểm tra lại id một lần nữa trước khi set allowNewAudit
       if (id !== fetchStoreId) {
         console.log(
-          "Store ID changed before setting allowNewAudit, ignoring response"
+          "Store ID changed before setting allowNewAudit, ignoring response",
         );
         return;
       }
@@ -323,7 +323,7 @@ export default function StoreDetail() {
     // Phải clear trước khi load pending uploads
     console.log(
       "[StoreDetail] Loading pending uploads for store:",
-      currentStoreId
+      currentStoreId,
     );
     setCapturedImages([undefined, undefined, undefined]);
     setNotes("");
@@ -336,7 +336,7 @@ export default function StoreDetail() {
     ) {
       console.log(
         "[StoreDetail] Defensive clear pending uploads for old store:",
-        previousStoreIdRef.current
+        previousStoreIdRef.current,
       );
       // Xóa lại một lần nữa để đảm bảo (defensive)
       clearPendingUploadsForStore(previousStoreIdRef.current);
@@ -388,7 +388,7 @@ export default function StoreDetail() {
         ) {
           console.log(
             "[StoreDetail] Adding optimistic audit for pending upload, storeId:",
-            pending.storeId
+            pending.storeId,
           );
           // QUAN TRỌNG: Đảm bảo capturedImages vẫn được clear (defensive)
           setCapturedImages([undefined, undefined, undefined]);
@@ -473,7 +473,7 @@ export default function StoreDetail() {
                 // Kiểm tra lại xem đã upload chưa (double check)
                 if (uploadedAuditIdsRef.current.has(pending.auditId)) {
                   console.log(
-                    "Audit already uploaded (double check), skipping"
+                    "Audit already uploaded (double check), skipping",
                   );
                   removePendingUpload(currentStoreId, pending.auditId);
                   return;
@@ -490,7 +490,7 @@ export default function StoreDetail() {
                     timestamp: string;
                     timezoneOffset: number;
                   },
-                  index: number
+                  index: number,
                 ) => {
                   const formData = new FormData();
                   const blob = await fetch(img.dataUrl).then((r) => r.blob());
@@ -501,7 +501,7 @@ export default function StoreDetail() {
                   formData.append("timestamp", img.timestamp);
                   formData.append(
                     "timezoneOffset",
-                    img.timezoneOffset.toString()
+                    img.timezoneOffset.toString(),
                   );
 
                   return api.post("/images/upload", formData, {
@@ -513,20 +513,22 @@ export default function StoreDetail() {
 
                 // Upload tất cả ảnh pending ở background (parallel, dynamic)
                 const uploadResults = await Promise.allSettled(
-                  pending.images.map((image, index) => uploadImage(image, index))
+                  pending.images.map((image, index) =>
+                    uploadImage(image, index),
+                  ),
                 );
 
                 const successCount = uploadResults.filter(
-                  (result) => result.status === "fulfilled"
+                  (result) => result.status === "fulfilled",
                 ).length;
                 const failedCount = uploadResults.filter(
-                  (result) => result.status === "rejected"
+                  (result) => result.status === "rejected",
                 ).length;
                 const allSuccess = failedCount === 0;
 
                 if (failedCount > 0) {
                   console.warn(
-                    `Pending upload web: ${successCount} images uploaded successfully, ${failedCount} images failed`
+                    `Pending upload web: ${successCount} images uploaded successfully, ${failedCount} images failed`,
                   );
                 }
 
@@ -561,18 +563,23 @@ export default function StoreDetail() {
                             console.warn(
                               "Error revoking blob URL:",
                               img.dataUrl,
-                              revokeError
+                              revokeError,
                             );
                             // Không throw, chỉ log warning
                           }
                         }
                       }
                     } catch (cleanupError) {
-                      console.warn("Error cleaning up blob URLs:", cleanupError);
+                      console.warn(
+                        "Error cleaning up blob URLs:",
+                        cleanupError,
+                      );
                       // Không throw, chỉ log warning
                     }
                   } else {
-                    console.warn("Keeping pending upload due to failed image(s)");
+                    console.warn(
+                      "Keeping pending upload due to failed image(s)",
+                    );
                   }
 
                   // Refresh để cập nhật ảnh từ server (chỉ nếu storeId vẫn khớp)
@@ -637,7 +644,7 @@ export default function StoreDetail() {
       "[StoreDetail] Clearing state for store:",
       currentStoreId,
       "Previous:",
-      previousStoreIdRef.current
+      previousStoreIdRef.current,
     );
     promptedDateRef.current = null;
     setCapturedImages([undefined, undefined, undefined]);
@@ -655,7 +662,7 @@ export default function StoreDetail() {
     ) {
       console.log(
         "[StoreDetail] Clearing pending uploads for old store:",
-        previousStoreIdRef.current
+        previousStoreIdRef.current,
       );
       // Xóa pending uploads khỏi storage (synchronous)
       clearPendingUploadsForStore(previousStoreIdRef.current);
@@ -665,7 +672,7 @@ export default function StoreDetail() {
         const oldPending = getPendingUploadForStore(previousStoreIdRef.current);
         if (oldPending) {
           console.log(
-            "[StoreDetail] Found old pending upload, revoking blob URLs"
+            "[StoreDetail] Found old pending upload, revoking blob URLs",
           );
           for (const img of oldPending.images) {
             if (img.dataUrl && img.dataUrl.startsWith("blob:")) {
@@ -699,10 +706,10 @@ export default function StoreDetail() {
     });
     const sortedUserAudits = [...userAudits].sort(
       (a, b) =>
-        new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime()
+        new Date(b.AuditDate).getTime() - new Date(a.AuditDate).getTime(),
     );
     const hasUserTodayAudit = sortedUserAudits.some((audit) =>
-      isSameDay(audit.AuditDate, new Date())
+      isSameDay(audit.AuditDate, new Date()),
     );
 
     if (sortedUserAudits.length === 0) {
@@ -755,7 +762,7 @@ export default function StoreDetail() {
         (error) => {
           reject(error);
         },
-        { timeout: 10000, maximumAge: 60000 }
+        { timeout: 10000, maximumAge: 60000 },
       );
     });
   };
@@ -843,7 +850,7 @@ export default function StoreDetail() {
   const captureDirectFromVideo = async (
     video: HTMLVideoElement,
     width: number,
-    height: number
+    height: number,
   ): Promise<string> => {
     // Wait a bit more to ensure current frame is fully rendered
     await new Promise((resolve) => setTimeout(resolve, 200));
@@ -997,7 +1004,7 @@ export default function StoreDetail() {
         } catch (imageCaptureError) {
           console.warn(
             "ImageCapture API failed, using direct canvas capture:",
-            imageCaptureError
+            imageCaptureError,
           );
           // Fall through to direct canvas capture from visible video
           dataUrl = await captureDirectFromVideo(video, width, height);
@@ -1066,7 +1073,7 @@ export default function StoreDetail() {
     img: CapturedImage,
     auditId: number,
     index: number,
-    maxRetries = 2
+    maxRetries = 2,
   ): Promise<boolean> => {
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
@@ -1094,7 +1101,7 @@ export default function StoreDetail() {
           `Background upload attempt ${attempt + 1} failed for image ${
             index + 1
           }:`,
-          error
+          error,
         );
 
         if (attempt < maxRetries) {
@@ -1102,7 +1109,7 @@ export default function StoreDetail() {
           const baseDelay = 1000 * (attempt + 1);
           const jitter = Math.floor(Math.random() * 400);
           await new Promise((resolve) =>
-            setTimeout(resolve, baseDelay + jitter)
+            setTimeout(resolve, baseDelay + jitter),
           );
         }
       }
@@ -1112,7 +1119,7 @@ export default function StoreDetail() {
     console.error(
       `Background upload failed for image ${index + 1} after ${
         maxRetries + 1
-      } attempts`
+      } attempts`,
     );
     return false;
   };
@@ -1122,7 +1129,7 @@ export default function StoreDetail() {
 
     // Filter out undefined images
     const imagesToUpload = capturedImages.filter(
-      (img): img is CapturedImage => img !== undefined
+      (img): img is CapturedImage => img !== undefined,
     );
 
     if (imagesToUpload.length !== 3) {
@@ -1186,12 +1193,12 @@ export default function StoreDetail() {
           const batch = imagesToUpload.slice(i, i + 2);
           const batchResults = await Promise.all(
             batch.map((img, batchIdx) =>
-              uploadImageWithRetry(img, auditId, i + batchIdx)
-            )
+              uploadImageWithRetry(img, auditId, i + batchIdx),
+            ),
           );
           uploadResults.push(...batchResults);
           console.log(
-            `[Upload Progress Web] ${uploadResults.filter(Boolean).length}/${imagesToUpload.length} ảnh đã upload thành công`
+            `[Upload Progress Web] ${uploadResults.filter(Boolean).length}/${imagesToUpload.length} ảnh đã upload thành công`,
           );
         }
 
@@ -1201,7 +1208,7 @@ export default function StoreDetail() {
         // Nếu còn ảnh lỗi, lưu lại pending để retry lần sau
         if (failedCount > 0) {
           const failedImages = imagesToUpload.filter(
-            (_, idx) => !uploadResults[idx]
+            (_, idx) => !uploadResults[idx],
           );
 
           savePendingUpload(
@@ -1214,11 +1221,11 @@ export default function StoreDetail() {
               timestamp: img.timestamp,
               timezoneOffset: img.timezoneOffset,
             })),
-            notes.trim() || ""
+            notes.trim() || "",
           );
 
           console.warn(
-            `Web upload incomplete: ${successCount}/${imagesToUpload.length} uploaded, ${failedCount} pending retry`
+            `Web upload incomplete: ${successCount}/${imagesToUpload.length} uploaded, ${failedCount} pending retry`,
           );
         } else {
           // Thành công toàn bộ thì dọn pending cùng auditId
@@ -1637,7 +1644,7 @@ export default function StoreDetail() {
                           | "small"
                           | "medium"
                           | "large"
-                          | "original" = "medium"
+                          | "original" = "medium",
                       ) => {
                         // Ưu tiên dùng optimizedUrls nếu có
                         if (image.optimizedUrls) {

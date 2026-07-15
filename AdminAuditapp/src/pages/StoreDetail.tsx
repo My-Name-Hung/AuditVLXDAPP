@@ -76,18 +76,16 @@ export default function StoreDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const locationState = location.state as
-    | {
-        store?: Store;
-        from?: string;
-        userId?: string;
-        startDate?: string;
-        endDate?: string;
-        storeName?: string;
-        territoryId?: string;
-        territoryName?: string;
-      }
-    | null;
+  const locationState = location.state as {
+    store?: Store;
+    from?: string;
+    userId?: string;
+    startDate?: string;
+    endDate?: string;
+    storeName?: string;
+    territoryId?: string;
+    territoryName?: string;
+  } | null;
   const preloadedStore = locationState?.store;
   const navigationSource = locationState?.from;
   const userIdFromState = locationState?.userId
@@ -97,7 +95,7 @@ export default function StoreDetail() {
     ? {
         ...preloadedStore,
         userStatuses: (preloadedStore.userStatuses || []).filter(
-          (status: UserStatus) => status.Status !== "not_audited"
+          (status: UserStatus) => status.Status !== "not_audited",
         ),
       }
     : null;
@@ -143,7 +141,7 @@ export default function StoreDetail() {
   const [downloadingImage, setDownloadingImage] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(
-    userIdFromState
+    userIdFromState,
   );
   const [userSelectModalOpen, setUserSelectModalOpen] = useState(false);
   const isInitialMount = useRef(true);
@@ -187,7 +185,7 @@ export default function StoreDetail() {
 
   const fetchStoreDetail = async (
     showLoading = false,
-    userId?: number | null
+    userId?: number | null,
   ) => {
     try {
       if (showLoading) {
@@ -205,7 +203,7 @@ export default function StoreDetail() {
       const res = await api.get(`/stores/${id}`, { params });
       const data = res.data;
       const filteredUserStatuses = (data.userStatuses || []).filter(
-        (status: UserStatus) => status.Status !== "not_audited"
+        (status: UserStatus) => status.Status !== "not_audited",
       );
       setStore({
         Id: data.Id,
@@ -248,17 +246,17 @@ export default function StoreDetail() {
           setUserSelectModalOpen(false);
           // Set selectedAuditId to first audit of selected user
           const userAudits = auditsData.filter(
-            (audit: Audit) => audit.UserId === userId
+            (audit: Audit) => audit.UserId === userId,
           );
           setSelectedAuditId(
-            userAudits.length > 0 ? userAudits[0].AuditId : null
+            userAudits.length > 0 ? userAudits[0].AuditId : null,
           );
         } else if (selectedUserId) {
           // User was already selected before - keep selection, don't show modal
           setUserSelectModalOpen(false);
           // Update selectedAuditId to first audit of selected user if current one is invalid
           const userAudits = auditsData.filter(
-            (audit: Audit) => audit.UserId === selectedUserId
+            (audit: Audit) => audit.UserId === selectedUserId,
           );
           setSelectedAuditId((prev) => {
             if (
@@ -277,7 +275,7 @@ export default function StoreDetail() {
         hasSelectedUserRef.current = true;
         // Set selectedAuditId to first audit
         setSelectedAuditId(
-          auditsData.length > 0 ? auditsData[0].AuditId : null
+          auditsData.length > 0 ? auditsData[0].AuditId : null,
         );
       } else {
         // No users - don't show modal
@@ -338,7 +336,7 @@ export default function StoreDetail() {
 
   // Extract coordinates from image URL or use store coordinates
   const getImageCoordinates = (
-    image: Image
+    image: Image,
   ): { lat: number | null; lon: number | null } => {
     // Use stored coordinates if available
     if (image.Latitude && image.Longitude) {
@@ -352,10 +350,18 @@ export default function StoreDetail() {
   };
 
   // Helper function để lấy URL tối ưu cho ảnh
-  const getOptimizedImageUrl = (image: Image, size: 'thumbnail' | 'small' | 'medium' | 'large' | 'original' = 'large') => {
+  const getOptimizedImageUrl = (
+    image: Image,
+    size: "thumbnail" | "small" | "medium" | "large" | "original" = "large",
+  ) => {
     // Ưu tiên dùng optimizedUrls nếu có
     if (image.optimizedUrls) {
-      return image.optimizedUrls[size] || image.optimizedUrls.large || image.optimizedUrl || image.ImageUrl;
+      return (
+        image.optimizedUrls[size] ||
+        image.optimizedUrls.large ||
+        image.optimizedUrl ||
+        image.ImageUrl
+      );
     }
     // Fallback về optimizedUrl nếu có
     if (image.optimizedUrl) {
@@ -368,7 +374,7 @@ export default function StoreDetail() {
   const handleImageClick = (image: Image, index: number) => {
     const coords = getImageCoordinates(image);
     // Sử dụng optimized URL cho full size view
-    const imageUrl = getOptimizedImageUrl(image, 'large');
+    const imageUrl = getOptimizedImageUrl(image, "large");
     setSelectedImage({
       url: imageUrl,
       lat: coords.lat,
@@ -380,7 +386,7 @@ export default function StoreDetail() {
   };
   const handleShowImageByIndex = (nextIndex: number) => {
     const currentAudit = userFilteredAudits.find(
-      (a) => a.AuditId === selectedAuditId
+      (a) => a.AuditId === selectedAuditId,
     );
     const images = currentAudit?.Images || [];
     if (images.length === 0) return;
@@ -584,7 +590,7 @@ export default function StoreDetail() {
         isOpen: true,
         type: "success",
         message: `Đã cập nhật trạng thái cửa hàng thành "${getStatusLabel(
-          updatedStatus
+          updatedStatus,
         )}" thành công.`,
       });
     } catch (error: unknown) {
@@ -646,7 +652,7 @@ export default function StoreDetail() {
 
   if (selectedUserId && store?.userStatuses) {
     const userStatus = store.userStatuses.find(
-      (us) => us.UserId === selectedUserId
+      (us) => us.UserId === selectedUserId,
     );
     if (userStatus) {
       effectiveStatus = userStatus.Status;
@@ -674,7 +680,7 @@ export default function StoreDetail() {
   const filteredAudits = userFilteredAudits.filter((audit) =>
     formatAuditDateTime(audit.AuditDate)
       .toLowerCase()
-      .includes(auditDateSearch.toLowerCase())
+      .includes(auditDateSearch.toLowerCase()),
   );
 
   const handleUserSelect = async (userId: number) => {
@@ -725,7 +731,7 @@ export default function StoreDetail() {
               navigate(
                 `/dashboard/user/${locationState.userId}${
                   queryString ? `?${queryString}` : ""
-                }`
+                }`,
               );
             } else {
               // Navigate back to Stores list
@@ -909,7 +915,7 @@ export default function StoreDetail() {
                   return (
                     <div key={`${image.Id}-${index}`} className="image-card">
                       <img
-                        src={getOptimizedImageUrl(image, 'medium')}
+                        src={getOptimizedImageUrl(image, "medium")}
                         alt={`Image ${image.Id}`}
                         onClick={() => handleImageClick(image, index)}
                         className="grid-image"
