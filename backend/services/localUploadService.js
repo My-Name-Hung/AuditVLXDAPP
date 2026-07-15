@@ -163,7 +163,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     .composite([
       {
         input: Buffer.from(watermarkSvg),
-        gravity: "southeast",
+        gravity: "northeast",
       },
     ])
     .jpeg({ quality: 90, progressive: true })
