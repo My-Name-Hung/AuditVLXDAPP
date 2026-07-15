@@ -33,8 +33,9 @@ const IMAGE_SIZES = {
   large: { width: 1200, height: 1200, quality: 85 },
 };
 
-// Watermark text settings
-const WATERMARK_FONT_SIZE = 14;
+  // Watermark dimensions
+  const WATERMARK_WIDTH = 400;
+  const WATERMARK_HEIGHT = 60; // approximate
 
 /**
  * Ensure upload directory exists
@@ -204,11 +205,14 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
 
       // Check image dimensions before applying watermark
       const resizedMeta = await sharp(resizedBuffer).metadata();
-      const minDimension = Math.min(resizedMeta.width || 0, resizedMeta.height || 0);
+      // Only apply watermark if image is larger than watermark in BOTH dimensions
+      const canApplyWatermark =
+        resizedMeta.width >= WATERMARK_WIDTH &&
+        resizedMeta.height >= WATERMARK_HEIGHT;
 
-      // Apply watermark only if image is large enough (min 300px)
+      // Apply watermark only if image is large enough
       let finalBuffer = resizedBuffer;
-      if (sizeName !== "thumbnail" && minDimension >= 300) {
+      if (sizeName !== "thumbnail" && canApplyWatermark) {
         const watermarkBuffer = Buffer.from(watermarkSvg);
         finalBuffer = await sharp(resizedBuffer)
           .composite([
@@ -262,7 +266,10 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     // Check dimensions before applying watermark
     const originalMeta = await sharp(optimizedOriginal).metadata();
     let watermarkedBuffer = optimizedOriginal;
-    if (Math.min(originalMeta.width || 0, originalMeta.height || 0) >= 300) {
+    if (
+      originalMeta.width >= WATERMARK_WIDTH &&
+      originalMeta.height >= WATERMARK_HEIGHT
+    ) {
       watermarkedBuffer = await sharp(optimizedOriginal)
         .composite([
           {
