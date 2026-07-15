@@ -132,6 +132,13 @@ const uploadImage = async (req, res) => {
     // Frontend gửi timestamp là giờ local, cần chuyển về UTC
     const capturedAtDate = parseLocalTimestampToUTC(timestamp, timezoneOffsetNum);
 
+    console.log("📸 Image upload debug:", {
+      receivedTimestamp: timestamp,
+      timezoneOffset: timezoneOffsetNum,
+      parsedLocal: new Date(timestamp).toISOString(),
+      convertedUtc: capturedAtDate.toISOString()
+    });
+
     // Save to database
     const image = await Image.create({
       AuditId: parsedAuditId,
