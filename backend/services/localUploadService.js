@@ -4,8 +4,10 @@ const fs = require("fs").promises;
 const { getProvinceDistrict } = require("./geocodingService");
 
 // Upload directory - configurable via environment
-const UPLOAD_DIR = process.env.UPLOAD_DIR || path.join(__dirname, "..", "uploads");
-const BASE_URL = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+const UPLOAD_DIR =
+  process.env.UPLOAD_DIR || path.join(__dirname, "..", "uploads");
+const BASE_URL =
+  process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
 
 // Auto-detect BASE_URL from request if behind proxy/load balancer
 function getBaseUrl(req) {
@@ -15,9 +17,10 @@ function getBaseUrl(req) {
 
   if (forwardedHost) {
     const protocol = forwardedProto || "https";
-    const port = forwardedPort && forwardedPort !== "80" && forwardedPort !== "443"
-      ? `:${forwardedPort}`
-      : "";
+    const port =
+      forwardedPort && forwardedPort !== "80" && forwardedPort !== "443"
+        ? `:${forwardedPort}`
+        : "";
     return `${protocol}://${forwardedHost}${port}`;
   }
 
@@ -38,13 +41,19 @@ async function ensureUploadDir() {
 
 /**
  * Format timestamp for watermark (convert UTC to local time)
+ * Format: DD-MM-YYYY HH:MM:SS (Vietnam time)
  */
 function formatTimestamp(timestamp, timezoneOffset) {
   // timestamp là UTC ISO string, timezoneOffset từ JS getTimezoneOffset()
-  // VD: 15:16:44 local (UTC+7) gửi lên -> timestamp = UTC 08:16:44, offset = -420
-  // Công thức: localHours = utcHours + (-offset/60) = 8 + 7 = 15 ✓
+  // VD: 21:39:00 local (UTC+7) gửi lên -> timestamp = UTC 14:39:00Z, offset = -420
+  // Công thức: localHours = utcHours + (-offset/60) = 14 + 7 = 21 ✓
 
-  let hours = 0, minutes = 0, seconds = 0, day = 1, month = 1, year = 2026;
+  let hours = 0,
+    minutes = 0,
+    seconds = 0,
+    day = 1,
+    month = 1,
+    year = 2026;
 
   if (timestamp) {
     const date = new Date(timestamp);
@@ -59,12 +68,14 @@ function formatTimestamp(timestamp, timezoneOffset) {
     // Tính local time từ UTC + offset
     // offset từ getTimezoneOffset() có dấu ngược: UTC+7 -> offset = -420
     // local = UTC + (-offset/60)
-    const offsetHours = timezoneOffset !== undefined && timezoneOffset !== null
-      ? -parseInt(timezoneOffset, 10) / 60
-      : 0;
+    const offsetHours =
+      timezoneOffset !== undefined && timezoneOffset !== null
+        ? -parseInt(timezoneOffset, 10) / 60
+        : 0;
 
     // Tính local time với ngày chính xác (có thể chuyển ngày)
-    const totalMinutes = utcHours * 60 + utcMinutes + Math.round(offsetHours * 60);
+    const totalMinutes =
+      utcHours * 60 + utcMinutes + Math.round(offsetHours * 60);
     const totalSeconds = utcSeconds;
 
     // Normalize: ngày có thể thay đổi nếu qua nửa đêm
@@ -83,7 +94,8 @@ function formatTimestamp(timestamp, timezoneOffset) {
     year = baseDate.getUTCFullYear();
   }
 
-  return `${String(day).padStart(2, "0")}.${String(month).padStart(2, "0")}.${year} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  // Format: DD-MM-YYYY HH:MM:SS
+  return `${String(day).padStart(2, "0")}-${String(month).padStart(2, "0")}-${year} ${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
 }
 
 /**
@@ -99,42 +111,75 @@ function escapeXml(str) {
 }
 
 /**
- * Create SVG watermark with location info (responsive to image size)
+ * Create SVG watermark with location info (optimized for readability)
+ * Watermark size adapts to image dimensions but stays within readable bounds
  */
 function createWatermarkSvg(metadata) {
-  const { latitude, longitude, timestamp, timezoneOffset, province, district, width = 300, height = 50 } = metadata;
+  const {
+    latitude,
+    longitude,
+    timestamp,
+    timezoneOffset,
+    province,
+    district,
+    imageWidth = 1920,
+    imageHeight = 1080,
+  } = metadata;
 
-  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
-  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
-  const latValue = latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
-  const lonValue = lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
+  const latNum =
+    latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum =
+    longitude !== null && longitude !== undefined
+      ? parseFloat(longitude)
+      : null;
+  const latValue =
+    latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
+  const lonValue =
+    lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
 
   const timeString = formatTimestamp(timestamp, timezoneOffset);
-  const locationText = province && district
-    ? `T: ${province} - H: ${district}`
-    : province
-      ? `T: ${province}`
-      : district
-        ? `H: ${district}`
-        : "";
+  const locationText =
+    province && district
+      ? `${province} - ${district}`
+      : province
+        ? province
+        : district
+          ? district
+          : "";
 
+  // Build lines for watermark
   const lines = [
-    `Lat: ${latValue}  Long: ${lonValue}  ${timeString}`,
-    locationText,
-  ].filter(line => line.length > 0);
+    { text: `Lat: ${latValue}  Long: ${lonValue}`, primary: true },
+    { text: timeString, primary: true },
+  ];
 
-  const fontSize = Math.max(10, Math.min(14, Math.floor(width / 40)));
-  const lineHeight = fontSize + 4;
-  const padding = 6;
+  if (locationText) {
+    lines.push({ text: locationText, primary: false });
+  }
+
+  // Calculate optimal font size based on image dimensions
+  // Font size: 16px for small images, up to 22px for large images
+  const minImageDimension = Math.min(imageWidth, imageHeight);
+  const maxFontSize = Math.max(16, Math.min(22, Math.floor(minImageDimension / 80)));
+  const fontSize = maxFontSize;
+
+  // Watermark dimensions - proportional to image but capped
+  const wmWidth = Math.max(300, Math.min(500, Math.floor(imageWidth * 0.35)));
+  const lineHeight = Math.floor(fontSize * 1.4);
+  const padding = 12;
   const textHeight = lines.length * lineHeight;
   const rectHeight = textHeight + padding * 2;
 
-  const svgLines = lines.map((line, i) =>
-    `<text x="${padding}" y="${padding + fontSize + 2 + i * lineHeight}" fill="white" font-family="Arial" font-size="${fontSize}" font-weight="bold">${escapeXml(line)}</text>`
-  ).join("\n");
+  // Create SVG lines
+  const svgLines = lines
+    .map(
+      (line, i) =>
+        `<text x="${padding}" y="${padding + fontSize + 2 + i * lineHeight}" fill="white" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="${line.primary ? "bold" : "normal"}">${escapeXml(line.text)}</text>`,
+    )
+    .join("\n");
 
-  return `<svg width="${width}" height="${rectHeight}">
-    <rect x="0" y="0" width="${width}" height="${rectHeight}" fill="rgba(0,0,0,0.6)"/>
+  return `<svg width="${wmWidth}" height="${rectHeight}">
+    <rect x="0" y="0" width="${wmWidth}" height="${rectHeight}" fill="rgba(0,0,0,0.75)" rx="4" ry="4"/>
     ${svgLines}
   </svg>`;
 }
@@ -153,18 +198,18 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   const { latitude, longitude, timestamp, timezoneOffset } = metadata;
 
   // Get province and district from coordinates
-  const latNum = latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
-  const lonNum = longitude !== null && longitude !== undefined ? parseFloat(longitude) : null;
+  const latNum =
+    latitude !== null && latitude !== undefined ? parseFloat(latitude) : null;
+  const lonNum =
+    longitude !== null && longitude !== undefined
+      ? parseFloat(longitude)
+      : null;
   const { province, district } = await getProvinceDistrict(latNum, lonNum);
 
-  // Get original dimensions for responsive watermark
+  // Get original dimensions for watermark sizing
   const originalMeta = await sharp(imageBuffer).metadata();
 
-  // Calculate watermark size based on image dimensions (responsive)
-  const wmWidth = Math.min(400, Math.max(200, Math.floor(originalMeta.width * 0.4)));
-  const wmHeight = Math.min(80, Math.max(30, Math.floor(originalMeta.height * 0.12)));
-
-  // Create watermark SVG with responsive dimensions
+  // Create watermark SVG with actual image dimensions for proper sizing
   const watermarkSvg = createWatermarkSvg({
     latitude: latNum,
     longitude: lonNum,
@@ -172,8 +217,8 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     timezoneOffset,
     province,
     district,
-    width: wmWidth,
-    height: wmHeight,
+    imageWidth: originalMeta.width,
+    imageHeight: originalMeta.height,
   });
 
   // Generate unique filename
@@ -191,7 +236,9 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     .composite([
       {
         input: Buffer.from(watermarkSvg),
-        gravity: "northeast",
+        gravity: "southeast", // Watermark ở góc dưới bên phải
+        left: 10, // Cách mép 10px
+        top: 10,  // Cách mép 10px
       },
     ])
     .jpeg({ quality: 90, progressive: true })
@@ -205,6 +252,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   const url = `${BASE_URL}/uploads/${baseFilename}/image.jpg`;
 
   console.log(`✅ Saved image with watermark: ${url}`);
+  console.log(`   Image size: ${originalMeta.width}x${originalMeta.height}`);
 
   return {
     baseFilename,
