@@ -158,15 +158,15 @@ function createWatermarkSvg(metadata) {
   }
 
   // Calculate optimal font size based on image dimensions
-  // Font size: 16px for small images, up to 22px for large images
+  // Font size: 28px for small images, up to 48px for large images (tăng từ 16-22 lên 28-48)
   const minImageDimension = Math.min(imageWidth, imageHeight);
-  const maxFontSize = Math.max(16, Math.min(22, Math.floor(minImageDimension / 80)));
+  const maxFontSize = Math.max(28, Math.min(48, Math.floor(minImageDimension / 50)));
   const fontSize = maxFontSize;
 
-  // Watermark dimensions - proportional to image but capped
-  const wmWidth = Math.max(300, Math.min(500, Math.floor(imageWidth * 0.35)));
+  // Watermark dimensions - proportional to image but capped (tăng từ 300-500 lên 500-900)
+  const wmWidth = Math.max(500, Math.min(900, Math.floor(imageWidth * 0.5)));
   const lineHeight = Math.floor(fontSize * 1.4);
-  const padding = 12;
+  const padding = 18;
   const textHeight = lines.length * lineHeight;
   const rectHeight = textHeight + padding * 2;
 
