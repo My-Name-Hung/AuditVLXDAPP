@@ -157,19 +157,20 @@ function createWatermarkSvg(metadata) {
     lines.push({ text: locationText, primary: false });
   }
 
-  // Calculate font size (fixed at 24px for readability)
-  const fontSize = 24;
+  // Calculate font size - proportional to image but smaller for small images
+  // Font scales with image dimensions: min 16px, max 28px
+  const fontSize = Math.max(16, Math.min(28, Math.floor(imageWidth / 20)));
 
-  // Watermark dimensions - proportional to image but capped
-  // MUST be smaller than image dimensions (max 80% width, 25% height)
-  const maxWmWidth = Math.floor(imageWidth * 0.8);
-  const maxWmHeight = Math.floor(imageHeight * 0.25);
+  // Watermark dimensions - MUST be smaller than image dimensions
+  // Use percentage-based sizing: max 70% width, 20% height
+  const maxWmWidth = Math.floor(imageWidth * 0.7);
+  const maxWmHeight = Math.floor(imageHeight * 0.2);
   
-  // Calculate based on image size, but never exceed image dimensions
-  const baseWmWidth = Math.max(200, Math.min(400, Math.floor(imageWidth * 0.35)));
+  // Calculate base width: 30% of image, min 100px, max 300px
+  const baseWmWidth = Math.max(100, Math.min(300, Math.floor(imageWidth * 0.3)));
   const wmWidth = Math.min(baseWmWidth, maxWmWidth);
-  const lineHeight = Math.floor(fontSize * 1.5);
-  const padding = 10;
+  const lineHeight = Math.floor(fontSize * 1.4);
+  const padding = Math.max(6, Math.floor(fontSize * 0.4));
   const textHeight = lines.length * lineHeight;
   const rectHeight = Math.min(textHeight + padding * 2, maxWmHeight);
 
