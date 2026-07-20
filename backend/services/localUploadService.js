@@ -157,18 +157,21 @@ function createWatermarkSvg(metadata) {
     lines.push({ text: locationText, primary: false });
   }
 
-  // Calculate optimal font size based on image dimensions
-  // Font size: 28px for small images, up to 48px for large images (tăng từ 16-22 lên 28-48)
-  const minImageDimension = Math.min(imageWidth, imageHeight);
-  const maxFontSize = Math.max(28, Math.min(48, Math.floor(minImageDimension / 50)));
-  const fontSize = maxFontSize;
+  // Calculate font size (fixed at 24px for readability)
+  const fontSize = 24;
 
-  // Watermark dimensions - proportional to image but capped (tăng từ 300-500 lên 500-900)
-  const wmWidth = Math.max(500, Math.min(900, Math.floor(imageWidth * 0.5)));
-  const lineHeight = Math.floor(fontSize * 1.4);
-  const padding = 18;
+  // Watermark dimensions - proportional to image but capped
+  // MUST be smaller than image dimensions (max 80% width, 25% height)
+  const maxWmWidth = Math.floor(imageWidth * 0.8);
+  const maxWmHeight = Math.floor(imageHeight * 0.25);
+  
+  // Calculate based on image size, but never exceed image dimensions
+  const baseWmWidth = Math.max(200, Math.min(400, Math.floor(imageWidth * 0.35)));
+  const wmWidth = Math.min(baseWmWidth, maxWmWidth);
+  const lineHeight = Math.floor(fontSize * 1.5);
+  const padding = 10;
   const textHeight = lines.length * lineHeight;
-  const rectHeight = textHeight + padding * 2;
+  const rectHeight = Math.min(textHeight + padding * 2, maxWmHeight);
 
   // Create SVG lines
   const svgLines = lines
