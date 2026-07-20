@@ -111,8 +111,8 @@ function escapeXml(str) {
 }
 
 /**
- * Create SVG watermark with location info (optimized for readability)
- * Watermark size adapts to image dimensions but stays within readable bounds
+ * Create modern SVG watermark with user info, time, location
+ * Compact design with icon-like formatting
  */
 function createWatermarkSvg(metadata) {
   const {
@@ -122,6 +122,7 @@ function createWatermarkSvg(metadata) {
     timezoneOffset,
     province,
     district,
+    userName,
     imageWidth = 1920,
     imageHeight = 1080,
   } = metadata;
@@ -132,62 +133,64 @@ function createWatermarkSvg(metadata) {
     longitude !== null && longitude !== undefined
       ? parseFloat(longitude)
       : null;
-  const latValue =
-    latNum !== null && !isNaN(latNum) ? latNum.toFixed(6) : "N/A";
-  const lonValue =
-    lonNum !== null && !isNaN(lonNum) ? lonNum.toFixed(6) : "N/A";
 
   const timeString = formatTimestamp(timestamp, timezoneOffset);
+  
+  // Format location
   const locationText =
     province && district
-      ? `${province} - ${district}`
-      : province
-        ? province
-        : district
-          ? district
-          : "";
+      ? `${province}, ${district}`
+      : province || district || "";
 
-  // Build lines for watermark
+  // Build lines: user | time | coords | location (if exists)
   const lines = [
-    { text: `Lat: ${latValue}  Long: ${lonValue}`, primary: true },
-    { text: timeString, primary: true },
+    { text: `👤 ${userName || 'N/A'}`, primary: true },
+    { text: `🕐 ${timeString}`, primary: false },
   ];
 
-  if (locationText) {
-    lines.push({ text: locationText, primary: false });
+  // Add coordinates line
+  if (latNum !== null && lonNum !== null) {
+    lines.push({ text: `📍 ${latNum.toFixed(6)}, ${lonNum.toFixed(6)}`, primary: false });
   }
 
-  // Calculate font size - proportional to image: min 12px, max 24px
-  const fontSize = Math.max(12, Math.min(24, Math.floor(imageWidth / 40)));
+  // Add location if available
+  if (locationText) {
+    lines.push({ text: `🏪 ${locationText}`, primary: false });
+  }
 
-  // Estimate text width based on longest line and font size
-  // Average char width ≈ 60% of font size
-  const longestText = lines.reduce((max, line) => Math.max(max, line.text.length), 0);
-  const estimatedTextWidth = longestText * fontSize * 0.6;
+  // Calculate font size - responsive: min 11px, max 22px
+  const fontSize = Math.max(11, Math.min(22, Math.floor(imageWidth / 50)));
+
+  // Calculate dimensions based on content
+  const padding = Math.ceil(fontSize * 0.8);
+  const lineHeight = Math.ceil(fontSize * 1.4);
   
-  // Watermark width: fit text + padding, min 150px, max 90% of image
-  const padding = fontSize;
-  const wmWidth = Math.min(Math.max(estimatedTextWidth + padding * 2, 150), Math.floor(imageWidth * 0.9));
+  // Estimate width based on longest line (icons add ~2 chars visual width)
+  const longestText = lines.reduce((max, line) => Math.max(max, line.text.length + 2), 0);
+  const avgCharWidth = fontSize * 0.55;
+  const wmWidth = Math.min(
+    Math.max(longestText * avgCharWidth + padding * 2, 180),
+    Math.floor(imageWidth * 0.85)
+  );
   
-  // Watermark height: fit all lines
-  const lineHeight = Math.ceil(fontSize * 1.3);
-  const textHeight = lines.length * lineHeight;
-  const wmHeight = textHeight + padding * 2;
+  const wmHeight = lines.length * lineHeight + padding * 2;
   
-  // Limit height to 30% of image height
-  const maxWmHeight = Math.floor(imageHeight * 0.3);
-  const finalHeight = Math.min(wmHeight, maxWmHeight);
+  // Limit height to 35% of image
+  const maxHeight = Math.floor(imageHeight * 0.35);
+  const finalHeight = Math.min(wmHeight, maxHeight);
 
   // Create SVG lines
   const svgLines = lines
     .map(
       (line, i) =>
-        `<text x="${padding}" y="${padding + fontSize + (i * lineHeight)}" fill="white" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="${line.primary ? "bold" : "normal"}">${escapeXml(line.text)}</text>`,
+        `<text x="${padding}" y="${padding + fontSize + (i * lineHeight)}" 
+         fill="white" font-family="Arial, sans-serif" font-size="${fontSize}" 
+         font-weight="${line.primary ? "bold" : "normal"}">${escapeXml(line.text)}</text>`,
     )
     .join("\n");
 
   return `<svg width="${wmWidth}" height="${finalHeight}">
-    <rect x="0" y="0" width="${wmWidth}" height="${finalHeight}" fill="rgba(0,0,0,0.75)" rx="3" ry="3"/>
+    <rect x="0" y="0" width="${wmWidth}" height="${finalHeight}" fill="rgba(0,0,0,0.8)" rx="6" ry="6"/>
     ${svgLines}
   </svg>`;
 }
@@ -203,7 +206,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   // Ensure upload directory exists
   await ensureUploadDir();
 
-  const { latitude, longitude, timestamp, timezoneOffset } = metadata;
+  const { latitude, longitude, timestamp, timezoneOffset, userName, storeName } = metadata;
 
   // Get province and district from coordinates
   const latNum =
@@ -217,7 +220,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   // Get original dimensions for watermark sizing
   const originalMeta = await sharp(imageBuffer).metadata();
 
-  // Create watermark SVG with actual image dimensions for proper sizing
+  // Create watermark SVG with all metadata including user info
   const watermarkSvg = createWatermarkSvg({
     latitude: latNum,
     longitude: lonNum,
@@ -225,6 +228,7 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
     timezoneOffset,
     province,
     district,
+    userName,
     imageWidth: originalMeta.width,
     imageHeight: originalMeta.height,
   });
@@ -259,8 +263,12 @@ async function uploadImageWithWatermark(imageBuffer, metadata, options = {}) {
   // Generate URL
   const url = `${BASE_URL}/uploads/${baseFilename}/image.jpg`;
 
-  console.log(`✅ Saved image with watermark: ${url}`);
-  console.log(`   Image size: ${originalMeta.width}x${originalMeta.height}`);
+  // Log upload info with user and watermark details
+  console.log(`📸 [${userName || 'N/A'}] Uploaded image: ${url}`);
+  console.log(`   📐 Size: ${originalMeta.width}x${originalMeta.height}`);
+  console.log(`   🕐 Time: ${formatTimestamp(timestamp, timezoneOffset)}`);
+  console.log(`   📍 Location: ${province || 'N/A'}${district ? ', ' + district : ''}`);
+  console.log(`   🏪 Store: ${storeName || 'N/A'}`);
 
   return {
     baseFilename,

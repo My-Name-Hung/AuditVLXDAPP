@@ -16,22 +16,18 @@ function parseLocalTimestampToUTC(timestamp, timezoneOffset) {
   if (!timestamp) {
     return new Date();
   }
-  
+
   const date = new Date(timestamp);
   if (isNaN(date.getTime())) {
     return new Date();
   }
-  
+
   const offsetMinutes = timezoneOffset !== undefined && timezoneOffset !== null
     ? parseInt(timezoneOffset, 10)
     : 0;
-  
-  // Timestamp có suffix Z → là UTC time
-  // Cần chuyển UTC → local bằng cách cộng thêm offset
-  // VD: UTC 09:18, offset=-420 → local = 09:18 + 7 = 16:18
+
   const offsetHours = -offsetMinutes / 60;
-  
-  // Lấy UTC components
+
   const utcYear = date.getUTCFullYear();
   const utcMonth = date.getUTCMonth();
   const utcDay = date.getUTCDate();
@@ -39,11 +35,10 @@ function parseLocalTimestampToUTC(timestamp, timezoneOffset) {
   const utcMinutes = date.getUTCMinutes();
   const utcSeconds = date.getUTCSeconds();
   const utcMs = date.getUTCMilliseconds();
-  
-  // Chuyển UTC → local
+
   let localHours = utcHours + offsetHours;
   let adjustedDay = utcDay;
-  
+
   if (localHours < 0) {
     localHours += 24;
     adjustedDay -= 1;
@@ -51,11 +46,16 @@ function parseLocalTimestampToUTC(timestamp, timezoneOffset) {
     localHours -= 24;
     adjustedDay += 1;
   }
-  
-  // Tạo Date object với giờ local
-  // Dùng UTC constructor để không bị ảnh hưởng bởi timezone của server
-  return new Date(Date.UTC(utcYear, utcMonth, adjustedDay, 
+
+  return new Date(Date.UTC(utcYear, utcMonth, adjustedDay,
     Math.floor(localHours), utcMinutes, utcSeconds, utcMs));
+}
+
+function formatLocalTime(timestamp, timezoneOffset) {
+  if (!timestamp) return 'N/A';
+  const date = parseLocalTimestampToUTC(timestamp, timezoneOffset);
+  const pad = n => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
 const uploadImage = async (req, res) => {
@@ -101,11 +101,14 @@ const uploadImage = async (req, res) => {
       ? parseInt(timezoneOffset, 10)
       : null;
 
+    // Include user info in metadata for watermark
     const metadata = {
       latitude: latitudeNum,
       longitude: longitudeNum,
       timestamp: timestamp || new Date().toISOString(),
       timezoneOffset: timezoneOffsetNum,
+      userName: audit.UserName || 'Unknown',
+      storeName: audit.StoreName || 'Unknown',
     };
 
     // Upload image with watermark and get all responsive URLs
@@ -118,11 +121,14 @@ const uploadImage = async (req, res) => {
     // Frontend gửi timestamp là giờ local, cần chuyển về UTC
     const capturedAtDate = parseLocalTimestampToUTC(timestamp, timezoneOffsetNum);
 
-    console.log("📸 Image upload debug:", {
-      receivedTimestamp: timestamp,
-      timezoneOffset: timezoneOffsetNum,
-      parsedLocal: new Date(timestamp).toISOString(),
-      convertedUtc: capturedAtDate.toISOString()
+    console.log("📸 Image upload:", {
+      user: audit.UserName,
+      store: audit.StoreName,
+      auditId: parsedAuditId,
+      timestamp: formatLocalTime(timestamp, timezoneOffsetNum),
+      lat: latitudeNum,
+      lng: longitudeNum,
+      url: uploadResult.secure_url
     });
 
     // Save to database
