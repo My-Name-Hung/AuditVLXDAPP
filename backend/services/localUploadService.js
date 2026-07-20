@@ -157,33 +157,37 @@ function createWatermarkSvg(metadata) {
     lines.push({ text: locationText, primary: false });
   }
 
-  // Calculate font size - proportional to image but smaller for small images
-  // Font scales with image dimensions: min 16px, max 28px
-  const fontSize = Math.max(16, Math.min(28, Math.floor(imageWidth / 20)));
+  // Calculate font size - proportional to image: min 12px, max 24px
+  const fontSize = Math.max(12, Math.min(24, Math.floor(imageWidth / 40)));
 
-  // Watermark dimensions - MUST be smaller than image dimensions
-  // Use percentage-based sizing: max 70% width, 20% height
-  const maxWmWidth = Math.floor(imageWidth * 0.7);
-  const maxWmHeight = Math.floor(imageHeight * 0.2);
+  // Estimate text width based on longest line and font size
+  // Average char width ≈ 60% of font size
+  const longestText = lines.reduce((max, line) => Math.max(max, line.text.length), 0);
+  const estimatedTextWidth = longestText * fontSize * 0.6;
   
-  // Calculate base width: 30% of image, min 100px, max 300px
-  const baseWmWidth = Math.max(100, Math.min(300, Math.floor(imageWidth * 0.3)));
-  const wmWidth = Math.min(baseWmWidth, maxWmWidth);
-  const lineHeight = Math.floor(fontSize * 1.4);
-  const padding = Math.max(6, Math.floor(fontSize * 0.4));
+  // Watermark width: fit text + padding, min 150px, max 90% of image
+  const padding = fontSize;
+  const wmWidth = Math.min(Math.max(estimatedTextWidth + padding * 2, 150), Math.floor(imageWidth * 0.9));
+  
+  // Watermark height: fit all lines
+  const lineHeight = Math.ceil(fontSize * 1.3);
   const textHeight = lines.length * lineHeight;
-  const rectHeight = Math.min(textHeight + padding * 2, maxWmHeight);
+  const wmHeight = textHeight + padding * 2;
+  
+  // Limit height to 30% of image height
+  const maxWmHeight = Math.floor(imageHeight * 0.3);
+  const finalHeight = Math.min(wmHeight, maxWmHeight);
 
   // Create SVG lines
   const svgLines = lines
     .map(
       (line, i) =>
-        `<text x="${padding}" y="${padding + fontSize + 2 + i * lineHeight}" fill="white" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="${line.primary ? "bold" : "normal"}">${escapeXml(line.text)}</text>`,
+        `<text x="${padding}" y="${padding + fontSize + (i * lineHeight)}" fill="white" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="${line.primary ? "bold" : "normal"}">${escapeXml(line.text)}</text>`,
     )
     .join("\n");
 
-  return `<svg width="${wmWidth}" height="${rectHeight}">
-    <rect x="0" y="0" width="${wmWidth}" height="${rectHeight}" fill="rgba(0,0,0,0.75)" rx="4" ry="4"/>
+  return `<svg width="${wmWidth}" height="${finalHeight}">
+    <rect x="0" y="0" width="${wmWidth}" height="${finalHeight}" fill="rgba(0,0,0,0.75)" rx="3" ry="3"/>
     ${svgLines}
   </svg>`;
 }
