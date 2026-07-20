@@ -18,17 +18,21 @@ router.post('/test-upload', upload.single('image'), async (req, res) => {
       longitude,
       timestamp,
       timezoneOffset,
+      userName,
+      storeName,
     } = req.body;
 
     if (!req.file) {
       return res.status(400).json({ error: "Image file is required" });
     }
 
-    console.log('🧪 [TEST] Upload request received:');
-    console.log('   latitude:', latitude);
-    console.log('   longitude:', longitude);
-    console.log('   timestamp:', timestamp);
-    console.log('   timezoneOffset:', timezoneOffset);
+    console.log('🧪 [TEST] Upload request:', {
+      user: userName || 'N/A',
+      store: storeName || 'N/A',
+      lat: latitude,
+      lng: longitude,
+      time: timestamp
+    });
 
     // Parse numbers
     const latitudeNum = latitude ? parseFloat(latitude) : null;
@@ -42,6 +46,8 @@ router.post('/test-upload', upload.single('image'), async (req, res) => {
       longitude: longitudeNum,
       timestamp: timestamp || new Date().toISOString(),
       timezoneOffset: timezoneOffsetNum,
+      userName: userName || 'Test User',
+      storeName: storeName || 'Test Store',
     };
 
     // Upload image with watermark

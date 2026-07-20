@@ -11,10 +11,12 @@ const API_URL = 'https://api.ximangtaydo.vn';
 const TEST_API = '/api/images/test-upload';
 
 const imagePath = process.argv[2] || './test.jpg';
+const userName = process.argv[3] || 'Test User';
+const storeName = process.argv[4] || 'Test Store';
 
 if (!fs.existsSync(imagePath)) {
     console.error(`File not found: ${imagePath}`);
-    console.log('Usage: node test-upload.js <image_path>');
+    console.log('Usage: node test-upload.js <image_path> [userName] [storeName]');
     process.exit(1);
 }
 
@@ -22,6 +24,8 @@ const imageBuffer = fs.readFileSync(imagePath);
 const imageName = path.basename(imagePath);
 
 console.log(`Image: ${imageName} (${(imageBuffer.length / 1024).toFixed(2)} KB)`);
+console.log(`User: ${userName}`);
+console.log(`Store: ${storeName}`);
 
 // Get real current time
 const now = new Date();
@@ -41,7 +45,9 @@ const fields = {
     latitude: '10.823100',
     longitude: '106.629400',
     timestamp: currentTimestamp,
-    timezoneOffset: currentTimezoneOffset.toString()
+    timezoneOffset: currentTimezoneOffset.toString(),
+    userName: userName,
+    storeName: storeName,
 };
 
 for (const [key, value] of Object.entries(fields)) {
