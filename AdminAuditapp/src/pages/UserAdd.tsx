@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { HiArrowLeft } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
 import LoadingModal from "../components/LoadingModal";
-import MultiSelect from "../components/MultiSelect";
 import NotificationModal from "../components/NotificationModal";
 import Select from "../components/Select";
+import StorePickerModal from "../components/StorePickerModal";
 import api from "../services/api";
 import "./UserAdd.css";
 
@@ -526,19 +526,12 @@ export default function UserAdd() {
                   Đang tải danh sách cửa hàng...
                 </p>
               ) : (
-                <MultiSelect
+                <StorePickerModal
                   options={storeOptions}
                   selected={selectedStoreIds}
                   onChange={setSelectedStoreIds}
-                  placeholder="Chọn cửa hàng cần phân công"
+                  title="Chọn cửa hàng phân công"
                   itemLabel="cửa hàng"
-                  searchPlaceholder="Tìm cửa hàng theo tên, mã hoặc địa bàn..."
-                  enableSelectAll={true}
-                  selectAllLabel="Chọn tất cả cửa hàng"
-                  enableTerritoryFilter={true}
-                  territoryFilterLabel="Lọc theo địa bàn"
-                  selectAllTerritoriesLabel="Chọn tất cả trong địa bàn"
-                  allTerritoriesLabel="Tất cả địa bàn"
                 />
               )}
               {selectedStoreIds.length > 0 && (
