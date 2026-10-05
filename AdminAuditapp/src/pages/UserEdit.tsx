@@ -89,7 +89,7 @@ export default function UserEdit() {
   const initialStoreIds =
     preloadedUser?.AssignedStores?.map((store) => store.StoreId) || [];
   const [storeOptions, setStoreOptions] = useState<
-    { id: number; name: string }[]
+    { id: number; name: string; territoryName?: string | null }[]
   >([]);
   const [storeOptionsLoading, setStoreOptionsLoading] = useState(false);
   const [storeAssignmentMode, setStoreAssignmentMode] = useState<
@@ -132,9 +132,10 @@ export default function UserEdit() {
         if (Array.isArray(data)) {
           setStoreOptions(
             data.map(
-              (item: { Id: number; StoreName: string; StoreCode: string }) => ({
+              (item: { Id: number; StoreName: string; StoreCode: string; TerritoryName?: string | null }) => ({
                 id: item.Id,
                 name: `${item.StoreName} (${item.StoreCode})`,
+                territoryName: item.TerritoryName || null,
               }),
             ),
           );
@@ -571,9 +572,13 @@ export default function UserEdit() {
                   onChange={setSelectedStoreIds}
                   placeholder="Chọn cửa hàng cần phân công"
                   itemLabel="cửa hàng"
-                  searchPlaceholder="Tìm cửa hàng theo mã hoặc tên..."
-                  enableSelectAll
-                  selectAllLabel="Chọn toàn bộ trong danh sách"
+                  searchPlaceholder="Tìm cửa hàng theo tên, mã hoặc địa bàn..."
+                  enableSelectAll={true}
+                  selectAllLabel="Chọn tất cả cửa hàng"
+                  enableTerritoryFilter={true}
+                  territoryFilterLabel="Lọc theo địa bàn"
+                  selectAllTerritoriesLabel="Chọn tất cả trong địa bàn"
+                  allTerritoriesLabel="Tất cả địa bàn"
                 />
               )}
               {selectedStoreIds.length > 0 && (

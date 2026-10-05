@@ -103,3 +103,89 @@
   font-size: 0.875rem;
 }
 
+/* Territory filter */
+.multi-select__territory-filter {
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.multi-select__territory-filter select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  background: white;
+  cursor: pointer;
+  outline: none;
+  color: var(--text-primary);
+}
+
+.multi-select__territory-filter select:focus {
+  border-color: var(--primary-color);
+}
+
+/* Select all group */
+.multi-select__select-all-group {
+  border-bottom: 1px solid #e0e0e0;
+  padding: 0.25rem 0;
+}
+
+.multi-select__select-all-group .multi-select__select-all {
+  border-bottom: 1px dashed #e0e0e0;
+}
+
+.multi-select__select-all-group .multi-select__select-all:last-child {
+  border-bottom: none;
+}
+
+.multi-select__select-all-hint {
+  font-size: 0.75rem;
+  color: #999;
+  margin-left: 0.25rem;
+}
+
+/* Territory header (group header) */
+.multi-select__territory-header {
+  display: flex;
+  align-items: center;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--primary-color);
+  background: #f0f4ff;
+  border-top: 1px solid #e0e0e0;
+  border-bottom: 1px solid #e0e0e0;
+  margin-top: 0.25rem;
+}
+
+.multi-select__territory-header:first-child {
+  margin-top: 0;
+}
+
+.multi-select__territory-header input[type="checkbox"] {
+  accent-color: var(--primary-color);
+  margin-right: 0.5rem;
+}
+
+.multi-select__territory-name {
+  flex: 1;
+}
+
+.multi-select__option--indented {
+  padding-left: 2.5rem;
+}
+
+/* Store territory label in option */
+.multi-select__store-territory {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #888;
+  padding: 0.1rem 0.4rem;
+  background: #f0f0f0;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+

@@ -267,9 +267,10 @@ class Store {
   static async getStoreOptions() {
     const pool = await getPool();
     const result = await pool.request().query(`
-      SELECT Id, StoreCode, StoreName
-      FROM Stores
-      ORDER BY StoreName ASC
+      SELECT s.Id, s.StoreCode, s.StoreName, t.TerritoryName, s.TerritoryId
+      FROM Stores s
+      LEFT JOIN Territories t ON s.TerritoryId = t.Id
+      ORDER BY t.TerritoryName ASC, s.StoreName ASC
     `);
     return result.recordset;
   }

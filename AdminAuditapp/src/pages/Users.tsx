@@ -94,6 +94,13 @@ export default function Users() {
   const isFilterChangingRef = useRef(false);
   const abortControllerRef = useRef<AbortController | null>(null);
   const hasFetchedRef = useRef(false);
+  const pageRef = useRef(page);
+  const pageSizeRef = useRef(pageSize);
+  const filterChangedRef = useRef(false);
+
+  // Keep refs in sync with state
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => { pageSizeRef.current = pageSize; }, [pageSize]);
 
   const resetFilterChangingFlag = useCallback(() => {
     setTimeout(() => {
@@ -120,8 +127,8 @@ export default function Users() {
 
     try {
       const params: Record<string, string | number> = {
-        page,
-        pageSize,
+        page: pageRef.current,
+        pageSize: pageSizeRef.current,
         _t: Date.now(),
       };
 
@@ -162,8 +169,6 @@ export default function Users() {
       setIsSearching(false);
     }
   }, [
-    page,
-    pageSize,
     positionFilter,
     workPositionFilter,
     searchFilter,
@@ -179,12 +184,14 @@ export default function Users() {
     if (location.pathname === "/users") {
       fetchUsers();
     }
-  }, [location.pathname, fetchUsers]);
+  }, [location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    if (!hasFetchedRef.current) return;
     setPage(1); // Reset to first page when filters change
+    filterChangedRef.current = true;
     fetchUsers();
-  }, [positionFilter, workPositionFilter, fetchUsers]);
+  }, [positionFilter, workPositionFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Skip fetch if filter is changing to avoid race condition
@@ -192,7 +199,7 @@ export default function Users() {
       return;
     }
     fetchUsers();
-  }, [page, pageSize, fetchUsers]);
+  }, [page, pageSize]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounce search filter
   useEffect(() => {
@@ -731,7 +738,7 @@ export default function Users() {
       </div>
 
       {/* Pagination */}
-      {totalPages > 1 && (
+      {total > 0 && (
         <div className="pagination">
           <div className="pagination-info">
             Hiển thị {((page - 1) * pageSize + 1).toLocaleString()} -{" "}
@@ -742,31 +749,31 @@ export default function Users() {
             <button
               className="pagination-btn"
               onClick={() => setPage(1)}
-              disabled={page === 1}
+              disabled={page <= 1}
             >
               Đầu
             </button>
             <button
               className="pagination-btn"
               onClick={() => setPage(page - 1)}
-              disabled={page === 1}
+              disabled={page <= 1}
             >
               Trước
             </button>
             <span className="pagination-page">
-              Trang {page} / {totalPages}
+              Trang {page} / {totalPages || 1}
             </span>
             <button
               className="pagination-btn"
               onClick={() => setPage(page + 1)}
-              disabled={page === totalPages}
+              disabled={page >= (totalPages || 1)}
             >
               Sau
             </button>
             <button
               className="pagination-btn"
-              onClick={() => setPage(totalPages)}
-              disabled={page === totalPages}
+              onClick={() => setPage(totalPages || 1)}
+              disabled={page >= (totalPages || 1)}
             >
               Cuối
             </button>

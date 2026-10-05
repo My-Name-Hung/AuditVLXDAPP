@@ -130,7 +130,8 @@ export default function StoreEdit() {
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get("/users");
+      // pageSize=1000 to load ALL users (default API returns only 50)
+      const res = await api.get("/users?pageSize=1000");
       // API returns { data: users[], pagination: {...} }
       const usersData = res.data.data || res.data;
       setUsers(Array.isArray(usersData) ? usersData : []);

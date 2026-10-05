@@ -66,7 +66,8 @@ export default function StoreAdd() {
 
   const fetchUsers = async () => {
     try {
-      const res = await api.get("/users");
+      // pageSize=1000 to load ALL users (default API returns only 50)
+      const res = await api.get("/users?pageSize=1000");
       console.log("Users response:", res.data);
       // Handle both response formats: { data: [...] } or [...]
       const usersData = res.data.data || res.data || [];
