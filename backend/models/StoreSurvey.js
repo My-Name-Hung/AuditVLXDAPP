@@ -268,12 +268,12 @@ class StoreSurvey {
     }
 
     if (filters.dateFrom) {
-      query += " AND CAST(a.AuditDate AS DATE) >= @DateFrom";
+      query += " AND CAST(ss.CreatedAt AS DATE) >= @DateFrom";
       request.input("DateFrom", sql.Date, filters.dateFrom);
     }
 
     if (filters.dateTo) {
-      query += " AND CAST(a.AuditDate AS DATE) <= @DateTo";
+      query += " AND CAST(ss.CreatedAt AS DATE) <= @DateTo";
       request.input("DateTo", sql.Date, filters.dateTo);
     }
 
