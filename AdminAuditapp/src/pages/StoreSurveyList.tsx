@@ -25,6 +25,7 @@ interface StoreSurveyListItem {
   ImportExportQuantity: string | null;
   AuditDate: string | null;
   AuditNotes: string | null;
+  CreatedAt: string | null;
   AverageMonthlyConsumption?: number | null;
   StoreComment?: string | null;
   WhyNotSellNewProduct?: string | null;
@@ -236,18 +237,18 @@ export default function StoreSurveyList() {
       // Filter by date mode
       if (dateFilterMode === "week" && selectedWeek !== "all") {
         const weekNumber = parseInt(selectedWeek, 10);
-        if (!isDateInWeek(survey.AuditDate, weekNumber, currentYear)) {
+        if (!isDateInWeek(survey.CreatedAt, weekNumber, currentYear)) {
           return false;
         }
       }
       if (dateFilterMode === "day" && selectedDate) {
-        if (!survey.AuditDate) return false;
-        const auditDay = survey.AuditDate.split("T")[0];
+        if (!survey.CreatedAt) return false;
+        const auditDay = survey.CreatedAt.split("T")[0];
         if (auditDay !== selectedDate) return false;
       }
       if (dateFilterMode === "month" && selectedMonth) {
-        if (!survey.AuditDate) return false;
-        const d = new Date(survey.AuditDate);
+        if (!survey.CreatedAt) return false;
+        const d = new Date(survey.CreatedAt);
         const monthStr = String(d.getMonth() + 1).padStart(2, "0");
         if (monthStr !== selectedMonth || d.getFullYear() !== currentYear) {
           return false;
@@ -1081,10 +1082,10 @@ export default function StoreSurveyList() {
         });
 
         storeGroups.forEach((storeSurveys) => {
-          // Sort surveys by AuditDate to ensure consistent ordering
+          // Sort surveys by CreatedAt to ensure consistent ordering
           const sortedSurveys = [...storeSurveys].sort((a, b) => {
-            const dateA = a.AuditDate ? new Date(a.AuditDate).getTime() : 0;
-            const dateB = b.AuditDate ? new Date(b.AuditDate).getTime() : 0;
+            const dateA = a.CreatedAt ? new Date(a.CreatedAt).getTime() : 0;
+            const dateB = b.CreatedAt ? new Date(b.CreatedAt).getTime() : 0;
             return dateA - dateB;
           });
 
@@ -1130,7 +1131,7 @@ export default function StoreSurveyList() {
                   const row = sheet.addRow([
                     isFirstRow ? sttCounter : "",
                     storeName || "",
-                    formatDate(survey.AuditDate) || "",
+                    formatDate(survey.CreatedAt) || "",
                     (product.ContactPersonPhone || "").toString(),
                     (product.ProductType || "").toString(),
                     (product.CementProductName || "").toString(),
@@ -1245,7 +1246,7 @@ export default function StoreSurveyList() {
             selectedWeek === "all"
               ? true
               : isDateInWeek(
-                  survey.AuditDate,
+                  survey.CreatedAt,
                   parseInt(selectedWeek, 10),
                   currentYear
                 );
@@ -1303,7 +1304,7 @@ export default function StoreSurveyList() {
             const row2 = sheet.addRow([
               sttCounter2,
               (survey.StoreName || "").toString(),
-              formatDate(survey.AuditDate) || "",
+              formatDate(survey.CreatedAt) || "",
               (survey.WhyNotSellNewProduct || "").toString(),
               survey.TimeToSellNewProduct
                 ? formatDate(survey.TimeToSellNewProduct) || ""
@@ -1824,7 +1825,7 @@ export default function StoreSurveyList() {
                     >
                       <td>{globalIndex}</td>
                       <td>{survey.StoreName || "-"}</td>
-                      <td>{formatDate(survey.AuditDate) || "-"}</td>
+                      <td>{formatDate(survey.CreatedAt) || "-"}</td>
                       <td>{product?.ContactPersonPhone || "-"}</td>
                       <td>{product?.ProductType || "-"}</td>
                       <td>{product?.CementProductName || "-"}</td>
