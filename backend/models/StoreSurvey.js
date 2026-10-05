@@ -196,9 +196,35 @@ class StoreSurvey {
 
   static async findAll(filters = {}) {
     const pool = await getPool();
+
+    // DEBUG LOG
+    console.log("[StoreSurvey.findAll] filters:", JSON.stringify(filters, null, 2));
+
     let query = `
-      SELECT 
-        ss.*,
+      SELECT
+        ss.Id,
+        ss.StoreId,
+        ss.AuditId,
+        ss.UserId,
+        ss.CementProductId,
+        ss.ContactPerson,
+        ss.PurchasePrice,
+        ss.SellingPrice,
+        ss.SupplierName,
+        ss.RoadTransportFee,
+        ss.WaterTransportFee,
+        ss.ImportExportQuantity,
+        ss.StockQuantity,
+        ss.ConsumptionArea,
+        ss.DebtPeriod,
+        ss.CreatedAt,
+        ss.UpdatedAt,
+        ss.StoreComment,
+        ss.WhyNotSellNewProduct,
+        ss.TimeToSellNewProduct,
+        ss.NewProductImportQuantity,
+        ss.ImportedBySalesperson,
+        ss.NewProductSellingPrice,
         s.StoreCode,
         s.StoreName,
         t.TerritoryName,
@@ -310,6 +336,19 @@ class StoreSurvey {
     }
 
     const result = await request.query(query);
+
+    // DEBUG LOG - show record count and first few CreatedAt values
+    console.log("[StoreSurvey.findAll] Returned", result.recordset.length, "records");
+    if (result.recordset.length > 0) {
+      const sample = result.recordset.slice(0, 3).map(r => ({
+        Id: r.Id,
+        StoreName: r.StoreName,
+        CreatedAt: r.CreatedAt,
+        AuditDate: r.AuditDate
+      }));
+      console.log("[StoreSurvey.findAll] Sample records:", JSON.stringify(sample, null, 2));
+    }
+
     return result.recordset;
   }
 

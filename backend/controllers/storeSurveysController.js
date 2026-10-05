@@ -198,6 +198,10 @@ const getAllStoreSurveys = async (req, res) => {
 
     const surveys = await StoreSurvey.findAll(filters);
 
+    // DEBUG LOG
+    console.log("[getAllStoreSurveys] surveys.length:", surveys.length);
+    console.log("[getAllStoreSurveys] filters:", JSON.stringify(filters, null, 2));
+
     // Optionally include products to reduce payload for list page
     const shouldIncludeProducts = includeProducts === "true";
     let surveysWithProducts = surveys;
