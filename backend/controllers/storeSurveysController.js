@@ -165,6 +165,8 @@ const getStoreSurveysByStoreId = async (req, res) => {
 const getAllStoreSurveys = async (req, res) => {
   try {
     const {
+      dateFrom,
+      dateTo,
       storeId,
       userId,
       auditId,
@@ -181,6 +183,8 @@ const getAllStoreSurveys = async (req, res) => {
     } = req.query;
 
     const filters = {};
+    if (dateFrom) filters.dateFrom = dateFrom;
+    if (dateTo) filters.dateTo = dateTo;
     if (storeId) filters.storeId = parseInt(storeId);
     if (userId) filters.userId = parseInt(userId);
     if (auditId) filters.auditId = parseInt(auditId);

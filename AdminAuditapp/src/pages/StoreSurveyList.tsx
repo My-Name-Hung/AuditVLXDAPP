@@ -118,6 +118,27 @@ export default function StoreSurveyList() {
     new Date().getFullYear()
   );
 
+  // Auto-switch to month mode when selectedMonth changes
+  useEffect(() => {
+    if (selectedMonth) {
+      setDateFilterMode("month");
+    }
+  }, [selectedMonth]);
+
+  // Auto-switch to day mode when selectedDate changes
+  useEffect(() => {
+    if (selectedDate) {
+      setDateFilterMode("day");
+    }
+  }, [selectedDate]);
+
+  // Auto-switch to week mode when selectedWeek changes
+  useEffect(() => {
+    if (selectedWeek && selectedWeek !== "all") {
+      setDateFilterMode("week");
+    }
+  }, [selectedWeek]);
+
   useEffect(() => {
     fetchSurveys();
     fetchUsers();
@@ -483,18 +504,17 @@ export default function StoreSurveyList() {
 
       // Date filter params
       if (dateFilterMode === "week" && selectedWeek !== "all") {
-        // Calculate week range
+        // Calculate week range using UTC to avoid timezone offset
         const weekNumber = parseInt(selectedWeek, 10);
         if (!isNaN(weekNumber) && weekNumber > 0) {
-          const januaryFirst = new Date(currentYear, 0, 1);
-          const firstDayOfWeek = januaryFirst.getDay();
-          const firstMondayOffset =
-            firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
-          const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
-          const weekStart = new Date(januaryFirst);
-          weekStart.setDate(januaryFirst.getDate() + weekStartDays);
-          const weekEnd = new Date(weekStart);
-          weekEnd.setDate(weekStart.getDate() + 6);
+          // Find first Monday of year using UTC
+          let jan1 = new Date(Date.UTC(currentYear, 0, 1));
+          let dayOfWeek = jan1.getUTCDay();
+          // Convert Sunday=0 to Monday-start: Monday=0,...,Sunday=6
+          let daysToFirstMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
+          let weekStartDays = (weekNumber - 1) * 7 - daysToFirstMonday;
+          const weekStart = new Date(Date.UTC(currentYear, 0, 1 + weekStartDays));
+          const weekEnd = new Date(Date.UTC(currentYear, 0, 1 + weekStartDays + 6));
 
           params.dateFrom = weekStart.toISOString().split("T")[0];
           params.dateTo = weekEnd.toISOString().split("T")[0];
@@ -503,12 +523,15 @@ export default function StoreSurveyList() {
         params.dateFrom = selectedDate;
         params.dateTo = selectedDate;
       } else if (dateFilterMode === "month" && selectedMonth) {
-        const start = new Date(currentYear, parseInt(selectedMonth, 10) - 1, 1);
-        const end = new Date(currentYear, parseInt(selectedMonth, 10), 0);
+        // Use UTC to avoid timezone offset issues (e.g., UTC+7 shifting month boundary)
+        const monthNum = parseInt(selectedMonth, 10);
+        const start = new Date(Date.UTC(currentYear, monthNum - 1, 1));
+        const end = new Date(Date.UTC(currentYear, monthNum, 0));
         params.dateFrom = start.toISOString().split("T")[0];
         params.dateTo = end.toISOString().split("T")[0];
       }
 
+      console.log("[fetchSurveysWithFilters] dateFilterMode:", dateFilterMode, "| params:", params);
       const res = await api.get("/store-surveys", { params });
 
       // Backend already includes products when includeProducts=true
