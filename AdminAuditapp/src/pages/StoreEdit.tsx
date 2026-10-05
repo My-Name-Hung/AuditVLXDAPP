@@ -361,17 +361,28 @@ export default function StoreEdit() {
                 required
               />
             </div>
-            <div className="form-group">
-              <label>Số điện thoại</label>
-              <input
-                type="tel"
-                value={formData.phone}
-                onChange={(e) =>
-                  setFormData({ ...formData, phone: e.target.value })
-                }
-                className="form-input"
-              />
-            </div>
+              <div className="form-group">
+                <label>Số điện thoại</label>
+                <input
+                  type="text"
+                  value={formData.phone}
+                  onChange={(e) =>
+                    setFormData({ ...formData, phone: e.target.value })
+                  }
+                  className="form-input"
+                  placeholder="VD: 0348843765 0348843766 0705007516"
+                />
+                <small
+                  style={{
+                    color: "#666",
+                    fontSize: "12px",
+                    marginTop: "4px",
+                    display: "block",
+                  }}
+                >
+                  Có thể nhập tối đa 3 số điện thoại, cách nhau bằng khoảng trắng
+                </small>
+              </div>
             <div className="form-group">
               <label>Email</label>
               <input

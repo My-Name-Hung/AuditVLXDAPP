@@ -25,7 +25,7 @@ class Store {
     request.input("StoreCode", sql.VarChar(50), storeCode);
     request.input("StoreName", sql.NVarChar(200), StoreName);
     request.input("Address", sql.NVarChar(500), Address);
-    request.input("Phone", sql.VarChar(20), Phone);
+    request.input("Phone", sql.NVarChar(100), Phone);
     request.input("Email", sql.NVarChar(200), Email);
     // Latitude and Longitude can be null - will be auto updated when user takes photo
     if (Latitude !== undefined && Latitude !== null) {

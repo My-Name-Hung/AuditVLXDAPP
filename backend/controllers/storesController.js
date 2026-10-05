@@ -1008,7 +1008,7 @@ const createStore = async (req, res) => {
     const store = await Store.create({
       StoreName: storeName,
       Address: address,
-      Phone: phone,
+      Phone: phone ? phone.toString() : null,
       Email: email,
       Latitude: latitude,
       Longitude: longitude,
@@ -1086,7 +1086,7 @@ const updateStore = async (req, res) => {
     );
     request.input(
       "Phone",
-      sql.VarChar(20),
+      sql.NVarChar(100),
       phone !== undefined ? phone : store.Phone
     );
     request.input(

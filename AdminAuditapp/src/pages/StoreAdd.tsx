@@ -294,13 +294,17 @@ export default function StoreAdd() {
               <div className="form-group">
                 <label>Số điện thoại</label>
                 <input
-                  type="tel"
+                  type="text"
                   value={formData.phone}
                   onChange={(e) =>
                     setFormData({ ...formData, phone: e.target.value })
                   }
                   className="form-input"
+                  placeholder="VD: 0348843765 0348843766 0705007516"
                 />
+                <small className="store-assignment-helper">
+                  Có thể nhập tối đa 3 số điện thoại, cách nhau bằng khoảng trắng
+                </small>
               </div>
               <div className="form-group">
                 <label>Email</label>
