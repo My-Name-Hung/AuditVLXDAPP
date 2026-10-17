@@ -67,8 +67,7 @@ async function getSummary(req, res) {
       FROM AuditsWithStatus a
       INNER JOIN Users u ON a.UserId = u.Id
       INNER JOIN Territories t ON a.TerritoryId = t.Id
-      WHERE u.Role = 'sales'
-        AND a.UserId IS NOT NULL
+      WHERE a.UserId IS NOT NULL
     `;
 
     // Filter by territories
@@ -107,8 +106,8 @@ async function getSummary(req, res) {
       });
       const wpPlaceholders = wpArray.map((_, idx) => `@wp${idx}`).join(",");
       query = query.replace(
-        "WHERE u.Role = 'sales'",
-        `WHERE u.Role = 'sales' AND u.WorkPosition IN (${wpPlaceholders})`
+        "WHERE a.UserId IS NOT NULL",
+        `WHERE a.UserId IS NOT NULL AND u.WorkPosition IN (${wpPlaceholders})`
       );
     }
 
