@@ -3,7 +3,8 @@ const { getPool, sql } = require("../config/database");
 // Get dashboard summary with filters
 async function getSummary(req, res) {
   try {
-    const { territoryIds, userIds, startDate, endDate, workPosition } = req.query;
+    const { territoryIds, userIds, startDate, endDate, workPosition } =
+      req.query;
     const pool = await getPool();
     const request = pool.request();
 
@@ -99,7 +100,9 @@ async function getSummary(req, res) {
 
     // Filter by work position — applied after CTE to use Users table
     if (workPosition && workPosition.trim()) {
-      const wpArray = Array.isArray(workPosition) ? workPosition : [workPosition.trim()];
+      const wpArray = Array.isArray(workPosition)
+        ? workPosition
+        : [workPosition.trim()];
       wpArray.forEach((wp, idx) => {
         const paramName = `wp${idx}`;
         request.input(paramName, sql.NVarChar(200), wp);
@@ -107,7 +110,7 @@ async function getSummary(req, res) {
       const wpPlaceholders = wpArray.map((_, idx) => `@wp${idx}`).join(",");
       query = query.replace(
         "WHERE a.UserId IS NOT NULL",
-        `WHERE a.UserId IS NOT NULL AND u.WorkPosition IN (${wpPlaceholders})`
+        `WHERE a.UserId IS NOT NULL AND u.WorkPosition IN (${wpPlaceholders})`,
       );
     }
 
@@ -383,8 +386,7 @@ async function exportReport(req, res) {
       FROM AuditsWithStatus a
       INNER JOIN Users u ON a.UserId = u.Id
       INNER JOIN Territories t ON a.TerritoryId = t.Id
-      WHERE u.Role = 'sales'
-        AND a.UserId IS NOT NULL
+      WHERE a.UserId IS NOT NULL
     `;
 
     if (territoryIds) {
@@ -608,11 +610,11 @@ async function getStoresByDate(req, res) {
         const formattedDate = formatDate(row.AuditDate);
         if (!formattedDate) return null;
 
-      return {
+        return {
           AuditDate: formattedDate,
           AuditedCount: row.AuditedCount || 0,
           NotAuditedCount: Math.max(0, totalStores - (row.AuditedCount || 0)),
-      };
+        };
       })
       .filter((item) => item !== null);
 
@@ -685,11 +687,11 @@ async function getProductPrices(req, res) {
     // Calculate totals for pie chart
     const totalPurchase = result.recordset.reduce(
       (sum, row) => sum + (row.PurchasePrice || 0) * (row.Count || 0),
-      0
+      0,
     );
     const totalSelling = result.recordset.reduce(
       (sum, row) => sum + (row.SellingPrice || 0) * (row.Count || 0),
-      0
+      0,
     );
 
     res.json({
@@ -844,7 +846,7 @@ async function getSummaryTable(req, res) {
       LEFT JOIN Territories t ON s.TerritoryId = t.Id
       WHERE 1=1
     `;
-    
+
     // Apply user filter to count query
     if (currentUserId && currentUserRole !== "admin") {
       countQuery += ` AND (
@@ -855,11 +857,11 @@ async function getSummaryTable(req, res) {
         )
       )`;
     }
-    
+
     if (territoryId) {
       countQuery += " AND s.TerritoryId = @territoryId";
     }
-    
+
     if (startDate || endDate) {
       countQuery += ` AND (
         NOT EXISTS (SELECT 1 FROM Audits a3 WHERE a3.StoreId = s.Id)
@@ -876,7 +878,7 @@ async function getSummaryTable(req, res) {
       countQuery += " )";
       countQuery += " )";
     }
-    
+
     const countRequest = pool.request();
     if (currentUserId && currentUserRole !== "admin") {
       countRequest.input("currentUserId", sql.Int, parseInt(currentUserId, 10));
@@ -1029,7 +1031,7 @@ async function getStoresByTerritory(req, res) {
         acc.CheckinDays += item.CheckinDays || 0;
         return acc;
       },
-      { StoresChecked: 0, CheckinDays: 0 }
+      { StoresChecked: 0, CheckinDays: 0 },
     );
 
     console.log("getStoresByTerritory - Data:", {
