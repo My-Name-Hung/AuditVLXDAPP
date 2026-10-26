@@ -18,7 +18,9 @@ import { ThemeProvider as CustomThemeProvider } from "@/src/contexts/ThemeContex
 
 function RootNavigation() {
   const { isAuthenticated, loading, user } = useAuth();
-  const segments = useSegments();
+  // expo-router typed routes khai báo useSegments() là tuple 1 phần tử,
+  // nhưng thực tế trả về mảng các segment. Ép kiểu để truy cập segments[1].
+  const segments = useSegments() as readonly string[];
   const router = useRouter();
 
   useEffect(() => {

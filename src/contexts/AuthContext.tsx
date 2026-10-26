@@ -103,6 +103,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Validate token by fetching current user profile
+      if (!parsedUser) {
+        console.warn("Parsed user is null, clearing auth state");
+        await AsyncStorage.removeItem("token");
+        await AsyncStorage.removeItem("user");
+        setToken(null);
+        setUser(null);
+        setIsBiometricEnabled(false);
+        setLoading(false);
+        return;
+      }
+
       try {
         const response = await api.get(`/users/${parsedUser.id}`);
         // Only set auth state if response is successful and contains valid user data

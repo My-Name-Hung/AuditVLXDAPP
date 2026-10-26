@@ -34,7 +34,6 @@
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "enableProguardInReleaseBuilds": true,
       "allowBackup": false,
       "package": "com.hung141525.Auditapp"
     },
@@ -44,6 +43,14 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "enableProguardInReleaseBuilds": true
+          }
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -67,7 +74,10 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Ứng dụng cần quyền truy cập vị trí để ghi nhận thông tin địa điểm audit."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-web-browser",
+      "expo-build-properties"
     ],
     "experiments": {
       "typedRoutes": true,
