@@ -7,7 +7,7 @@ import {
   Title,
   Tooltip,
 } from "chart.js";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Bar } from "react-chartjs-2";
 import { HiArrowDownTray } from "react-icons/hi2";
 import { useNavigate } from "react-router-dom";
@@ -309,6 +309,53 @@ export default function Dashboard() {
     }
   };
 
+  // Tổng số cửa hàng checkin theo họ tên (cộng dồn các địa bàn của cùng 1 người)
+  const summaryTotalByNameMap = useMemo(() => {
+    const map = new Map<string, number>();
+    summaryData.forEach((item) => {
+      const key = (item.FullName || "").trim();
+      map.set(key, (map.get(key) || 0) + (item.TotalStoresChecked || 0));
+    });
+    return map;
+  }, [summaryData]);
+
+  const getTotalByName = (fullName: string): number =>
+    summaryTotalByNameMap.get((fullName || "").trim()) || 0;
+
+  const grandTotalStores = useMemo(
+    () =>
+      Array.from(summaryTotalByNameMap.values()).reduce(
+        (sum, value) => sum + value,
+        0,
+      ),
+    [summaryTotalByNameMap],
+  );
+
+  // Tạo title báo cáo theo bộ lọc thời gian đang chọn
+  // - day   -> "THEO NGÀY 19/10/2026"
+  // - month -> "THEO THÁNG 10/2026"
+  // - week  -> "THEO TUẦN (dd/mm/yyyy - dd/mm/yyyy)"
+  const getReportTitle = (): string => {
+    if (dateFilter === "day" && selectedDate) {
+      const [y, m, d] = selectedDate.split("-");
+      return `BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO NGÀY ${d}/${m}/${y}`;
+    }
+    if (dateFilter === "month" && selectedMonth) {
+      const [y, m] = selectedMonth.split("-");
+      return `BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG ${m}/${y}`;
+    }
+    if (dateFilter === "week" && selectedWeek) {
+      const formatDMY = (iso: string) => {
+        const [y, m, d] = iso.split("-");
+        return `${d}/${m}/${y}`;
+      };
+      return `BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO TUẦN ${formatDMY(
+        selectedWeek.startDate
+      )} - ${formatDMY(selectedWeek.endDate)}`;
+    }
+    return "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG";
+  };
+
   const handleExport = async () => {
     try {
       setExportLoading(true);
@@ -322,6 +369,10 @@ export default function Dashboard() {
 
       if (selectedTerritories.length > 0) {
         params.territoryIds = selectedTerritories.join(",");
+      }
+
+      if (selectedWorkPosition && selectedWorkPosition.trim()) {
+        params.workPosition = selectedWorkPosition.trim();
       }
 
       if (dateFilter === "day") {
@@ -401,14 +452,13 @@ export default function Dashboard() {
     };
 
     // Title
-    summarySheet.mergeCells("A1:E1");
+    summarySheet.mergeCells("A1:F1");
     summarySheet.getCell("A1").value = "CÔNG TY CỔ PHẦN XI MĂNG TÂY ĐÔ";
     summarySheet.getCell("A1").font = { bold: true, size: 14 };
     summarySheet.getCell("A1").alignment = { horizontal: "center" };
 
-    summarySheet.mergeCells("A2:E2");
-    summarySheet.getCell("A2").value =
-      "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
+    summarySheet.mergeCells("A2:F2");
+    summarySheet.getCell("A2").value = getReportTitle();
     summarySheet.getCell("A2").font = { bold: true, size: 12 };
     summarySheet.getCell("A2").alignment = { horizontal: "center" };
 
@@ -419,19 +469,39 @@ export default function Dashboard() {
       "Địa bàn phụ trách",
       "Tổng số ngày checkin",
       "Tổng số cửa hàng checkin",
+      "Tổng",
     ];
     summarySheet.getRow(4).eachCell((cell) => {
       cell.style = headerStyle;
     });
 
+    // Tổng theo họ tên (cộng dồn "Tổng số cửa hàng checkin" của cùng một người
+    // ở nhiều địa bàn). Ví dụ Nguyễn Văn A: Cần Thơ 1 + Cà Mau cũ 5 = 6.
+    const totalByNameMap = new Map<string, number>();
+    data.summary.forEach((item) => {
+      const key = (item.FullName || "").trim();
+      totalByNameMap.set(
+        key,
+        (totalByNameMap.get(key) || 0) + (item.TotalStoresChecked || 0)
+      );
+    });
+
+    // Đánh dấu dòng đầu tiên của mỗi họ tên để chỉ hiển thị cột Tổng 1 lần
+    const seenNames = new Set<string>();
+
     // Data
     data.summary.forEach((item, index) => {
+      const nameKey = (item.FullName || "").trim();
+      const isFirstOfName = !seenNames.has(nameKey);
+      seenNames.add(nameKey);
+
       const row = summarySheet.addRow([
         index + 1,
         item.FullName,
         item.TerritoryName,
         item.TotalCheckinDays,
         item.TotalStoresChecked,
+        isFirstOfName ? totalByNameMap.get(nameKey) || 0 : "",
       ]);
       row.eachCell((cell) => {
         cell.border = {
@@ -450,6 +520,8 @@ export default function Dashboard() {
       "",
       data.summary.reduce((sum, item) => sum + item.TotalCheckinDays, 0),
       data.summary.reduce((sum, item) => sum + item.TotalStoresChecked, 0),
+      // Tổng của cột "Tổng" = tổng số cửa hàng checkin của các họ tên (không tính trùng)
+      Array.from(totalByNameMap.values()).reduce((sum, v) => sum + v, 0),
     ]);
     totalRow.getCell(1).font = { bold: true };
     totalRow.eachCell((cell) => {
@@ -468,6 +540,7 @@ export default function Dashboard() {
       { width: 30 },
       { width: 25 },
       { width: 25 },
+      { width: 15 },
     ];
 
     // Detail sheets - group by UserId so mỗi user có 1 sheet
@@ -501,9 +574,26 @@ export default function Dashboard() {
 
     const groupedUsers = Array.from(userGroupMap.values());
 
+    // Đảm bảo tên sheet là duy nhất (Excel không cho 2 sheet trùng tên)
+    const usedSheetNames = new Set<string>();
+    const getUniqueSheetName = (baseName: string): string => {
+      const name = baseName.substring(0, 31);
+      if (!usedSheetNames.has(name)) {
+        usedSheetNames.add(name);
+        return name;
+      }
+      let counter = 2;
+      while (usedSheetNames.has(`${name} (${counter})`.substring(0, 31))) {
+        counter++;
+      }
+      const unique = `${name} (${counter})`.substring(0, 31);
+      usedSheetNames.add(unique);
+      return unique;
+    };
+
     groupedUsers.forEach((group, index) => {
       const { user, territories } = group;
-      const sheetName = `Chi tiết ${user.FullName}`;
+      const sheetName = getUniqueSheetName(`Chi tiết ${user.FullName}`);
 
       const detailSheet = workbook.addWorksheet(sheetName);
 
@@ -519,7 +609,7 @@ export default function Dashboard() {
 
       detailSheet.mergeCells("A2:G2");
       detailSheet.getCell("A2").value =
-        "BẢNG TỔNG HỢP CHECKIN CỬA HÀNG THEO THÁNG";
+        `BẢNG TỔNG HỢP CHECKIN CỬA HÀNG ${user.FullName}`;
       detailSheet.getCell("A2").font = { bold: true, size: 12 };
       detailSheet.getCell("A2").alignment = { horizontal: "center" };
 
@@ -790,6 +880,7 @@ export default function Dashboard() {
                   <th>Địa bàn phụ trách</th>
                   <th>Tổng số ngày checkin</th>
                   <th>Tổng số cửa hàng checkin</th>
+                  <th>Tổng</th>
                 </tr>
               </thead>
               <tbody>
@@ -815,6 +906,7 @@ export default function Dashboard() {
                     <td>{item.TerritoryName}</td>
                     <td>{item.TotalCheckinDays}</td>
                     <td>{item.TotalStoresChecked}</td>
+                    <td>{getTotalByName(item.FullName)}</td>
                   </tr>
                 ))}
                 <tr className="total-row">
@@ -836,6 +928,9 @@ export default function Dashboard() {
                         0,
                       )}
                     </strong>
+                  </td>
+                  <td>
+                    <strong>{grandTotalStores}</strong>
                   </td>
                 </tr>
               </tbody>

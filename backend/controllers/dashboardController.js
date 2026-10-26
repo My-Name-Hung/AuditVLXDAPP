@@ -325,7 +325,8 @@ async function getTerritoryDetail(req, res) {
 // Export Excel report
 async function exportReport(req, res) {
   try {
-    const { territoryIds, userIds, startDate, endDate } = req.query;
+    const { territoryIds, userIds, startDate, endDate, workPosition } =
+      req.query;
     const pool = await getPool();
     const request = pool.request();
 
@@ -414,6 +415,22 @@ async function exportReport(req, res) {
       HAVING COUNT(DISTINCT a.AuditDate) > 0
       ORDER BY u.FullName ASC
     `;
+
+    // Filter by work position — giống hệt logic của getSummary
+    if (workPosition && workPosition.trim()) {
+      const wpArray = Array.isArray(workPosition)
+        ? workPosition
+        : [workPosition.trim()];
+      wpArray.forEach((wp, idx) => {
+        const paramName = `wp${idx}`;
+        request.input(paramName, sql.NVarChar(200), wp);
+      });
+      const wpPlaceholders = wpArray.map((_, idx) => `@wp${idx}`).join(",");
+      summaryQuery = summaryQuery.replace(
+        "WHERE a.UserId IS NOT NULL",
+        `WHERE a.UserId IS NOT NULL AND u.WorkPosition IN (${wpPlaceholders})`,
+      );
+    }
 
     // Set timeout to 60 seconds
     request.timeout = 60000;
