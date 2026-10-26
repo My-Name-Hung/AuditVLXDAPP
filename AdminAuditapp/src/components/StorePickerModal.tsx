@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import './StorePickerModal.css';
 
 interface Option {
@@ -26,7 +26,6 @@ export default function StorePickerModal({
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [selectedTerritory, setSelectedTerritory] = useState<string | null>(null);
-  const firstRenderRef = useRef(true);
 
   // Debounce search
   useEffect(() => {
@@ -116,7 +115,7 @@ export default function StorePickerModal({
     }
   }, [filteredAllSelected, selected, flatFiltered, onChange]);
 
-  const toggleGroup = useCallback((territoryName: string, groupItems: Option[]) => {
+  const toggleGroup = useCallback((_territoryName: string, groupItems: Option[]) => {
     const groupIds = new Set(groupItems.map(o => o.id));
     const allSelected = groupItems.every(o => selectedSet.has(o.id));
     if (allSelected) {
@@ -129,11 +128,6 @@ export default function StorePickerModal({
   }, [selected, selectedSet, onChange]);
 
   const clearAll = useCallback(() => onChange([]), [onChange]);
-
-  const selectedNames = useMemo(() =>
-    options.filter(opt => selectedSet.has(opt.id)).map(opt => opt.name),
-    [options, selectedSet]
-  );
 
   // Show summary chips (max 6)
   const displayChips = selected.slice(0, 6);

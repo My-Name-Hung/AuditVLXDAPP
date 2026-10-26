@@ -202,6 +202,9 @@ export default function MultiSelect({
           {/* Territory Filter */}
           {enableTerritoryFilter && territories.length > 0 && (
             <div className="multi-select__territory-filter">
+              <label className="multi-select__territory-filter-label">
+                {territoryFilterLabel}
+              </label>
               <select
                 value={selectedTerritory || ''}
                 onChange={(e) => setSelectedTerritory(e.target.value || null)}

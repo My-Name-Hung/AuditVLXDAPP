@@ -489,6 +489,14 @@ export default function Dashboard() {
     // Đánh dấu dòng đầu tiên của mỗi họ tên để chỉ hiển thị cột Tổng 1 lần
     const seenNames = new Set<string>();
 
+    // Lưu khoảng dòng (row) của mỗi nhóm họ tên để merge ô cột Tổng.
+    // Dữ liệu được sort theo FullName nên các dòng cùng họ tên liên tiếp nhau.
+    const nameRowGroups: Array<{
+      nameKey: string;
+      startRow: number;
+      endRow: number;
+    }> = [];
+
     // Data
     data.summary.forEach((item, index) => {
       const nameKey = (item.FullName || "").trim();
@@ -511,6 +519,49 @@ export default function Dashboard() {
           right: { style: "thin" },
         };
       });
+
+      const currentRowNumber = row.number;
+      const lastGroup = nameRowGroups[nameRowGroups.length - 1];
+      if (lastGroup && lastGroup.nameKey === nameKey) {
+        lastGroup.endRow = currentRowNumber;
+      } else {
+        nameRowGroups.push({
+          nameKey,
+          startRow: currentRowNumber,
+          endRow: currentRowNumber,
+        });
+      }
+    });
+
+    // Merge ô cột Tổng (cột F) cho các dòng cùng họ tên,
+    // giá trị hiển thị nằm giữa vùng merge (vertical center).
+    nameRowGroups.forEach(({ nameKey, startRow, endRow }) => {
+      const totalValue = totalByNameMap.get(nameKey) || 0;
+
+      if (startRow === endRow) {
+        // Chỉ 1 dòng -> căn giữa theo chiều dọc
+        summarySheet.getCell(`F${startRow}`).alignment = {
+          horizontal: "center",
+          vertical: "middle",
+        };
+        return;
+      }
+
+      try {
+        summarySheet.mergeCells(`F${startRow}:F${endRow}`);
+        const mergedCell = summarySheet.getCell(`F${startRow}`);
+        mergedCell.value = totalValue;
+        mergedCell.alignment = {
+          horizontal: "center",
+          vertical: "middle",
+        };
+        mergedCell.font = { bold: true };
+      } catch (error) {
+        console.error(
+          `Error merging F${startRow}:F${endRow} for ${nameKey}:`,
+          error
+        );
+      }
     });
 
     // Total row

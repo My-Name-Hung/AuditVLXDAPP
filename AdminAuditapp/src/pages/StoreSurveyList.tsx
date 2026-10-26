@@ -781,7 +781,8 @@ export default function StoreSurveyList() {
         const start = new Date(currentYear, parseInt(selectedMonth, 10) - 1, 1);
         exportDateFrom = start.toISOString().split("T")[0];
         year = currentYear;
-        exportMonthLabel = `${selectedMonth}/${currentYear}`;
+        // Định dạng: "THÁNG 10" (số tháng theo bộ lọc)
+        exportMonthLabel = `${parseInt(selectedMonth, 10)}`;
       }
 
       // Fetch dữ liệu cho export: luôn gọi backend với date filter server-side
@@ -859,10 +860,8 @@ export default function StoreSurveyList() {
         })
       );
 
-      // Filter only XMTĐ products (Title 2 + 3)
-      // Also filter products by cement product name if filter is applied (for case when selectedWeek !== "all")
-      let xmtdSurveys = surveysToExport.map((survey) => {
-        // If cement product filter is applied, filter products (support multiple)
+      // Lọc products theo bộ lọc "tên sản phẩm xi măng" (nếu có)
+      const surveysWithProductFilter = surveysToExport.map((survey) => {
         if (
           Array.isArray(filters.cementProductName) &&
           filters.cementProductName.length > 0
@@ -891,21 +890,44 @@ export default function StoreSurveyList() {
         return survey;
       });
 
-      // Filter surveys that have XMTĐ products or WhyNotSellNewProduct
-      xmtdSurveys = xmtdSurveys.filter(
-        (survey) =>
+      // Group theo (Địa bàn + Thương vụ): mỗi sheet là 1 địa bàn của 1 user.
+      // Nếu 1 địa bàn có nhiều user -> sheet đầu mang tên địa bàn,
+      // các sheet sau tự thêm hậu tố (2), (3)...
+      interface SurveyGroup {
+        territoryName: string;
+        userId: number;
+        userName: string;
+        surveys: StoreSurveyListItem[];
+        allSurveys: StoreSurveyListItem[];
+      }
+
+      const groupMap = new Map<string, SurveyGroup>();
+
+      surveysWithProductFilter.forEach((survey) => {
+        const territory = survey.TerritoryName || "Chưa xác định";
+        const userName = survey.UserFullName || "Chưa xác định";
+        const key = `${territory}||${survey.UserId}||${userName}`;
+
+        if (!groupMap.has(key)) {
+          groupMap.set(key, {
+            territoryName: territory,
+            userId: survey.UserId,
+            userName,
+            surveys: [],
+            allSurveys: [],
+          });
+        }
+
+        const group = groupMap.get(key)!;
+        group.allSurveys.push(survey);
+
+        // Chỉ 1 phần dùng cho bảng 1 (báo cáo thực tế thăm cửa hàng)
+        if (
           survey.WhyNotSellNewProduct ||
           (survey.products && survey.products.length > 0)
-      );
-
-      // Group by TerritoryName
-      const territoryGroups = new Map<string, StoreSurveyListItem[]>();
-      xmtdSurveys.forEach((survey) => {
-        const territory = survey.TerritoryName || "Chưa xác định";
-        if (!territoryGroups.has(territory)) {
-          territoryGroups.set(territory, []);
+        ) {
+          group.surveys.push(survey);
         }
-        territoryGroups.get(territory)!.push(survey);
       });
 
       // Header style
@@ -928,30 +950,49 @@ export default function StoreSurveyList() {
         },
       };
 
-      // Create sheets for each territory (gộp 2 bảng vào 1 sheet)
-      territoryGroups.forEach((territorySurveys, territoryName) => {
-        // Skip if no surveys
-        if (!territorySurveys || territorySurveys.length === 0) {
-          return;
+      // Sanitize sheet name: remove invalid characters and limit to 31 chars (Excel limit)
+      const sanitizeSheetName = (name: string): string => {
+        // Remove invalid characters: \ / ? * [ ]
+        let sanitized = name.replace(/[\\/?:*[\]]/g, "");
+        // Limit to 31 characters (Excel sheet name limit)
+        if (sanitized.length > 31) {
+          sanitized = sanitized.substring(0, 31);
         }
+        // Ensure not empty
+        if (!sanitized.trim()) {
+          sanitized = "Chua xac dinh";
+        }
+        return sanitized;
+      };
 
-        // Sanitize sheet name: remove invalid characters and limit to 31 chars (Excel limit)
-        const sanitizeSheetName = (name: string): string => {
-          // Remove invalid characters: \ / ? * [ ]
-          let sanitized = name.replace(/[\\/?:*[\]]/g, "");
-          // Limit to 31 characters (Excel sheet name limit)
-          if (sanitized.length > 31) {
-            sanitized = sanitized.substring(0, 31);
-          }
-          // Ensure not empty
-          if (!sanitized.trim()) {
-            sanitized = "Chua xac dinh";
-          }
-          return sanitized;
-        };
+      // Đếm số sheet đã tạo theo tên địa bàn để tự thêm hậu tố (2), (3)...
+      const territorySheetCount = new Map<string, number>();
+      const usedSheetNames = new Set<string>();
 
-        // Single sheet with both tables
-        const sheetName = sanitizeSheetName(territoryName || "Chưa xác định");
+      // Create sheets cho mỗi cặp (Địa bàn + Thương vụ)
+      groupMap.forEach((group) => {
+        const territorySurveys = group.surveys;
+        const territoryName = group.territoryName;
+
+        // Sanitize + đảm bảo tên sheet duy nhất
+        const baseName = sanitizeSheetName(territoryName || "Chưa xác định");
+        const seenCount = territorySheetCount.get(baseName) || 0;
+        territorySheetCount.set(baseName, seenCount + 1);
+
+        let sheetName = baseName;
+        if (seenCount > 0) {
+          const suffix = ` (${seenCount + 1})`;
+          sheetName = `${baseName.substring(0, 31 - suffix.length)}${suffix}`;
+        }
+        // Chống trùng tuyệt đối (phòng trường hợp tên địa bàn khác nhau nhưng bị cắt giống nhau)
+        let uniqueCounter = 1;
+        while (usedSheetNames.has(sheetName)) {
+          uniqueCounter++;
+          const suffix = ` (${uniqueCounter})`;
+          sheetName = `${baseName.substring(0, 31 - suffix.length)}${suffix}`;
+        }
+        usedSheetNames.add(sheetName);
+
         const sheet = workbook.addWorksheet(sheetName);
 
         // Ensure we have at least 3 rows before merging
@@ -980,7 +1021,7 @@ export default function StoreSurveyList() {
         }
         sheet.getCell("A2").value = `Địa bàn: ${
           territoryName || "Chưa xác định"
-        }`;
+        } - ${group.userName}`;
         sheet.getCell("A2").font = { bold: true, size: 12 };
         sheet.getCell("A2").alignment = { horizontal: "center" };
 
@@ -1206,8 +1247,9 @@ export default function StoreSurveyList() {
         sheet.addRow([]);
 
         // Table 2: Khảo sát sản phẩm XMTĐ (Title 2) - Below Title 3
-        // Filter by selected week to match the week number in the title
-        const title2Surveys = territorySurveys.filter((survey) => {
+        // Dùng allSurveys (toàn bộ khảo sát của user trong địa bàn này) vì bảng 2
+        // là khảo sát sản phẩm XMTĐ, không phụ thuộc bộ lọc "tên sản phẩm xi măng".
+        const title2Surveys = group.allSurveys.filter((survey) => {
           const weekMatch =
             selectedWeek === "all"
               ? true

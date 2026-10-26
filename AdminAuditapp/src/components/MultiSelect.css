@@ -121,6 +121,14 @@
   color: var(--text-primary);
 }
 
+.multi-select__territory-filter-label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
 .multi-select__territory-filter select:focus {
   border-color: var(--primary-color);
 }
