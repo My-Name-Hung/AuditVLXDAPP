@@ -115,6 +115,25 @@ class StoreSurveyProduct {
     return allRows;
   }
 
+  /**
+   * Lấy products cho nhiều survey và gom theo StoreSurveyId.
+   * Dùng cho export/list để tránh N+1 request.
+   */
+  static async findGroupedBySurveyIds(surveyIds) {
+    const products = await this.findBySurveyIds(surveyIds);
+
+    const grouped = {};
+    for (const product of products) {
+      const id = product.StoreSurveyId;
+      if (!grouped[id]) {
+        grouped[id] = [];
+      }
+      grouped[id].push(product);
+    }
+
+    return grouped;
+  }
+
   static async findById(id) {
     const pool = await getPool();
     const request = pool.request();

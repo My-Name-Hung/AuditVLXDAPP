@@ -508,11 +508,11 @@ export default function StoreSurveyList() {
         const weekNumber = parseInt(selectedWeek, 10);
         if (!isNaN(weekNumber) && weekNumber > 0) {
           // Find first Monday of year using UTC
-          let jan1 = new Date(Date.UTC(currentYear, 0, 1));
-          let dayOfWeek = jan1.getUTCDay();
+          const jan1 = new Date(Date.UTC(currentYear, 0, 1));
+          const dayOfWeek = jan1.getUTCDay();
           // Convert Sunday=0 to Monday-start: Monday=0,...,Sunday=6
-          let daysToFirstMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
-          let weekStartDays = (weekNumber - 1) * 7 - daysToFirstMonday;
+          const daysToFirstMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
+          const weekStartDays = (weekNumber - 1) * 7 - daysToFirstMonday;
           const weekStart = new Date(Date.UTC(currentYear, 0, 1 + weekStartDays));
           const weekEnd = new Date(Date.UTC(currentYear, 0, 1 + weekStartDays + 6));
 
@@ -784,137 +784,80 @@ export default function StoreSurveyList() {
         exportMonthLabel = `${selectedMonth}/${currentYear}`;
       }
 
-      // When selectedWeek === "all", fetch all data without week filter
-      // When selectedWeek !== "all", use surveys (already filtered by week)
-      let surveysToExport: StoreSurveyListItem[];
+      // Fetch dữ liệu cho export: luôn gọi backend với date filter server-side
+      // và KHÔNG phân trang, để xuất đủ toàn bộ dữ liệu (list chỉ lấy 1000 bản ghi).
+      const params: Record<string, string | number> = {};
 
-      if (dateFilterMode === "all") {
-        // Fetch all surveys without week filter for export
-        // This ensures we get all data from all weeks, not just current week
-        const params: Record<string, string | number> = {
-          page: 1,
-          pageSize: 10000, // Large page size to get all data
-        };
-
-        if (filters.storeName) params.storeName = filters.storeName;
-        if (filters.userName) params.userName = filters.userName;
-        // Always include products for export
-        params.includeProducts = "true";
-        // Send array as comma-separated string for backend
-        if (
-          Array.isArray(filters.cementProductName) &&
-          filters.cementProductName.length > 0
-        ) {
-          params.cementProductName = filters.cementProductName.join(",");
-        }
-        if (
-          Array.isArray(filters.territoryName) &&
-          filters.territoryName.length > 0
-        ) {
-          params.territoryName = filters.territoryName.join(",");
-        }
-        if (
-          Array.isArray(filters.cementProductName) &&
-          filters.cementProductName.length > 0
-        ) {
-          params.cementProductName = filters.cementProductName.join(",");
-        }
-        if (
-          Array.isArray(filters.territoryName) &&
-          filters.territoryName.length > 0
-        ) {
-          params.territoryName = filters.territoryName.join(",");
-        }
-        if (filters.priceFrom) {
-          const priceFromValue = filters.priceFrom.replace(/[^\d]/g, "");
-          if (priceFromValue) params.priceFrom = priceFromValue;
-        }
-        if (filters.priceTo) {
-          const priceToValue = filters.priceTo.replace(/[^\d]/g, "");
-          if (priceToValue) params.priceTo = priceToValue;
-        }
-
-        const res = await api.get("/store-surveys", { params });
-
-        // Fetch products for each survey
-        const surveysWithProducts = await Promise.all(
-          res.data.map(async (survey: StoreSurveyListItem) => {
-            try {
-              let products: StoreSurveyListItem["products"] =
-                survey.products || [];
-
-              // If products are not included in list response but needed (edge cases),
-              // fallback to fetch per survey
-              if (!products || products.length === 0) {
-                const productsRes = await api.get(
-                  `/store-survey-products/survey/${survey.Id}`
-                );
-                products = productsRes.data || [];
-              }
-
-              // Filter products by cement product name if filter is applied (support multiple)
-              if (
-                Array.isArray(filters.cementProductName) &&
-                filters.cementProductName.length > 0
-              ) {
-                products = products.filter(
-                  (product: {
-                    CementProductName?: string | null;
-                    CementProductCode?: string | null;
-                  }) =>
-                    filters.cementProductName.some((filterName) => {
-                      const searchTerm = filterName.toLowerCase().trim();
-                      return (
-                        (product.CementProductName &&
-                          product.CementProductName.toLowerCase().includes(
-                            searchTerm
-                          )) ||
-                        (product.CementProductCode &&
-                          product.CementProductCode.toLowerCase().includes(
-                            searchTerm
-                          ))
-                      );
-                    })
-                );
-              }
-
-              return { ...survey, products: products };
-            } catch (error) {
-              console.error(
-                `Error fetching products for survey ${survey.Id}:`,
-                error
-              );
-              return { ...survey, products: [] };
-            }
-          })
-        );
-
-        surveysToExport = surveysWithProducts;
-      } else {
-        // When filtering by week/day/month: reuse current list (already filtered by client)
-        // but ensure products are available; fetch per survey if missing
-        const needFetchProducts = surveys.some(
-          (s) => !s.products || s.products.length === 0
-        );
-        if (needFetchProducts) {
-          const surveysWithProducts = await Promise.all(
-            surveys.map(async (survey) => {
-              if (survey.products && survey.products.length > 0) return survey;
-              try {
-                const productsRes = await api.get(
-                  `/store-survey-products/survey/${survey.Id}`
-                );
-                return { ...survey, products: productsRes.data || [] };
-              } catch {
-                return { ...survey, products: [] };
-              }
-            })
-          );
-          surveysToExport = surveysWithProducts;
-        } else {
-          surveysToExport = surveys;
-        }
+      if (filters.storeName) params.storeName = filters.storeName;
+      if (filters.userName) params.userName = filters.userName;
+      // Always include products for export (1 request, backend gom theo batch)
+      params.includeProducts = "true";
+      // Send array as comma-separated string for backend
+      if (
+        Array.isArray(filters.cementProductName) &&
+        filters.cementProductName.length > 0
+      ) {
+        params.cementProductName = filters.cementProductName.join(",");
       }
+      if (
+        Array.isArray(filters.territoryName) &&
+        filters.territoryName.length > 0
+      ) {
+        params.territoryName = filters.territoryName.join(",");
+      }
+      if (filters.priceFrom) {
+        const priceFromValue = filters.priceFrom.replace(/[^\d]/g, "");
+        if (priceFromValue) params.priceFrom = priceFromValue;
+      }
+      if (filters.priceTo) {
+        const priceToValue = filters.priceTo.replace(/[^\d]/g, "");
+        if (priceToValue) params.priceTo = priceToValue;
+      }
+
+      // Date range (server-side) theo chế độ lọc đang chọn.
+      // "week" + selectedWeek="all" hoặc "all" => không giới hạn ngày.
+      if (dateFilterMode === "week" && selectedWeek !== "all") {
+        try {
+          const weekNumber = parseInt(selectedWeek, 10);
+          if (!isNaN(weekNumber) && weekNumber > 0) {
+            const januaryFirst = new Date(currentYear, 0, 1);
+            const firstDayOfWeek = januaryFirst.getDay();
+            const firstMondayOffset =
+              firstDayOfWeek === 0 ? 6 : firstDayOfWeek - 1;
+            const weekStartDays = (weekNumber - 1) * 7 - firstMondayOffset;
+
+            const weekStart = new Date(januaryFirst);
+            weekStart.setDate(januaryFirst.getDate() + weekStartDays);
+            const weekEnd = new Date(weekStart);
+            weekEnd.setDate(weekStart.getDate() + 6);
+
+            params.dateFrom = weekStart.toISOString().split("T")[0];
+            params.dateTo = weekEnd.toISOString().split("T")[0];
+          }
+        } catch (error) {
+          console.error("Error calculating week range for export:", error);
+        }
+      } else if (dateFilterMode === "day" && selectedDate) {
+        params.dateFrom = selectedDate;
+        params.dateTo = selectedDate;
+      } else if (dateFilterMode === "month" && selectedMonth) {
+        const monthNum = parseInt(selectedMonth, 10);
+        const start = new Date(currentYear, monthNum - 1, 1);
+        const end = new Date(currentYear, monthNum, 0);
+        params.dateFrom = start.toISOString().split("T")[0];
+        params.dateTo = end.toISOString().split("T")[0];
+      }
+
+      const res = await api.get("/store-surveys", { params });
+
+      // Backend đã trả kèm products (includeProducts=true) -> không gọi
+      // thêm API theo từng survey (tránh N+1 request, làm export rất lâu)
+      const surveysToExport: StoreSurveyListItem[] = res.data.map(
+        (survey: StoreSurveyListItem) => ({
+          ...survey,
+          products: survey.products || [],
+        })
+      );
 
       // Filter only XMTĐ products (Title 2 + 3)
       // Also filter products by cement product name if filter is applied (for case when selectedWeek !== "all")

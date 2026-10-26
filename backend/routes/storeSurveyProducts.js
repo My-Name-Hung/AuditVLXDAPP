@@ -4,6 +4,7 @@ const storeSurveyProductsController = require("../controllers/storeSurveyProduct
 const { authenticateToken } = require("../middlewares/auth");
 
 router.get("/survey/:surveyId", authenticateToken, storeSurveyProductsController.getProductsBySurveyId);
+router.get("/bulk", authenticateToken, storeSurveyProductsController.getProductsBySurveyIds);
 router.post("/", authenticateToken, storeSurveyProductsController.createProduct);
 router.put("/:id", authenticateToken, storeSurveyProductsController.updateProduct);
 router.delete("/:id", authenticateToken, storeSurveyProductsController.deleteProduct);

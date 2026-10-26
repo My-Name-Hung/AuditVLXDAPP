@@ -11,6 +11,31 @@ const getProductsBySurveyId = async (req, res) => {
   }
 };
 
+/**
+ * Lấy products cho nhiều survey trong 1 request (tránh N+1).
+ * GET /api/store-survey-products/bulk?surveyIds=1,2,3
+ */
+const getProductsBySurveyIds = async (req, res) => {
+  try {
+    const { surveyIds } = req.query;
+
+    const ids = String(surveyIds || "")
+      .split(",")
+      .map((id) => parseInt(id))
+      .filter((id) => !isNaN(id));
+
+    if (ids.length === 0) {
+      return res.json({});
+    }
+
+    const productsBySurveyId = await StoreSurveyProduct.findGroupedBySurveyIds(ids);
+    res.json(productsBySurveyId);
+  } catch (error) {
+    console.error("Get products by survey ids error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const createProduct = async (req, res) => {
   try {
     const { storeSurveyId, productType, cementProductId, sellingPrice } = req.body;
@@ -77,6 +102,7 @@ const deleteProduct = async (req, res) => {
 
 module.exports = {
   getProductsBySurveyId,
+  getProductsBySurveyIds,
   createProduct,
   updateProduct,
   deleteProduct,

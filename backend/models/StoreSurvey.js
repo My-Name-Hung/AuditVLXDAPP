@@ -362,13 +362,35 @@ class StoreSurvey {
       request.input("UserName", sql.NVarChar(200), `%${filters.userName}%`);
     }
 
+    // Hỗ trợ nhiều giá trị (client gửi "A,B,C") -> OR các điều kiện LIKE.
+    // Lọc theo sản phẩm ở bảng StoreSurveyProducts (giống filter client-side ở bảng chi tiết).
     if (filters.cementProductName) {
-      query += " AND cp.Name LIKE @CementProductName";
-      request.input(
-        "CementProductName",
-        sql.NVarChar(500),
-        `%${filters.cementProductName}%`
-      );
+      const names = String(filters.cementProductName)
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+
+      if (names.length === 1) {
+        query += ` AND EXISTS (
+          SELECT 1 FROM StoreSurveyProducts ssp
+          LEFT JOIN CementProducts sspcp ON ssp.CementProductId = sspcp.Id
+          WHERE ssp.StoreSurveyId = ss.Id
+            AND (sspcp.Name LIKE @CementProductName OR sspcp.Code LIKE @CementProductName)
+        )`;
+        request.input("CementProductName", sql.NVarChar(500), `%${names[0]}%`);
+      } else if (names.length > 1) {
+        const clauses = names.map((_, index) => {
+          const paramName = `CementProductName${index}`;
+          request.input(paramName, sql.NVarChar(500), `%${names[index]}%`);
+          return `(sspcp.Name LIKE @${paramName} OR sspcp.Code LIKE @${paramName})`;
+        });
+        query += ` AND EXISTS (
+          SELECT 1 FROM StoreSurveyProducts ssp
+          LEFT JOIN CementProducts sspcp ON ssp.CementProductId = sspcp.Id
+          WHERE ssp.StoreSurveyId = ss.Id
+            AND (${clauses.join(" OR ")})
+        )`;
+      }
     }
 
     if (filters.territoryId) {
@@ -376,13 +398,24 @@ class StoreSurvey {
       request.input("TerritoryId", sql.Int, filters.territoryId);
     }
 
+    // Hỗ trợ nhiều giá trị (client gửi "A,B,C") -> OR các điều kiện LIKE
     if (filters.territoryName) {
-      query += " AND t.TerritoryName LIKE @TerritoryName";
-      request.input(
-        "TerritoryName",
-        sql.NVarChar(200),
-        `%${filters.territoryName}%`
-      );
+      const names = String(filters.territoryName)
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean);
+
+      if (names.length === 1) {
+        query += " AND t.TerritoryName LIKE @TerritoryName";
+        request.input("TerritoryName", sql.NVarChar(200), `%${names[0]}%`);
+      } else if (names.length > 1) {
+        const clauses = names.map((_, index) => {
+          const paramName = `TerritoryName${index}`;
+          request.input(paramName, sql.NVarChar(200), `%${names[index]}%`);
+          return `t.TerritoryName LIKE @${paramName}`;
+        });
+        query += ` AND (${clauses.join(" OR ")})`;
+      }
     }
 
     if (filters.dateFrom) {
