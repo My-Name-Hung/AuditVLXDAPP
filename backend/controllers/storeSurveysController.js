@@ -134,6 +134,68 @@ const getStoreSurveyByAuditId = async (req, res) => {
   }
 };
 
+/**
+ * Lấy khảo sát mới nhất của cửa hàng để autofill form cho lần khảo sát tiếp theo.
+ * GET /api/store-surveys/latest?storeId=1&userId=47
+ *
+ * Trả về nhiều survey (mới nhất trước) để phía client có thể merge: mỗi lần
+ * khảo sát user có thể chỉ điền một phần field, nên field trống ở record mới
+ * nhất có thể lấy từ record cũ hơn.
+ */
+const getLatestStoreSurveyForAutofill = async (req, res) => {
+  try {
+    const { storeId, userId } = req.query;
+
+    if (!storeId) {
+      return res.status(400).json({ error: "storeId is required" });
+    }
+
+    const parsedStoreId = parseInt(storeId);
+    if (isNaN(parsedStoreId)) {
+      return res.status(400).json({ error: "Invalid storeId" });
+    }
+
+    const parsedUserId = userId ? parseInt(userId) : null;
+
+    // 1) Ưu tiên khảo sát gần nhất của chính user hiện tại
+    let surveys = await StoreSurvey.findRecentForAutofill(
+      parsedStoreId,
+      parsedUserId,
+      5
+    );
+
+    // 2) Fallback: khảo sát gần nhất của cửa hàng (bất kỳ user nào)
+    if (surveys.length === 0 && parsedUserId) {
+      surveys = await StoreSurvey.findRecentForAutofill(parsedStoreId, null, 5);
+    }
+
+    if (surveys.length === 0) {
+      // Không có khảo sát nào - trả về rỗng (không phải lỗi)
+      return res.json({ surveys: [], productsBySurveyId: {} });
+    }
+
+    // Lấy products cho tất cả survey (1 query, tránh N+1)
+    const surveyIds = surveys.map((s) => s.Id);
+    const allProducts = await StoreSurveyProduct.findBySurveyIds(surveyIds);
+
+    // Gom products theo StoreSurveyId
+    const productsBySurveyId = {};
+    for (const survey of surveys) {
+      productsBySurveyId[survey.Id] = [];
+    }
+    for (const product of allProducts) {
+      if (productsBySurveyId[product.StoreSurveyId]) {
+        productsBySurveyId[product.StoreSurveyId].push(product);
+      }
+    }
+
+    res.json({ surveys, productsBySurveyId });
+  } catch (error) {
+    console.error("Get latest store survey for autofill error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+};
+
 const getStoreSurveysByStoreId = async (req, res) => {
   try {
     const { storeId } = req.params;
@@ -836,6 +898,7 @@ module.exports = {
   createStoreSurvey,
   getStoreSurveyById,
   getStoreSurveyByAuditId,
+  getLatestStoreSurveyForAutofill,
   getStoreSurveysByStoreId,
   getAllStoreSurveys,
   updateStoreSurvey,

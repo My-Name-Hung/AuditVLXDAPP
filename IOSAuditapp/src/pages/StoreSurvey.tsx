@@ -1,13 +1,19 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  IoIosArrowDown,
-  IoIosArrowForward,
-  IoIosArrowUp,
+    IoIosArrowDown,
+    IoIosArrowForward,
+    IoIosArrowUp,
 } from "react-icons/io";
 import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useTheme } from "../contexts/ThemeContext";
 import api from "../services/api";
+import {
+  getAutofillSkipKey,
+  getSurveyDataKey,
+  hasSurveyContent,
+  mergeApiSurveysToForm,
+} from "../utils/surveyAutofill";
 import "./StoreSurvey.css";
 
 interface CementProduct {
@@ -110,19 +116,19 @@ const StoreSurvey = () => {
   const [capturedImages, setCapturedImages] = useState<
     (CapturedImage | undefined)[]
   >([undefined, undefined, undefined]);
-  
+
   // QUAN TRỌNG: Clear capturedImages mỗi khi id thay đổi (khi chuyển cửa hàng)
   useEffect(() => {
     console.log("[StoreSurvey Web] Clearing capturedImages for store:", id);
     setCapturedImages([undefined, undefined, undefined]);
   }, [id]);
-  
+
   const [cameraModalVisible, setCameraModalVisible] = useState(false);
   const [currentCameraIndex, setCurrentCameraIndex] = useState<number | null>(
-    null
+    null,
   );
   const [facingMode, setFacingMode] = useState<"user" | "environment">(
-    "environment"
+    "environment",
   );
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -130,7 +136,7 @@ const StoreSurvey = () => {
   const [cementProducts, setCementProducts] = useState<CementProduct[]>([]);
   const [cementSearchModal, setCementSearchModal] = useState("");
   const [activeCementPicker, setActiveCementPicker] = useState<number | null>(
-    null
+    null,
   );
 
   const [salesUsers, setSalesUsers] = useState<
@@ -144,7 +150,7 @@ const StoreSurvey = () => {
   const [newProductTypeName, setNewProductTypeName] = useState("");
   const [priceOptions, setPriceOptions] = useState<number[]>(PRICE_SUGGESTIONS);
   const [transportFeeOptions, setTransportFeeOptions] = useState<number[]>(
-    TRANSPORT_FEE_SUGGESTIONS
+    TRANSPORT_FEE_SUGGESTIONS,
   );
   const [activePricePicker, setActivePricePicker] = useState<{
     productIndex: number;
@@ -172,16 +178,66 @@ const StoreSurvey = () => {
   });
 
   const [surveyData, setSurveyData] = useState<SurveyData>(
-    createEmptySurveyData()
+    createEmptySurveyData(),
   );
 
-  // Load saved survey data from localStorage for autofill (form data, not audit results)
-  // Now saved per store to prevent data overlap between stores
+  /**
+   * Autofill form từ khảo sát mới nhất trên server.
+   * - Bỏ qua nếu user đã bấm "Xóa dữ liệu đã điền" (cờ skip).
+   * - Bỏ qua nếu form đã có nội dung (không ghi đè dữ liệu user vừa nhập).
+   */
+  const autofillFromServer = async (userId: number, storeIdNum: number) => {
+    try {
+      // User đã xóa dữ liệu đã điền -> không tự động lấy lại
+      const skipKey = getAutofillSkipKey(userId, storeIdNum);
+      if (localStorage.getItem(skipKey) === "1") {
+        console.log("[StoreSurvey IOS] Autofill skipped (user cleared data)");
+        return;
+      }
+
+      const response = await api.get("/store-surveys/latest", {
+        params: { storeId: storeIdNum, userId },
+      });
+
+      const { surveys, productsBySurveyId } = response.data || {};
+      if (!surveys || surveys.length === 0) {
+        console.log("[StoreSurvey IOS] No previous survey to autofill");
+        return;
+      }
+
+      const serverData = mergeApiSurveysToForm(surveys, productsBySurveyId);
+      if (!serverData) return;
+
+      // Không ghi đè nếu form đã có nội dung do user nhập
+      // Bỏ qua field "Nhập bởi thương vụ" vì field này do hệ thống tự điền
+      setSurveyData((prev) => {
+        if (hasSurveyContent(prev, { ignoreSalesperson: true })) {
+          console.log(
+            "[StoreSurvey IOS] Form already has content - skip autofill",
+          );
+          return prev;
+        }
+        console.log(
+          "[StoreSurvey IOS] Autofilled from server surveys:",
+          surveys.length,
+        );
+        // Mở rộng "Title 2" để user nhìn thấy dữ liệu đã điền
+        setExpandedTitles((prev) => ({ ...prev, title2: true }));
+        return serverData;
+      });
+    } catch (error) {
+      // Không chặn luồng chính nếu autofill lỗi
+      console.error("Error autofilling from server:", error);
+    }
+  };
+
+  // Load saved survey data for autofill (form data, not audit results)
+  // Nguồn: 1) localStorage (cache)  2) API - khảo sát mới nhất của cửa hàng
   useEffect(() => {
     const loadSavedSurveyData = () => {
       try {
         if (user?.id && storeId && storeId > 0) {
-          const storageKey = `survey_data_${user.id}_${storeId}`;
+          const storageKey = getSurveyDataKey(user.id, storeId);
           const savedData = localStorage.getItem(storageKey);
           if (savedData) {
             const parsed = JSON.parse(savedData);
@@ -192,6 +248,9 @@ const StoreSurvey = () => {
             // This prevents showing data from previous store
             setSurveyData(createEmptySurveyData());
           }
+
+          // Autofill từ DB nếu user chưa xóa dữ liệu đã điền
+          autofillFromServer(user.id, storeId);
         } else {
           // No user or invalid storeId, clear form
           setSurveyData(createEmptySurveyData());
@@ -216,7 +275,7 @@ const StoreSurvey = () => {
       handleInputChange("importedBySalesperson", user.fullName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, surveyData.importedBySalesperson]);
 
   // Auto-expand title 3 on mount (after taking photos)
   useEffect(() => {
@@ -241,7 +300,7 @@ const StoreSurvey = () => {
 
   const showNotification = (
     message: string,
-    type: "success" | "error" | "info" = "info"
+    type: "success" | "error" | "info" = "info",
   ) => {
     setNotification({ isOpen: true, message, type });
   };
@@ -254,18 +313,20 @@ const StoreSurvey = () => {
     if (!user?.id || !storeId || storeId <= 0) {
       showNotification(
         "Không xác định được người dùng hoặc cửa hàng để xóa dữ liệu.",
-        "error"
+        "error",
       );
       return;
     }
     const confirmed = window.confirm(
-      "Xóa dữ liệu?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu cho cửa hàng này."
+      "Xóa dữ liệu?\nThao tác này sẽ xóa dữ liệu khảo sát đã lưu cho cửa hàng này và không tự động điền lại từ khảo sát cũ.",
     );
     if (!confirmed) return;
 
     try {
-      const storageKey = `survey_data_${user.id}_${storeId}`;
+      const storageKey = getSurveyDataKey(user.id, storeId);
       localStorage.removeItem(storageKey);
+      // Đánh dấu để không autofill lại từ server
+      localStorage.setItem(getAutofillSkipKey(user.id, storeId), "1");
       setSurveyData(createEmptySurveyData());
       showNotification("Đã xóa dữ liệu thành công", "success");
     } catch (error) {
@@ -277,7 +338,7 @@ const StoreSurvey = () => {
   // Camera functions
   const compressImageTo480x640 = (
     dataUrl: string,
-    quality = 0.6
+    quality = 0.6,
   ): Promise<Blob> => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -308,7 +369,7 @@ const StoreSurvey = () => {
             }
           },
           "image/jpeg",
-          quality
+          quality,
         );
       };
       img.onerror = reject;
@@ -336,7 +397,7 @@ const StoreSurvey = () => {
         (error) => {
           reject(error);
         },
-        { timeout: 10000, maximumAge: 60000 }
+        { timeout: 10000, maximumAge: 60000 },
       );
     });
   };
@@ -365,7 +426,7 @@ const StoreSurvey = () => {
       console.error("Error accessing camera:", error);
       showNotification(
         "Không thể truy cập camera. Vui lòng cho phép quyền truy cập camera.",
-        "error"
+        "error",
       );
     }
   };
@@ -409,7 +470,7 @@ const StoreSurvey = () => {
       console.error("Error switching camera:", error);
       showNotification(
         "Không thể chuyển đổi camera. Vui lòng thử lại.",
-        "error"
+        "error",
       );
     }
   };
@@ -417,7 +478,7 @@ const StoreSurvey = () => {
   const captureDirectFromVideo = async (
     video: HTMLVideoElement,
     width: number,
-    height: number
+    height: number,
   ): Promise<string> => {
     await new Promise((resolve) => setTimeout(resolve, 200));
 
@@ -505,7 +566,7 @@ const StoreSurvey = () => {
       if (width === 0 || height === 0) {
         showNotification(
           "Camera chưa sẵn sàng. Vui lòng đợi một chút và thử lại.",
-          "error"
+          "error",
         );
         return;
       }
@@ -543,7 +604,7 @@ const StoreSurvey = () => {
         } catch (imageCaptureError) {
           console.warn(
             "ImageCapture API failed, using direct canvas capture:",
-            imageCaptureError
+            imageCaptureError,
           );
           dataUrl = await captureDirectFromVideo(video, width, height);
         }
@@ -608,7 +669,7 @@ const StoreSurvey = () => {
         data.map((u: { Id: number; FullName?: string; Username?: string }) => ({
           Id: u.Id,
           FullName: u.FullName || u.Username || "",
-        }))
+        })),
       );
     } catch (error) {
       console.error("Error fetching users for sales dropdown:", error);
@@ -616,11 +677,13 @@ const StoreSurvey = () => {
   };
 
   const filteredCementProductsModal = cementProducts.filter((product) =>
-    product.Name.toLowerCase().includes(cementSearchModal.toLowerCase())
+    product.Name.toLowerCase().includes(cementSearchModal.toLowerCase()),
   );
 
   const filteredSalesUsersModal = salesUsers.filter((user) =>
-    (user.FullName || "").toLowerCase().includes(salesSearchModal.toLowerCase())
+    (user.FullName || "")
+      .toLowerCase()
+      .includes(salesSearchModal.toLowerCase()),
   );
 
   const toggleTitle = (title: "title2" | "title3") => {
@@ -639,7 +702,7 @@ const StoreSurvey = () => {
 
   const handleInputChange = (
     field: keyof SurveyData,
-    value: string | number | null
+    value: string | number | null,
   ) => {
     setSurveyData((prev) => ({
       ...prev,
@@ -716,7 +779,7 @@ const StoreSurvey = () => {
       | "importedFromNPP"
       | "discountPromotion"
       | "averageStockQuantity",
-    value: string | number | null
+    value: string | number | null,
   ) => {
     setSurveyData((prev) => {
       const newProducts = [...prev.products];
@@ -743,13 +806,13 @@ const StoreSurvey = () => {
       setTransportFeeOptions((prev) =>
         prev.includes(numericValue)
           ? prev
-          : [...prev, numericValue].sort((a, b) => a - b)
+          : [...prev, numericValue].sort((a, b) => a - b),
       );
     } else {
       setPriceOptions((prev) =>
         prev.includes(numericValue)
           ? prev
-          : [...prev, numericValue].sort((a, b) => a - b)
+          : [...prev, numericValue].sort((a, b) => a - b),
       );
     }
   };
@@ -777,7 +840,7 @@ const StoreSurvey = () => {
 
   const handleSelectCementProduct = (
     productIndex: number,
-    cementProductId: number
+    cementProductId: number,
   ) => {
     handleProductChange(productIndex, "cementProductId", cementProductId);
     closeCementPicker();
@@ -789,7 +852,7 @@ const StoreSurvey = () => {
     handleProductChange(
       activePricePicker.productIndex,
       activePricePicker.field,
-      formatted
+      formatted,
     );
     closePricePicker();
   };
@@ -817,7 +880,7 @@ const StoreSurvey = () => {
     handleProductChange(
       activePricePicker.productIndex,
       activePricePicker.field,
-      formatted
+      formatted,
     );
     closePricePicker();
   };
@@ -838,7 +901,7 @@ const StoreSurvey = () => {
     // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
     surveyData.products.forEach((product, index) => {
       const hasAnyValue = Object.values(product || {}).some(
-        (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
+        (v) => v !== null && v !== undefined && `${v}`.trim() !== "",
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
@@ -902,7 +965,8 @@ const StoreSurvey = () => {
 
     // Kiểm tra ảnh trước
     const imagesToUpload = capturedImages.filter(
-      (img): img is NonNullable<typeof img> => img !== undefined && img !== null
+      (img): img is NonNullable<typeof img> =>
+        img !== undefined && img !== null,
     );
 
     if (imagesToUpload.length !== 3) {
@@ -932,7 +996,7 @@ const StoreSurvey = () => {
           timestamp: string;
           timezoneOffset: number;
         },
-        index: number
+        index: number,
       ) => {
         const compressedBlob = await compressImageTo480x640(img.dataUrl, 0.6);
         const formData = new FormData();
@@ -998,8 +1062,10 @@ const StoreSurvey = () => {
       // Save form data for autofill for this specific store
       if (user?.id) {
         try {
-          const storageKey = `survey_data_${user.id}_${parsedStoreId}`;
+          const storageKey = getSurveyDataKey(user.id, parsedStoreId);
           localStorage.setItem(storageKey, JSON.stringify(surveyData));
+          // Xóa cờ "user đã xóa dữ liệu" vì đã submit thành công
+          localStorage.removeItem(getAutofillSkipKey(user.id, parsedStoreId));
         } catch (error) {
           console.error("Error saving survey data for store:", error);
         }
@@ -1247,7 +1313,7 @@ const StoreSurvey = () => {
                             <span className="store-survey-dropdown-value">
                               {product.cementProductId
                                 ? cementProducts.find(
-                                    (p) => p.Id === product.cementProductId
+                                    (p) => p.Id === product.cementProductId,
                                   )?.Name || "Chọn loại xi măng"
                                 : "Chọn loại xi măng"}
                             </span>
@@ -1270,7 +1336,7 @@ const StoreSurvey = () => {
                             handleProductChange(
                               index,
                               "contactPersonPhone",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           placeholder="VD: Nguyễn A – 0909xxxx"
@@ -1400,7 +1466,7 @@ const StoreSurvey = () => {
                             handleProductChange(
                               index,
                               "importedFromNPP",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           placeholder="Nhập tên NPP"
@@ -1423,7 +1489,7 @@ const StoreSurvey = () => {
                             handleProductChange(
                               index,
                               "discountPromotion",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           placeholder="Nhập thông tin chương trình"
@@ -1446,7 +1512,7 @@ const StoreSurvey = () => {
                             handleProductChange(
                               index,
                               "averageStockQuantity",
-                              e.target.value
+                              e.target.value,
                             )
                           }
                           placeholder="Nhập sản lượng bình quân (tấn/tháng)"
@@ -1580,7 +1646,7 @@ const StoreSurvey = () => {
                   onChange={(e) =>
                     handleInputChange(
                       "newProductImportQuantity",
-                      e.target.value
+                      e.target.value,
                     )
                   }
                   placeholder="Nhập tên sản phẩm và số lượng"
@@ -1952,7 +2018,7 @@ const StoreSurvey = () => {
                     return;
                   }
                   setProductTypes((prev) =>
-                    prev.includes(trimmed) ? prev : [...prev, trimmed]
+                    prev.includes(trimmed) ? prev : [...prev, trimmed],
                   );
                   setShowAddProductTypeModal(false);
                 }}
@@ -2230,8 +2296,8 @@ const StoreSurvey = () => {
                     notification.type === "success"
                       ? "#10b981"
                       : notification.type === "error"
-                      ? "#ef4444"
-                      : "#3b82f6",
+                        ? "#ef4444"
+                        : "#3b82f6",
                   flexShrink: 0,
                 }}
               >
@@ -2239,8 +2305,8 @@ const StoreSurvey = () => {
                   {notification.type === "success"
                     ? "✓"
                     : notification.type === "error"
-                    ? "✕"
-                    : "ℹ"}
+                      ? "✕"
+                      : "ℹ"}
                 </span>
               </div>
               <h2
@@ -2255,8 +2321,8 @@ const StoreSurvey = () => {
                 {notification.type === "success"
                   ? "Thành công"
                   : notification.type === "error"
-                  ? "Lỗi"
-                  : "Thông báo"}
+                    ? "Lỗi"
+                    : "Thông báo"}
               </h2>
             </div>
             <p

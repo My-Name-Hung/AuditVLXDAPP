@@ -11,7 +11,10 @@ const { getPool } = require("./config/database");
 require("./config/cloudinary");
 const { seedAdminUser } = require("./utils/seedAdmin");
 const seedSampleData = require("./utils/seedSampleData");
-const { ensureUploadDir, UPLOAD_DIR } = require("./services/localUploadService");
+const {
+  ensureUploadDir,
+  UPLOAD_DIR,
+} = require("./services/localUploadService");
 
 // Middleware
 const corsOptions = {
@@ -24,16 +27,19 @@ app.use(express.urlencoded({ extended: true }));
 
 // Serve uploaded images as static files
 const uploadsDir = path.join(__dirname, "uploads");
-app.use("/api/uploads", express.static(uploadsDir, {
-  maxAge: "1d", // Cache 1 day
-  etag: true,
-  lastModified: true,
-  setHeaders: (res, filePath) => {
-    res.set("Access-Control-Allow-Origin", "*");
-    res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
-    res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  },
-}));
+app.use(
+  "/api/uploads",
+  express.static(uploadsDir, {
+    maxAge: "1d", // Cache 1 day
+    etag: true,
+    lastModified: true,
+    setHeaders: (res, filePath) => {
+      res.set("Access-Control-Allow-Origin", "*");
+      res.set("Access-Control-Allow-Methods", "GET, OPTIONS");
+      res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    },
+  }),
+);
 
 // Routes
 app.use("/api/auth", require("./routes/auth"));
@@ -121,22 +127,24 @@ async function initializeServices() {
   } catch (error) {
     console.error(
       "❌ Failed to initialize database connection:",
-      error.message
+      error.message,
     );
     console.error("   Please check your database configuration in .env file");
   }
 
   // Log local storage configuration
   console.log(`📁 Upload directory: ${UPLOAD_DIR}`);
-  console.log(`🔗 Base URL: ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
+  console.log(
+    `🔗 Base URL: ${process.env.BASE_URL || `http://localhost:${PORT}`}`,
+  );
 
   // Check JWT secret
   if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
     console.warn(
-      "⚠️  JWT_SECRET is not set or too short (minimum 32 characters)"
+      "⚠️  JWT_SECRET is not set or too short (minimum 32 characters)",
     );
     console.warn(
-      "   This is a security risk! Please set a strong JWT_SECRET in .env"
+      "   This is a security risk! Please set a strong JWT_SECRET in .env",
     );
   } else {
     console.log("✅ JWT configuration loaded");
@@ -171,11 +179,14 @@ app.listen(PORT, async () => {
   });
 
   // Schedule cleanup to run every 24 hours
-  setInterval(() => {
-    cleanupImportHistory().catch((err) => {
-      console.error("Error running scheduled cleanup:", err);
-    });
-  }, 24 * 60 * 60 * 1000); // 24 hours in milliseconds
+  setInterval(
+    () => {
+      cleanupImportHistory().catch((err) => {
+        console.error("Error running scheduled cleanup:", err);
+      });
+    },
+    24 * 60 * 60 * 1000,
+  ); // 24 hours in milliseconds
 
   console.log("=".repeat(50));
   console.log(`✅ Server ready! Health check: http://localhost:${PORT}/health`);

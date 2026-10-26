@@ -194,6 +194,98 @@ class StoreSurvey {
     return result.recordset;
   }
 
+  /**
+   * Lấy khảo sát MỚI NHẤT của một cửa hàng (dùng để autofill form cho tháng sau).
+   * - Ưu tiên khảo sát gần nhất của chính user hiện tại.
+   * - Nếu user đó chưa có khảo sát nào, fallback về khảo sát mới nhất của cửa hàng.
+   * Trả về null nếu cửa hàng chưa có khảo sát nào.
+   */
+  static async findLatestForAutofill(storeId, userId = null) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("StoreId", sql.Int, storeId);
+
+    let userFilter = "";
+    if (userId) {
+      request.input("UserId", sql.Int, userId);
+      userFilter = " AND ss.UserId = @UserId";
+    }
+
+    const result = await request.query(`
+      SELECT TOP 1
+        ss.Id,
+        ss.StoreId,
+        ss.AuditId,
+        ss.UserId,
+        ss.SupplierName,
+        ss.WhyNotSellNewProduct,
+        ss.TimeToSellNewProduct,
+        ss.NewProductImportQuantity,
+        ss.ImportedBySalesperson,
+        ss.StoreComment,
+        ss.CreatedAt,
+        s.StoreCode,
+        s.StoreName,
+        u.FullName as UserFullName,
+        u.UserCode,
+        a.AuditDate
+      FROM StoreSurveys ss
+      INNER JOIN Stores s ON ss.StoreId = s.Id
+      INNER JOIN Users u ON ss.UserId = u.Id
+      LEFT JOIN Audits a ON ss.AuditId = a.Id
+      WHERE ss.StoreId = @StoreId${userFilter}
+      ORDER BY ss.CreatedAt DESC
+    `);
+
+    return result.recordset[0] || null;
+  }
+
+  /**
+   * Lấy N khảo sát gần nhất của cửa hàng (dùng để autofill).
+   * Mục đích: merge dữ liệu từ nhiều lần khảo sát, vì mỗi lần user có thể
+   * chỉ điền một phần field (do bỏ trống hoặc bị mất).
+   */
+  static async findRecentForAutofill(storeId, userId = null, limit = 5) {
+    const pool = await getPool();
+    const request = pool.request();
+    request.input("StoreId", sql.Int, storeId);
+    request.input("Limit", sql.Int, limit);
+
+    let userFilter = "";
+    if (userId) {
+      request.input("UserId", sql.Int, userId);
+      userFilter = " AND ss.UserId = @UserId";
+    }
+
+    const result = await request.query(`
+      SELECT TOP (@Limit)
+        ss.Id,
+        ss.StoreId,
+        ss.AuditId,
+        ss.UserId,
+        ss.SupplierName,
+        ss.WhyNotSellNewProduct,
+        ss.TimeToSellNewProduct,
+        ss.NewProductImportQuantity,
+        ss.ImportedBySalesperson,
+        ss.StoreComment,
+        ss.CreatedAt,
+        s.StoreCode,
+        s.StoreName,
+        u.FullName as UserFullName,
+        u.UserCode,
+        a.AuditDate
+      FROM StoreSurveys ss
+      INNER JOIN Stores s ON ss.StoreId = s.Id
+      INNER JOIN Users u ON ss.UserId = u.Id
+      LEFT JOIN Audits a ON ss.AuditId = a.Id
+      WHERE ss.StoreId = @StoreId${userFilter}
+      ORDER BY ss.CreatedAt DESC
+    `);
+
+    return result.recordset;
+  }
+
   static async findAll(filters = {}) {
     const pool = await getPool();
 

@@ -2,6 +2,12 @@ import { useAuth } from "@/src/contexts/AuthContext";
 import { useSurvey } from "@/src/contexts/SurveyContext";
 import { useTheme } from "@/src/contexts/ThemeContext";
 import api from "@/src/services/api";
+import {
+  getAutofillSkipKey,
+  getSurveyDataKey,
+  hasSurveyContent,
+  mergeApiSurveysToForm,
+} from "@/src/utils/surveyAutofill";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -11,18 +17,18 @@ import * as Location from "expo-location";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -154,7 +160,7 @@ export default function StoreSurveyScreen() {
   const [productTypes] = useState<string[]>(PRODUCT_TYPES);
   const [priceOptions, setPriceOptions] = useState<number[]>(PRICE_SUGGESTIONS);
   const [transportFeeOptions, setTransportFeeOptions] = useState<number[]>(
-    TRANSPORT_FEE_SUGGESTIONS
+    TRANSPORT_FEE_SUGGESTIONS,
   );
   const [activePricePicker, setActivePricePicker] = useState<{
     productIndex: number;
@@ -163,7 +169,7 @@ export default function StoreSurveyScreen() {
   const [customPriceValue, setCustomPriceValue] = useState("");
 
   const [surveyData, setSurveyData] = useState<SurveyData>(
-    createEmptySurveyData()
+    createEmptySurveyData(),
   );
 
   // Camera and location states
@@ -178,7 +184,10 @@ export default function StoreSurveyScreen() {
   // QUAN TRỌNG: Clear capturedImages mỗi khi id thay đổi (khi chuyển cửa hàng)
   // Effect này phải chạy TRƯỚC tất cả các effects khác
   useEffect(() => {
-    console.log("[StoreSurvey Mobile] Force clearing capturedImages for store:", id);
+    console.log(
+      "[StoreSurvey Mobile] Force clearing capturedImages for store:",
+      id,
+    );
     setCapturedImages([undefined, undefined, undefined]);
     setCachedLocation(null);
     clearSurveyData(); // Clear context để tránh restore ảnh từ store trước
@@ -186,15 +195,68 @@ export default function StoreSurveyScreen() {
   const [locationLoadingModalVisible, setLocationLoadingModalVisible] =
     useState(false);
 
-  // Load saved survey data from AsyncStorage for autofill (form data, not audit results)
-  // Now saved per store to prevent data overlap between stores
+  /**
+   * Autofill form từ khảo sát mới nhất trên server.
+   * - Bỏ qua nếu user đã bấm "Xóa dữ liệu đã điền" (cờ skip).
+   * - Bỏ qua nếu form đã có nội dung (không ghi đè dữ liệu user vừa nhập).
+   */
+  const autofillFromServer = async (userId: number, storeId: number) => {
+    try {
+      // User đã xóa dữ liệu đã điền -> không tự động lấy lại
+      const skipKey = getAutofillSkipKey(userId, storeId);
+      const skipped = await AsyncStorage.getItem(skipKey);
+      if (skipped === "1") {
+        console.log(
+          "[StoreSurvey Mobile] Autofill skipped (user cleared data)"
+        );
+        return;
+      }
+
+      const response = await api.get("/store-surveys/latest", {
+        params: { storeId, userId },
+      });
+
+      const { surveys, productsBySurveyId } = response.data || {};
+      if (!surveys || surveys.length === 0) {
+        console.log("[StoreSurvey Mobile] No previous survey to autofill");
+        return;
+      }
+
+      const serverData = mergeApiSurveysToForm(surveys, productsBySurveyId);
+      if (!serverData) return;
+
+      // Không ghi đè nếu form đã có nội dung do user nhập
+      // Bỏ qua field "Nhập bởi thương vụ" vì field này do hệ thống tự điền
+      setSurveyData((prev) => {
+        if (hasSurveyContent(prev, { ignoreSalesperson: true })) {
+          console.log(
+            "[StoreSurvey Mobile] Form already has content - skip autofill"
+          );
+          return prev;
+        }
+        console.log(
+          "[StoreSurvey Mobile] Autofilled from server surveys:",
+          surveys.length
+        );
+        // Mở rộng "Title 2" để user nhìn thấy dữ liệu đã điền
+        setExpandedTitles((prev) => ({ ...prev, title2: true }));
+        return serverData;
+      });
+    } catch (error) {
+      // Không chặn luồng chính nếu autofill lỗi
+      console.error("Error autofilling from server:", error);
+    }
+  };
+
+  // Load saved survey data for autofill (form data, not audit results)
+  // Nguồn: 1) local storage (cache)  2) API - khảo sát mới nhất của cửa hàng
   useEffect(() => {
     const loadSavedSurveyData = async () => {
       try {
         if (user?.id && id) {
           const storeId = parseInt(id);
           if (!isNaN(storeId)) {
-            const storageKey = `survey_data_${user.id}_${storeId}`;
+            const storageKey = getSurveyDataKey(user.id, storeId);
             const savedData = await AsyncStorage.getItem(storageKey);
             if (savedData) {
               const parsed = JSON.parse(savedData);
@@ -205,6 +267,9 @@ export default function StoreSurveyScreen() {
               // This prevents showing data from previous store
               setSurveyData(createEmptySurveyData());
             }
+
+            // Autofill từ DB nếu user chưa xóa dữ liệu đã điền
+            await autofillFromServer(user.id, storeId);
           } else {
             // Invalid storeId, clear form
             setSurveyData(createEmptySurveyData());
@@ -228,12 +293,13 @@ export default function StoreSurveyScreen() {
   // Survey data is only saved after successful submission as a template
 
   // Autofill current user into "Nhập bởi thương vụ"
+  // - Chỉ điền khi field còn trống (không ghi đè giá trị đã autofill từ server)
   useEffect(() => {
     if (user && user.fullName && !surveyData.importedBySalesperson) {
       handleInputChange("importedBySalesperson", user.fullName);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, surveyData.importedBySalesperson]);
 
   // Auto-expand title 3 on mount (after taking photos)
   useEffect(() => {
@@ -258,7 +324,7 @@ export default function StoreSurveyScreen() {
     if (status !== "granted") {
       Alert.alert(
         "Quyền truy cập",
-        "Cần quyền truy cập vị trí để ghi nhận tọa độ"
+        "Cần quyền truy cập vị trí để ghi nhận tọa độ",
       );
       return false;
     }
@@ -354,7 +420,7 @@ export default function StoreSurveyScreen() {
     if (!user?.id || !id) {
       Alert.alert(
         "Thông báo",
-        "Không xác định được người dùng hoặc cửa hàng để xóa dữ liệu."
+        "Không xác định được người dùng hoặc cửa hàng để xóa dữ liệu.",
       );
       return;
     }
@@ -365,7 +431,7 @@ export default function StoreSurveyScreen() {
     }
     Alert.alert(
       "Xóa dữ liệu đã điền?",
-      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu cho cửa hàng này.",
+      "Thao tác này sẽ xóa dữ liệu khảo sát đã lưu cho cửa hàng này và không tự động điền lại từ khảo sát cũ.",
       [
         { text: "Huỷ", style: "cancel" },
         {
@@ -373,8 +439,13 @@ export default function StoreSurveyScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const storageKey = `survey_data_${user.id}_${storeId}`;
+              const storageKey = getSurveyDataKey(user.id, storeId);
               await AsyncStorage.removeItem(storageKey);
+              // Đánh dấu để không autofill lại từ server
+              await AsyncStorage.setItem(
+                getAutofillSkipKey(user.id, storeId),
+                "1"
+              );
               setSurveyData(createEmptySurveyData());
             } catch (error) {
               console.error("Error clearing data:", error);
@@ -382,7 +453,7 @@ export default function StoreSurveyScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -420,7 +491,7 @@ export default function StoreSurveyScreen() {
         data.map((u: { Id: number; FullName?: string; Username?: string }) => ({
           Id: u.Id,
           FullName: u.FullName || u.Username || "",
-        }))
+        })),
       );
     } catch (error) {
       console.error("Error fetching users for sales dropdown:", error);
@@ -428,11 +499,11 @@ export default function StoreSurveyScreen() {
   };
 
   const filteredCementProducts = cementProducts.filter((product) =>
-    product.Name.toLowerCase().includes(cementSearch.toLowerCase())
+    product.Name.toLowerCase().includes(cementSearch.toLowerCase()),
   );
 
   const filteredSalesUsers = salesUsers.filter((user) =>
-    (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase())
+    (user.FullName || "").toLowerCase().includes(salesSearch.toLowerCase()),
   );
 
   const toggleTitle = (title: "title2" | "title3") => {
@@ -451,7 +522,7 @@ export default function StoreSurveyScreen() {
 
   const handleInputChange = (
     field: keyof SurveyData,
-    value: string | number | null
+    value: string | number | null,
   ) => {
     setSurveyData((prev) => ({
       ...prev,
@@ -528,7 +599,7 @@ export default function StoreSurveyScreen() {
       | "importedFromNPP"
       | "discountPromotion"
       | "averageStockQuantity",
-    value: string | number | null
+    value: string | number | null,
   ) => {
     setSurveyData((prev) => {
       const newProducts = [...prev.products];
@@ -555,13 +626,13 @@ export default function StoreSurveyScreen() {
       setTransportFeeOptions((prev) =>
         prev.includes(numericValue)
           ? prev
-          : [...prev, numericValue].sort((a, b) => a - b)
+          : [...prev, numericValue].sort((a, b) => a - b),
       );
     } else {
       setPriceOptions((prev) =>
         prev.includes(numericValue)
           ? prev
-          : [...prev, numericValue].sort((a, b) => a - b)
+          : [...prev, numericValue].sort((a, b) => a - b),
       );
     }
   };
@@ -586,7 +657,7 @@ export default function StoreSurveyScreen() {
     handleProductChange(
       activePricePicker.productIndex,
       activePricePicker.field,
-      formatted
+      formatted,
     );
     closePricePicker();
   };
@@ -614,7 +685,7 @@ export default function StoreSurveyScreen() {
     handleProductChange(
       activePricePicker.productIndex,
       activePricePicker.field,
-      formatted
+      formatted,
     );
     closePricePicker();
   };
@@ -634,7 +705,7 @@ export default function StoreSurveyScreen() {
     // Title 3 validation (optional): nếu không nhập sản phẩm, bỏ qua lỗi
     surveyData.products.forEach((product, index) => {
       const hasAnyValue = Object.values(product || {}).some(
-        (v) => v !== null && v !== undefined && `${v}`.trim() !== ""
+        (v) => v !== null && v !== undefined && `${v}`.trim() !== "",
       );
       if (!hasAnyValue) return; // bỏ qua sản phẩm trống
 
@@ -703,7 +774,7 @@ export default function StoreSurveyScreen() {
 
     // Kiểm tra ảnh trước
     const imagesToUpload = capturedImages.filter(
-      (img): img is NonNullable<typeof img> => img !== undefined
+      (img): img is NonNullable<typeof img> => img !== undefined,
     );
 
     if (imagesToUpload.length !== 3) {
@@ -733,13 +804,13 @@ export default function StoreSurveyScreen() {
             {
               compress: 0.6,
               format: ImageManipulator.SaveFormat.JPEG,
-            }
+            },
           );
           return {
             ...img,
             uri: manipulated.uri,
           };
-        })
+        }),
       );
 
       const uploadImageStrict = async (
@@ -750,7 +821,7 @@ export default function StoreSurveyScreen() {
           timestamp: string;
           timezoneOffset: number;
         },
-        index: number
+        index: number,
       ) => {
         const formData = new FormData();
         formData.append("image", {
@@ -822,8 +893,12 @@ export default function StoreSurveyScreen() {
       // Save form data for autofill for this specific store
       if (user?.id) {
         try {
-          const storageKey = `survey_data_${user.id}_${storeId}`;
+          const storageKey = getSurveyDataKey(user.id, storeId);
           await AsyncStorage.setItem(storageKey, JSON.stringify(surveyData));
+          // Xóa cờ "user đã xóa dữ liệu" vì đã submit thành công
+          await AsyncStorage.removeItem(
+            getAutofillSkipKey(user.id, storeId)
+          );
         } catch (error) {
           console.error("Error saving survey data for store:", error);
         }
@@ -1109,7 +1184,7 @@ export default function StoreSurveyScreen() {
                                 >
                                   {product.cementProductId
                                     ? cementProducts.find(
-                                        (p) => p.Id === product.cementProductId
+                                        (p) => p.Id === product.cementProductId,
                                       )?.Name || "Chọn loại xi măng"
                                     : "Chọn loại xi măng"}
                                 </Text>
@@ -1142,7 +1217,7 @@ export default function StoreSurveyScreen() {
                               handleProductChange(
                                 index,
                                 "contactPersonPhone",
-                                value
+                                value,
                               )
                             }
                             placeholder="VD: Nguyễn A – 0909xxxx"
@@ -1332,7 +1407,7 @@ export default function StoreSurveyScreen() {
                               handleProductChange(
                                 index,
                                 "importedFromNPP",
-                                value
+                                value,
                               )
                             }
                             placeholder="Nhập tên NPP"
@@ -1358,7 +1433,7 @@ export default function StoreSurveyScreen() {
                               handleProductChange(
                                 index,
                                 "discountPromotion",
-                                value
+                                value,
                               )
                             }
                             placeholder="Nhập thông tin chương trình"
@@ -1384,7 +1459,7 @@ export default function StoreSurveyScreen() {
                               handleProductChange(
                                 index,
                                 "averageStockQuantity",
-                                value
+                                value,
                               )
                             }
                             placeholder="Nhập sản lượng bình quân (tấn/tháng)"
@@ -1507,7 +1582,7 @@ export default function StoreSurveyScreen() {
                     >
                       {surveyData.timeToSellNewProduct
                         ? new Date(
-                            surveyData.timeToSellNewProduct
+                            surveyData.timeToSellNewProduct,
                           ).toLocaleDateString("vi-VN")
                         : "Chọn ngày"}
                     </Text>
@@ -1532,7 +1607,7 @@ export default function StoreSurveyScreen() {
                         if (selectedDate) {
                           handleInputChange(
                             "timeToSellNewProduct",
-                            selectedDate.toISOString()
+                            selectedDate.toISOString(),
                           );
                         }
                       }}
@@ -1858,7 +1933,7 @@ export default function StoreSurveyScreen() {
                       handleProductChange(
                         showProductTypePicker,
                         "productType",
-                        type
+                        type,
                       );
                       setShowProductTypePicker(null);
                     }
@@ -2007,7 +2082,7 @@ export default function StoreSurveyScreen() {
                       handleProductChange(
                         showCementProductPicker,
                         "cementProductId",
-                        product.Id
+                        product.Id,
                       );
                       setShowCementProductPicker(null);
                     }

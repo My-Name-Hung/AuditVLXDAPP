@@ -5,6 +5,11 @@ const { authenticateToken } = require("../middlewares/auth");
 
 router.post("/", authenticateToken, storeSurveysController.createStoreSurvey);
 router.get("/export", authenticateToken, storeSurveysController.exportStoreSurveys);
+router.get(
+  "/latest",
+  authenticateToken,
+  storeSurveysController.getLatestStoreSurveyForAutofill
+);
 router.get("/", authenticateToken, storeSurveysController.getAllStoreSurveys);
 router.get("/:id", authenticateToken, storeSurveysController.getStoreSurveyById);
 router.get("/audit/:auditId", authenticateToken, storeSurveysController.getStoreSurveyByAuditId);
