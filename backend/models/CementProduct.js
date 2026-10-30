@@ -95,43 +95,63 @@ class CementProduct {
     return true;
   }
 
-  static async bulkCreate(cementProducts) {
+static async bulkCreate(cementProducts) {
     const pool = await getPool();
     const transaction = new sql.Transaction(pool);
 
     try {
-      await transaction.begin();
+        await transaction.begin();
 
-      const inserted = [];
+        const inserted = [];
 
-      for (const product of cementProducts) {
-        // Create a new request per iteration to avoid parameter conflicts
-        const request = new sql.Request(transaction);
+        for (const product of cementProducts) {
+            const request = new sql.Request(transaction);
 
-        request.input("Code", sql.VarChar(50), product.Code);
-        request.input("Name", sql.NVarChar(500), product.Name);
+            request.input("Code", sql.VarChar(50), product.Code);
+            request.input("Name", sql.NVarChar(500), product.Name);
 
-        const result = await request.query(`
-          IF NOT EXISTS (SELECT 1 FROM CementProducts WHERE Code = @Code)
-          BEGIN
-            INSERT INTO CementProducts (Code, Name, CreatedAt, UpdatedAt)
-            OUTPUT INSERTED.*
-            VALUES (@Code, @Name, GETDATE(), GETDATE())
-          END
-        `);
+            const result = await request.query(`
+                IF NOT EXISTS (
+                    SELECT 1
+                    FROM CementProducts
+                    WHERE Code = @Code
+                )
+                BEGIN
+                    INSERT INTO CementProducts (
+                        Code,
+                        Name,
+                        CreatedAt,
+                        UpdatedAt
+                    )
+                    OUTPUT INSERTED.*
+                    VALUES (
+                        @Code,
+                        @Name,
+                        GETDATE(),
+                        GETDATE()
+                    );
+                END
+            `);
 
-        if (result.recordset?.length > 0) {
-          inserted.push(result.recordset[0]);
+            // SQL Server có thể không trả về recordset
+            if (result.recordset?.length > 0) {
+                inserted.push(result.recordset[0]);
+            }
         }
-      }
 
-      await transaction.commit();
-      return inserted;
+        await transaction.commit();
+
+        return inserted;
     } catch (error) {
-      await transaction.rollback();
-      throw error;
+        try {
+            await transaction.rollback();
+        } catch (rollbackError) {
+            console.error("Rollback cement products error:", rollbackError);
+        }
+
+        throw error;
     }
-  }
+ }
 }
 
 module.exports = CementProduct;
