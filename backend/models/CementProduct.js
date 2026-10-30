@@ -120,7 +120,7 @@ class CementProduct {
           END
         `);
 
-        if (result.recordset.length > 0) {
+        if (result.recordset?.length > 0) {
           inserted.push(result.recordset[0]);
         }
       }
